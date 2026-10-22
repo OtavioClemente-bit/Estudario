@@ -1,32 +1,21 @@
 package br.com.estudario.ui.profile
 
 import android.content.Context
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import br.com.estudario.domain.FolhaItem
 import br.com.estudario.domain.FolhaRarity
 import br.com.estudario.domain.FolhaWardrobe
 import br.com.estudario.ui.AppViewModel
-import br.com.estudario.ui.assistant.FolhaChest
-import br.com.estudario.ui.components.AppMarkBackground
-import kotlinx.coroutines.delay
 
-/** Peças já comemoradas neste aparelho (para o baú abrir só para o que é novo de verdade). */
+/** Peças já comemoradas neste aparelho (para o presente abrir só para o que é novo de verdade). */
 private object FolhaGiftSeen {
     private fun prefs(context: Context) = context.getSharedPreferences("folha_look", Context.MODE_PRIVATE)
     fun read(context: Context): Set<String>? = prefs(context).getString("celebrated", null)?.split(",")?.filter { it.isNotBlank() }?.toSet()
@@ -36,7 +25,7 @@ private object FolhaGiftSeen {
 private fun FolhaItem.key() = slot.name + ":" + id
 
 /**
- * Quando uma conquista libera peça nova no armário, abre o baú depois das outras comemorações. Na
+ * Quando uma conquista libera peça nova no armário, abre o presente depois das outras comemorações. Na
  * primeira vez no aparelho (ou depois de restaurar um backup), o que já estava liberado entra sem festa.
  */
 @Composable
@@ -65,33 +54,27 @@ private fun rarityAccent(r: FolhaRarity) = when (r) {
     FolhaRarity.LENDARIA -> Color(0xFFFFD877)
 }
 
-/** A tela do baú: ele abre, o Folha sobe vestindo a peça, e aparecem o nome, a raridade e os botões. */
+/**
+ * Peça nova (a mesma cena do site): o presente cai na frente do Folha, pula impaciente, desamarra, a
+ * tampa voa e a luz da peça sai, dá a volta nele e, num clarão, ele aparece vestindo. Depois entram o
+ * nome, a raridade e os botões.
+ */
 @Composable
 fun FolhaGiftDialog(item: FolhaItem, onUse: () -> Unit, onClose: () -> Unit) {
-    var textIn by remember(item) { mutableStateOf(false) }
-    LaunchedEffect(item) { delay(2300); textIn = true }
-    val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (textIn) 1f else 0f, androidx.compose.animation.core.tween(450), label = "texto")
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(AppMarkBackground, Color(0xFF1A1050), AppMarkBackground)))) {
-            Column(
-                Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-            ) {
-                FolhaChest(item.slot.key, item.id, item.rarity.name.lowercase(), 280.dp)
-                Spacer(Modifier.height(10.dp))
-                Column(Modifier.alpha(textAlpha), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("NOVA PEÇA · ${item.rarity.label.uppercase()}", color = rarityAccent(item.rarity), fontWeight = FontWeight.Black, letterSpacing = 2.sp, style = MaterialTheme.typography.labelLarge)
-                    Text(item.name, color = Color.White, fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
-                    Text("${item.slot.label} · ${FolhaWardrobe.requirement(item)}", color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp)) { Text("Depois", color = Color.White) }
-                        Button(onClick = onUse, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF5B83D), contentColor = Color(0xFF2A1A05))) {
-                            Text("Usar agora", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+    SceneCelebration(
+        scene = listOf("tipo" to "peca", "piece-slot" to item.slot.key, "piece" to item.id, "rarity" to item.rarity.name.lowercase()),
+        reveal = 3.6f,
+        onDismiss = onClose,
+        text = {
+            CelEyebrow("NOVA PEÇA · ${item.rarity.label.uppercase()}", rarityAccent(item.rarity))
+            CelTitle(item.name)
+            CelBody("${item.slot.label} · ${FolhaWardrobe.requirement(item)}")
+        },
+        actions = {
+            OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp)) { Text("Depois", color = Color.White) }
+            Button(onClick = onUse, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp), colors = ButtonDefaults.buttonColors(containerColor = CelGold, contentColor = Color(0xFF2A1A05))) {
+                Text("Usar agora", fontWeight = FontWeight.Bold)
             }
-        }
-    }
+        },
+    )
 }

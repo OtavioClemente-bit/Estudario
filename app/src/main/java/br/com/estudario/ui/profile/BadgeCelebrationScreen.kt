@@ -1,283 +1,52 @@
 package br.com.estudario.ui.profile
 
-import androidx.compose.foundation.layout.PaddingValues
-import br.com.estudario.ui.components.FitOrScrollColumn
-import br.com.estudario.ui.theme.estudarioLayout
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import br.com.estudario.domain.Badge
-import br.com.estudario.ui.components.AppMarkBackground
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-
-private val Verde = Color(0xFF20B486)
+import br.com.estudario.ui.brand.Button
 
 private fun faixaLabel(tier: Int) = when (tier) {
-    1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Ametista"; else -> "Esmeralda"
+    1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Safira"; 5 -> "Rubi"; else -> "Esmeralda"
 }
 
 /**
- * Comemoração do emblema, no mesmo formato da sequência: tela cheia, raios girando atrás e o
- * escudo entrando com mola. Quando cai mais de um emblema de uma vez, eles aparecem em sequência,
- * cada conquista ganha sua própria tela em vez de virar uma lista.
+ * Emblema novo (a mesma cena do site): a medalha desce girando presa na fita, para de frente, é
+ * cunhada com o símbolo da categoria e ganha a faixa com o nível; o Folha leva um susto e comemora.
+ * Quando cai mais de um emblema de uma vez, cada um ganha a sua cena, em sequência.
  */
 @Composable
 fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
     if (badges.isEmpty()) return
     var index by remember(badges) { mutableIntStateOf(0) }
     val badge = badges.getOrNull(index) ?: return
-    // Saindo: o Folha acena e some subindo antes da tela fechar.
-    var leaving by remember(badges) { androidx.compose.runtime.mutableStateOf(false) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(AppMarkBackground, Color(0xFF0E2E63), AppMarkBackground))),
-        ) {
-            // key: cada emblema reinicia a animação do zero.
-            key(index) { Conteudo(badge, badges.size, index, leaving) }
-
+    SceneCelebration(
+        scene = listOf("tipo" to "emblema", "tier" to badge.tier.toString(), "categoria" to badge.id.substringBefore("-"), "faixa" to faixaLabel(badge.tier)),
+        reveal = 2.0f,
+        onDismiss = onClose,
+        sceneKey = index,
+        text = {
+            CelEyebrow("NOVO EMBLEMA · ${faixaLabel(badge.tier).uppercase()}" + if (badges.size > 1) "  ${index + 1}/${badges.size}" else "")
+            CelTitle(badge.name)
+            CelBody(badge.requirement)
+            CelChip(badge.category.label)
+        },
+        actions = {
             Button(
-                onClick = {
-                    if (index < badges.lastIndex) index++
-                    else if (!leaving) { leaving = true; scope.launch { delay(br.com.estudario.ui.assistant.FOLHA_LEAVE_MS); onClose() } }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .systemBarsPadding()
-                    .padding(28.dp)
-                    .fillMaxWidth()
-                    .heightIn(min = 52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Verde, contentColor = Color.White),
-            ) {
-                Text(
-                    if (index < badges.lastIndex) "Próximo emblema" else "Continuar",
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Conteudo(badge: Badge, total: Int, index: Int, leaving: Boolean = false) {
-    val palette = tierPalette(badge.tier)
-    var stage by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { stage = 1; delay(420); stage = 2 }
-
-    val escala by animateFloatAsState(if (stage >= 1) 1f else 0.4f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow), label = "escala")
-    val opacidade by animateFloatAsState(if (stage >= 1) 1f else 0f, tween(320), label = "opacidade")
-    val texto by animateFloatAsState(if (stage >= 2) 1f else 0f, tween(420), label = "texto")
-
-    // A medalha cai carimbada (como no site): do alto, grande e inclinada, com impacto e um quique.
-    val drop = remember { androidx.compose.animation.core.Animatable(0f) }
-    val land = remember { androidx.compose.animation.core.Animatable(0f) }
-    val shine = remember { androidx.compose.animation.core.Animatable(-1f) }
-    var folhaMood by remember { androidx.compose.runtime.mutableStateOf(br.com.estudario.ui.assistant.FolhaMood.HAPPY) }
-    LaunchedEffect(badge.id) {
-        drop.animateTo(1f, tween(450, easing = androidx.compose.animation.core.FastOutLinearInEasing))
-        land.animateTo(1f, spring(0.35f, Spring.StiffnessMediumLow))
-        delay(200)
-        shine.animateTo(1f, tween(1100))
-        delay(500); folhaMood = br.com.estudario.ui.assistant.FolhaMood.TALKING
-        delay(2200); folhaMood = br.com.estudario.ui.assistant.FolhaMood.WAVE
-    }
-
-    val giro = rememberInfiniteTransition(label = "giro")
-    val angulo by giro.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(12_000, easing = LinearEasing), RepeatMode.Restart),
-        label = "angulo",
+                onClick = { if (index < badges.lastIndex) index++ else onClose() },
+                modifier = Modifier.widthIn(min = 200.dp).heightIn(min = 52.dp), shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CelGold, contentColor = CelMid),
+            ) { Text(if (index < badges.lastIndex) "Próximo emblema" else "Continuar", fontWeight = FontWeight.Black) }
+        },
     )
-
-    // Centralizado quando cabe; rola quando a tela é baixa ou a fonte é grande.
-    FitOrScrollColumn(
-        Modifier.fillMaxSize().systemBarsPadding(),
-        contentPadding = PaddingValues(start = 28.dp, end = 28.dp, top = 28.dp, bottom = 108.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            "EMBLEMA CONQUISTADO",
-            color = palette.glow,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.graphicsLayer { alpha = opacidade },
-        )
-        if (total > 1) {
-            Text(
-                "${index + 1} de $total",
-                color = Color.White.copy(alpha = 0.55f),
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.graphicsLayer { alpha = opacidade },
-            )
-        }
-
-        Spacer(Modifier.height(28.dp))
-
-        Box(contentAlignment = Alignment.Center) {
-            Canvas(
-                Modifier
-                    .size(if (estudarioLayout().isShortHeight) 220.dp else 300.dp)
-                    .graphicsLayer { alpha = opacidade },
-            ) {
-                // Raios de luz girando atrás da medalha, depois do impacto.
-                if (land.value > 0f) {
-                    val c = Offset(size.width / 2, size.height / 2)
-                    rotate(angulo * 0.6f, c) {
-                        repeat(16) { i ->
-                            val a = i * (2 * Math.PI / 16).toFloat()
-                            val r = size.minDimension * 0.62f
-                            val ray = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(c.x, c.y)
-                                lineTo(c.x + kotlin.math.cos(a - 0.07f) * r, c.y + kotlin.math.sin(a - 0.07f) * r)
-                                lineTo(c.x + kotlin.math.cos(a + 0.07f) * r, c.y + kotlin.math.sin(a + 0.07f) * r)
-                                close()
-                            }
-                            drawPath(ray, androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFFFFE58A).copy(alpha = 0.28f * land.value), Color.Transparent), c, r))
-                        }
-                    }
-                }
-                // Confete de papel caindo: retangulinhos coloridos girando, como numa festa de verdade.
-                val cores = listOf(Color(0xFFFFB421), Color(0xFF1FB574), Color(0xFFFF5C4D), Color(0xFF2EA8F5), Color(0xFFF0559A), palette.glow)
-                val t = angulo / 360f
-                repeat(28) { i ->
-                    val semente = (i * 7919) % 1000 / 1000f
-                    val x = size.width * ((i * 0.137f + semente * 0.3f) % 1f)
-                    val queda = ((t * (1.4f + semente) * 6f + semente) % 1f)
-                    val y = size.height * (queda * 1.2f - 0.1f)
-                    val giroPapel = (t * 360f * (3f + semente * 4f) + i * 40f)
-                    rotate(giroPapel, Offset(x, y)) {
-                        drawRect(
-                            cores[i % cores.size].copy(alpha = 0.9f),
-                            topLeft = Offset(x - 4.dp.toPx(), y - 2.5.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(8.dp.toPx(), 5.dp.toPx() * (0.4f + 0.6f * kotlin.math.abs(kotlin.math.cos(giroPapel / 57f)))),
-                        )
-                    }
-                }
-            }
-            BadgeArt(
-                badge = badge,
-                earned = true,
-                size = if (estudarioLayout().isShortHeight) 140.dp else 190.dp,
-                modifier = Modifier.graphicsLayer {
-                    val d = drop.value
-                    val l = land.value
-                    translationY = (1f - d) * (-260).dp.toPx()
-                    val s = if (l == 0f) 2.2f - 1.05f * d else 1.15f - 0.15f * l
-                    scaleX = s; scaleY = if (l == 0f) s else s * (0.86f + 0.14f * l)
-                    rotationZ = if (l == 0f) -18f + 12f * d else -6f + 2f * l
-                    alpha = if (d > 0f) 1f else 0f
-                },
-            )
-        }
-
-        Spacer(Modifier.height(28.dp))
-
-        Text(
-            badge.name,
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.graphicsLayer { alpha = texto },
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            badge.requirement,
-            color = Color.White.copy(alpha = 0.78f),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.graphicsLayer { alpha = texto },
-        )
-        Spacer(Modifier.height(18.dp))
-        Row(
-            Modifier
-                .graphicsLayer { alpha = texto }
-                .clip(RoundedCornerShape(50))
-                .background(palette.glow.copy(alpha = 0.16f))
-                .border(1.dp, palette.glow.copy(alpha = 0.45f), RoundedCornerShape(50))
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(faixaLabel(badge.tier), color = palette.glow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-            Text("• ${badge.category.label}", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelMedium)
-        }
-        Spacer(Modifier.height(22.dp))
-        // O Folha vibrando junto com a conquista.
-        Row(
-            Modifier.graphicsLayer { alpha = texto },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            br.com.estudario.ui.assistant.Folha(84.dp, mood = folhaMood, leaving = leaving)
-            Text(
-                br.com.estudario.ui.assistant.FolhaLines.forBadge(badge.id.hashCode().toLong()),
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 4.dp))
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            )
-        }
-    }
 }

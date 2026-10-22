@@ -13,7 +13,7 @@
 // O canvas sobra para fora da caixa (MARGIN), para mão e borla nunca serem cortadas.
 //
 // Uso: <estudario-folha mood="idle|thinking|talking|happy|sad|wave|point|wink|surprised|proud|focus|sleepy|relieved|ecstatic"
-//        size="96" [say="texto"] [cover|ribbon|hat|eyes|neck|hand|aura|gloves|pet="peça do armário"] [plain] [noscene] [noenter]>
+//        size="96" [say="texto"] [cover|ribbon|hat|eyes|neck|hand|back|aura|gloves|pet="peça do armário"] [plain] [noscene] [noenter]>
 // Armário e contexto do dia: window.folhaSetLook({ cover, hat, ..., streak, atRisk }); saída: window.folhaLeave(raiz, fim).
 // Toque: amassa, pula e pisca. el.gulp (0..1) abre a boca para "engolir" folhas (tela de processamento).
 // Um laço de animação só para todos, parado fora da tela; quadro fixo para quem pede menos movimento.
@@ -67,8 +67,8 @@
   // O próprio Folha: cor da tinta (olhos, sobrancelhas, boca) e das bochechas.
   const INKS = { marinho: INK, grafite: "#2B2B30", ameixa: "#4A1E4F", cafe: "#3E2A1E", floresta: "#14382B" };
   const CHEEKS = { rosa: CHEEK, pessego: "#FFB98A", lilas: "#C9A6F4", coral: "#FF8C75", nenhuma: null };
-  const SLOTS = ["cover", "pages", "ink", "cheeks", "ribbon", "gloves", "hat", "eyes", "neck", "hand", "aura", "pet"];
-  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
+  const SLOTS = ["cover", "pages", "ink", "cheeks", "ribbon", "gloves", "hat", "eyes", "neck", "hand", "back", "aura", "pet"];
+  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", back: "nada", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
   // Escolhas antigas (um "acessório" só) viram a peça equivalente.
   const LEGACY_ACC = { oculos: ["eyes", "leitura"], gravata: ["neck", "borboleta"], estrela: ["neck", "broche"], louros: ["hat", "louros"], lapis: ["hand", "lapis"] };
   function resolveLook(el, over) {
@@ -79,7 +79,7 @@
     const scene = !plain && !(el && el.hasAttribute("noscene"));   // noscene: sem café nem touca (vitrine do armário)
     return {
       cover, coverId: a("cover"), ribbon: RIBBONS[a("ribbon")] || RIBBONS.menta, hat: a("hat"), eyes: a("eyes"), neck: a("neck"), hand: a("hand"),
-      aura: a("aura"), gloves: GLOVES[a("gloves")] || GLOVES.branca, arm: cover.arm, pet: a("pet"),
+      aura: a("aura"), back: a("back"), gloves: GLOVES[a("gloves")] || GLOVES.branca, arm: cover.arm, pet: a("pet"),
       pages: a("pages"), ink: INKS[a("ink")] || INK, cheek: a("cheeks") in CHEEKS ? CHEEKS[a("cheeks")] : CHEEK,
       streak: plain ? 0 : LOOK.streak, atRisk: !plain && LOOK.atRisk,
       morning: scene && h >= 5 && h < 11, night: scene && (h >= 22 || h < 5),
@@ -291,6 +291,7 @@
     g.restore();
 
     const lookP = s.look || resolveLook(null);
+    drawFloorAura(g, t, lookP.aura, small);
     drawPet(g, t, lookP.pet, mood, small, s.burst || 0);
     g.save();
     g.translate(0, hop);
@@ -299,6 +300,7 @@
     // quem fica na frente do livro: as duas mãos folheando ou com a cara de susto; só a do lápis no foco
     const look = s.look || resolveLook(null);
     drawAura(g, t, look.aura, small, s.burst || 0, true);
+    drawBack(g, t, look.back, mood, small, P.hop);
     // na frente do livro: as duas mãos folheando, no susto ou passando na testa (ufa); só a do lápis no foco
     let front = mood === "thinking" || mood === "surprised" || mood === "present" ? "LR" : mood === "focus" || mood === "relieved" ? "R" : "";
     // segurando um item: a mão esquerda fica na frente do livro, para o item aparecer
@@ -328,6 +330,7 @@
     if (mood === "ecstatic") { drawFlames(g, t, small); drawCelebration(g, t, small); }
     if (mood === "proud") drawSparkles(g, t, small);
     drawAura(g, t, look.aura, small, s.burst || 0, false);
+    if (look.aura === "holofote") drawSpotLamps(g, t);
     drawBurst(g, s.burst || 0);
     if (mood === "sleepy") drawZzz(g, t, small);
     if (mood === "dizzy") drawDizzyStars(g, t);
@@ -1377,21 +1380,40 @@
       const R = [[0, -2, 0, 2, -1.4, -0.6, 1.4, 0.6], [-1.4, -2, 1.4, -2, 0, -2, 0, 2], [-1.2, 2, 0, -2, 0, -2, 1.2, 2], [-1.4, -1, 1.4, -1, -1.4, 1, 1.4, 1], [0, -2, 0, 2, 0, 0, 1.4, -1.4], [-1.4, 2, -1.4, -2, -1.4, 0, 1.4, 0]];
       for (let i = 0; i < 10; i++) {
         const a = t * 0.6 + i * 2 * PI / 10, front = sin(a) > 0; if (front === behind) continue;
-        const x = 50 + cos(a) * 52, y = 82 + sin(a) * 15, k = (front ? 1 : 0.7) * boost, al = (front ? 0.95 : 0.45) * (0.7 + 0.3 * sin(t * 3 + i));
+        const x = 50 + cos(a) * 52, y = 82 + sin(a) * 15 + sin(t * 1.3) * 0.8, k = (front ? 1 : 0.7) * boost, al = (front ? 0.95 : 0.45) * (0.7 + 0.3 * sin(t * 3 + i));
         const glowG = g.createRadialGradient(x, y, 0.2, x, y, 4.6 * k); glowG.addColorStop(0, `rgba(126,224,184,${0.55 * al})`); glowG.addColorStop(1, "rgba(149,99,255,0)");
         g.fillStyle = glowG; g.beginPath(); g.arc(x, y, 4.6 * k, 0, 2 * PI); g.fill();
         const r = R[i % R.length]; g.save(); g.translate(x, y); g.scale(k, k);
         g.strokeStyle = `rgba(40,150,110,${al})`; g.lineWidth = 0.6; g.lineCap = "round";
         g.beginPath(); g.moveTo(r[0], r[1]); g.lineTo(r[2], r[3]); g.moveTo(r[4], r[5]); g.lineTo(r[6], r[7]); g.stroke(); g.restore();
       }
+      // faíscas de luz subindo do círculo do chão
+      if (!behind) for (let i = 0; i < (small ? 4 : 9); i++) {
+        const ph = (t * 0.45 + i * 0.113) % 1, side = i % 2 ? 1 : -1, x = 50 + side * (20 + ((i * 7) % 24)) + sin(t * 2 + i) * 1.2, y = 94 - ph * 40, a = sin(PI * ph);
+        circle(g, `rgba(${i % 3 ? "126,224,184" : "185,149,245"},${0.85 * a})`, (small ? 1.3 : 0.9) * (1 - ph * 0.4), x, y);
+      }
     } else if (kind === "fogos" && !behind) {
-      // fogos de artifício: estouros coloridos em volta, cada um com rastro e faíscas caindo
-      const cols = ["#FFD84A", "#FF8FA3", "#7EE0B8", "#6FB0FF", "#B995F5"];
-      for (let i = 0; i < (small ? 2 : 4); i++) {
-        const ph = (t * 0.42 + i * 0.27) % 1, cx = [12, 88, 20, 82][i], cy = [24, 20, 6, 4][i], c = cols[(i + Math.floor(t * 0.42 + i * 0.27)) % 5];
-        if (ph < 0.25) { const u = ph / 0.25; line(g, rgba(c, 0.8), cx, cy + 30 - u * 30, cx, cy + 34 - u * 30, 0.6); continue; }
-        const u = (ph - 0.25) / 0.75, rr = (3 + u * 10) * boost, al = 1 - u;
-        for (let j = 0; j < 12; j++) { const a = j * PI / 6, px = cx + cos(a) * rr, py = cy + sin(a) * rr + u * u * 4; line(g, rgba(c, al * 0.7), cx + cos(a) * rr * 0.55, cy + sin(a) * rr * 0.55 + u * u * 2.4, px, py, 0.8); circle(g, rgba(j % 2 ? "#FFFFFF" : c, al), 0.8, px, py); }
+      // fogos de artifício de verdade: o foguete sobe com rastro de faíscas, estoura em dois anéis de cores
+      // (com clarão no centro) e a purpurina cai piscando. Seis pontos em volta, longe do rosto.
+      const cols = [["#FFD84A", "#FFFFFF"], ["#FF8FA3", "#FFD84A"], ["#7EE0B8", "#FFFFFF"], ["#6FB0FF", "#B995F5"], ["#B995F5", "#FF8FA3"]];
+      const spots = [[10, 20], [90, 14], [22, -2], [80, -6], [-4, 46], [104, 40]];
+      for (let i = 0; i < (small ? 3 : 6); i++) {
+        const cyc = t * 0.36 + i * 0.37, ph = cyc % 1, [c1, c2] = cols[(i + Math.floor(cyc)) % 5], [cx, cy] = spots[i];
+        if (ph < 0.2) {
+          const u = ph / 0.2, y = cy + 34 * (1 - u * (2 - u));
+          for (let j = 0; j < 4; j++) circle(g, rgba(c1, 0.8 - j * 0.2), 0.6 - j * 0.08, cx + sin(t * 40 + j * 2) * 0.6, y + 1.6 + j * 2);
+          circle(g, "#FFFFFF", 0.95, cx, y);
+          continue;
+        }
+        const u = (ph - 0.2) / 0.8, e = 1 - (1 - u) ** 3, rr = (4 + e * 13) * boost * (small ? 0.8 : 1), al = clamp(1.3 - u * 1.3, 0, 1), fall = u * u * 6;
+        if (u < 0.14) { const fl = 1 - u / 0.14; const gl = g.createRadialGradient(cx, cy, 0, cx, cy, 7); gl.addColorStop(0, `rgba(255,255,255,${fl})`); gl.addColorStop(1, rgba(c1, 0)); g.fillStyle = gl; g.beginPath(); g.arc(cx, cy, 7, 0, 2 * PI); g.fill(); }
+        for (let j = 0; j < 14; j++) {
+          const a = j * 2 * PI / 14 + i, px = cx + cos(a) * rr, py = cy + sin(a) * rr + fall;
+          line(g, rgba(c1, al * 0.5), cx + cos(a) * rr * 0.62, cy + sin(a) * rr * 0.62 + fall * 0.6, px, py, 0.85);
+          circle(g, rgba(j % 2 ? c2 : c1, al), 0.95, px, py);
+          if (!small && u > 0.35 && (j + Math.floor(t * 10)) % 3 === 0) star4(g, px + cos(a) * 1.5, py + 2.5 + u * 4, 1.3, rgba("#FFFFFF", al));
+        }
+        for (let j = 0; j < 8; j++) { const a = j * PI / 4 + i + 0.4, r2 = rr * 0.42; circle(g, rgba(c2, al), 0.7, cx + cos(a) * r2, cy + sin(a) * r2 + fall * 0.5); }
       }
     } else if (kind === "galaxia") {
       // anel de estrelinhas e poeira cósmica em volta (metade passa por trás)
@@ -1400,6 +1422,158 @@
         const x = 50 + cos(a) * 54, y = 80 + sin(a) * 17, c = i % 3 === 0 ? "#FFFFFF" : i % 3 === 1 ? "#B995F5" : "#6FB0FF";
         circle(g, rgba(c, front ? 0.95 : 0.5), (front ? 1.3 : 0.8) * boost, x, y);
         if (i % 6 === 0) star4(g, x, y, (front ? 3.4 : 2.2) * boost, rgba(c, front ? 0.9 : 0.5));
+      }
+    }
+  }
+  // Efeitos no chão (fora do corpo: não pulam com ele). Holofotes: dois canhões de luz nos cantos de cima
+  // varrendo o palco, com a poça de luz no chão; runas: um círculo mágico girando debaixo dos pés.
+  function drawFloorAura(g, t, kind, small) {
+    if (kind === "holofote") {
+      for (const side of [-1, 1]) {
+        const sx = 50 + side * 56, sy = -6, tx = 50 + sin(t * 0.8 + (side > 0 ? 2.2 : 0)) * 24, ty = 95;
+        const ang = Math.atan2(ty - sy, tx - sx), len = Math.hypot(tx - sx, ty - sy), w = len * 0.17;
+        g.save(); g.translate(sx, sy); g.rotate(ang);
+        const cone = new Path2D(); cone.moveTo(0, -2); cone.lineTo(len, -w); cone.quadraticCurveTo(len + 3, 0, len, w); cone.lineTo(0, 2); cone.closePath();
+        const gr = g.createLinearGradient(0, 0, len, 0); gr.addColorStop(0, "rgba(255,226,140,0.55)"); gr.addColorStop(0.7, "rgba(255,226,140,0.2)"); gr.addColorStop(1, "rgba(255,226,140,0.06)");
+        g.fillStyle = gr; g.fill(cone);
+        const core = new Path2D(); core.moveTo(0, -0.8); core.lineTo(len, -w * 0.35); core.lineTo(len, w * 0.35); core.lineTo(0, 0.8); core.closePath();
+        g.fillStyle = "rgba(255,248,220,0.18)"; g.fill(core);
+        g.restore();
+        g.save(); g.translate(tx, ty); g.scale(1, 0.26);
+        const pool = g.createRadialGradient(0, 0, 0, 0, 0, 20); pool.addColorStop(0, "rgba(255,236,170,0.65)"); pool.addColorStop(1, "rgba(255,236,170,0)");
+        g.fillStyle = pool; g.beginPath(); g.arc(0, 0, 20, 0, 2 * PI); g.fill(); g.restore();
+        // poeira brilhando dentro do facho
+        if (!small) for (let i = 0; i < 5; i++) {
+          const u = ((t * 0.07 + i * 0.21) % 1), px = lerp(sx, tx, 0.25 + u * 0.7) + sin(t + i * 3) * 2, py = lerp(sy, ty, 0.25 + u * 0.7) + cos(t * 0.7 + i) * 2;
+          circle(g, `rgba(255,246,214,${0.7 * sin(PI * u)})`, 0.55, px, py);
+        }
+      }
+    } else if (kind === "runas") {
+      // o círculo mágico em perspectiva: anéis, hexagrama e runas girando, pulsando de leve
+      const pulse = 0.75 + 0.25 * sin(t * 2.4), rot = t * 0.35, K = 0.22, cx = 50, cy = 94;
+      const at = (r, a) => [cx + cos(a) * r, cy + sin(a) * r * K];
+      g.save(); g.translate(cx, cy); g.scale(1, K);
+      const gl = g.createRadialGradient(0, 0, 8, 0, 0, 56); gl.addColorStop(0, "rgba(126,224,184,0)"); gl.addColorStop(0.72, `rgba(126,224,184,${0.28 * pulse})`); gl.addColorStop(1, "rgba(149,99,255,0)");
+      g.fillStyle = gl; g.beginPath(); g.arc(0, 0, 56, 0, 2 * PI); g.fill(); g.restore();
+      const ring = (r, c, w) => { g.beginPath(); g.ellipse(cx, cy, r, r * K, 0, 0, 2 * PI); g.strokeStyle = c; g.lineWidth = w; g.stroke(); };
+      ring(47, `rgba(126,224,184,${0.9 * pulse})`, small ? 1.4 : 0.9); ring(42, `rgba(185,149,245,${0.8 * pulse})`, small ? 1 : 0.55); ring(29, `rgba(126,224,184,${0.6 * pulse})`, 0.5);
+      for (let k = 0; k < 2; k++) {
+        const p = new Path2D();
+        for (let i = 0; i < 3; i++) { const [x, y] = at(42, rot + k * PI / 3 + i * 2 * PI / 3); i ? p.lineTo(x, y) : p.moveTo(x, y); }
+        p.closePath(); stroke(g, p, `rgba(185,149,245,${0.7 * pulse})`, 0.5);
+      }
+      if (!small) {
+        const R = [[0, -2, 0, 2, -1.4, -0.6, 1.4, 0.6], [-1.4, -2, 1.4, -2, 0, -2, 0, 2], [-1.2, 2, 0, -2, 0, -2, 1.2, 2], [-1.4, -1, 1.4, -1, -1.4, 1, 1.4, 1]];
+        for (let i = 0; i < 16; i++) {
+          const [x, y] = at(44.5, -rot * 0.7 + i * PI / 8), r = R[i % 4];
+          g.save(); g.translate(x, y); g.scale(0.7, 0.32); g.strokeStyle = `rgba(200,255,232,${0.85 * pulse})`; g.lineWidth = 0.9; g.lineCap = "round";
+          g.beginPath(); g.moveTo(r[0], r[1]); g.lineTo(r[2], r[3]); g.moveTo(r[4], r[5]); g.lineTo(r[6], r[7]); g.stroke(); g.restore();
+        }
+      }
+    }
+  }
+  // Lâmpadas dos holofotes, na frente de tudo nos cantos de cima.
+  function drawSpotLamps(g, t) {
+    for (const side of [-1, 1]) {
+      const sx = 50 + side * 56, sy = -6, tx = 50 + sin(t * 0.8 + (side > 0 ? 2.2 : 0)) * 24;
+      g.save(); g.translate(sx, sy); g.rotate(Math.atan2(95 - sy, tx - sx));
+      g.fillStyle = vGrad(g, ["#5A5F75", "#2E3142", "#1B1D29"], -3.4, 3.4);
+      const body = new Path2D(); body.moveTo(-6, -2.6); body.lineTo(1, -3.4); body.lineTo(1, 3.4); body.lineTo(-6, 2.6); body.closePath(); g.fill(body);
+      g.fillStyle = "#3C4054"; g.fillRect(1, -3.8, 1.4, 7.6);
+      const lens = g.createRadialGradient(2.6, 0, 0.2, 2.6, 0, 4); lens.addColorStop(0, "#FFFFFF"); lens.addColorStop(0.5, "rgba(255,236,170,0.9)"); lens.addColorStop(1, "rgba(255,226,140,0)");
+      g.fillStyle = lens; g.beginPath(); g.ellipse(2.6, 0, 1.6, 3.6, 0, 0, 2 * PI); g.fill();
+      line(g, "rgba(255,255,255,0.35)", -5, -2, 0.5, -2.8, 0.4);
+      g.restore();
+    }
+  }
+  // Costas: atrás do livro, presas nos ombros. Asas de fada que batem (rápido na festa), mochila-foguete
+  // com chama que acende quando ele pula, manto real esvoaçante com gola de arminho e barra dourada.
+  function drawBack(g, t, kind, mood, small, hop) {
+    if (!kind || kind === "nada") return;
+    const party = mood === "happy" || mood === "ecstatic", air = clamp((-hop - 1.5) / 4, 0, 1);
+    if (kind === "asas") {
+      const f = sin(t * (party ? 13 : 3)), amp = party ? 1 : 0.35 + air * 0.6;
+      for (const side of [-1, 1]) {
+        g.save();
+        if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
+        const rx = 24, ry = 54;
+        g.translate(rx, ry); g.rotate((-4 - f * 9 * amp) * PI / 180); g.scale(0.84 + 0.16 * f * amp, 1); g.translate(-rx, -ry);
+        const up = new Path2D(); up.moveTo(24, 48); up.bezierCurveTo(18, 24, 2, 2, -8, 6); up.bezierCurveTo(-17, 10, -16, 30, -10, 40); up.bezierCurveTo(-4, 50, 8, 55, 24, 56); up.closePath();
+        const lo = new Path2D(); lo.moveTo(23, 57); lo.bezierCurveTo(6, 56, -12, 62, -13, 73); lo.bezierCurveTo(-14, 83, 2, 82, 12, 74); lo.bezierCurveTo(18, 69, 22, 64, 24, 60); lo.closePath();
+        if (!small) { g.save(); g.shadowColor = "rgba(214,170,255,0.75)"; g.shadowBlur = 6; g.fillStyle = "rgba(255,255,255,0.01)"; g.fill(up); g.fill(lo); g.restore(); }
+        for (const [p, y0, y1] of [[up, 4, 56], [lo, 57, 82]]) {
+          const gr = g.createLinearGradient(-12, y0, 24, y1); gr.addColorStop(0, "rgba(255,196,238,0.92)"); gr.addColorStop(0.5, "rgba(203,178,255,0.86)"); gr.addColorStop(1, "rgba(160,228,255,0.82)");
+          g.fillStyle = gr; g.fill(p); stroke(g, p, "rgba(255,255,255,0.95)", small ? 1.3 : 0.7);
+        }
+        if (!small) {
+          const v = new Path2D(); v.moveTo(23, 51); v.quadraticCurveTo(12, 30, -5, 10); v.moveTo(23, 53); v.quadraticCurveTo(4, 40, -12, 30); v.moveTo(23, 59); v.quadraticCurveTo(4, 64, -9, 76);
+          stroke(g, v, "rgba(255,255,255,0.75)", 0.45);
+          // brilho de vidro no topo da asa
+          const hl = new Path2D(); hl.moveTo(-13, 14); hl.quadraticCurveTo(-11, 7, -5, 7); stroke(g, hl, "rgba(255,255,255,0.8)", 0.9);
+          for (let i = 0; i < 4; i++) { const ph = (t * 0.9 + i * 0.25 + (side > 0 ? 0.5 : 0)) % 1; star4(g, [-13, -4, -10, 6][i], [24, 5, 78, 16][i], 1.9 * sin(PI * ph), `rgba(255,255,255,${sin(PI * ph)})`); }
+          // pó de fada caindo
+          for (let i = 0; i < 4; i++) { const ph = (t * 0.5 + i / 4 + (side > 0 ? 0.12 : 0)) % 1; circle(g, `rgba(255,226,250,${0.9 * (1 - ph)})`, 0.7 * (1 - ph) + 0.2, -6 + i * 3 + sin(t * 3 + i) * 2, 78 + ph * 18); }
+        }
+        g.restore();
+      }
+    } else if (kind === "foguete") {
+      const thrust = party ? 1 : air;
+      for (const side of [-1, 1]) {
+        g.save();
+        if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
+        // chama: azul piloto parado, laranja forte no pulo e na festa
+        const fl = 5 + thrust * 15 + sin(t * 31 + side) * (0.6 + thrust * 1.4), fx = 3.6, fy = 84.5;
+        const flame = (w, len, stops) => { const p = new Path2D(); p.moveTo(fx - w, fy); p.bezierCurveTo(fx - w * 1.1, fy + len * 0.45, fx - w * 0.25, fy + len * 0.8, fx, fy + len); p.bezierCurveTo(fx + w * 0.25, fy + len * 0.8, fx + w * 1.1, fy + len * 0.45, fx + w, fy); p.closePath(); g.fillStyle = vGrad(g, stops, fy, fy + len); g.fill(p); };
+        if (thrust > 0.05) { flame(3.4, fl, ["#FFE07A", "#FF9F3A", "rgba(242,85,44,0)"]); flame(1.8, fl * 0.6, ["#FFFFFF", "#FFF1BF", "rgba(255,224,122,0)"]); }
+        else { flame(2.2, fl, ["#E6F4FF", "#7FC4FF", "rgba(80,140,255,0)"]); flame(1, fl * 0.5, ["#FFFFFF", "rgba(200,232,255,0)"]); }
+        if (thrust > 0.3 && !small) for (let i = 0; i < 4; i++) { const ph = (t * 1.6 + i / 4) % 1; circle(g, `rgba(220,220,235,${0.45 * (1 - ph) * thrust})`, 1.4 + ph * 3.4, fx - 2 - ph * 6 + sin(i * 3) * 2, fy + fl * 0.7 + ph * 8); }
+        // bocal
+        const nz = new Path2D(); nz.moveTo(0.4, 79.5); nz.lineTo(6.8, 79.5); nz.lineTo(8, 85); nz.lineTo(-0.8, 85); nz.closePath();
+        g.fillStyle = hGrad(g, ["#2C2F40", "#6B7088", "#2C2F40"], -0.8, 8); g.fill(nz);
+        // tanque: cápsula metálica com faixas vermelhas, aleta, rebites e luzinha
+        const tank = new Path2D(); tank.moveTo(-3.4, 53); tank.bezierCurveTo(-3.4, 45, 10.6, 45, 10.6, 53); tank.lineTo(10.6, 77); tank.quadraticCurveTo(10.6, 80.5, 3.6, 80.5); tank.quadraticCurveTo(-3.4, 80.5, -3.4, 77); tank.closePath();
+        const fin = new Path2D(); fin.moveTo(-3, 64); fin.lineTo(-8, 77); fin.lineTo(-8, 80); fin.lineTo(-3, 76); fin.closePath();
+        g.fillStyle = vGrad(g, ["#F05A6E", "#C42F4B"], 64, 80); g.fill(fin); stroke(g, fin, "rgba(60,10,25,0.5)", 0.4);
+        g.fillStyle = hGrad(g, ["#7C8398", "#E8ECF4", "#C3C9D6", "#6E7588"], -3.4, 10.6); g.fill(tank);
+        g.save(); g.clip(tank);
+        g.fillStyle = hGrad(g, ["#B3263F", "#F05A6E", "#C42F4B", "#7A1428"], -3.4, 10.6); g.fillRect(-4, 44, 16, 6.5); g.fillRect(-4, 60, 16, 3.2);
+        g.restore();
+        stroke(g, tank, "rgba(30,32,48,0.55)", small ? 1 : 0.5);
+        if (!small) {
+          for (const y of [55, 70]) for (const x of [-1.2, 8.4]) circle(g, "rgba(60,64,84,0.6)", 0.35, x, y);
+          line(g, "rgba(255,255,255,0.7)", 0.6, 52, 0.6, 77, 0.7);
+          const blink = (t * 1.3 + (side > 0 ? 0.5 : 0)) % 1 < 0.5;
+          circle(g, blink ? "#7EE0B8" : "#2E6B57", 0.8, 3.6, 66.5);
+        }
+        g.restore();
+      }
+    } else if (kind === "capa-real") {
+      const wave = sin(t * 1.7), fl = air * 6 + (party ? 3 : 0);
+      const L = -6 - fl + wave * 1.2, Rr = 106 + fl - wave * 1.2;
+      const cape = new Path2D(); cape.moveTo(16, 44); cape.bezierCurveTo(6, 58, L + 3, 80, L, 99);
+      const hem = [];
+      for (let i = 1; i <= 6; i++) { const x0 = lerp(L, Rr, (i - 0.5) / 6), x1 = lerp(L, Rr, i / 6); hem.push([x0, 102 + sin(t * 2.3 + i * 1.3) * 0.9, x1, 99 + sin(t * 2 + i) * 0.4]); }
+      hem.forEach(([a, b, c, d]) => cape.quadraticCurveTo(a, b, c, d));
+      cape.bezierCurveTo(Rr - 3, 80, 94, 58, 84, 44); cape.closePath();
+      g.fillStyle = hGrad(g, ["#6E0726", "#C2183F", "#E2364F", "#C2183F", "#6E0726"], L, Rr); g.fill(cape);
+      if (!small) {
+        // dobras do veludo
+        g.save(); g.clip(cape);
+        for (let i = 0; i < 7; i++) { const x = lerp(L + 6, Rr - 6, i / 6) + sin(t * 1.7 + i) * 1.2; const fold = g.createLinearGradient(x - 3, 0, x + 3, 0); fold.addColorStop(0, "rgba(60,0,20,0)"); fold.addColorStop(0.5, "rgba(60,0,20,0.28)"); fold.addColorStop(1, "rgba(60,0,20,0)"); g.fillStyle = fold; g.fillRect(x - 3, 44, 6, 60); }
+        g.restore();
+      }
+      // barra dourada
+      const hemP = new Path2D(); hemP.moveTo(L, 99); hem.forEach(([a, b, c, d]) => hemP.quadraticCurveTo(a, b, c, d));
+      stroke(g, hemP, "#7A4F05", small ? 2.6 : 2.2); stroke(g, hemP, GOLD, small ? 1.8 : 1.4);
+      if (!small) stroke(g, hemP, "rgba(255,241,191,0.8)", 0.4);
+      // gola de arminho: branca, com as pintinhas pretas, aparecendo em cima dos cantos do livro
+      for (const side of [-1, 1]) {
+        const cx = 50 + side * 36;
+        g.save(); g.translate(cx, 43); g.rotate(side * -0.12);
+        g.fillStyle = vGrad(g, ["#FFFFFF", "#ECE8F6"], -5, 5); g.beginPath(); g.ellipse(0, 0, 11, 5, 0, 0, 2 * PI); g.fill();
+        stroke(g, (() => { const p = new Path2D(); p.ellipse(0, 0, 11, 5, 0, 0, 2 * PI); return p; })(), "rgba(140,130,170,0.6)", 0.5);
+        if (!small) for (const [x, y] of [[-6, -1.5], [-1, -2.6], [4.5, -1.2], [8, 1], [-8.5, 1.5]]) { const p = new Path2D(); p.moveTo(x, y - 1); p.quadraticCurveTo(x + 0.7, y + 0.6, x, y + 1.3); p.quadraticCurveTo(x - 0.7, y + 0.6, x, y - 1); g.fillStyle = "#1B1B24"; g.fill(p); }
+        g.restore();
       }
     }
   }
@@ -1877,174 +2051,547 @@
 
   customElements.define("estudario-folha", EstudarioFolha);
 
-  // ================================================================== baú de presente (peça nova no armário)
-  // <estudario-bau piece-slot="hat" piece="coroa" rarity="lendaria" size="280">: o baú cai, treme, a
-  // fechadura salta, a tampa abre com luz e confete, e o Folha sobe vestindo a peça nova. Depois fica
-  // vivo (raios girando, brilhos subindo, Folha comemorando). Tocar no baú faz ele pular de novo.
+  // Cores de cada raridade (claro, forte): presente, raios e confete da cena de peça nova.
   const RARITY_GLOW = { comum: ["#BFD6FF", "#7FA6E8"], rara: ["#9CC6FF", "#3D8BEA"], epica: ["#D2B2FF", "#9563FF"], lendaria: ["#FFE59A", "#F5B83D"] };
-  const CHEST_T = { land: 0.55, shake: 1.55, open: 1.75, rise: 2.6 };
 
-  function drawChestBody(g, o, glow, t, small) {
-    // o: abertura da tampa (0 fechado, 1 aberto); glow: [claro, forte] da raridade
-    const wood = (y0, y1) => vGrad(g, ["#C98A4B", "#A86A35", "#7A4A22"], y0, y1);
-    // sombra no chão
-    g.save(); g.translate(50, 93); g.scale(1, 0.16); const sh = g.createRadialGradient(0, 0, 2, 0, 0, 36); sh.addColorStop(0, "rgba(20,14,60,0.45)"); sh.addColorStop(1, "rgba(20,14,60,0)"); g.fillStyle = sh; g.beginPath(); g.arc(0, 0, 36, 0, 2 * PI); g.fill(); g.restore();
-    // interior iluminado (aparece quando a tampa abre)
-    if (o > 0.05) {
-      const mouth = new Path2D(); mouth.moveTo(21, 58); mouth.quadraticCurveTo(50, 49, 79, 58); mouth.quadraticCurveTo(50, 64, 21, 58); mouth.closePath();
-      g.fillStyle = vGrad(g, ["#2A1840", "#4A2560"], 50, 63); g.fill(mouth);
-      const lg = g.createRadialGradient(50, 57, 1, 50, 57, 24); lg.addColorStop(0, rgba(glow[0], 0.95 * o)); lg.addColorStop(1, rgba(glow[1], 0)); g.fillStyle = lg; g.fill(mouth);
+
+  // ================================================================== cenas de comemoração
+  // <estudario-cena tipo="..." [size="320"]>: o palco das comemorações, com o Folha (no visual escolhido) de
+  // protagonista. Cada cena tem um roteiro com tempo marcado (T, em segundos) e depois fica viva em laço.
+  // Fundo transparente, pensado para o palco escuro: quem mostra põe o fundo, os textos e os botões.
+  //   nivel     nivel="12"                         o lápis mágico risca o nível antigo, vira a página do
+  //                                                caderno e escreve o novo à mão; a página brilha e o Folha vibra.
+  //   emblema   tier="3" categoria="seq" faixa="Ouro"   a medalha desce girando presa na fita, para de frente,
+  //                                                é cunhada com o símbolo da categoria e ganha a faixa.
+  //   sequencia dias="12" semana="S1,T1,Q0,Q1,S1,S1,D1"  o varal de lanternas da semana; o Folha lança uma
+  //                                                faísca, acende a de hoje e a chama cresce com o número.
+  //   peca      piece-slot="hat" piece="coroa" rarity="lendaria"  o presente cai na frente do Folha, se
+  //                                                desamarra, a luz sai, dá a volta nele e ele aparece vestindo.
+  // Grade de 100 x 110. Sem tamanho, ocupa a largura do pai. Pouco movimento: mostra o quadro final.
+  const CENA_H = 110;
+  const segT = (T, a, b) => clamp((T - a) / (b - a), 0, 1);
+  const outC = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
+  const outBack = (x) => { x = clamp(x, 0, 1); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+  function seeded(seed) { let v = seed; return () => { v = (v * 1103515245 + 12345) & 0x7fffffff; return v / 0x7fffffff; }; }
+
+  // ---- números escritos à mão: um traço só por algarismo (caixa de 10 x 16), para o lápis escrever de verdade
+  const DIGIT_PATHS = {
+    0: "M5,0.6 C1.4,0.6 0.6,5 0.6,8 C0.6,12 2,15.4 5,15.4 C8,15.4 9.4,12 9.4,8 C9.4,4 8,0.6 5,0.6 C4.2,0.6 3.5,1 3,1.6",
+    1: "M2.2,4 C3.6,3 5,1.8 6.2,0.6 L6.2,15.4",
+    2: "M1,4.2 C1.4,1.6 3.4,0.5 5.4,0.6 C8.2,0.7 9.6,3 8.8,5.8 C7.8,9.2 3.4,12 0.8,15.4 L9.6,15.4",
+    3: "M1.2,2.6 C3,0 8.4,-0.2 8.8,3.6 C9,6.2 6.6,7.4 4.2,7.6 C7.4,7.6 9.6,9.4 9.4,12 C9.1,15.6 3.4,16.4 0.8,13.6",
+    4: "M7.2,15.4 L7.2,0.6 L0.6,11 L9.8,11",
+    5: "M8.8,0.6 L2.2,0.6 L1.4,7.2 C3.4,5.6 7.6,5.6 9,8.8 C10,12.2 7.6,15.6 4.6,15.6 C2.6,15.6 1.2,14.8 0.6,13.6",
+    6: "M8.2,1.2 C4,-0.2 0.9,4 0.8,9.6 C0.7,13.6 2.6,15.6 5,15.6 C7.8,15.6 9.4,13.6 9.3,11 C9.2,8.4 7.3,7 5,7 C3,7 1.4,8.4 0.9,10",
+    7: "M0.8,0.6 L9.4,0.6 C7,5 5.2,10 4,15.4",
+    8: "M5,7.6 C2,7 1.2,5.6 1.4,4 C1.6,1.6 3.4,0.5 5,0.5 C6.6,0.5 8.4,1.6 8.6,4 C8.8,5.6 8,7 5,7.6 C1.8,8.4 0.8,10 0.8,12 C0.8,14.4 2.8,15.6 5,15.6 C7.2,15.6 9.2,14.4 9.2,12 C9.2,10 8.2,8.4 5,7.6",
+    9: "M9,5.4 C8.6,7.8 7,9 5,9 C2.6,9 1,7.4 1,4.8 C1,2.2 2.8,0.5 5,0.5 C7.4,0.5 9.1,2.4 9.1,5.4 L9,9.6 C8.8,13.4 6.8,15.6 4,15.6 C2.6,15.6 1.6,15 1,14",
+  };
+  // vira uma lista de pontos com o comprimento acumulado (para desenhar até uma fração do traço)
+  const DIGITS = {};
+  for (const d in DIGIT_PATHS) {
+    const tok = DIGIT_PATHS[d].match(/[MLC]|-?[\d.]+/g), pts = []; let i = 0, cur = null, cmd = "M";
+    const num = () => parseFloat(tok[i++]);
+    while (i < tok.length) {
+      if (/[MLC]/.test(tok[i])) cmd = tok[i++];
+      if (cmd === "M" || cmd === "L") { cur = [num(), num()]; pts.push(cur); }
+      else { const a = cur, b = [num(), num()], c = [num(), num()], e = [num(), num()];
+        for (let k = 1; k <= 14; k++) { const u = k / 14, v = 1 - u; pts.push([v * v * v * a[0] + 3 * v * v * u * b[0] + 3 * v * u * u * c[0] + u * u * u * e[0], v * v * v * a[1] + 3 * v * v * u * b[1] + 3 * v * u * u * c[1] + u * u * u * e[1]]); }
+        cur = e; }
     }
-    // corpo de tábuas com cantoneiras e faixas de metal
-    const body = new Path2D(); body.moveTo(20, 58); body.quadraticCurveTo(50, 63.6, 80, 58); body.lineTo(79, 86); body.quadraticCurveTo(79, 89, 76, 89.4); body.quadraticCurveTo(50, 92, 24, 89.4); body.quadraticCurveTo(21, 89, 21, 86); body.closePath();
-    g.fillStyle = wood(58, 90); g.fill(body);
-    g.save(); g.clip(body);
-    for (const y of [66.5, 75, 83.5]) { const p = new Path2D(); p.moveTo(18, y); p.quadraticCurveTo(50, y + 4.6, 82, y); stroke(g, p, "rgba(70,38,14,0.55)", 0.6); stroke(g, (() => { const q = new Path2D(); q.moveTo(18, y + 0.7); q.quadraticCurveTo(50, y + 5.3, 82, y + 0.7); return q; })(), "rgba(255,220,170,0.18)", 0.4); }
-    if (!small) for (let i = 0; i < 26; i++) { const x = 22 + ((i * 41) % 56), y = 60 + ((i * 23) % 28); line(g, "rgba(70,38,14,0.2)", x, y, x + 3 + (i % 3), y + 0.3, 0.25); }
-    const hl = g.createLinearGradient(20, 58, 40, 90); hl.addColorStop(0, "rgba(255,255,255,0.16)"); hl.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = hl; g.fillRect(18, 56, 64, 36);
-    g.restore();
-    stroke(g, body, "rgba(60,30,10,0.65)", 0.7);
-    const metal = (x0, x1, y0, y1) => vGrad(g, ["#FFF1BF", "#F5C451", "#C98A12", "#9C6A12"], y0, y1);
-    for (const x of [27, 69]) {
-      const band = new Path2D(); band.moveTo(x, 59.8); band.lineTo(x + 4, 60.1); band.lineTo(x + 4, 90.2); band.lineTo(x, 90); band.closePath();
-      g.fillStyle = hGrad(g, ["#C98A12", "#FFE9A6", "#E9AE34", "#9C6A12"], x, x + 4); g.fill(band); stroke(g, band, "rgba(100,60,0,0.6)", 0.35);
-      for (const y of [64, 72, 80, 87]) { circle(g, "#7A4F05", 0.75, x + 2, y + 0.4); circle(g, "#FFF4D0", 0.55, x + 1.8, y); }
-    }
-    const trim = new Path2D(); trim.moveTo(20.6, 85.6); trim.quadraticCurveTo(50, 90.4, 79.4, 85.6); trim.lineTo(79, 88.6); trim.quadraticCurveTo(50, 93, 21, 88.6); trim.closePath();
-    g.fillStyle = metal(0, 0, 85.6, 92); g.fill(trim);
-    for (const [x, s] of [[21, 1], [79, -1]]) { const c = new Path2D(); c.moveTo(x, 58.4); c.lineTo(x + s * 5, 59.4); c.lineTo(x + s * 4.6, 63); c.lineTo(x + s * 0.6, 63.6); c.closePath(); g.fillStyle = metal(0, 0, 58, 64); g.fill(c); }
+    const len = [0]; for (let k = 1; k < pts.length; k++) len.push(len[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+    DIGITS[d] = { pts, len, total: len[len.length - 1] };
   }
-
-  function drawChestLid(g, o, glow, t, small) {
-    // a tampa gira para trás em torno da dobradiça: achata, passa do meio e mostra o forro de veludo
-    const hinge = 49, k = Math.cos(o * PI * 0.72);           // 1 fechada; negativo = forro aparecendo
-    g.save(); g.translate(0, hinge); g.scale(1, k); g.translate(0, -hinge);
-    const lid = new Path2D(); lid.moveTo(20, 58.4); lid.bezierCurveTo(19, 42, 30, 37.6, 50, 37.6); lid.bezierCurveTo(70, 37.6, 81, 42, 80, 58.4); lid.quadraticCurveTo(50, 63.8, 20, 58.4); lid.closePath();
-    if (k > 0) {
-      g.fillStyle = vGrad(g, ["#D9995A", "#B7773E", "#8A5428"], 37, 62); g.fill(lid);
-      g.save(); g.clip(lid);
-      for (const y of [44, 51]) { const p = new Path2D(); p.moveTo(18, y); p.quadraticCurveTo(50, y - 3 + (y - 44) * 0.6, 82, y); stroke(g, p, "rgba(70,38,14,0.5)", 0.6); }
-      const hl = g.createRadialGradient(40, 42, 1, 40, 42, 22); hl.addColorStop(0, "rgba(255,255,255,0.28)"); hl.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = hl; g.fillRect(18, 36, 64, 28);
-      g.restore();
-      stroke(g, lid, "rgba(60,30,10,0.65)", 0.7);
-      for (const x of [27, 69]) {
-        const band = new Path2D(); band.moveTo(x, 58.6); band.bezierCurveTo(x - 0.4, 46, x + 0.6, 40.6, x + 2, 39.2); band.lineTo(x + 6, 38.8); band.bezierCurveTo(x + 4.6, 40.6, x + 4, 46, x + 4, 59); band.closePath();
-        g.fillStyle = hGrad(g, ["#C98A12", "#FFE9A6", "#E9AE34", "#9C6A12"], x, x + 5); g.fill(band); stroke(g, band, "rgba(100,60,0,0.6)", 0.35);
-        for (const y of [44, 52]) { circle(g, "#7A4F05", 0.75, x + 2.2, y + 0.4); circle(g, "#FFF4D0", 0.55, x + 2, y); }
+  // Escreve `str` com centro em (cx, cy) e altura h, até a fração `q` do traço total. Devolve a ponta do lápis.
+  function handNumber(g, str, cx, cy, h, q, colors, width) {
+    const k = h / 16, gap = 3, W = str.length * 10 + (str.length - 1) * gap, x0 = cx - W * k / 2, y0 = cy - h / 2;
+    const total = [...str].reduce((a, ch) => a + DIGITS[ch].total, 0);
+    let left = q * total, tip = null;
+    [...str].forEach((ch, n) => {
+      const D = DIGITS[ch], ox = x0 + n * (10 + gap) * k; if (left <= 0) return;
+      const upto = Math.min(left, D.total); left -= D.total;
+      const p = new Path2D(); p.moveTo(ox + D.pts[0][0] * k, y0 + D.pts[0][1] * k);
+      for (let j = 1; j < D.pts.length; j++) {
+        if (D.len[j] <= upto) { p.lineTo(ox + D.pts[j][0] * k, y0 + D.pts[j][1] * k); tip = [ox + D.pts[j][0] * k, y0 + D.pts[j][1] * k]; continue; }
+        const f = (upto - D.len[j - 1]) / (D.len[j] - D.len[j - 1]), x = ox + lerp(D.pts[j - 1][0], D.pts[j][0], f) * k, y = y0 + lerp(D.pts[j - 1][1], D.pts[j][1], f) * k;
+        p.lineTo(x, y); tip = [x, y]; break;
       }
-      const edge = new Path2D(); edge.moveTo(20, 56.2); edge.quadraticCurveTo(50, 61.6, 80, 56.2); edge.lineTo(80, 58.6); edge.quadraticCurveTo(50, 64, 20, 58.6); edge.closePath();
-      g.fillStyle = vGrad(g, ["#FFF1BF", "#E9AE34", "#9C6A12"], 56, 64); g.fill(edge);
-    } else {
-      g.fillStyle = vGrad(g, ["#7A1F3D", "#4A0F25"], 37, 62); g.fill(lid);
-      g.save(); g.clip(lid); const lg = g.createRadialGradient(50, 58, 2, 50, 58, 26); lg.addColorStop(0, rgba(glow[0], 0.6)); lg.addColorStop(1, rgba(glow[1], 0)); g.fillStyle = lg; g.fillRect(18, 36, 64, 28); g.restore();
-      stroke(g, lid, "#E9AE34", 0.9);
-    }
-    g.restore();
+      colors.forEach((c, i) => stroke(g, p, c, width * (1 - i * 0.42)));
+    });
+    return tip || [x0, y0 + h * 0.3];
   }
 
-  function drawLock(g, pop, glowA, glow, t) {
-    // fechadura dourada em escudo; antes de abrir ela brilha; ao abrir, salta girando e cai
-    const x = 50 + pop * 16, y = 59 + pop * pop * 62 - pop * 14, r = pop * 2.6;
-    if (pop >= 1) return;
-    g.save(); g.translate(x, y); g.rotate(r);
-    if (glowA > 0) { const gl = g.createRadialGradient(0, 0, 0.5, 0, 0, 9); gl.addColorStop(0, rgba(glow[0], 0.8 * glowA)); gl.addColorStop(1, rgba(glow[1], 0)); g.fillStyle = gl; g.beginPath(); g.arc(0, 0, 9, 0, 2 * PI); g.fill(); }
-    const sh = new Path2D(); sh.moveTo(-4.4, -4.2); sh.lineTo(4.4, -4.2); sh.lineTo(4.4, 1.6); sh.quadraticCurveTo(4.4, 5.4, 0, 6.8); sh.quadraticCurveTo(-4.4, 5.4, -4.4, 1.6); sh.closePath();
-    g.fillStyle = vGrad(g, ["#FFF1BF", "#F5C451", "#C98A12"], -4.2, 6.8); g.fill(sh); stroke(g, sh, "rgba(100,60,0,0.7)", 0.45);
-    const kh = new Path2D(); kh.arc(0, -0.4, 1.3, 0, 2 * PI); kh.moveTo(-0.6, 0.4); kh.lineTo(0.6, 0.4); kh.lineTo(0.9, 3.4); kh.lineTo(-0.9, 3.4); kh.closePath(); g.fillStyle = "#4A2A0A"; g.fill(kh);
-    circle(g, "rgba(255,255,255,0.7)", 0.6, -2.6, -2.6);
-    g.restore();
+  // ---- símbolos das categorias de emblema (caixa de -10 a 10), em traço grosso
+  function badgeGlyph(g, cat, color) {
+    const p = new Path2D(), F = new Path2D();
+    if (cat === "seq") { F.moveTo(0, 9.5); F.bezierCurveTo(-6.5, 9.5, -7.5, 3, -4.2, -1.2); F.bezierCurveTo(-3.6, 1, -2.4, 2.2, -1.2, 2.2); F.bezierCurveTo(-2.4, -3, 0, -7.6, 3.4, -9.6); F.bezierCurveTo(2.4, -5.4, 7.6, -2.4, 6.6, 3.2); F.bezierCurveTo(6.2, 7, 3.8, 9.5, 0, 9.5); F.closePath(); }
+    else if (cat === "meta") { p.moveTo(-5.5, 9.5); p.lineTo(-5.5, -9); F.moveTo(-5.5, -8.6); F.bezierCurveTo(-1, -10.6, 2.4, -6, 7.6, -8.2); F.lineTo(7.6, 0.4); F.bezierCurveTo(2.4, 2.6, -1, -2, -5.5, 0); F.closePath(); }
+    else if (cat === "plano") { p.moveTo(-8, -5); p.lineTo(8, -5); p.lineTo(8, 8.5); p.lineTo(-8, 8.5); p.closePath(); p.moveTo(-8, -1); p.lineTo(8, -1); p.moveTo(-4, -8.5); p.lineTo(-4, -3); p.moveTo(4, -8.5); p.lineTo(4, -3); p.moveTo(-3.6, 3.6); p.lineTo(-1, 6); p.lineTo(4, 1.2); }
+    else if (cat === "quest") { for (const y of [-6, 0, 6]) { p.moveTo(-1.6, y); p.lineTo(8, y); } p.moveTo(-8.4, -6); p.lineTo(-6.6, -4.2); p.lineTo(-3.6, -8.2); p.moveTo(-8.4, 0); p.lineTo(-6.6, 1.8); p.lineTo(-3.6, -2.2); F.arc(-6, 6, 1.6, 0, 2 * PI); }
+    else if (cat === "acerto") { p.arc(-1, 1, 8, 0, 2 * PI); p.moveTo(3.6, 1); p.arc(-1, 1, 4.6, 0, 2 * PI); F.arc(-1, 1, 1.8, 0, 2 * PI); p.moveTo(-1, 1); p.lineTo(8.4, -8.4); p.moveTo(8.4, -8.4); p.lineTo(5, -8.6); p.moveTo(8.4, -8.4); p.lineTo(8.6, -5); }
+    else if (cat === "topico") { p.moveTo(0, -5); p.bezierCurveTo(-3, -7.4, -7, -7.4, -9.4, -6.2); p.lineTo(-9.4, 7.4); p.bezierCurveTo(-7, 6.2, -3, 6.2, 0, 8.4); p.bezierCurveTo(3, 6.2, 7, 6.2, 9.4, 7.4); p.lineTo(9.4, -6.2); p.bezierCurveTo(7, -7.4, 3, -7.4, 0, -5); p.lineTo(0, 8.4); }
+    else if (cat === "edital") { p.moveTo(-6.6, -9); p.lineTo(3, -9); p.lineTo(7, -5); p.lineTo(7, 9); p.lineTo(-6.6, 9); p.closePath(); p.moveTo(3, -9); p.lineTo(3, -5); p.lineTo(7, -5); for (const y of [-2, 2, 6]) { p.moveTo(-3.6, y); p.lineTo(4, y); } }
+    else if (cat === "revisao") { p.arc(0, 0, 7.6, -2.6, 0.2); p.moveTo(7.4, 2.4); p.lineTo(7.6, -2.4); p.moveTo(7.6, 1.4); p.lineTo(4, -0.2); p.arc(0, 0, 7.6, 0.54, 3.34); p.moveTo(-7.4, -2.4); p.lineTo(-7.6, 2.4); p.moveTo(-7.6, -1.4); p.lineTo(-4, 0.2); }
+    else if (cat === "simulado") { p.moveTo(-7, -6.5); p.lineTo(7, -6.5); p.lineTo(7, 9.4); p.lineTo(-7, 9.4); p.closePath(); F.moveTo(-3.6, -9.6); F.lineTo(3.6, -9.6); F.lineTo(3.6, -4.4); F.lineTo(-3.6, -4.4); F.closePath(); p.moveTo(-3.6, 2.4); p.lineTo(-0.8, 5.2); p.lineTo(4, -0.6); }
+    else if (cat === "discursiva") { F.moveTo(7.8, -9.4); F.bezierCurveTo(1, -7.6, -5.6, -1, -6.6, 6.6); F.lineTo(-4.6, 4.8); F.bezierCurveTo(1.4, 3.6, 6.6, -2.6, 7.8, -9.4); F.closePath(); p.moveTo(-6.6, 6.6); p.lineTo(-8.6, 9.4); p.moveTo(-8.6, 9.6); p.lineTo(8, 9.6); }
+    else { p.arc(0, 1.4, 7.8, 0, 2 * PI); p.moveTo(0, 1.4); p.lineTo(0, -3.4); p.moveTo(0, 1.4); p.lineTo(3.6, 3.4); F.moveTo(-2.4, -9.6); F.lineTo(2.4, -9.6); F.lineTo(2.4, -7.2); F.lineTo(-2.4, -7.2); F.closePath(); p.moveTo(6.6, -5); p.lineTo(8.2, -6.6); }
+    g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 2.2;
+    g.stroke(p); g.fill(F); g.lineWidth = 1; g.stroke(F);
   }
 
-  function drawRays(g, a, t, glow, n) {
+  // ---- peças comuns de cena
+  function glowAt(g, x, y, r, color, a) {
     if (a <= 0) return;
-    g.save(); g.translate(50, 56); g.rotate(t * 0.25);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, rgba(color, a)); gr.addColorStop(1, rgba(color, 0));
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 2 * PI); g.fill();
+  }
+  function floorLight(g, x, y, r, color, a) { g.save(); g.translate(x, y); g.scale(1, 0.2); glowAt(g, 0, 0, r, color, a); g.restore(); }
+  function sceneRays(g, x, y, n, len, color, a, rot, wide = 0.11) {
+    if (a <= 0) return;
+    g.save(); g.translate(x, y); g.rotate(rot);
     for (let i = 0; i < n; i++) {
       g.rotate(2 * PI / n);
-      const ray = new Path2D(); ray.moveTo(0, 0); ray.lineTo(-4.2, -70); ray.lineTo(4.2, -70); ray.closePath();
-      const rg = g.createLinearGradient(0, 0, 0, -70); rg.addColorStop(0, rgba(glow[0], 0.55 * a)); rg.addColorStop(1, rgba(glow[1], 0)); g.fillStyle = rg; g.fill(ray);
+      const p = new Path2D(); p.moveTo(0, 0); p.lineTo(-len * wide, -len); p.quadraticCurveTo(0, -len * 1.04, len * wide, -len); p.closePath();
+      const gr = g.createLinearGradient(0, 0, 0, -len); gr.addColorStop(0, rgba(color, 0.5 * a)); gr.addColorStop(1, rgba(color, 0)); g.fillStyle = gr; g.fill(p);
     }
     g.restore();
   }
+  function shockRing(g, x, y, u, color, maxR, sy = 1) {
+    if (u <= 0 || u >= 1) return;
+    g.beginPath(); g.ellipse(x, y, maxR * outC(u), maxR * outC(u) * sy, 0, 0, 2 * PI);
+    g.strokeStyle = rgba(color, 0.9 * (1 - u)); g.lineWidth = 0.4 + 2.6 * (1 - u); g.stroke();
+  }
+  // confete saindo de dois canhões nos cantos de baixo, cruzando a cena por cima sem tapar o centro
+  function makeConfetti(seed, n, colors) {
+    const r = seeded(seed);
+    return Array.from({ length: n }, (_, i) => { const side = i % 2 ? 1 : -1; return { side, a: -PI / 2 - side * (0.12 + r() * 0.42), v: 100 + r() * 80, c: colors[i % colors.length], s: 0.8 + r() * 1.3, r: r() * 6, k: i % 3, spin: 4 + r() * 8 }; });
+  }
+  function drawConfetti(g, list, dt, life = 3) {
+    if (dt <= 0 || dt >= life) return;
+    for (const c of list) {
+      const ox = c.side < 0 ? 2 : 98, oy = 106;
+      const drag = 1 - Math.exp(-dt * 2.2), x = ox + Math.cos(c.a) * c.v * drag / 2.2, y = oy + Math.sin(c.a) * c.v * drag / 2.2 + 9 * dt * dt;
+      g.save(); g.translate(x + sin(dt * 3 + c.r) * 2, y); g.rotate(c.r + dt * c.spin); g.globalAlpha = clamp((life - dt) / 0.8, 0, 1);
+      if (c.k === 0) { g.scale(cos(dt * c.spin + c.r), 1); g.fillStyle = c.c; g.fillRect(-c.s, -c.s * 0.5, c.s * 2, c.s); }
+      else if (c.k === 1) circle(g, c.c, c.s * 0.55, 0, 0); else star4(g, 0, 0, c.s * 1.3, c.c);
+      g.restore();
+    }
+  }
+  // poeira de estrelas no fundo (piscando, bem de leve)
+  const DUST = (() => { const r = seeded(11); return Array.from({ length: 26 }, () => ({ x: r() * 100, y: r() * 92, s: 0.3 + r() * 0.7, p: r() * 6 })); })();
+  function starDust(g, t, a) { for (const d of DUST) { const k = 0.5 + 0.5 * sin(t * 1.4 + d.p); circle(g, `rgba(255,255,255,${0.5 * k * a})`, d.s * (0.6 + 0.4 * k), d.x, d.y); } }
 
-  class EstudarioBau extends HTMLElement {
-    static get observedAttributes() { return ["size", "piece", "piece-slot", "rarity"]; }
+  // O Folha numa cena: o roteiro de humores ([T, humor], ...) vira pose, com 0,3 s de transição entre eles.
+  function blendPose(A, B, w) {
+    const o = {};
+    for (const k in A) { const a = A[k], b = B[k]; o[k] = typeof a === "number" && typeof b === "number" ? lerp(b, a, w) : Array.isArray(a) && Array.isArray(b) ? [lerp(b[0], a[0], w), lerp(b[1], a[1], w)] : w > 0.5 ? a : b; }
+    return o;
+  }
+  function sceneFolha(g, o) {
+    const sc = o.script; let i = 0; while (i + 1 < sc.length && o.T >= sc[i + 1][0]) i++;
+    const cur = sc[i][1], prev = i > 0 ? sc[i - 1][1] : cur, w = i > 0 ? sstep((o.T - sc[i][0]) / 0.3) : 1;
+    const ctx = { tm: o.T - sc[i][0], holding: o.look.hand && o.look.hand !== "nenhum" };
+    let P = pose(cur, o.t, o.dir, null, ctx);
+    if (w < 1) P = blendPose(P, pose(prev, o.t, o.dir, null, { ...ctx, tm: 9 }), w);
+    g.save(); g.translate(o.x - 50 * o.scale, o.y - 95 * o.scale); g.scale(o.scale, o.scale);
+    drawFolha(g, { t: o.t, mood: w < 0.5 ? prev : cur, small: false, P: { ...P, hL0: P.hL[0], hL1: P.hL[1], hR0: P.hR[0], hR1: P.hR[1] }, vy: o.vy || 0,
+      blink: (o.t % 3.4) < 0.12 ? 1 : 0, wink: 0, popL: 0, popR: 0, squash: o.squash || 0, gulp: 0, look: o.look, tm: ctx.tm, burst: o.burst || 0 });
+    g.restore();
+    return P;
+  }
+  // um ponto da grade do Folha levado para a cena
+  const folhaPt = (o, P, x, y) => [o.x + (x - 50) * o.scale, o.y + (y - 95 + P.hop) * o.scale];
+
+  // ---- cena: nível
+  function cenaNivel(g, T, t, el) {
+    const lvl = String(Math.max(1, parseInt(el.getAttribute("nivel") || "2", 10))), old = String(Math.max(1, +lvl - 1));
+    const look = el._look();
+    // fundo: luz de palco atrás do caderno
+    starDust(g, t, 1);
+    const pop = segT(T, 3.05, 3.5);
+    glowAt(g, 50, 33, 52, "#6158F0", 0.35 + 0.25 * pop);
+    sceneRays(g, 50, 33, 14, 66, "#FFD66B", outC(segT(T, 3.0, 3.6)) * (0.8 + 0.2 * sin(t * 2)), t * 0.18);
+    shockRing(g, 50, 33, segT(T, 3.0, 3.8), "#FFE59A", 58);
+    // a página: entra girando, vira no meio e brilha no fim
+    const enter = outBack(segT(T, 0.1, 0.75)), flip = segT(T, 1.45, 1.95), sx = cos(PI * flip), fresh = flip > 0.5;
+    const W = 62, H = 46, cx = 50, cy = 33 + sin(t * 1.4) * 0.6 * segT(T, 3.6, 4.2);
+    g.save(); g.globalAlpha = clamp(enter * 1.5, 0, 1);
+    g.translate(cx, cy); g.rotate((-3 + (1 - enter) * -24) * PI / 180); g.scale(Math.max(0.02, Math.abs(sx)) * (0.4 + 0.6 * enter), 0.4 + 0.6 * enter);
+    // sombra e papel
+    g.fillStyle = "rgba(10,6,40,0.35)"; g.fillRect(-W / 2 + 1.4, -H / 2 + 2.2, W, H);
+    g.fillStyle = fresh ? vGrad(g, ["#FFFDF6", "#FFF6DD"], -H / 2, H / 2) : vGrad(g, [PAPER, "#F1EDE6"], -H / 2, H / 2);
+    g.fillRect(-W / 2, -H / 2, W, H);
+    if (fresh) { const gl = segT(T, 3.0, 3.3) * (1 - segT(T, 3.3, 4.4)); if (gl > 0) { g.fillStyle = `rgba(255,224,122,${0.5 * gl})`; g.fillRect(-W / 2, -H / 2, W, H); } }
+    for (let y = -H / 2 + 10; y < H / 2; y += 5) line(g, fresh ? "rgba(245,184,61,0.45)" : "rgba(111,176,255,0.45)", -W / 2, y, W / 2, y, 0.3, false);
+    line(g, "rgba(232,86,109,0.6)", -W / 2 + 8, -H / 2, -W / 2 + 8, H / 2, 0.35, false);
+    // espiral do caderno
+    for (let i = 0; i < 11; i++) { const x = -W / 2 + 5 + i * 5.2; circle(g, "rgba(38,33,92,0.85)", 0.9, x, -H / 2 + 3); const r = new Path2D(); r.ellipse(x, -H / 2 + 0.6, 1.1, 2.8, 0, PI * 0.95, PI * 2.05); stroke(g, r, "#B7B9C9", 0.7); }
+    if (!fresh) {
+      handNumber(g, old, 3, 4, 22, 1, ["#3A2FC4"], 2.2);
+      // o risco do lápis por cima do número antigo
+      const sq = segT(T, 0.95, 1.38);
+      if (sq > 0) {
+        const p = new Path2D(), n = 9; p.moveTo(-16, -4);
+        for (let i = 1; i <= n * sq; i++) p.lineTo(i % 2 ? 18 : -16, -4 + i * 1.8 + (i % 2 ? -1 : 1));
+        stroke(g, p, "#E8566D", 1.4);
+      }
+    }
+    g.restore();
+    // o número novo, à mão, e o lápis mágico
+    const write = segT(T, 2.0, 2.0 + 0.42 * lvl.length + 0.2);
+    let tip = [78, 40];
+    if (fresh) {
+      g.save(); g.translate(cx, cy); g.rotate(-3 * PI / 180); g.scale(Math.abs(sx), 1);
+      const shine = segT(T, 3.0, 3.25) * (1 - segT(T, 3.5, 4.5)) * 0.9 + 0.1 * segT(T, 3.0, 3.2);
+      if (shine > 0) { g.shadowColor = "rgba(255,200,80,0.95)"; g.shadowBlur = 12 * shine; }
+      const tl = handNumber(g, lvl, 3, 4, 26, write, ["#2A209E", "#5247E0"], 3.2);
+      g.shadowBlur = 0;
+      // sublinhado de capricho
+      const ul = segT(T, 2.62 + 0.42 * (lvl.length - 1), 2.92 + 0.42 * (lvl.length - 1));
+      if (ul > 0) { const p = new Path2D(); const x0 = -10 - lvl.length * 4, x1 = x0 + (22 + lvl.length * 8) * ul; p.moveTo(x0 + 3, 19); p.quadraticCurveTo((x0 + x1) / 2 + 3, 16.6, x1 + 3, 18.4); stroke(g, p, "#F5B83D", 1.6); tip = [cx + x1 + 3, cy + 18.4]; }
+      else { const a = -3 * PI / 180, [x, y] = [tl[0] * Math.abs(sx), tl[1]]; tip = [cx + x * cos(a) - y * sin(a), cy + x * sin(a) + y * cos(a)]; }
+      g.restore();
+      // rastro de brilho atrás da ponta
+      if (write > 0 && write < 1) for (let i = 0; i < 5; i++) { const ph = (t * 3 + i / 5) % 1; star4(g, tip[0] + sin(i * 2.1) * 3 * ph, tip[1] + ph * 7, 1.6 * (1 - ph), `rgba(255,224,122,${1 - ph})`); }
+    }
+    // caminho do lápis: entra, risca, espera a página virar, escreve, sublinha e sai girando
+    const inU = outC(segT(T, 0.7, 0.98)), leave = segT(T, 3.0, 3.6);
+    if (T > 0.7 && leave < 1) {
+      let px, py;
+      if (T < 1.38) { const sq = segT(T, 0.95, 1.38), zig = (sq * 9) % 2, k = zig > 1 ? 2 - zig : zig; px = lerp(116, 50 + lerp(-16, 18, k) * 0.98 + 3, inU); py = lerp(96, 33 - 4 + sq * 16, inU); }
+      else if (!fresh || write <= 0) { const u = segT(T, 1.38, 2.0); px = lerp(68, 74, u) + sin(t * 3) * 1.2; py = lerp(44, 30, u) + cos(t * 2.6) * 1.2; }
+      else { [px, py] = tip; }
+      px += leave * leave * 60; py -= leave * 50;
+      const ang = -1.05 + (T < 1.38 ? sin(t * 22) * 0.06 : 0) + leave * 6;
+      g.save(); g.translate(px, py); g.rotate(ang + 1.05); g.translate(-px, -py);
+      glowAt(g, px, py, 7, "#FFE07A", 0.45);
+      g.save(); g.translate(px, py); g.scale(1.6, 1.6); drawPencilAt(g, 0, 0, cos(-1.05) * 22, sin(-1.05) * 22, 1.8); g.restore();
+      g.restore();
+    }
+    // o Folha embaixo, olhando a página
+    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.5, look, dir: { x: 0, y: -0.9 },
+      script: [[0, "surprised"], [0.55, "idle"], [1.4, "thinking"], [1.98, "idle"], [3.0, "ecstatic"], [4.6, "happy"], [5.8, "proud"]] };
+    floorLight(g, 50, 107, 30, "#FFFFFF", 0.22);
+    sceneFolha(g, o);
+    drawConfetti(g, el._conf, T - 3.0);
+  }
+
+  // ---- cena: emblema
+  const TIERS = { 1: ["#F2C49A", "#C27E45", "#7D4520"], 2: ["#FFFFFF", "#C7CDD9", "#7D8699"], 3: ["#FFF1BF", "#F5B83D", "#B07510"], 4: ["#CFE3FF", "#5E9BFF", "#1F4FB8"], 5: ["#FFD0D8", "#F0506B", "#A0172F"], 6: ["#D4FFEE", "#3FD69F", "#0E7C55"] };
+  function drawMedal(g, R, front, tier, cat, stamp, t, glint) {
+    const C = TIERS[tier] || TIERS[3];
+    // serrilhado da borda
+    const rim = new Path2D(); for (let i = 0; i <= 72; i++) { const a = i * PI / 36, r = i % 2 ? R : R - 0.7; i ? rim.lineTo(cos(a) * r, sin(a) * r) : rim.moveTo(cos(a) * r, sin(a) * r); }
+    const lg = g.createLinearGradient(-R, -R, R, R); lg.addColorStop(0, C[0]); lg.addColorStop(0.45, C[1]); lg.addColorStop(1, C[2]);
+    g.fillStyle = lg; g.fill(rim);
+    const bev = g.createLinearGradient(-R, -R, R, R); bev.addColorStop(0, C[2]); bev.addColorStop(0.6, C[1]); bev.addColorStop(1, C[0]);
+    circle(g, bev, R * 0.84, 0, 0);
+    const face = g.createRadialGradient(-R * 0.25, -R * 0.3, 1, 0, 0, R * 0.78); face.addColorStop(0, front ? C[0] : C[1]); face.addColorStop(1, front ? C[1] : C[2]);
+    circle(g, face, R * 0.76, 0, 0);
+    // anel interno pontilhado e louros
+    for (let i = 0; i < 40; i++) { const a = i * PI / 20; circle(g, rgba(C[2], 0.55), 0.32, cos(a) * R * 0.69, sin(a) * R * 0.69); }
+    for (const side of [-1, 1]) for (let i = 0; i < 6; i++) {
+      const a = PI / 2 + side * (0.35 + i * 0.3), x = cos(a) * R * 0.6, y = sin(a) * R * 0.6;
+      g.save(); g.translate(x, y); g.rotate(a + side * PI / 2 + side * 0.5);
+      g.beginPath(); g.ellipse(0, 0, R * 0.08, R * 0.036, 0, 0, 2 * PI); g.fillStyle = rgba(C[2], 0.7); g.fill(); g.restore();
+    }
+    if (front) {
+      // símbolo cunhado: sombra funda e relevo claro (na cunhagem ele entra grande e assenta)
+      const k = R / 15 * (1 + (1 - stamp) * 0.6);
+      if (stamp > 0) {
+        g.save(); g.globalAlpha = clamp(stamp * 2, 0, 1); g.scale(k * 0.62, k * 0.62);
+        g.save(); g.translate(0.5, 0.7); badgeGlyph(g, cat, rgba(C[2], 0.95)); g.restore();
+        badgeGlyph(g, cat, "#FFFFFF");
+        g.restore();
+      }
+    } else {
+      g.save(); g.scale(R / 26, R / 26); g.fillStyle = rgba(C[2], 0.8); g.fill(star5(g, 0, 0, 9)); g.restore();
+    }
+    // reflexo de vidro e brilho que passa
+    const hl = new Path2D(); hl.arc(0, 0, R * 0.9, PI * 1.05, PI * 1.45); stroke(g, hl, "rgba(255,255,255,0.75)", R * 0.06);
+    if (glint > 0 && glint < 1) {
+      g.save(); g.clip(rim); g.rotate(-0.6);
+      const x = lerp(-R * 1.6, R * 1.6, glint), gr = g.createLinearGradient(x - 6, 0, x + 6, 0);
+      gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,255,255,0.85)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = gr; g.fillRect(x - 6, -R * 2, 12, R * 4); g.restore();
+    }
+  }
+  function cenaEmblema(g, T, t, el) {
+    const tier = parseInt(el.getAttribute("tier") || "3", 10), cat = el.getAttribute("categoria") || "seq", faixa = (el.getAttribute("faixa") || "").toUpperCase();
+    const C = TIERS[tier] || TIERS[3], look = el._look();
+    starDust(g, t, 1);
+    // facho de luz de cima
+    const beam = segT(T, 0, 0.6);
+    if (beam > 0) { const p = new Path2D(); p.moveTo(40, -4); p.lineTo(60, -4); p.lineTo(84, 104); p.lineTo(16, 104); p.closePath(); const gr = g.createLinearGradient(0, -4, 0, 104); gr.addColorStop(0, `rgba(255,255,255,${0.16 * beam})`); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fill(p); }
+    const stampAt = 1.65, hit = segT(T, stampAt, stampAt + 0.2);
+    glowAt(g, 50, 40, 46, C[1], 0.25 + 0.3 * segT(T, stampAt, stampAt + 0.4));
+    sceneRays(g, 50, 40, 16, 70, C[0], outC(segT(T, stampAt, stampAt + 0.6)) * (0.75 + 0.25 * sin(t * 2.2)), t * 0.22, 0.08);
+    shockRing(g, 50, 40, segT(T, stampAt, stampAt + 0.8), C[0], 46);
+    shockRing(g, 50, 40, segT(T, stampAt + 0.12, stampAt + 1.1), "#FFFFFF", 56);
+    // a medalha desce na fita girando e para de frente, com uma molinha
+    const u = Math.max(0, T - 0.15), MY = 38;
+    const my = T < 0.15 ? -40 : u < 1.6 ? lerp(-40, MY, outBack(u / 1.5)) : MY + sin(t * 1.6) * 0.8;
+    const ang = 10 * PI * outC(segT(T, 0.15, stampAt)), sxm = cos(ang), R = 19;
+    const squash = hit > 0 && hit < 1 ? sin(PI * hit) * 0.12 : 0;
+    // as duas tiras da fita, presas na argola
+    const ribbon = (side) => {
+      const p = new Path2D(), top = my - R - 1.5;
+      p.moveTo(50 + side * 1.6 * Math.abs(sxm), top); p.lineTo(50 + side * 22, -12); p.lineTo(50 + side * 12, -12); p.lineTo(50 + side * (-2.6) * Math.abs(sxm), top); p.closePath();
+      g.fillStyle = side < 0 ? vGrad(g, ["#3A2FC4", "#5247E0"], -12, top) : vGrad(g, ["#2A209E", "#3A2FC4"], -12, top); g.fill(p);
+      g.save(); g.clip(p); for (const k of [0.38, 0.62]) { const q = new Path2D(); q.moveTo(50 + side * lerp(22, 12, k), -12); q.lineTo(50 + side * lerp(1.6, -2.6, k) * Math.abs(sxm), top); stroke(g, q, C[1], 1.2); } g.restore();
+    };
+    ribbon(-1); ribbon(1);
+    circle(g, C[2], 2.2, 50, my - R - 1.2); circle(g, C[0], 1.3, 50, my - R - 1.2);
+    g.save(); g.translate(50, my); g.scale(Math.max(0.04, Math.abs(sxm)) * (1 + squash), 1 - squash);
+    g.shadowColor = rgba(C[1], 0.8); g.shadowBlur = 10 * segT(T, stampAt, stampAt + 0.3);
+    drawMedal(g, R, sxm >= 0, tier, cat, segT(T, stampAt - 0.05, stampAt + 0.25), t, T > 2.2 ? ((T - 2.2) % 2.8) / 0.9 : -1);
+    g.restore();
+    // faixa com o nome do nível do emblema
+    const ban = outBack(segT(T, 1.95, 2.45));
+    if (ban > 0 && faixa) {
+      g.save(); g.translate(50, my + R + 6.5); g.scale(ban, 1);
+      for (const side of [-1, 1]) { const p = new Path2D(); p.moveTo(side * 17, -3); p.lineTo(side * 24, -3.6); p.lineTo(side * 21.5, 0.4); p.lineTo(side * 24, 4.4); p.lineTo(side * 17, 4); p.closePath(); g.fillStyle = C[2]; g.fill(p); }
+      const b = new Path2D(); b.moveTo(-19, -4.2); b.quadraticCurveTo(0, -6, 19, -4.2); b.lineTo(19, 3.8); b.quadraticCurveTo(0, 2, -19, 3.8); b.closePath();
+      g.fillStyle = hGrad(g, [C[2], C[1], C[0], C[1], C[2]], -19, 19); g.fill(b); stroke(g, b, rgba(C[2], 0.9), 0.4);
+      g.fillStyle = tier === 2 || tier === 3 || tier === 6 ? "#2A1A05" : "#FFFFFF"; g.font = "900 4.4px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(faixa.split("").join(" "), 0, -0.6);
+      g.restore();
+    }
+    // estrelinhas piscando em volta
+    if (T > stampAt) for (let i = 0; i < 7; i++) { const a = i * 2 * PI / 7 + 0.3, ph = (t * 0.7 + i * 0.37) % 1; star4(g, 50 + cos(a) * 30, 40 + sin(a) * 26, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : C[0], sin(PI * ph))); }
+    drawConfetti(g, el._conf, T - stampAt);
+    // o Folha: olha a medalha descendo, leva um susto com a cunhagem e comemora
+    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0.2, 0.7))) * 30, scale: 0.5, look, dir: { x: 0, y: -1 },
+      script: [[0, "idle"], [stampAt, "surprised"], [stampAt + 0.35, "happy"], [3.6, "proud"]] };
+    floorLight(g, 50, 107, 30, "#FFFFFF", 0.22);
+    sceneFolha(g, o);
+  }
+
+  // ---- cena: sequência
+  function drawLantern(g, lit, flare, t, i, letter) {
+    // presa no varal em (0, 0): argola, tampa, corpo de papel com gomos, tampa de baixo e franja
+    line(g, "rgba(255,255,255,0.5)", 0, 0, 0, 2.2, 0.35);
+    if (lit > 0) glowAt(g, 0, 8.6, 13 + flare * 8, "#FFB13B", (0.45 + 0.1 * sin(t * 7 + i * 1.7)) * lit + flare * 0.4);
+    g.fillStyle = "#2A1A05"; g.fillRect(-2.6, 2, 5.2, 1.6);
+    const body = new Path2D(); body.ellipse(0, 8.6, 4.8, 5.4, 0, 0, 2 * PI);
+    const on = g.createRadialGradient(-0.8, 7.6, 0.4, 0, 8.6, 6); on.addColorStop(0, "#FFFBEA"); on.addColorStop(0.45, "#FFD36B"); on.addColorStop(1, "#F26A2C");
+    g.fillStyle = vGrad(g, ["#4A4472", "#2E2852"], 3.2, 14); g.fill(body);
+    if (lit > 0) { g.save(); g.globalAlpha = lit; g.fillStyle = on; g.fill(body); g.restore(); }
+    g.save(); g.clip(body);
+    for (const x of [-2.6, 0, 2.6]) { const r = new Path2D(); r.ellipse(0, 8.6, Math.abs(x) + 0.01, 5.4, 0, -PI / 2, PI / 2, x < 0); stroke(g, r, lit > 0.5 ? "rgba(180,70,20,0.35)" : "rgba(255,255,255,0.12)", 0.35); }
+    g.restore();
+    g.fillStyle = "#2A1A05"; g.fillRect(-2, 13.6, 4, 1.4);
+    for (let k = -1; k <= 1; k++) line(g, lit > 0.5 ? "#F26A2C" : "#5A5480", k * 0.7, 15, k * 0.9, 18 + (k ? 0 : 0.8), 0.45);
+    g.fillStyle = lit > 0.5 ? "rgba(122,36,8,0.85)" : "rgba(255,255,255,0.55)"; g.font = "900 4.2px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(letter, 0, 9);
+  }
+  function drawBigFlame(g, x, base, h, t) {
+    if (h <= 0.5) return;
+    const layer = (w, hh, stops, ph) => {
+      const p = new Path2D(), tipX = x + sin(t * 3.1 + ph) * w * 0.18;
+      p.moveTo(x - w, base);
+      p.bezierCurveTo(x - w * 1.25, base - hh * 0.42, x - w * 0.5 + sin(t * 4 + ph) * w * 0.12, base - hh * 0.62, x - w * 0.42, base - hh * 0.74);
+      p.bezierCurveTo(x - w * 0.3, base - hh * 0.6, x - w * 0.06, base - hh * 0.7, tipX, base - hh);
+      p.bezierCurveTo(x + w * 0.2, base - hh * 0.72, x + w * 0.3, base - hh * 0.66, x + w * 0.48, base - hh * 0.8 + sin(t * 5 + ph) * 1.2);
+      p.bezierCurveTo(x + w * 0.62, base - hh * 0.55, x + w * 1.25, base - hh * 0.4, x + w, base);
+      p.quadraticCurveTo(x, base + w * 0.3, x - w, base); p.closePath();
+      g.fillStyle = vGrad(g, stops, base - hh, base); g.fill(p);
+    };
+    glowAt(g, x, base - h * 0.45, h * 0.9, "#FF8A2A", 0.35);
+    layer(h * 0.36, h, ["#FFB13B", "#FF6A2C", "#C2183F"], 0);
+    layer(h * 0.27, h * 0.8, ["#FFE07A", "#FFA43A", "#FF6A2C"], 1.7);
+    layer(h * 0.17, h * 0.56, ["#FFFFFF", "#FFF1BF", "#FFD36B"], 3.1);
+  }
+  function cenaSequencia(g, T, t, el) {
+    const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look();
+    let week = (el.getAttribute("semana") || "").split(",").filter(Boolean).map((w) => [w.slice(0, -1) || w, w.slice(-1) === "1"]);
+    if (!week.length) week = [["H", true]];
+    const n = week.length, xs = week.map((_, i) => 50 + (i - (n - 1) / 2) * 12.6), stringY = (x) => 5 + 8 * (1 - ((x - 50) / 56) ** 2);
+    const milestone = days % 7 === 0 || days === 3 || days === 30 || days === 50 || days === 100;
+    starDust(g, t, 0.8);
+    // varal
+    const vp = new Path2D(); vp.moveTo(-6, 2); for (let x = -6; x <= 106; x += 4) vp.lineTo(x, stringY(x) - 3 * (1 - ((x - 50) / 56) ** 2) * 0 + (x < -1 || x > 101 ? -1 : 0));
+    stroke(g, vp, "rgba(255,255,255,0.35)", 0.45);
+    // a faísca: sai do punho do Folha num arco até a lanterna de hoje
+    const launch = 1.05, hitT = 1.62, lastX = xs[n - 1], lastY = stringY(lastX) + 8.6;
+    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.5, look, dir: { x: 0.7, y: -1 },
+      script: [[0, "idle"], [0.8, "happy"], [1.75, "surprised"], [2.05, milestone ? "ecstatic" : "happy"], [4.0, "proud"]] };
+    // a chama grande cresce atrás do Folha, com o número
+    const fh = 64 * outBack(segT(T, 2.0, 2.6)) * (1 + 0.03 * sin(t * 5));
+    drawBigFlame(g, 50, 98, fh, t);
+    if (fh > 1) for (let i = 0; i < 10; i++) { const ph = (t * 0.5 + i * 0.1) % 1, x = 50 + sin(i * 2.3 + t) * 18 * (1 - ph * 0.5), y = 94 - ph * fh * 1.1; circle(g, `rgba(255,${180 + (i % 3) * 25},90,${(1 - ph) * 0.9})`, 0.8 * (1 - ph) + 0.3, x, y); }
+    // o número na chama: o de ontem sobe e some, o de hoje entra de baixo
+    if (fh > 40) {
+      const roll = segT(T, 2.55, 2.95), prevN = String(days - 1), cur = String(days), cy = 98 - fh * 0.74;
+      g.save(); const clip = new Path2D(); clip.rect(16, cy - 12, 68, 24); g.clip(clip);
+      if (days > 1 && roll < 1) { g.globalAlpha = 1 - roll; handNumber(g, prevN, 50, cy - outC(roll) * 20, 17, 1, ["#9A2A0E", "#FFFFFF"], 3.6); g.globalAlpha = 1; }
+      if (roll > 0 || days === 1) handNumber(g, cur, 50, cy + (1 - outBack(days === 1 ? 1 : roll)) * 20, 17, 1, ["#9A2A0E", "#FFFFFF"], 3.6);
+      g.restore();
+    }
+    // lanternas
+    week.forEach(([letter, done], i) => {
+      const today = i === n - 1, x = xs[i], y = stringY(x);
+      const ign = today ? segT(T, hitT, hitT + 0.25) : 0, lit = today ? ign : done ? 1 : 0;
+      const wave = sstep(1 - Math.abs(T - (hitT + 0.2 + (n - 1 - i) * 0.09)) / 0.25);
+      const flare = today ? (1 - segT(T, hitT, hitT + 0.9)) * (T > hitT ? 1 : 0) : 0;
+      const kick = today && T > hitT ? 16 * Math.exp(-(T - hitT) * 2.6) * sin((T - hitT) * 9) : 0;
+      g.save(); g.translate(x, y); g.rotate((sin(t * 1.3 + i) * 2.5 + kick) * PI / 180);
+      drawLantern(g, lit, flare + (lit ? wave * 0.5 : 0), t, i, today ? "H" : letter);
+      g.restore();
+    });
+    // estouro da faísca na lanterna
+    shockRing(g, lastX, lastY, segT(T, hitT, hitT + 0.6), "#FFE07A", 14);
+    if (T > hitT && T < hitT + 0.8) for (let i = 0; i < 10; i++) { const u = (T - hitT) / 0.8, a = i * PI / 5; circle(g, `rgba(255,214,107,${1 - u})`, 0.7 * (1 - u) + 0.2, lastX + cos(a) * u * 14, lastY + sin(a) * u * 12 + u * u * 6); }
+    floorLight(g, 50, 107, 30, "#FFB13B", 0.25 + 0.2 * segT(T, 2, 2.6));
+    const P = sceneFolha(g, o);
+    if (T > launch && T < hitT) {
+      const u = segT(T, launch, hitT), [hx, hy] = folhaPt(o, P, P.hR[0], P.hR[1]);
+      const sx0 = hx, sy0 = hy, cxp = (sx0 + lastX) / 2 + 14, cyp = Math.min(sy0, lastY) - 26;
+      const at = (q) => { const v = 1 - q; return [v * v * sx0 + 2 * v * q * cxp + q * q * lastX, v * v * sy0 + 2 * v * q * cyp + q * q * lastY]; };
+      for (let k = 8; k >= 0; k--) { const q = Math.max(0, u - k * 0.025), [x, y] = at(q); circle(g, `rgba(255,${160 + k * 10},80,${(1 - k / 9) * 0.8})`, 1.8 * (1 - k / 10), x, y); }
+      const [x, y] = at(u); glowAt(g, x, y, 7, "#FFD36B", 0.8); circle(g, "#FFFFFF", 1.3, x, y);
+    }
+  }
+
+  // ---- cena: peça nova (o presente)
+  const WRAP = { comum: [["#9CC0FF", "#5B84D6", "#3D63B8"], "#FFFFFF"], rara: [["#7FB8FF", "#3D8BEA", "#2160B8"], GOLD], epica: [["#C7A6FF", "#9563FF", "#6A3BD6"], GOLD], lendaria: [["#FFE59A", "#F5B83D", "#C98A12"], "#E2364F"] };
+  function drawGift(g, w, h, wrap, bow, untie, t) {
+    // caixa com base em (0, 0): papel com listras, fita em cruz, laço por cima
+    const [C, rib] = wrap, x0 = -w / 2, y0 = -h;
+    g.fillStyle = vGrad(g, [C[0], C[1], C[2]], y0, 0); g.fillRect(x0, y0, w, h);
+    g.save(); const box = new Path2D(); box.rect(x0, y0, w, h); g.clip(box);
+    for (let x = x0 - h; x < -x0; x += 5) { const p = new Path2D(); p.moveTo(x, 0); p.lineTo(x + h, y0); p.lineTo(x + h + 2, y0); p.lineTo(x + 2, 0); p.closePath(); g.fillStyle = "rgba(255,255,255,0.14)"; g.fill(p); }
+    g.fillStyle = "rgba(0,0,30,0.18)"; g.fillRect(x0, y0, w, 2.2);
+    g.restore();
+    if (bow > 0) { g.globalAlpha = bow; g.fillStyle = vGrad(g, [rib, rgba(rib, 0.85)], y0, 0); g.fillRect(-2.6, y0, 5.2, h); g.globalAlpha = 1; }
+  }
+  function drawGiftLid(g, w, wrap, bow, untie, t) {
+    const [C, rib] = wrap, lw = w + 4;
+    g.fillStyle = vGrad(g, [C[0], C[1]], -6, 0); g.fillRect(-lw / 2, -6, lw, 6);
+    g.fillStyle = "rgba(255,255,255,0.3)"; g.fillRect(-lw / 2, -6, lw, 1.1);
+    if (bow > 0) {
+      g.globalAlpha = bow; g.fillStyle = rib; g.fillRect(-2.6, -6, 5.2, 6);
+      // laço: duas alças e as pontas, que encolhem quando desamarra
+      const k = 1 - untie;
+      if (k > 0) {
+        for (const side of [-1, 1]) {
+          g.save(); g.translate(0, -6); g.rotate(side * (0.5 + untie * 0.8)); g.scale(k, k);
+          const loop = new Path2D(); loop.moveTo(0, 0); loop.bezierCurveTo(side * 4, -9, side * 13, -7, side * 10, -1); loop.bezierCurveTo(side * 8, 2, side * 3, 1, 0, 0); loop.closePath();
+          g.fillStyle = vGrad(g, [rgba(rib, 1), rgba(rib, 0.8)], -8, 1); g.fill(loop); stroke(g, loop, "rgba(0,0,0,0.18)", 0.4);
+          g.restore();
+        }
+        circle(g, rib, 2.2 * k, 0, -6);
+      }
+      for (const side of [-1, 1]) { const tail = new Path2D(); tail.moveTo(0, -6); tail.quadraticCurveTo(side * 3, -1 + untie * 8, side * 5 + untie * side * 6, 3 + untie * 18); stroke(g, tail, rib, 1.8 * (1 - untie * 0.4)); }
+      g.globalAlpha = 1;
+    }
+  }
+  function cenaPeca(g, T, t, el) {
+    const slot = el.getAttribute("piece-slot"), piece = el.getAttribute("piece"), rarity = el.getAttribute("rarity") || "comum";
+    const glow = RARITY_GLOW[rarity] || RARITY_GLOW.comum, wrap = WRAP[rarity] || WRAP.comum, legendary = rarity === "lendaria";
+    const flashT = 3.35, worn = T >= flashT;
+    const look = el._look(worn && slot && piece ? { [slot]: piece } : null);
+    starDust(g, t, 0.9);
+    // raios atrás do Folha depois que ele veste
+    sceneRays(g, 50, 72, legendary ? 18 : 12, 74, glow[0], outC(segT(T, flashT, flashT + 0.7)) * (0.8 + 0.2 * sin(t * 2)), t * 0.2);
+    if (legendary) sceneRays(g, 50, 72, 9, 60, "#FFFFFF", 0.5 * outC(segT(T, flashT + 0.2, flashT + 1)), -t * 0.3, 0.05);
+    glowAt(g, 50, 72, 50, glow[1], 0.18 + 0.25 * segT(T, flashT, flashT + 0.5));
+    // o Folha: atrás da caixa, espiando; na luz, pula para a frente vestindo a peça
+    const jump = segT(T, flashT, flashT + 0.6), arc = sin(PI * jump) * 14;
+    const show = slot === "hand" || slot === "gloves" ? "present" : "proud";
+    const orb = segT(T, 2.35, flashT);
+    const orbAt = (() => {
+      // sobe da caixa, dá uma volta no Folha e entra nele
+      if (orb < 0.35) { const u = outC(orb / 0.35); return [50, lerp(80, 36, u)]; }
+      const u = (orb - 0.35) / 0.65, a = -PI / 2 + u * 2 * PI * 1.0, r = 30 * (1 - u * 0.75);
+      return [50 + cos(a) * r, 64 + sin(a) * r * 0.45 + (1 - u) * -28 * (1 - u)];
+    })();
+    const o = { T, t, x: 50, y: lerp(85, 104, outC(jump)) - arc, scale: lerp(0.4, 0.56, outC(jump)), look,
+      dir: T < 0.6 ? { x: 0, y: -1 + T * 3 } : T < 2.3 ? { x: 0, y: 1 } : !worn ? { x: clamp((orbAt[0] - 50) / 26, -1, 1), y: clamp((orbAt[1] - 66) / 20, -1, 1) } : { x: 0, y: 0 },
+      script: [[0, "idle"], [0.5, "surprised"], [1.0, "idle"], [2.15, "surprised"], [2.6, "idle"], [flashT, "ecstatic"], [flashT + 1.4, "happy"], [flashT + 2.4, show]] };
+    floorLight(g, 50, 104, 30, glow[0], 0.25 + 0.2 * segT(T, flashT, flashT + 0.6));
+    sceneFolha(g, o);
+    // a caixa: cai, pula impaciente, desamarra, solta a tampa e some numa nuvem de confete
+    const fall = segT(T, 0, 0.5), land = T - 0.5;
+    let by = 104 - (1 - fall * fall) * 120, rot = 0, sq = 0;
+    if (land > 0) sq = Math.exp(-land * 7) * sin(land * 20) * 0.14;
+    for (const [a, b] of [[1.0, 1.28], [1.42, 1.7], [1.82, 2.1]]) { const u = segT(T, a, b); if (u > 0 && u < 1) { by -= sin(PI * u) * (3 + a); rot += sin(PI * u * 2) * 7; sq += -sin(PI * u) * 0.05; } }
+    const untie = segT(T, 2.0, 2.3), lidU = Math.max(0, T - 2.3), gone = segT(T, flashT - 0.05, flashT + 0.2);
+    const bw = 40, bh = 22;
+    if (gone < 1) {
+      // luz pela fresta e coluna de luz quando abre
+      if (lidU > 0) { const a = Math.min(1, lidU * 3) * (1 - gone); const p = new Path2D(); p.moveTo(50 - bw / 2 + 2, by - bh); p.lineTo(50 + bw / 2 - 2, by - bh); p.lineTo(50 + 30, -10); p.lineTo(50 - 30, -10); p.closePath(); const gr = g.createLinearGradient(0, by - bh, 0, -10); gr.addColorStop(0, rgba(glow[0], 0.75 * a)); gr.addColorStop(1, rgba(glow[0], 0)); g.fillStyle = gr; g.fill(p); }
+      g.save(); g.translate(50, by); g.rotate(rot * PI / 180); g.scale(1 + sq - gone * 0.4, 1 - sq - gone * 0.6);
+      g.fillStyle = "rgba(10,6,40,0.3)"; g.beginPath(); g.ellipse(0, 1, bw * 0.6, 2.4, 0, 0, 2 * PI); g.fill();
+      drawGift(g, bw, bh, wrap, 1 - untie, untie, t);
+      if (T > 1.0 && lidU <= 0) { const k = segT(T, 1.0, 2.3); g.fillStyle = rgba(glow[0], 0.5 + 0.5 * sin(t * 20)); g.fillRect(-bw / 2, -bh - 0.6, bw, 1.2 * k); }
+      if (lidU <= 0) { g.save(); g.translate(0, -bh); drawGiftLid(g, bw, wrap, 1, untie, t); g.restore(); }
+      g.restore();
+      if (lidU > 0) {
+        // a tampa sai voando e girando
+        const lx = 50 + lidU * 46, ly = by - bh - lidU * 95 + lidU * lidU * 70;
+        if (ly > -20) { g.save(); g.translate(lx, ly); g.rotate(lidU * 4); g.scale(1 - Math.min(lidU, 1) * 0.35, 1 - Math.min(lidU, 1) * 0.35); drawGiftLid(g, bw, wrap, 0, 1, t); g.restore(); }
+      }
+    }
+    // nuvem de confete quando a caixa some
+    if (T > flashT - 0.05 && T < flashT + 0.9) { const u = segT(T, flashT - 0.05, flashT + 0.9); for (let i = 0; i < 9; i++) { const a = i * 2 * PI / 9; circle(g, `rgba(255,255,255,${0.7 * (1 - u)})`, 3 + u * 5, 50 + cos(a) * u * 18, 96 + sin(a) * u * 6 - u * 4); } }
+    drawConfetti(g, el._conf, T - flashT);
+    // a luz da peça
+    if (orb > 0 && !worn) {
+      const [x, y] = orbAt;
+      glowAt(g, x, y, 12, glow[0], 0.9); star4(g, x, y, 5 + sin(t * 9) * 0.8, "#FFFFFF"); circle(g, "#FFFFFF", 1.4, x, y);
+      for (let i = 0; i < 4; i++) { const ph = (t * 2 + i / 4) % 1; star4(g, x + sin(i * 2.4) * 6 * ph, y + cos(i * 1.7) * 6 * ph + ph * 4, 1.4 * (1 - ph), rgba(glow[0], 1 - ph)); }
+    }
+    // clarão da troca
+    const fl = segT(T, flashT - 0.08, flashT + 0.55);
+    if (fl > 0 && fl < 1) { const a = fl < 0.15 ? fl / 0.15 : 1 - (fl - 0.15) / 0.85; glowAt(g, 50, 72, 70, "#FFFFFF", a); }
+    if (worn) for (let i = 0; i < (legendary ? 8 : 5); i++) { const ph = (t * 0.45 + i / 8) % 1; star4(g, 14 + ((i * 29) % 72), 92 - ph * 70, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : glow[0], sin(PI * ph))); }
+  }
+
+  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
+  class EstudarioCena extends HTMLElement {
+    static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity"]; }
     connectedCallback() {
       if (!this._canvas) {
         this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.width = this._canvas.style.height = "100%";
         this.appendChild(this._canvas); this.setAttribute("role", "img");
-        if (!this.hasAttribute("aria-label")) this.setAttribute("aria-label", "Baú com uma peça nova para o Folha");
-        this.addEventListener("click", () => { this._kick = performance.now(); });
-        this._confetti = Array.from({ length: 34 }, (_, i) => ({ a: -PI / 2 + (Math.random() - 0.5) * 2.4, v: 40 + Math.random() * 50, c: [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"][i % 6], s: 1.2 + Math.random() * 1.6, r: Math.random() * 6, k: i % 3 }));
+        if (!this.style.display) this.style.display = "block";
+        if ("ResizeObserver" in window) { this._ro = new ResizeObserver(() => this._size()); this._ro.observe(this); }
       }
-      this._start = performance.now(); this._size();
+      this._restart(); this._size();
       const loop = (now) => { if (!this.isConnected) return; this._frame(now); this._raf = requestAnimationFrame(loop); };
-      this._raf = requestAnimationFrame(loop);
+      cancelAnimationFrame(this._raf); this._raf = requestAnimationFrame(loop);
     }
     disconnectedCallback() { cancelAnimationFrame(this._raf); }
-    attributeChangedCallback(n) { if (n === "size") this._size(); if (n === "piece" || n === "piece-slot") this._start = performance.now(); }
+    attributeChangedCallback(n) { if (n === "size") this._size(); else if (this._canvas) this._restart(); }
+    _restart() {
+      this._start = performance.now();
+      const tipo = this.getAttribute("tipo"), glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum;
+      const cols = tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
+      this._conf = makeConfetti(7 + (tipo || "").length, tipo === "peca" && this.getAttribute("rarity") === "lendaria" ? 60 : 44, cols);
+    }
+    // o visual do Folha: o que a pessoa escolheu, em vitrine (sem medalha de sequência nem café da manhã)
+    _look(over) { return resolveLook(null, Object.assign({ plain: true }, over || {})); }
     _size() {
       if (!this._canvas) return;
-      const size = parseInt(this.getAttribute("size") || "280", 10), dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-      this.style.display = this.style.display || "inline-block"; this.style.width = size + "px"; this.style.height = size * 1.15 + "px";
-      this._canvas.width = Math.round(size * dpr); this._canvas.height = Math.round(size * 1.15 * dpr); this._k = size * dpr / 100;
+      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      if (attr) { this.style.width = w + "px"; }
+      this.style.height = Math.round(w * CENA_H / 100) + "px";
+      const cw = Math.round(w * dpr), ch = Math.round(w * CENA_H / 100 * dpr);
+      if (this._canvas.width !== cw || this._canvas.height !== ch) { this._canvas.width = cw; this._canvas.height = ch; }
+      this._k = w * dpr / 100;
     }
     _frame(now) {
-      const g = this._canvas.getContext("2d"); if (!g) return;
-      const still = reduceMotion.matches, T = still ? 4 : (now - this._start) / 1000, t = now / 1000;
-      const glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum, legendary = this.getAttribute("rarity") === "lendaria";
+      const g = this._canvas.getContext("2d"), draw = CENAS[this.getAttribute("tipo")];
+      if (!g || !draw || !this._k) return;
+      // at="2.5": quadro parado naquele instante do roteiro (para conferir o desenho)
+      const at = this.getAttribute("at"), still = reduceMotion.matches || at != null, T = at != null ? +at : still ? 9 : (now - this._start) / 1000, t = at != null ? +at : still ? 0.35 : now / 1000;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this._canvas.width, this._canvas.height);
-      g.setTransform(this._k, 0, 0, this._k, 0, this._k * 15);   // grade 100 x 115: sobra em cima para o Folha subir
-      // fases
-      const drop = clamp(T / CHEST_T.land, 0, 1), fall = 1 - (1 - drop) * (1 - drop) * (1 - drop);
-      const landed = T - CHEST_T.land, squash = landed > 0 ? Math.exp(-landed * 7) * Math.sin(landed * 22) * 0.12 : 0;
-      const shakeU = clamp((T - CHEST_T.land - 0.15) / (CHEST_T.shake - CHEST_T.land - 0.15), 0, 1), shaking = T > CHEST_T.land && T < CHEST_T.open;
-      const openU = clamp((T - CHEST_T.shake) / 0.45, 0, 1), o = openU < 1 ? 1 - Math.pow(1 - openU, 3) * Math.cos(openU * 9) : 1;
-      const kick = this._kick ? clamp(1 - (now - this._kick) / 600, 0, 1) : 0;
-      const hopY = kick > 0 ? -Math.sin(PI * (1 - kick)) * 6 : 0;
-      // transformação do baú (queda, tremida, amasso, pulo ao toque): a mesma para tampa e corpo
-      const by = -60 * (1 - fall) + hopY, wob = shaking ? Math.sin(T * (30 + shakeU * 30)) * (0.6 + shakeU * 2.6) : 0;
-      const chestT = () => { g.translate(50, 90 + by); g.rotate(wob * PI / 180); g.scale(1 + squash, 1 - squash); g.translate(-50, -90); };
-      const lidOpen = Math.cos(o * PI * 0.72) < 0;
-      // raios e brilho atrás
-      drawRays(g, clamp((T - CHEST_T.shake) / 0.5, 0, 1) * (0.75 + 0.25 * sin(t * 2)), t, glow, legendary ? 14 : 10);
-      // tampa aberta fica atrás do Folha
-      if (lidOpen) { g.save(); chestT(); drawChestLid(g, o, glow, t, false); g.restore(); }
-      // o Folha subindo de dentro do baú, vestindo a peça
-      const riseU = clamp((T - CHEST_T.shake - 0.1) / (CHEST_T.rise - CHEST_T.shake - 0.1), 0, 1);
-      if (riseU > 0) {
-        const sp = 1 - Math.exp(-riseU * 6) * Math.cos(riseU * 9);
-        const slot = this.getAttribute("piece-slot"), piece = this.getAttribute("piece");
-        const over = { plain: true }; if (slot && piece) over[slot] = piece;
-        const look = resolveLook(null, over);
-        const mood = slot === "hand" || slot === "gloves" ? "present" : "happy";
-        const Tp = pose(mood, t, { x: 0, y: -0.2 }, null, { tm: 9, holding: look.hand && look.hand !== "nenhum" });
-        const P = { ...Tp, hL0: Tp.hL[0], hL1: Tp.hL[1], hR0: Tp.hR[0], hR1: Tp.hR[1], shapeL: Tp.shapeL, shapeR: Tp.shapeR };
-        const scale = 0.22 + 0.33 * sp, cy = 54 - 24 * sp + Math.sin(t * 2) * 1.2 * riseU;
-        g.save(); g.translate(50 - 50 * scale, cy - 60 * scale); g.scale(scale, scale);
-        drawFolha(g, { t, mood, small: false, P, vy: 0, blink: (t % 3.3) < 0.12 ? 1 : 0, wink: 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9, burst: 0 });
-        g.restore();
-      }
-      // o baú
-      g.save(); chestT();
-      drawChestBody(g, o, glow, t, false);
-      drawLock(g, clamp((T - CHEST_T.shake) / 0.9, 0, 1), shaking ? shakeU : 0, glow, t);
-      if (!lidOpen) drawChestLid(g, o, glow, t, false);
-      // brilho escapando pela fresta enquanto treme
-      if (shaking && shakeU > 0.2) for (let i = 0; i < 3; i++) { const ph = (t * 2 + i / 3) % 1; star4(g, 30 + i * 20 + sin(t * 3 + i) * 3, 58 - ph * 10, 2 * (1 - ph) * shakeU, rgba(glow[0], 1 - ph)); }
-      g.restore();
-      // confete e brilhos da abertura
-      const burstT = T - CHEST_T.shake;
-      if (burstT > 0 && burstT < 2.4) for (const c of this._confetti) {
-        const tt = burstT, x = 50 + Math.cos(c.a) * c.v * tt, y = 56 + Math.sin(c.a) * c.v * tt + 34 * tt * tt, al = 1 - tt / 2.4;
-        g.save(); g.translate(x, y); g.rotate(c.r + tt * 8); g.globalAlpha = al;
-        if (c.k === 0) { g.scale(Math.cos(tt * 9 + c.r), 1); g.fillStyle = c.c; g.fillRect(-c.s, -c.s * 0.5, c.s * 2, c.s); }
-        else if (c.k === 1) circle(g, c.c, c.s * 0.6, 0, 0); else star4(g, 0, 0, c.s * 1.3, c.c);
-        g.restore();
-      }
-      if (burstT > 0.4) for (let i = 0; i < (legendary ? 7 : 4); i++) { const ph = (t * 0.45 + i / 7) % 1; star4(g, 24 + ((i * 29) % 52), 60 - ph * 50, 2.4 * sin(PI * ph), rgba(glow[0], sin(PI * ph))); }
+      g.setTransform(this._k, 0, 0, this._k, 0, 0);
+      draw(g, T, t, this);
     }
   }
-  customElements.define("estudario-bau", EstudarioBau);
+  customElements.define("estudario-cena", EstudarioCena);
 
   // Folha parado (miniaturas e botões): o mesmo desenho do 2.0, um quadro só, em PNG. Guarda em cache por
   // humor e tamanho. folhaPng({ mood, size }) -> data URL.
@@ -2061,8 +2608,8 @@
     const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9, holding: look.hand && look.hand !== "nenhum" });
     const P = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
     const c = document.createElement("canvas"); c.width = c.height = Math.round(size * dpr);
-    const pet = look.pet && look.pet !== "nenhum" && size >= SMALL;
-    const g = c.getContext("2d"), k = c.width / 100, fit = pet ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
+    const pet = look.pet && look.pet !== "nenhum" && size >= SMALL, wide = (look.back && look.back !== "nada") || look.aura === "holofote" || look.aura === "fogos";
+    const g = c.getContext("2d"), k = c.width / 100, fit = pet || wide ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
     g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2));
     drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;

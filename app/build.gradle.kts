@@ -85,8 +85,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 98
-        versionName = "3.3.70"
+        versionCode = 99
+        versionName = "3.3.71"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
@@ -101,6 +101,8 @@ extensions.configure<ApplicationExtension> {
     }
 
     sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
+    // As cenas de comemoração usam o mesmo desenho do site (folha-live.js), copiado para os assets.
+    sourceSets.getByName("main").assets.directories.add(layout.buildDirectory.dir("generated/folha-assets").get().asFile.path)
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -132,6 +134,12 @@ extensions.configure<ApplicationExtension> {
 
     packaging.resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
 }
+
+val copyFolhaAssets by tasks.registering(Copy::class) {
+    from(rootProject.file("web/src/jsMain/resources/folha-live.js"))
+    into(layout.buildDirectory.dir("generated/folha-assets"))
+}
+tasks.named("preBuild") { dependsOn(copyFolhaAssets) }
 
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions {

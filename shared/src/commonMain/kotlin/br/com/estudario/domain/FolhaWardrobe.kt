@@ -18,6 +18,7 @@ enum class FolhaSlot(val key: String, val label: String, val hint: String, val g
     OCULOS("eyes", "Óculos", "Seguem o olhar do Folha.", FolhaGroup.ACESSORIOS),
     PESCOCO("neck", "Peito", "Gravatas, medalhas e enfeites no pé das páginas.", FolhaGroup.ACESSORIOS),
     MAO("hand", "Na mão", "Um item que ele segura na mão esquerda e leva junto em todos os gestos.", FolhaGroup.ACESSORIOS),
+    COSTAS("back", "Costas", "Atrás do livro: asas, capa ou mochila-foguete. Só saem de coleções completas.", FolhaGroup.EFEITOS),
     AURA("aura", "Aura", "Um efeito em volta dele. Toque no Folha para ver o estouro.", FolhaGroup.EFEITOS),
     COMPANHEIRO("pet", "Companheiro", "Um amigo que fica ao lado dele, comemora junto e cochila junto.", FolhaGroup.EFEITOS),
 }
@@ -53,7 +54,7 @@ data class FolhaItem(
 )
 
 /**
- * O armário do Folha: doze categorias de peças que a pessoa libera estudando. Cada peça sai de uma
+ * O armário do Folha: treze categorias de peças que a pessoa libera estudando. Cada peça sai de uma
  * conquista de verdade (todos os emblemas liberam alguma coisa, e os níveis também), então nada é
  * comprado nem ganho por engano, e quem troca de aparelho recupera tudo junto com o histórico.
  */
@@ -84,13 +85,20 @@ object FolhaWardrobe {
         item("coral", FolhaSlot.BOCHECHAS, "Coral"),
         item("nenhuma", FolhaSlot.BOCHECHAS, "Sem rubor"),
 
-        // recompensas de coleção (exclusivas)
-        item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, collection = "detetive"),
-        item("runas", FolhaSlot.AURA, "Runas mágicas", L, collection = "mago"),
-        item("pasta", FolhaSlot.MAO, "Pasta executiva", E, collection = "executivo"),
+        // recompensas de coleção (exclusivas e chamativas)
+        item("nada", FolhaSlot.COSTAS, "Nada nas costas"),
+        item("asas", FolhaSlot.COSTAS, "Asas de fada", E, collection = "fofura"),
+        item("holofote", FolhaSlot.AURA, "Holofotes de palco", E, collection = "detetive"),
         item("fogos", FolhaSlot.AURA, "Fogos de artifício", L, collection = "campeao"),
-        item("real", FolhaSlot.CAPA, "Veludo real", L, collection = "realeza"),
-        item("coelho", FolhaSlot.COMPANHEIRO, "Coelhinho", E, collection = "fofura"),
+        item("foguete", FolhaSlot.COSTAS, "Mochila-foguete", L, collection = "executivo"),
+        item("runas", FolhaSlot.AURA, "Círculo mágico", L, collection = "mago"),
+        item("capa-real", FolhaSlot.COSTAS, "Manto real", L, collection = "realeza"),
+
+        // peças que eram de coleção e agora saem por nível
+        item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, level = 22),
+        item("pasta", FolhaSlot.MAO, "Pasta executiva", E, level = 30),
+        item("real", FolhaSlot.CAPA, "Veludo real", L, level = 45),
+        item("coelho", FolhaSlot.COMPANHEIRO, "Coelhinho", E, level = 26),
 
         // capas
         item("indigo", FolhaSlot.CAPA, "Índigo Estudário"),
@@ -112,13 +120,13 @@ object FolhaWardrobe {
         item("capelo", FolhaSlot.CHAPEU, "Capelo de formatura"),
         item("bone", FolhaSlot.CHAPEU, "Boné do Estudário", C, badge = "seq-3"),
         item("boina", FolhaSlot.CHAPEU, "Boina de artista", C, badge = "discursiva-5"),
-        item("explorador", FolhaSlot.CHAPEU, "Chapéu de explorador", R, badge = "topico-150"),
+        item("explorador", FolhaSlot.CHAPEU, "Chapéu de explorador", R, badge = "revisao-10"),
         item("fones", FolhaSlot.CHAPEU, "Fones de foco", R, badge = "maratona-240"),
         item("louros", FolhaSlot.CHAPEU, "Capelo com louros", R, badge = "simulado-1"),
-        item("cartola", FolhaSlot.CHAPEU, "Cartola de gala", E, badge = "plano-200"),
-        item("mago", FolhaSlot.CHAPEU, "Chapéu de mago", E, badge = "revisao-100"),
+        item("cartola", FolhaSlot.CHAPEU, "Cartola de gala", R, badge = "plano-50"),
+        item("mago", FolhaSlot.CHAPEU, "Chapéu de mago", E, badge = "revisao-25"),
         item("capelo-ouro", FolhaSlot.CHAPEU, "Capelo de ouro", E, badge = "edital-75"),
-        item("coroa", FolhaSlot.CHAPEU, "Coroa", L, badge = "acerto-90"),
+        item("coroa", FolhaSlot.CHAPEU, "Coroa", E, badge = "seq-30"),
         item("aureola", FolhaSlot.CHAPEU, "Auréola", L, badge = "revisao-1000"),
 
         // óculos
@@ -128,7 +136,7 @@ object FolhaWardrobe {
         item("coracao", FolhaSlot.OCULOS, "Coração", R, badge = "meta-10"),
         item("nerd", FolhaSlot.OCULOS, "Armação grossa", R, badge = "edital-25"),
         item("estrela", FolhaSlot.OCULOS, "Estrela de festa", R, badge = "maratona-120"),
-        item("monoculo", FolhaSlot.OCULOS, "Monóculo", E, badge = "revisao-400"),
+        item("monoculo", FolhaSlot.OCULOS, "Monóculo", R, badge = "revisao-25"),
 
         // peito
         item("nenhum", FolhaSlot.PESCOCO, "Nada"),
@@ -136,9 +144,9 @@ object FolhaWardrobe {
         item("borboleta", FolhaSlot.PESCOCO, "Gravata-borboleta", C, badge = "plano-10"),
         item("cachecol", FolhaSlot.PESCOCO, "Cachecol listrado", R, badge = "seq-14"),
         item("broche", FolhaSlot.PESCOCO, "Broche de estrela", R, level = 10),
-        item("gravata", FolhaSlot.PESCOCO, "Gravata de executivo", E, badge = "simulado-20"),
-        item("medalha", FolhaSlot.PESCOCO, "Medalha de ouro", E, badge = "meta-100"),
-        item("roseta", FolhaSlot.PESCOCO, "Roseta de campeão", L, badge = "meta-250"),
+        item("gravata", FolhaSlot.PESCOCO, "Gravata de executivo", R, badge = "simulado-5"),
+        item("medalha", FolhaSlot.PESCOCO, "Medalha de ouro", R, badge = "meta-10"),
+        item("roseta", FolhaSlot.PESCOCO, "Roseta de campeão", E, badge = "meta-50"),
 
         // na mão
         item("nenhum", FolhaSlot.MAO, "Mão livre"),
@@ -146,9 +154,9 @@ object FolhaWardrobe {
         item("balao", FolhaSlot.MAO, "Balão", C, level = 4),
         item("livro", FolhaSlot.MAO, "Livrinho de bolso", R, badge = "edital-50"),
         item("marcatexto", FolhaSlot.MAO, "Marca-texto", R, badge = "quest-2000"),
-        item("lupa", FolhaSlot.MAO, "Lupa de detetive", E, badge = "topico-400"),
-        item("varinha", FolhaSlot.MAO, "Varinha mágica", E, badge = "maratona-360"),
-        item("trofeu", FolhaSlot.MAO, "Troféu", L, badge = "simulado-50"),
+        item("lupa", FolhaSlot.MAO, "Lupa de detetive", R, badge = "topico-50"),
+        item("varinha", FolhaSlot.MAO, "Varinha mágica", E, badge = "maratona-240"),
+        item("trofeu", FolhaSlot.MAO, "Troféu", E, badge = "simulado-5"),
 
         // aura
         item("nenhum", FolhaSlot.AURA, "Sem aura"),
@@ -166,7 +174,7 @@ object FolhaWardrobe {
         item("coral", FolhaSlot.FITA, "Coral", C, badge = "revisao-10"),
         item("lilas", FolhaSlot.FITA, "Lilás", C, badge = "discursiva-1"),
         item("preta", FolhaSlot.FITA, "Preta", R, badge = "simulado-5"),
-        item("dourada", FolhaSlot.FITA, "Dourada", R, badge = "acerto-80"),
+        item("dourada", FolhaSlot.FITA, "Dourada", R, badge = "acerto-70"),
         item("arcoiris", FolhaSlot.FITA, "Arco-íris", E, badge = "meta-50"),
 
         // luvas
@@ -174,7 +182,7 @@ object FolhaWardrobe {
         item("menta", FolhaSlot.LUVAS, "Menta", C, level = 8),
         item("coral", FolhaSlot.LUVAS, "Coral", C, level = 12),
         item("preta", FolhaSlot.LUVAS, "Pretas", R, level = 15),
-        item("dourada", FolhaSlot.LUVAS, "Douradas", E, level = 20),
+        item("dourada", FolhaSlot.LUVAS, "Douradas", R, level = 15),
         item("arcoiris", FolhaSlot.LUVAS, "Arco-íris", E, level = 28),
         item("boxe", FolhaSlot.LUVAS, "Luvas de boxe", L, level = 40),
 
@@ -183,25 +191,25 @@ object FolhaWardrobe {
         item("planta", FolhaSlot.COMPANHEIRO, "Plantinha", C, level = 7),
         item("patinho", FolhaSlot.COMPANHEIRO, "Patinho de borracha", C, level = 9),
         item("gatinho", FolhaSlot.COMPANHEIRO, "Gatinho", R, level = 14),
-        item("coruja", FolhaSlot.COMPANHEIRO, "Coruja de capelo", R, level = 18),
+        item("coruja", FolhaSlot.COMPANHEIRO, "Coruja de capelo", R, level = 12),
         item("robo", FolhaSlot.COMPANHEIRO, "Robozinho", E, level = 24),
-        item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", L, level = 35),
+        item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", E, level = 20),
     )
 
     /** Coleções, da mais fácil de completar para a mais difícil. */
     val collections: List<FolhaCollection> = listOf(
-        FolhaCollection("fofura", "Fofura", "Coração nos olhos, flor no peito e balão na mão.",
-            listOf(FolhaSlot.CAPA to "bolinhas", FolhaSlot.OCULOS to "coracao", FolhaSlot.PESCOCO to "flor", FolhaSlot.MAO to "balao"), FolhaSlot.COMPANHEIRO to "coelho"),
-        FolhaCollection("detetive", "Detetive", "Para investigar cada tópico do edital.",
-            listOf(FolhaSlot.CHAPEU to "explorador", FolhaSlot.OCULOS to "leitura", FolhaSlot.MAO to "lupa", FolhaSlot.COMPANHEIRO to "coruja"), FolhaSlot.CAPA to "tweed"),
-        FolhaCollection("campeao", "Campeão", "Boné, óculos escuros, medalha e troféu.",
+        FolhaCollection("fofura", "Fofura", "Coração nos olhos, flor no peito e balão na mão. Ganha asas de fada que brilham.",
+            listOf(FolhaSlot.CAPA to "bolinhas", FolhaSlot.OCULOS to "coracao", FolhaSlot.PESCOCO to "flor", FolhaSlot.MAO to "balao"), FolhaSlot.COSTAS to "asas"),
+        FolhaCollection("detetive", "Detetive", "Para investigar cada tópico do edital. Ganha holofotes de palco varrendo a cena.",
+            listOf(FolhaSlot.CHAPEU to "explorador", FolhaSlot.OCULOS to "leitura", FolhaSlot.MAO to "lupa", FolhaSlot.COMPANHEIRO to "coruja"), FolhaSlot.AURA to "holofote"),
+        FolhaCollection("campeao", "Campeão", "Boné, óculos escuros, medalha e troféu. Ganha fogos de artifício.",
             listOf(FolhaSlot.CHAPEU to "bone", FolhaSlot.OCULOS to "escuros", FolhaSlot.PESCOCO to "medalha", FolhaSlot.MAO to "trofeu"), FolhaSlot.AURA to "fogos"),
-        FolhaCollection("executivo", "Executivo", "Cartola, monóculo, gravata e capa grafite.",
-            listOf(FolhaSlot.CAPA to "grafite", FolhaSlot.CHAPEU to "cartola", FolhaSlot.OCULOS to "monoculo", FolhaSlot.PESCOCO to "gravata"), FolhaSlot.MAO to "pasta"),
-        FolhaCollection("mago", "Mago", "Chapéu, varinha, óculos de estrela e o dragãozinho.",
+        FolhaCollection("executivo", "Executivo", "Cartola, monóculo, gravata e capa grafite. Ganha uma mochila-foguete que liga quando ele pula.",
+            listOf(FolhaSlot.CAPA to "grafite", FolhaSlot.CHAPEU to "cartola", FolhaSlot.OCULOS to "monoculo", FolhaSlot.PESCOCO to "gravata"), FolhaSlot.COSTAS to "foguete"),
+        FolhaCollection("mago", "Mago", "Chapéu, varinha, óculos de estrela e o dragãozinho. Ganha um círculo mágico no chão.",
             listOf(FolhaSlot.CHAPEU to "mago", FolhaSlot.OCULOS to "estrela", FolhaSlot.MAO to "varinha", FolhaSlot.COMPANHEIRO to "dragao"), FolhaSlot.AURA to "runas"),
-        FolhaCollection("realeza", "Realeza", "Coroa, roseta, luvas e marcador de ouro.",
-            listOf(FolhaSlot.CHAPEU to "coroa", FolhaSlot.PESCOCO to "roseta", FolhaSlot.LUVAS to "dourada", FolhaSlot.FITA to "dourada"), FolhaSlot.CAPA to "real"),
+        FolhaCollection("realeza", "Realeza", "Coroa, roseta, luvas e marcador de ouro. Ganha um manto real esvoaçante.",
+            listOf(FolhaSlot.CHAPEU to "coroa", FolhaSlot.PESCOCO to "roseta", FolhaSlot.LUVAS to "dourada", FolhaSlot.FITA to "dourada"), FolhaSlot.COSTAS to "capa-real"),
     )
 
     fun collection(id: String?): FolhaCollection? = collections.firstOrNull { it.id == id }

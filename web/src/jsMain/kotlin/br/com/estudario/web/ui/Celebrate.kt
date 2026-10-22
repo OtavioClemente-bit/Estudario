@@ -64,7 +64,7 @@ fun CelebrationHost() {
             CelebrationQueue.items += Celebration.StreakDay(5, 7, listOf("S" to true, "T" to true, "Q" to false, "Q" to true, "S" to true, "S" to true, "D" to true), 86)
             CelebrationQueue.items += Celebration.NewBadge(sample)
             CelebrationQueue.items += Celebration.LevelUp(4, "Estudioso", 820)
-            br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == "coroa" }?.let { CelebrationQueue.items += Celebration.NewPiece(it) }
+            br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == "asas" }?.let { CelebrationQueue.items += Celebration.NewPiece(it) }
         }
         CelebrationQueue.items.firstOrNull()?.let { CelebrationScreen(it) { CelebrationQueue.items.removeAt(0) } }
         return
@@ -147,26 +147,28 @@ fun CelebrationHost() {
     CelebrationScreen(current) { CelebrationQueue.items.removeAt(0) }
 }
 
-/** As cores do emblema pelo nível dele: bronze, prata, ouro, safira, rubi, esmeralda. */
-private fun tierColors(tier: Int): Pair<String, String> = when (tier) {
-    1 -> "#E0A36B" to "#9C5B2E"
-    2 -> "#E4E8F0" to "#8A93A6"
-    3 -> "#FFD66B" to "#C98A0B"
-    4 -> "#7FB4FF" to "#2D5FD0"
-    5 -> "#FF8FA3" to "#C0263D"
-    else -> "#7EE0B8" to "#13895F"
-}
 
 private fun tierName(tier: Int) = when (tier) { 1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Safira"; 5 -> "Rubi"; else -> "Esmeralda" }
 
+/** Quando a cena chega no momento principal: aí entram os textos (e, logo depois, os botões). */
+private fun revealAt(item: Celebration): Double = when (item) {
+    is Celebration.LevelUp -> 3.1
+    is Celebration.NewBadge -> 2.0
+    is Celebration.StreakDay -> 2.7
+    is Celebration.NewPiece -> 3.6
+}
+
+/**
+ * A tela de comemoração: em cima, a cena desenhada (folha-live.js, <estudario-cena>) com o Folha no
+ * visual escolhido; embaixo, os textos e os botões, que entram quando a cena chega no momento principal.
+ */
 @Composable
 private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
     var leaving by androidx.compose.runtime.remember(item) { mutableStateOf(false) }
     val onClose: () -> Unit = {
         if (!leaving) {
             leaving = true
-            val root = kotlinx.browser.document.querySelector(".celebrate")
-            runCatching { window.asDynamic().folhaLeave(root, { onCloseNow() }) }.onFailure { onCloseNow() }
+            window.setTimeout({ onCloseNow() }, 260)
         }
     }
     DisposableEffect(item) {
@@ -175,23 +177,19 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
         onDispose { window.removeEventListener("keydown", keys) }
     }
     val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece" }
-    Div({ classes("celebrate", kind); attr("role", "dialog"); attr("aria-modal", "true") }) {
-        Div({ classes("cel-glow") })
-        // Confete de caderno: tirinhas de papel nas cores da marca.
-        Div({ classes("confetti"); attr("aria-hidden", "true") }) {
-            val colors = listOf("#FFB421", "#7EE0B8", "#ABA2FF", "#FF8FA3", "#FFFFFF", "#38B2FF")
-            (0 until 42).forEach { i ->
-                Span({ attr("style", "--x:${(i * 37) % 100}%;--d:${(i % 7) * 0.18}s;--t:${2.6 + (i % 5) * 0.35}s;--r:${(i * 53) % 360}deg;background:${colors[i % colors.size]}") })
-            }
-        }
+    val r = revealAt(item)
+    Div({ classes(*listOfNotNull("celebrate", "cn", kind, if (leaving) "out" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) {
         Div({ classes("cel-in") }) {
-            when (item) {
-                is Celebration.StreakDay -> StreakContent(item)
-                is Celebration.NewBadge -> BadgeContent(item.badge)
-                is Celebration.LevelUp -> LevelContent(item)
-                is Celebration.NewPiece -> PieceContent(item.item)
+            Scene(item)
+            Div({ classes("cn-text") }) {
+                when (item) {
+                    is Celebration.StreakDay -> StreakText(item, r)
+                    is Celebration.NewBadge -> BadgeText(item.badge, r)
+                    is Celebration.LevelUp -> LevelText(item, r)
+                    is Celebration.NewPiece -> PieceText(item.item, r)
+                }
             }
-            Div({ classes("cel-actions") }) {
+            Div({ classes("cel-actions", "lv-late"); attr("style", "--ld:${r + 0.45}s") }) {
                 if (item is Celebration.NewBadge) Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
                 if (item is Celebration.NewPiece) {
                     Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Wardrobe) } }) { Text("Abrir o armário") }
@@ -202,37 +200,34 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
     }
 }
 
-/**
- * A sequência do dia: a chama acende. Uma faísca estala na base e o fogo pega de baixo para cima
- * (estica, passa do ponto, assenta), e daí fica viva: o corpo tremula num ritmo, o rosto balança em
- * outro, com halo de calor e brasas subindo. O número rola como um contador (ontem → hoje), os dias
- * feitos da semana aparecem acesos e hoje pega fogo junto com a virada do número. O Folha aparece no
- * canto com um balão curto. Sem confete: as brasas fazem esse papel.
- */
+/** A cena de cada comemoração, com os dados dela. */
 @Composable
-private fun StreakContent(item: Celebration.StreakDay) {
-    val previous = (item.days - 1).coerceAtLeast(0)
-    Div({ classes("sk-stage") }) {
-        Span({ classes("sk-glow") })
-        Span({ classes("sk-spark") })
-        // O halo de calor: a mesma chama, desfocada, atrás.
-        Div({ classes("sk-flame", "sk-haze"); attr("aria-hidden", "true") }) { Icon("local_fire_department", filled = true) }
-        Div({ classes("sk-flame") }) { Icon("local_fire_department", filled = true) }
-        Div({ classes("sk-embers"); attr("aria-hidden", "true") }) {
-            (0 until 12).forEach { i ->
-                Span({ attr("style", "--ex:${(i * 23) % 70 - 35}px;--ed:${1.1 + (i % 6) * 0.35}s;--et:${2.2 + (i % 4) * 0.5}s;--es:${3 + i % 3}px") })
-            }
-        }
+private fun Scene(item: Celebration) {
+    val attrs: List<Pair<String, String>> = when (item) {
+        is Celebration.LevelUp -> listOf("tipo" to "nivel", "nivel" to item.level.toString())
+        is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier))
+        is Celebration.StreakDay -> listOf("tipo" to "sequencia", "dias" to item.days.toString(), "semana" to item.week.joinToString(",") { (l, done) -> l + if (done) "1" else "0" })
+        is Celebration.NewPiece -> listOf("tipo" to "peca", "piece-slot" to item.item.slot.key, "piece" to item.item.id, "rarity" to item.item.rarity.name.lowercase())
     }
-    // O contador: ontem embaixo, hoje entra rolando.
-    Div({ classes("sk-odo"); attr("aria-label", "${item.days} dias") }) {
-        Div({ classes("sk-odo-col") }) {
-            B { Text("$previous") }
-            B { Text("${item.days}") }
-        }
+    val label = when (item) {
+        is Celebration.LevelUp -> "O Folha comemora o nível ${item.level}"
+        is Celebration.NewBadge -> "Medalha do emblema ${item.badge.name}"
+        is Celebration.StreakDay -> "${item.days} dias de sequência"
+        is Celebration.NewPiece -> "O Folha ganha ${item.item.name}"
     }
-    Span({ classes("sk-label", "sk-late"); attr("style", "--sd:1.7s") }) { Text(if (item.days == 1) "dia de sequência" else "dias de sequência") }
-    H2({ classes("cel-title", "sk-late"); attr("style", "--sd:1.85s") }) {
+    Div({ classes("cn-stage") }) {
+        org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
+            elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-cena"),
+            applyAttrs = { attrs.forEach { (k, v) -> attr(k, v) }; attr("aria-label", label) },
+            content = null,
+        )
+    }
+}
+
+@Composable
+private fun StreakText(item: Celebration.StreakDay, r: Double) {
+    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text(if (item.days == 1) "1 DIA DE SEQUÊNCIA" else "${item.days} DIAS DE SEQUÊNCIA") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) {
         Text(
             when {
                 item.days <= 1 -> "A chama acendeu"
@@ -241,7 +236,7 @@ private fun StreakContent(item: Celebration.StreakDay) {
             },
         )
     }
-    P({ classes("cel-body", "sk-late"); attr("style", "--sd:2s") }) {
+    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) {
         Text(
             when {
                 item.days <= 1 -> "Volte amanhã para manter o fogo aceso."
@@ -250,119 +245,33 @@ private fun StreakContent(item: Celebration.StreakDay) {
             },
         )
     }
-    if (item.week.isNotEmpty()) Div({ classes("sk-week", "sk-late"); attr("style", "--sd:.25s") }) {
-        item.week.forEachIndexed { i, (label, done) ->
-            val today = i == item.week.lastIndex
-            Div({ classes(*listOfNotNull("sk-day", if (done && !today) "on" else null, if (today) "today" else null).toTypedArray()); attr("style", "--wi:$i") }) {
-                Span({ classes("sk-dot") }) { if (done) Icon("local_fire_department", filled = true) }
-                Span({ classes("sk-dl") }) { Text(if (today) "hoje" else label) }
-            }
-        }
-    }
-    if (item.xpToday > 0) Span({ classes("cel-xp", "sk-late"); attr("style", "--sd:2.2s") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
-    Div({ classes("sk-folha") }) {
-        Div({ classes("sk-folha-body") }) { Folha("proud", 104) }
-        Div({ classes("lv-bubble", "sk-bubble") }) { Text(if (item.days <= 1) "Acendeu! Amanhã a gente mantém." else "${item.days} dias! Tá pegando fogo!") }
-    }
+    if (item.xpToday > 0) Span({ classes("cel-xp", "lv-late"); attr("style", "--ld:${r + 0.3}s") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
 }
 
-/**
- * Emblema novo, no nível da subida de nível: a medalha cai carimbada (com impacto e onda de choque),
- * raios de luz giram atrás, um brilho de vidro passa por ela e estrelinhas piscam em volta; o nome
- * aparece e o Folha entra pelo canto com o balão de parabéns.
- */
 @Composable
-private fun BadgeContent(badge: Badge) {
-    val (light, dark) = tierColors(badge.tier)
-    var mood by androidx.compose.runtime.remember(badge.id) { mutableStateOf("surprised") }
-    LaunchedEffect(badge.id) { kotlinx.coroutines.delay(900); mood = "proud"; kotlinx.coroutines.delay(1300); mood = "talking"; kotlinx.coroutines.delay(2400); mood = "wave" }
-    Div({ classes("bd-stage"); attr("style", "--m1:$light;--m2:$dark") }) {
-        Div({ classes("lv-rays", "bd-rays") })
-        Div({ classes("lv-shock", "bd-shock") })
-        Div({ classes("bd-medal") }) {
-            Div({ classes("cel-medal") }) {
-                Span({ classes("cel-ribbon", "l") }); Span({ classes("cel-ribbon", "r") })
-                Div({ classes("cel-disc") }) {
-                    Span({ classes("bd-glass") })
-                    Icon("military_tech", filled = true)
-                }
-            }
-        }
-        Div({ classes("bd-stars"); attr("aria-hidden", "true") }) {
-            listOf(-120 to -70, 118 to -50, -100 to 70, 110 to 84, 0 to -118).forEachIndexed { i, (x, y) ->
-                Span({ attr("style", "--x:${x}px;--y:${y}px;--i:$i") })
-            }
-        }
-    }
-    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:.95s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.05s") }) { Text(badge.name) }
-    P({ classes("cel-body", "lv-late"); attr("style", "--ld:1.2s") }) { Text(badge.requirement) }
-    Div({ classes("lv-folha", "bd-folha") }) {
-        Div({ classes("lv-folha-body") }) { Folha(mood, 120) }
-        Div({ classes("lv-bubble", "bd-bubble") }) { Text("Emblema novo! ${badge.name}. Você mereceu, continua assim!") }
-    }
+private fun BadgeText(badge: Badge, r: Double) {
+    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text(badge.name) }
+    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) { Text(badge.requirement) }
 }
 
-/**
- * A subida de nível, para impressionar: o nível antigo aparece no anel, um corte de lâmina atravessa
- * a tela com um clarão e o número se parte em dois (as metades caem girando, a tela treme); o nível
- * novo cai do alto com impacto, onda de choque, raios girando e estouro de partículas; a barra de XP
- * enche, o título aparece (com selo quando é título novo) e o Folha salta de baixo dando parabéns.
- */
 @Composable
-private fun LevelContent(item: Celebration.LevelUp) {
+private fun LevelText(item: Celebration.LevelUp, r: Double) {
     val old = (item.level - 1).coerceAtLeast(1)
     val newTitle = br.com.estudario.domain.ProgressEngine.levelTitle(old) != item.title
-    var folhaMood by androidx.compose.runtime.remember { mutableStateOf("surprised") }
-    LaunchedEffect(item) { folhaMood = "surprised"; kotlinx.coroutines.delay(1100); folhaMood = "happy"; kotlinx.coroutines.delay(1300); folhaMood = "talking"; kotlinx.coroutines.delay(2600); folhaMood = "wave" }
-    Div({ classes("lv-stage") }) {
-        Div({ classes("lv-rays") })
-        Div({ classes("lv-shock") })
-        Div({ classes("lv-flash") })
-        Div({ classes("lv-slash") })
-        // O nível antigo, que vai ser cortado ao meio.
-        Div({ classes("lv-old") }) {
-            Div({ classes("lv-half", "a") }) { B { Text("$old") } }
-            Div({ classes("lv-half", "b") }) { B { Text("$old") } }
-        }
-        // O novo, caindo do alto.
-        Div({ classes("lv-new") }) {
-            Span({ classes("lv-ring") })
-            B { Text("${item.level}") }
-        }
-        Div({ classes("lv-burst"); attr("aria-hidden", "true") }) {
-            (0 until 16).forEach { i -> Span({ attr("style", "--a:${i * 22.5}deg;--d:${70 + (i % 4) * 22}px;--c:${listOf("#FFB421", "#7EE0B8", "#ABA2FF", "#FF8FA3")[i % 4]}") }) }
-        }
-    }
-    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:1.7s") }) { Text("SUBIU DE NÍVEL") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.85s") }) { Text("Nível ${item.level} · ${item.title}") }
-    if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:2.1s") }) { Icon("military_tech", filled = true); Text("Novo título!") }
-    Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:2s") }) {
+    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("SUBIU DE NÍVEL") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text("Nível ${item.level} · ${item.title}") }
+    if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:${r + 0.25}s") }) { Icon("military_tech", filled = true); Text("Novo título!") }
+    Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) {
         Span({ classes("lv-xp-fill") })
         B { Text("${item.totalXp} XP") }
     }
-    // O Folha salta de baixo dando parabéns.
-    Div({ classes("lv-folha") }) {
-        Div({ classes("lv-folha-body") }) { Folha(folhaMood, 120) }
-        Div({ classes("lv-bubble") }) { Text("Parabéns! Você chegou ao nível ${item.level}. Esse esforço tá aparecendo!") }
-    }
 }
 
-/**
- * Peça nova no armário: o baú cai, treme, abre com luz e confete e o Folha sobe vestindo a peça
- * (folha-live.js, <estudario-bau>). O nome, a raridade e de onde veio aparecem depois da abertura.
- */
 @Composable
-private fun PieceContent(item: br.com.estudario.domain.FolhaItem) {
+private fun PieceText(item: br.com.estudario.domain.FolhaItem, r: Double) {
     val rarity = item.rarity.name.lowercase()
-    Div({ classes("pc-stage") }) {
-        org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
-            elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-bau"),
-            applyAttrs = { attr("size", "300"); attr("piece-slot", item.slot.key); attr("piece", item.id); attr("rarity", rarity) },
-            content = null,
-        )
-    }
-    Span({ classes("cel-eyebrow", "lv-late", "pc-rar", "r-$rarity"); attr("style", "--ld:2.2s") }) { Text("NOVA PEÇA · ${item.rarity.label.uppercase()}") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:2.35s") }) { Text(item.name) }
-    P({ classes("cel-body", "lv-late"); attr("style", "--ld:2.5s") }) { Text("${item.slot.label} · ${br.com.estudario.domain.FolhaWardrobe.requirement(item)}") }
+    Span({ classes("cel-eyebrow", "lv-late", "pc-rar", "r-$rarity"); attr("style", "--ld:${r}s") }) { Text("NOVA PEÇA · ${item.rarity.label.uppercase()}") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text(item.name) }
+    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) { Text("${item.slot.label} · ${br.com.estudario.domain.FolhaWardrobe.requirement(item)}") }
 }
