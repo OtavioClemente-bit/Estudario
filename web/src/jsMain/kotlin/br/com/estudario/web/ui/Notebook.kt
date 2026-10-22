@@ -23,110 +23,294 @@ import org.jetbrains.compose.web.dom.Text
 import org.jetbrains.compose.web.dom.TextArea
 import kotlin.js.Date
 
-private val notebookTabs = listOf(
-    "grifos" to "Grifos",
-    "questoes" to "Questões",
-    "flashcards" to "Flashcards",
-    "dicas" to "Dicas",
-    "notas" to "Anotações",
-)
+/** Tudo o que a pessoa guardou de um tópico, junto (como no app). */
+private class NbBag(
+    val marks: List<br.com.estudario.web.data.TheoryMark>,
+    val notes: List<br.com.estudario.web.data.UserNote>,
+    val tips: List<br.com.estudario.web.data.Snippet>,
+    val cards: List<br.com.estudario.web.data.Snippet>,
+    val decks: List<br.com.estudario.web.data.Summary>,
+    val questions: List<br.com.estudario.web.data.Question>,
+) {
+    val total get() = marks.size + notes.size + tips.size + cards.size + decks.size + questions.size
+}
 
-/** Caderno de estudo do app: tudo o que a pessoa grifou, salvou ou favoritou enquanto estudava. */
+private fun nbSummary(bags: List<NbBag>): String = listOf(
+    bags.sumOf { it.marks.size } to ("grifo" to "grifos"),
+    bags.sumOf { it.notes.size } to ("anotação" to "anotações"),
+    bags.sumOf { it.tips.size } to ("dica" to "dicas"),
+    bags.sumOf { it.cards.size + it.decks.size } to ("flashcard" to "flashcards"),
+    bags.sumOf { it.questions.size } to ("questão" to "questões"),
+).filter { it.first > 0 }.joinToString(" · ") { (n, w) -> "$n ${if (n == 1) w.first else w.second}" }
+
+/** O tópico aberto no Caderno (sobrevive a ir e voltar da teoria). -1 = itens sem tópico. */
+private object NotebookNav { var topic by androidx.compose.runtime.mutableStateOf<Long?>(null) }
+
+/**
+ * Caderno de estudo, organizado como a pessoa estuda: escolhe a matéria, depois o tópico (Java,
+ * dentro de Linguagens de Programação), e ali está tudo o que guardou dele, junto: grifos,
+ * anotações, dicas, flashcards e questões. No topo, a revisão completa passa por todos os grifos,
+ * todos os flashcards etc., um por um.
+ */
 @Composable
 fun NotebookScreen() {
     val data = Store.data
-    var tab by remember { mutableStateOf("grifos") }
     // Só o concurso em foco (aba no topo quando há mais de um).
     val scope = CompetitionFilter.topicIds(data)
     val topics = data.topics.filter { it.id in scope }.associateBy { it.id }
+    val subjects = data.subjects.associateBy { it.id }
     val theories = data.theories.filter { it.topicId in scope }.associateBy { it.id }
-    val marks = data.theoryMarks.filter { it.theoryId in theories }.sortedByDescending { it.createdAt }
+    val marks = data.theoryMarks.filter { it.theoryId in theories }
     val favQuestions = data.questions.filter { it.favorite && !it.hidden && it.topicId in scope }
     val recallCards = data.snippets.filter { it.kind == "RECUPERACAO" && it.favorite && it.topicId in scope }
     val favDecks = data.summaries.filter { it.kind == "RAPIDO" && it.favorite && it.topicId in scope }
     val tips = data.snippets.filter { it.favorite && it.kind != "RECUPERACAO" && it.topicId in scope }
-    val notes = data.notes.filter { it.topicId == null || it.topicId in scope }.sortedByDescending { it.createdAt }
-    val markNotes = marks.filter { it.note.isNotBlank() }
-    val counts = mapOf("grifos" to marks.size, "questoes" to favQuestions.size, "flashcards" to recallCards.size + favDecks.size, "dicas" to tips.size, "notas" to notes.size + markNotes.size)
+    val notes = data.notes.filter { it.topicId == null || it.topicId in scope }
+    fun markTopic(m: br.com.estudario.web.data.TheoryMark) = theories[m.theoryId]?.topicId
 
-    PageHead("Caderno de estudo", "Tudo o que você grifou, salvou e anotou, arrumado por matéria")
-    CompetitionTabs()
+    val ids = (marks.map { markTopic(it) } + notes.map { it.topicId } + tips.map { it.topicId } + recallCards.map { it.topicId } + favDecks.map { it.topicId } + favQuestions.map { it.topicId }).map { it ?: -1L }.toSet()
+    fun order(id: Long): Long { val t = topics[id]; val s = t?.let { subjects[it.subjectId] }; return (s?.position ?: Int.MAX_VALUE).toLong() * 100_000L + (t?.position ?: 0) }
+    val bags: List<Pair<Long, NbBag>> = ids.sortedBy(::order).map { id ->
+        fun same(t: Long?) = (t ?: -1L) == id
+        id to NbBag(
+            marks.filter { same(markTopic(it)) }.sortedBy { it.blockIndex },
+            notes.filter { same(it.topicId) }.sortedByDescending { it.createdAt },
+            tips.filter { same(it.topicId) },
+            recallCards.filter { same(it.topicId) },
+            favDecks.filter { same(it.topicId) },
+            favQuestions.filter { same(it.topicId) },
+        )
+    }
+    fun topicName(id: Long?) = id?.takeIf { it >= 0 }?.let { topics[it]?.title } ?: "Sem tópico"
+    fun subjectOf(id: Long) = topics[id]?.let { subjects[it.subjectId] }
+
     var reviewing by remember { mutableStateOf<Pair<String, List<NbCard>>?>(null) }
     reviewing?.let { (title, cards) -> NotebookReview(title, cards) { reviewing = null } }
-    val total = marks.size + favQuestions.size + recallCards.size + favDecks.size + tips.size + notes.size + markNotes.size
-    val subjectsWithItems = (marks.mapNotNull { theories[it.theoryId]?.topicId } + favQuestions.map { it.topicId } + tips.map { it.topicId } + notes.mapNotNull { it.topicId }).mapNotNull { topics[it]?.subjectId }.distinct().size
+    fun markCard(m: br.com.estudario.web.data.TheoryMark, kicker: String = "GRIFO") = markTopic(m).let { t ->
+        NbCard(kicker, topicName(t), m.quote, m.note.ifBlank { null }, t) { if (t != null) TheoryJump.go(t, m.theoryId, m.blockIndex, m.quote) }
+    }
+    fun noteCard(n: br.com.estudario.web.data.UserNote) = NbCard("ANOTAÇÃO", topicName(n.topicId), null, n.text, n.topicId)
+    fun tipCard(t: br.com.estudario.web.data.Snippet) = NbCard(if (t.kind == "PEGADINHA") "PEGADINHA" else "DICA", topicName(t.topicId), null, listOfNotNull(t.text, t.answer?.takeIf { it.isNotBlank() }?.let { "Resposta: $it" }).joinToString("\n\n"), t.topicId)
+    fun bagCards(b: NbBag) = b.marks.map { markCard(it) } + b.notes.map(::noteCard) + b.tips.map(::tipCard)
+
+    // Notas: ler, editar, criar (a folha de caderno).
+    var viewing by remember { mutableStateOf<Any?>(null) }
+    var editing by remember { mutableStateOf<br.com.estudario.web.data.UserNote?>(null) }
+    var creatingFor by remember { mutableStateOf<Long?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var editingMark by remember { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
+    val leafTopics = topics.values.filter { t -> data.topics.none { it.parentTopicId == t.id } }.map { it.id to it.title }
+    when (val v = viewing) {
+        is br.com.estudario.web.data.UserNote -> NoteView(v.text, v.createdAt, topicName(v.topicId), null,
+            onEdit = { editing = v; viewing = null },
+            onDelete = { Store.update { Actions.deleteNote(it, v.id) }; viewing = null; Toast.show("Anotação excluída") },
+            onClose = { viewing = null })
+        is br.com.estudario.web.data.TheoryMark -> NoteView(v.note, v.createdAt, topicName(markTopic(v)), v.quote,
+            onEdit = { editingMark = v; viewing = null },
+            onDelete = { Store.update { Actions.setTheoryMarkNote(it, v.id, "") }; viewing = null; Toast.show("Nota excluída (o grifo ficou)") },
+            onClose = { viewing = null },
+            onOpen = markTopic(v)?.let { t -> { viewing = null; TheoryJump.go(t, v.theoryId, v.blockIndex, v.quote) } })
+    }
+    if (creating || editing != null) {
+        val n = editing
+        NotePaperEditor(
+            initialText = n?.text.orEmpty(), isNew = n == null, createdAt = n?.createdAt,
+            onDismiss = { creating = false; editing = null },
+            onSave = { text, topicId ->
+                Store.update { Actions.saveNote(it, n?.id ?: 0L, topicId, text) }; Toast.show("Anotação salva no Caderno")
+                creating = false; editing = null
+            },
+            onDelete = n?.let { note -> { Store.update { Actions.deleteNote(it, note.id) }; editing = null; Toast.show("Anotação apagada") } },
+            topics = leafTopics, initialTopicId = n?.topicId ?: creatingFor,
+        )
+    }
+    editingMark?.let { m ->
+        NotePaperEditor(
+            initialText = m.note, isNew = m.note.isBlank(), createdAt = m.createdAt,
+            onDismiss = { editingMark = null },
+            onSave = { text, _ -> Store.update { Actions.setTheoryMarkNote(it, m.id, text) }; editingMark = null; Toast.show("Nota salva") },
+            onDelete = if (m.note.isNotBlank()) ({ Store.update { Actions.setTheoryMarkNote(it, m.id, "") }; editingMark = null; Toast.show("Nota apagada (o grifo ficou)") }) else null,
+            quote = m.quote, fixedPlace = topicName(markTopic(m)),
+            deleteLabel = "Apagar a nota (o grifo fica)",
+        )
+    }
+
+    // ============================== O TÓPICO ABERTO ==============================
+    val opened = NotebookNav.topic
+    val bag = opened?.let { id -> bags.firstOrNull { it.first == id }?.second }
+    if (opened != null && bag != null) {
+        val subjectName = subjectOf(opened)?.name ?: "Geral"
+        val color = subjectColor(subjectName)
+        Div({ attr("style", "display:flex") }) { Btn("Todas as matérias", { NotebookNav.topic = null }, style = "ghost", small = true, icon = "chevron_left") }
+        Div({ classes("nbt-hero"); attr("style", "--c:$color") }) {
+            Div({ classes("row"); attr("style", "gap:14px;align-items:center") }) {
+                Span({ classes("hs-art", "big"); attr("style", "--c:$color") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(subjectName)) }
+                Div({ classes("grow"); attr("style", "min-width:0") }) {
+                    Div({ classes("nbt-subject") }) { Text(subjectName.uppercase()) }
+                    org.jetbrains.compose.web.dom.H2({ classes("nbt-title") }) { Text(topicName(opened)) }
+                    Div({ classes("small", "muted") }) { Text(nbSummary(listOf(bag))) }
+                }
+            }
+            Div({ classes("row", "wrap"); attr("style", "gap:8px;margin-top:14px") }) {
+                val cards = bagCards(bag)
+                if (cards.isNotEmpty()) Btn("Revisar este tópico, um por um", { reviewing = topicName(opened) to cards }, style = "primary", icon = "play_arrow")
+                if (bag.cards.isNotEmpty() || bag.decks.isNotEmpty()) Btn("Praticar flashcards", { Router.go(Route.Flashcards(opened.takeIf { it >= 0 })) }, style = "outline", icon = "style")
+                if (bag.questions.isNotEmpty() && opened >= 0) Btn("Treinar questões salvas", { Router.go(Route.Quiz("m-favorites~s--1~t-$opened~b-all~d-all~n-200")) }, style = "outline", icon = "quiz")
+                if (opened >= 0) Btn("Abrir conteúdo", { Router.go(Route.Topic(opened)) }, style = "ghost", icon = "menu_book")
+                Btn("Anotar", { creatingFor = opened.takeIf { it >= 0 }; creating = true }, style = "ghost", icon = "edit_note")
+            }
+        }
+        if (bag.marks.isNotEmpty()) NbSection("format_ink_highlighter", "Grifos", bag.marks.size) {
+            bag.marks.forEach { mark ->
+                key("m${mark.id}") {
+                    val topicId = markTopic(mark)
+                    Div({ classes("saved-item", "mark-item") }) {
+                        Div({
+                            classes("mark-body", "grow")
+                            attr("role", "link"); attr("tabindex", "0")
+                            onClick { if (mark.note.isNotBlank()) viewing = mark else if (topicId != null) TheoryJump.go(topicId, mark.theoryId, mark.blockIndex, mark.quote) }
+                        }) {
+                            Markdown(mark.quote, compact = true)
+                            if (mark.note.isNotBlank()) P({ classes("small", "muted", "mark-note") }) { Icon("edit_note"); Text(NoteTags.split(mark.note).second) }
+                        }
+                        Div({ classes("stack", "tight"); attr("style", "align-items:flex-end") }) {
+                            if (topicId != null) IconButton("menu_book", "Abrir na teoria") { TheoryJump.go(topicId, mark.theoryId, mark.blockIndex, mark.quote) }
+                            if (mark.note.isBlank()) IconButton("edit_note", "Anotar") { editingMark = mark }
+                            IconButton("delete", "Apagar grifo") { Store.update { Actions.deleteTheoryMark(it, mark.id) } }
+                        }
+                    }
+                }
+            }
+        }
+        if (bag.notes.isNotEmpty()) NbSection("edit_note", "Anotações", bag.notes.size) {
+            bag.notes.forEach { n -> key("n${n.id}") { NotePaperCard(n.text, n.createdAt, onClick = { viewing = n }) } }
+        }
+        if (bag.tips.isNotEmpty()) NbSection("lightbulb", "Dicas e pegadinhas", bag.tips.size) {
+            bag.tips.forEach { t -> key("t${t.id}") { SavedCard(t.id, null, t.text, t.answer) } }
+        }
+        if (bag.cards.isNotEmpty() || bag.decks.isNotEmpty()) NbSection("style", "Flashcards", bag.cards.size + bag.decks.size) {
+            bag.decks.forEach { d ->
+                key("d${d.id}") {
+                    Div({ classes("saved-item") }) {
+                        Div({ classes("grow") }) { B { Text("Baralho · ${d.title.ifBlank { "Flashcards" }}") }; Div({ classes("small", "muted") }) { Text("${deckCards(d.markdown).size} cartões") } }
+                        Btn("Praticar", { Router.go(Route.Flashcards(d.topicId)) }, style = "tonal", small = true, icon = "style")
+                        IconButton("bookmark", "Tirar do Caderno") { Store.update { Actions.toggleSummaryFavorite(it, d.id) } }
+                    }
+                }
+            }
+            bag.cards.forEach { c -> key("c${c.id}") { SavedCard(c.id, null, c.text, c.answer) } }
+        }
+        if (bag.questions.isNotEmpty()) NbSection("quiz", "Questões salvas", bag.questions.size) {
+            bag.questions.forEach { q ->
+                key("q${q.id}") {
+                    Div({ classes("saved-item") }) {
+                        P({ classes("clamp-3", "grow") }) { Inline(splitStatement(q.statement).let { it.command ?: it.base }.take(300)) }
+                        IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleFavorite(it, q.id) } }
+                    }
+                }
+            }
+        }
+        return
+    }
+    if (opened != null && bag == null) NotebookNav.topic = null
+
+    // ============================== AS MATÉRIAS ==============================
+    PageHead("Caderno de estudo", "Escolha a matéria e o tópico: tudo o que você guardou dele está junto")
+    CompetitionTabs()
+    val total = bags.sumOf { it.second.total }
+    val subjectsWithItems = bags.mapNotNull { subjectOf(it.first)?.id }.distinct().size
     Div({ classes("nb-hero") }) {
         Folha("happy", 64)
         Div({ classes("grow") }) {
             B { Text(if (total == 0) "Seu caderno está em branco" else "$total ${if (total == 1) "coisa guardada" else "coisas guardadas"}") }
-            Div({ classes("small") }) { Text(if (total == 0) "Grife trechos, salve questões e escreva anotações: tudo vem para cá, arrumado por matéria." else "Em $subjectsWithItems ${if (subjectsWithItems == 1) "matéria" else "matérias"}. Abra uma matéria ou revise tudo um por um antes da prova.") }
+            Div({ classes("small") }) { Text(if (total == 0) "Grife trechos, salve questões e escreva anotações: tudo vem para cá, arrumado por matéria." else "Em $subjectsWithItems ${if (subjectsWithItems == 1) "matéria" else "matérias"}. Abra uma matéria e o tópico, ou revise tudo um por um.") }
         }
+        Btn("Nova anotação", { creatingFor = null; creating = true }, style = "outline", icon = "edit_note")
     }
-    val tabIcons = mapOf("grifos" to "format_ink_highlighter", "questoes" to "quiz", "flashcards" to "style", "dicas" to "lightbulb", "notas" to "edit_note")
-    Div({ classes("topic-tabs", "nb-tabs"); attr("role", "tablist") }) {
-        notebookTabs.forEach { (id, label) ->
-            Button({ classes(*listOfNotNull("ttab", if (tab == id) "on" else null).toTypedArray()); attr("role", "tab"); onClick { tab = id } }) {
-                Icon(tabIcons[id] ?: "circle")
-                Text(label)
-                Span({ classes("count") }) { Text("${counts[id] ?: 0}") }
+    if (total > 0) {
+        // Revisão completa: passar por todos os grifos, todas as anotações, todos os flashcards...
+        val allMarks = bags.flatMap { it.second.marks }
+        val allNotes = bags.flatMap { it.second.notes }
+        val allTips = bags.flatMap { it.second.tips }
+        val markNotes = allMarks.filter { it.note.isNotBlank() }
+        Div({ classes("nb-review-all") }) {
+            Div { B { Text("Revisão completa") }; Div({ classes("small", "muted") }) { Text("Passe por tudo o que guardou, de todas as matérias, na ordem do edital.") } }
+            Div({ classes("nb-chips") }) {
+                val everything = bags.flatMap { bagCards(it.second) }
+                if (everything.isNotEmpty()) NbChip("play_arrow", "Tudo, um por um", everything.size, primary = true) { reviewing = "Revisão completa" to everything }
+                if (allMarks.isNotEmpty()) NbChip("format_ink_highlighter", "Grifos", allMarks.size) { reviewing = "Todos os grifos" to allMarks.map { markCard(it) } }
+                if (allNotes.size + markNotes.size > 0) NbChip("edit_note", "Anotações", allNotes.size + markNotes.size) { reviewing = "Todas as anotações" to (allNotes.map(::noteCard) + markNotes.map { markCard(it, "NOTA NUM TRECHO") }) }
+                if (allTips.isNotEmpty()) NbChip("lightbulb", "Dicas", allTips.size) { reviewing = "Todas as dicas" to allTips.map(::tipCard) }
+                val cardCount = recallCards.size + favDecks.size
+                if (cardCount > 0) NbChip("style", "Flashcards", cardCount) { Router.go(Route.Flashcards(null)) }
+                if (favQuestions.isNotEmpty()) NbChip("quiz", "Questões", favQuestions.size) { Router.go(Route.Quiz("m-favorites~n-200")) }
             }
         }
     }
-    fun topicName(id: Long?) = id?.let { topics[it]?.title } ?: "Geral"
-    fun markCard(m: br.com.estudario.web.data.TheoryMark, kicker: String) = theories[m.theoryId]?.topicId.let { t ->
-        NbCard(kicker, topicName(t), m.quote, m.note.ifBlank { null }, t) { if (t != null) TheoryJump.go(t, m.theoryId, m.blockIndex, m.quote) }
+    var query by remember { mutableStateOf("") }
+    if (total > 0) Div({ classes("catalog-search"); attr("style", "margin:14px 0") }) {
+        Icon("search", plain = true)
+        org.jetbrains.compose.web.dom.Input(InputType.Search) { classes("input"); attr("placeholder", "Buscar matéria, tópico ou o que você guardou"); value(query); onInput { query = it.value } }
     }
-    fun reviewButton(label: String, cards: List<NbCard>) {
-        if (cards.isNotEmpty()) reviewing = label to cards
+    val needle = query.trim().lowercase()
+    fun has(vararg t: String?) = needle.isEmpty() || t.any { it != null && it.lowercase().contains(needle) }
+    val visible = bags.filter { (id, b) ->
+        needle.isEmpty() || has(topicName(id), subjectOf(id)?.name) || b.marks.any { has(it.quote, it.note) } || b.notes.any { has(it.text) } ||
+            b.tips.any { has(it.text, it.answer) } || b.cards.any { has(it.text, it.answer) } || b.questions.any { has(it.statement) }
     }
-    when (tab) {
-        "grifos" -> if (marks.isEmpty()) Empty("format_ink_highlighter", "Nenhum grifo ainda", "Na teoria de um tópico, selecione um trecho e grife para guardar aqui.")
-        else BySubject(marks.groupBy { theories[it.theoryId]?.topicId }, review = { list, name -> reviewButton("$name · Grifos", list.map { markCard(it, "GRIFO") }) }, reviewAll = { list -> reviewButton("Caderno · Grifos", list.map { markCard(it, "GRIFO") }) }, reviewLabel = "Revisar os grifos um por um") { mark ->
-            val topicId = theories[mark.theoryId]?.topicId
-            Div({ classes("saved-item", "mark-item") }) {
-                // Clicar leva para o trecho na teoria, já destacado (como no app).
-                Div({
-                    classes("mark-body", "grow")
-                    if (topicId != null) {
-                        attr("role", "link"); attr("tabindex", "0"); attr("title", "Abrir na teoria")
-                        onClick { TheoryJump.go(topicId, mark.theoryId, mark.blockIndex, mark.quote) }
+    if (total == 0) { Empty("edit_note", "Seu caderno está em branco", "Na leitura da teoria, grife trechos e escreva notas. Salve questões, dicas e flashcards nos tópicos. Tudo aparece aqui, por matéria."); return }
+    if (visible.isEmpty()) { Empty("search", "Nada encontrado", "Nenhuma matéria, tópico ou item guardado tem esse texto."); return }
+    val opens = remember { androidx.compose.runtime.mutableStateMapOf<Long, Boolean>() }
+    Div({ classes("eyebrow"); attr("style", "margin:6px 0 8px") }) { Text("SUAS MATÉRIAS") }
+    Div({ classes("nb-subjects") }) {
+        visible.groupBy { subjectOf(it.first) }.forEach { (subject, entries) ->
+            val sid = subject?.id ?: -1L
+            key(sid) {
+                val name = subject?.name ?: "Geral"
+                val color = subjectColor(name)
+                val open = needle.isNotEmpty() || opens[sid] == true
+                Div({ classes(*listOfNotNull("nb-subj", if (open) "open" else null).toTypedArray()); attr("style", "--c:$color") }) {
+                    Div({ classes("nb-subj-head"); attr("role", "button"); attr("tabindex", "0"); attr("aria-expanded", open.toString()); onClick { opens[sid] = !open } }) {
+                        Span({ classes("hs-art"); attr("style", "--c:$color") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(name)) }
+                        Div({ classes("grow"); attr("style", "min-width:0") }) {
+                            B({ classes("clamp-2") }) { Text(name) }
+                            Div({ classes("xs", "muted") }) { Text(nbSummary(entries.map { it.second })) }
+                            Div({ classes("nb-subj-count") }) { Text("${entries.size} ${if (entries.size == 1) "tópico" else "tópicos"}") }
+                        }
+                        Icon(if (open) "expand_less" else "expand_more", extraClass = "faint")
                     }
-                }) {
-                    Markdown(mark.quote, compact = true)
-                    if (mark.note.isNotBlank()) P({ classes("small", "muted", "mark-note") }) { Icon("edit_note"); Text(mark.note) }
-                    if (topicId != null) Span({ classes("mark-open") }) { Text("Abrir na teoria") }
+                    if (open) Div({ classes("nb-topics") }) {
+                        entries.forEach { (id, b) ->
+                            key(id) {
+                                Button({ classes("nb-topic-row"); onClick { NotebookNav.topic = id; kotlinx.browser.window.scrollTo(0.0, 0.0) } }) {
+                                    Span({ classes("grow"); attr("style", "min-width:0;text-align:left") }) {
+                                        B({ classes("clamp-2") }) { Text(topicName(id)) }
+                                        Span({ classes("xs", "muted") }) { Text(nbSummary(listOf(b))) }
+                                    }
+                                    Span({ classes("count-pill") }) { Text("${b.total}") }
+                                    Icon("chevron_right", plain = true)
+                                }
+                            }
+                        }
+                    }
                 }
-                IconButton("delete", "Apagar grifo") { Store.update { Actions.deleteTheoryMark(it, mark.id) } }
             }
         }
-        "questoes" -> if (favQuestions.isEmpty()) Empty("bookmark", "Nenhuma questão salva", "Toque na estrela de uma questão para guardá-la e treinar depois.") else {
-            Btn("Treinar as ${favQuestions.size} questões salvas", { Router.go(Route.Quiz("m-favorites~n-200")) }, style = "primary", icon = "play_arrow")
-            BySubject(favQuestions.groupBy { it.topicId }) { q ->
-                Div({ classes("saved-item") }) {
-                    P({ classes("clamp-3", "grow") }) { Inline(splitStatement(q.statement).let { it.command ?: it.base }.take(300)) }
-                    IconButton("star", "Tirar dos salvos") { Store.update { Actions.toggleFavorite(it, q.id) } }
-                }
-            }
-        }
-        "flashcards" -> if (recallCards.isEmpty() && favDecks.isEmpty()) Empty("style", "Nenhum flashcard salvo", "Salve um baralho ou cartões no tópico para revisar aqui.")
-        else BySubject((favDecks.map { it.topicId to it as Any } + recallCards.map { it.topicId to it as Any }).groupBy({ it.first }, { it.second })) { item ->
-            when (item) {
-                is br.com.estudario.web.data.Summary -> Div({ classes("saved-item") }) {
-                    Div({ classes("grow") }) { B { Text("Baralho · ${item.title.ifBlank { "Flashcards" }}") }; Div({ classes("small", "muted") }) { Text("${deckCards(item.markdown).size} cartões") } }
-                    Btn("Revisar", { Router.go(Route.Flashcards(item.topicId)) }, style = "tonal", small = true, icon = "style")
-                    IconButton("bookmark", "Tirar do Caderno") { Store.update { Actions.toggleSummaryFavorite(it, item.id) } }
-                }
-                is br.com.estudario.web.data.Snippet -> SavedCard(item.id, null, item.text, item.answer)
-            }
-        }
-        "dicas" -> if (tips.isEmpty()) Empty("lightbulb", "Nenhuma dica salva", "Favorite dicas e pegadinhas no tópico para juntar tudo aqui.")
-        else {
-            fun tipCard(t: br.com.estudario.web.data.Snippet) = NbCard(if (t.kind == "PEGADINHA") "PEGADINHA" else "DICA", topicName(t.topicId), null, listOfNotNull(t.text, t.answer?.takeIf { it.isNotBlank() }?.let { "Resposta: $it" }).joinToString("\n\n"), t.topicId)
-            BySubject(tips.groupBy { it.topicId }, review = { list, name -> reviewButton("$name · Dicas", list.map(::tipCard)) }, reviewAll = { list -> reviewButton("Caderno · Dicas", list.map(::tipCard)) }, reviewLabel = "Revisar as dicas uma por uma") { tip -> SavedCard(tip.id, null, tip.text, tip.answer) }
-        }
-        else -> NotesTab(notes, markNotes, { theories[it.theoryId]?.topicId }, topics.values.filter { t -> data.topics.none { it.parentTopicId == t.id } }.map { it.id to it.title }) { label, list ->
-            reviewButton(label, list.map { row -> when (row) { is br.com.estudario.web.data.UserNote -> NbCard("ANOTAÇÃO", topicName(row.topicId), null, row.text, row.topicId); else -> markCard(row as br.com.estudario.web.data.TheoryMark, "NOTA NUM TRECHO") } })
-        }
+    }
+}
+
+@Composable
+private fun NbSection(icon: String, label: String, count: Int, content: @Composable () -> Unit) {
+    Div({ classes("nbt-section") }) {
+        Div({ classes("nbt-section-head") }) { Icon(icon); B { Text(label) }; Span({ classes("count-pill") }) { Text("$count") } }
+        Div({ classes("stack") }) { content() }
+    }
+}
+
+@Composable
+private fun NbChip(icon: String, label: String, count: Int, primary: Boolean = false, onClick: () -> Unit) {
+    Button({ classes(*listOfNotNull("nb-chip", if (primary) "primary" else null).toTypedArray()); onClick { onClick() } }) {
+        Icon(icon); Text(label); Span({ classes("n") }) { Text("$count") }
     }
 }
 

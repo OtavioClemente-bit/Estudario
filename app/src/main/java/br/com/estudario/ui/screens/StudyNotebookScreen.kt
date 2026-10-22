@@ -25,6 +25,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.outlined.BorderColor
@@ -101,12 +104,26 @@ private data class Place(val topic: TopicEntity?, val subject: SubjectEntity?) {
     val subtitle: String? get() = subject?.name
 }
 
+/** Tudo o que a pessoa guardou de um tópico, junto. */
+private class TopicBag(
+    val marks: List<br.com.estudario.data.local.TheoryMarkEntity>,
+    val notes: List<UserNoteEntity>,
+    val tips: List<br.com.estudario.data.local.TopicSnippetEntity>,
+    val cards: List<br.com.estudario.data.local.TopicSnippetEntity>,
+    val decks: List<SummaryEntity>,
+    val questions: List<br.com.estudario.data.local.QuestionWithOptions>,
+) {
+    val markNotes get() = marks.filter { it.note.isNotBlank() }
+    val total get() = marks.size + notes.size + tips.size + cards.size + decks.size + questions.size
+}
+
 /**
- * Caderno de estudo: tudo o que a pessoa guardou, separado por tipo (grifos, questões,
- * flashcards, dicas, anotações) e, dentro de cada tipo, pelo tópico de onde veio. Cada tópico é
- * um bloco que abre e fecha, com a ação que faz sentido para ele (treinar, praticar, abrir).
+ * Caderno de estudo, organizado como a pessoa estuda: escolhe a matéria, depois o tópico (Java,
+ * dentro de Linguagens de Programação), e ali está tudo o que guardou dele, junto: grifos,
+ * anotações, dicas, flashcards e questões. No topo, a revisão completa passa por todos os grifos,
+ * todos os flashcards etc., um por um.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun StudyNotebookScreen(
     viewModel: AppViewModel,
@@ -123,16 +140,16 @@ fun StudyNotebookScreen(
     val snippets by viewModel.snippets.collectAsState()
     val questions by viewModel.questions.collectAsState()
     val summaries by viewModel.summaries.collectAsState()
-    var tab by rememberSaveable { mutableStateOf(NotebookTab.MARKS) }
     var query by rememberSaveable { mutableStateOf("") }
+    // O tópico aberto (-1 = itens sem tópico); null = a lista de matérias.
+    var openTopic by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingNote by remember { mutableStateOf<UserNoteEntity?>(null) }
     var editingMarkNote by remember { mutableStateOf<br.com.estudario.data.local.TheoryMarkEntity?>(null) }
     var viewing by remember { mutableStateOf<Any?>(null) }
     var deckFor by remember { mutableStateOf<SummaryEntity?>(null) }
-    var cardsFor by remember { mutableStateOf<Place?>(null) }
+    var cardsFor by remember { mutableStateOf<Pair<String, List<br.com.estudario.data.local.TopicSnippetEntity>>?>(null) }
     var reviewing by remember { mutableStateOf<Pair<String, List<ReviewCard>>?>(null) }
-    // Blocos fechados pela pessoa (o padrão é tudo aberto).
-    val expanded = remember { mutableStateListOf<String>() }
+    val expanded = remember { mutableStateListOf<Long>() }
 
     val topicById = remember(topics) { topics.associateBy { it.id } }
     val subjectById = remember(subjects) { subjects.associateBy { it.id } }
@@ -148,60 +165,59 @@ fun StudyNotebookScreen(
     val savedDecks = summaries.filter { it.kind == SummaryKind.RAPIDO && it.isFavorite }
     val favoriteQuestions = questions.filter { it.question.isFavorite }
     val tips = snippets.filter { it.isFavorite && !SavedFlashcards.isSavedCard(it) }
-    val counts = mapOf(
-        NotebookTab.MARKS to marks.size,
-        NotebookTab.QUESTIONS to favoriteQuestions.size,
-        NotebookTab.FLASHCARDS to savedCards.size + savedDecks.size,
-        NotebookTab.TIPS to tips.size,
-        NotebookTab.NOTES to notes.size + marks.count { it.note.isNotBlank() },
-    )
+    fun markTopic(m: br.com.estudario.data.local.TheoryMarkEntity) = theoryById[m.theoryId]?.topicId
 
-    reviewing?.let { (title, cards) -> NotebookReview(title, cards) { reviewing = null } }
-    // Os cartões do modo revisão de uma aba (e, se pedido, de uma matéria), na ordem do edital.
-    fun reviewCards(target: NotebookTab, subjectId: Long?): List<ReviewCard> {
-        fun order(topicId: Long?) = place(topicId).let { (it.subject?.position ?: Int.MAX_VALUE) * 100_000L + (it.topic?.position ?: 0) }
-        fun keep(topicId: Long?) = subjectId == null || (place(topicId).subject?.id ?: -1L) == subjectId
-        return when (target) {
-            NotebookTab.MARKS -> marks.filter { keep(theoryById[it.theoryId]?.topicId) }.sortedWith(compareBy({ order(theoryById[it.theoryId]?.topicId) }, { it.blockIndex })).map { m ->
-                ReviewCard("GRIFO", place(theoryById[m.theoryId]?.topicId).title, plainPreview(m.quote), m.note.ifBlank { null }) { onOpenTheory(m.theoryId, m.blockIndex) }
-            }
-            NotebookTab.NOTES -> notes.filter { keep(it.topicId) }.sortedBy { order(it.topicId) }.map { ReviewCard("ANOTAÇÃO", place(it.topicId).title, null, it.text) } +
-                marks.filter { it.note.isNotBlank() && keep(theoryById[it.theoryId]?.topicId) }.sortedBy { order(theoryById[it.theoryId]?.topicId) }.map { m ->
-                    ReviewCard("NOTA NUM TRECHO", place(theoryById[m.theoryId]?.topicId).title, plainPreview(m.quote), m.note) { onOpenTheory(m.theoryId, m.blockIndex) }
-                }
-            NotebookTab.TIPS -> tips.filter { keep(it.topicId) }.sortedBy { order(it.topicId) }.map { t ->
-                ReviewCard(when (t.kind) { SnippetKind.PEGADINHA -> "PEGADINHA"; SnippetKind.RECUPERACAO -> "PERGUNTA"; else -> "DICA" }, place(t.topicId).title, null, listOfNotNull(t.text, t.answer?.takeIf { it.isNotBlank() }?.let { "Resposta: $it" }).joinToString("\n\n"))
-            }
-            else -> emptyList()
+    // Tudo agrupado por tópico (-1 = sem tópico).
+    val bags: Map<Long, TopicBag> = run {
+        val ids = (marks.map { markTopic(it) } + notes.map { it.topicId } + tips.map { it.topicId } + savedCards.map { it.topicId } + savedDecks.map { it.topicId } + favoriteQuestions.map { it.question.topicId })
+            .map { it ?: -1L }.toSet()
+        ids.associateWith { id ->
+            fun same(t: Long?) = (t ?: -1L) == id
+            TopicBag(
+                marks.filter { same(markTopic(it)) }.sortedBy { it.blockIndex },
+                notes.filter { same(it.topicId) },
+                tips.filter { same(it.topicId) },
+                savedCards.filter { same(it.topicId) },
+                savedDecks.filter { same(it.topicId) },
+                favoriteQuestions.filter { same(it.question.topicId) },
+            )
         }
     }
-    val reviewable = tab == NotebookTab.MARKS || tab == NotebookTab.NOTES || tab == NotebookTab.TIPS
-    val onReviewSubject: ((SubjectEntity?) -> Unit)? = if (!reviewable) null else { subject ->
-        val cards = reviewCards(tab, subject?.id ?: -1L)
-        if (cards.isNotEmpty()) reviewing = ((subject?.name ?: "Geral") + " · " + tab.label) to cards
-    }
+    fun order(topicId: Long?) = place(topicId?.takeIf { it >= 0 }).let { (it.subject?.position ?: Int.MAX_VALUE).toLong() * 100_000L + (it.topic?.position ?: 0) }
+
+    // ---- Revisão um por um ----
+    fun markCard(m: br.com.estudario.data.local.TheoryMarkEntity, kicker: String = "GRIFO") =
+        ReviewCard(kicker, place(markTopic(m)).title, plainPreview(m.quote), m.note.ifBlank { null }) { onOpenTheory(m.theoryId, m.blockIndex) }
+    fun noteCard(n: UserNoteEntity) = ReviewCard("ANOTAÇÃO", place(n.topicId).title, null, n.text)
+    fun tipCard(t: br.com.estudario.data.local.TopicSnippetEntity) = ReviewCard(
+        when (t.kind) { SnippetKind.PEGADINHA -> "PEGADINHA"; SnippetKind.RECUPERACAO -> "PERGUNTA"; else -> "DICA" },
+        place(t.topicId).title, null, listOfNotNull(t.text, t.answer?.takeIf { it.isNotBlank() }?.let { "Resposta: $it" }).joinToString("\n\n"),
+    )
+    fun bagCards(bag: TopicBag) = bag.marks.map { markCard(it) } + bag.notes.map(::noteCard) + bag.tips.map(::tipCard)
+    val orderedBags = bags.entries.sortedBy { order(it.key) }
+
+    reviewing?.let { (title, cards) -> NotebookReview(title, cards) { reviewing = null } }
     deckFor?.let { deck -> SummaryFlashcardDeck(viewModel, deck, topicById[deck.topicId]?.title ?: deck.title, onDismiss = { deckFor = null }) }
-    cardsFor?.let { target ->
-        val cards = savedCards.filter { place(it.topicId).key == target.key }
+    cardsFor?.let { (title, list) ->
         FlashcardDeckDialog(
-            title = target.title,
-            cards = cards.map(SavedFlashcards::card),
+            title = title,
+            cards = list.map(SavedFlashcards::card),
             saved = false,
             onToggleSave = null,
             onDismiss = { cardsFor = null },
-            isCardSaved = { card -> cards.any { it.text == card.front && it.answer.orEmpty() == card.back } },
-            onToggleCard = { card -> cards.firstOrNull { it.text == card.front && it.answer.orEmpty() == card.back }?.let(viewModel::deleteSnippet) },
+            isCardSaved = { card -> list.any { it.text == card.front && it.answer.orEmpty() == card.back } },
+            onToggleCard = { card -> list.firstOrNull { it.text == card.front && it.answer.orEmpty() == card.back }?.let(viewModel::deleteSnippet) },
         )
     }
     // Nota feita num trecho da teoria: edita só a nota; apagar tira a nota e mantém o grifo.
     editingMarkNote?.let { mark ->
         br.com.estudario.ui.components.NotePaperEditor(
-            initialText = mark.note, isNew = false, createdAt = mark.createdAt,
+            initialText = mark.note, isNew = mark.note.isBlank(), createdAt = mark.createdAt,
             onDismiss = { editingMarkNote = null },
             onSave = { text, _ -> viewModel.saveTheoryMark(mark.copy(note = text)); editingMarkNote = null },
-            onDelete = { viewModel.saveTheoryMark(mark.copy(note = "")); editingMarkNote = null },
+            onDelete = if (mark.note.isNotBlank()) ({ viewModel.saveTheoryMark(mark.copy(note = "")); editingMarkNote = null }) else null,
             quote = plainPreview(mark.quote),
-            fixedPlace = topicById[theoryById[mark.theoryId]?.topicId]?.title ?: "Teoria",
+            fixedPlace = topicById[markTopic(mark)]?.title ?: "Teoria",
             deleteLabel = "Apagar a nota (o grifo fica)",
         )
     }
@@ -213,7 +229,7 @@ fun StudyNotebookScreen(
             onDelete = { viewModel.deleteNote(v); viewing = null },
         )
         is br.com.estudario.data.local.TheoryMarkEntity -> br.com.estudario.ui.components.NoteViewSheet(
-            text = v.note, createdAt = v.createdAt, place = place(theoryById[v.theoryId]?.topicId).title,
+            text = v.note, createdAt = v.createdAt, place = place(markTopic(v)).title,
             onDismiss = { viewing = null },
             onEdit = { viewing = null; editingMarkNote = v },
             onDelete = { viewModel.saveTheoryMark(v.copy(note = "")); viewing = null },
@@ -225,100 +241,94 @@ fun StudyNotebookScreen(
         NoteEditor(note, topics, onDismiss = { editingNote = null }, onSave = { viewModel.saveNote(it); editingNote = null }, onDelete = { viewModel.deleteNote(note); editingNote = null })
     }
 
-    Scaffold(
-        floatingActionButton = {
-            if (tab == NotebookTab.NOTES) ExtendedFloatingActionButton(onClick = { editingNote = UserNoteEntity(text = "") }, icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Nova anotação") })
-        },
-    ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    NotebookHero(counts.values.sum(), subjects = (marks.mapNotNull { theoryById[it.theoryId]?.topicId } + notes.mapNotNull { it.topicId } + favoriteQuestions.map { it.question.topicId } + tips.mapNotNull { it.topicId }).mapNotNull { topicById[it]?.subjectId }.distinct().size)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NotebookTab.entries.forEach { value -> SectionTile(value, counts.getValue(value), tab == value, Modifier.weight(1f)) { tab = value } }
-                    }
-                    OutlinedTextField(
-                        query,
-                        { query = it },
-                        Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                        placeholder = { Text("Buscar em ${tab.label.lowercase()}") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
+    val opened = openTopic
+    val bag = opened?.let { bags[it] }
+    androidx.activity.compose.BackHandler(enabled = opened != null) { openTopic = null }
+
+    // ============================== O TÓPICO ABERTO ==============================
+    if (opened != null && bag != null) {
+        val here = place(opened.takeIf { it >= 0 })
+        Scaffold(
+            floatingActionButton = {
+                ExtendedFloatingActionButton(onClick = { editingNote = UserNoteEntity(topicId = here.topic?.id, text = "") }, icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Anotar") })
+            },
+        ) { padding ->
+            LazyColumn(
+                Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item(key = "head") {
+                    TopicBagHeader(
+                        subject = here.subject?.name ?: "Geral",
+                        title = here.title,
+                        bag = bag,
+                        onBack = { openTopic = null },
+                        onReview = bagCards(bag).takeIf { it.isNotEmpty() }?.let { cards -> { reviewing = here.title to cards } },
+                        onCards = bag.cards.takeIf { it.isNotEmpty() }?.let { list -> { cardsFor = here.title to list } },
+                        onQuestions = here.topic?.takeIf { bag.questions.isNotEmpty() }?.let { t -> { onTrainTopicFavorites(t.id) } },
+                        onOpenContent = here.topic?.let { t -> { onOpenTopic(t.id) } },
                     )
-                    // Estudar de verdade: revisar a aba inteira um item por vez, na ordem do edital.
-                    if (reviewable && needle.isEmpty() && counts.getValue(tab) > 0) Button(
-                        onClick = { reviewing = ("Caderno · " + tab.label) to reviewCards(tab, null) },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                    ) {
-                        Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Revisar ${tab.label.lowercase()} um por um")
-                    }
                 }
-            }
-            when (tab) {
-                NotebookTab.MARKS -> {
-                    val rows = marks.filter { matches(it.quote, it.note, topicById[theoryById[it.theoryId]?.topicId]?.title) }
-                    if (rows.isEmpty()) emptyItem(NotebookTab.MARKS.icon, "Nenhum grifo ainda", "Na leitura da teoria, toque em qualquer parágrafo e escolha Grifar. Ele aparece aqui, no tópico de onde veio.", needle.isNotEmpty())
-                    grouped(rows, { place(theoryById[it.theoryId]?.topicId) }, expanded, onOpenTopic, onReview = onReviewSubject) { mark ->
-                        ElevatedCard(onClick = { onOpenTheory(mark.theoryId, mark.blockIndex) }, modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.height(IntrinsicSize.Min)) {
-                                Box(Modifier.width(5.dp).fillMaxHeight().background(Color(0xFFF2A900)))
-                                Column(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(plainPreview(mark.quote), maxLines = 6, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                                    if (mark.note.isNotBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(10.dp)) {
-                                        Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Icon(Icons.Outlined.EditNote, null, Modifier.size(18.dp))
-                                            Text(mark.note, style = MaterialTheme.typography.bodySmall)
+                if (bag.marks.isNotEmpty()) {
+                    item(key = "s-marks") { BagSection(Icons.Outlined.BorderColor, "Grifos", bag.marks.size) }
+                    bag.marks.forEach { mark ->
+                        item(key = "m-${mark.id}") {
+                            ElevatedCard(onClick = { if (mark.note.isNotBlank()) viewing = mark else onOpenTheory(mark.theoryId, mark.blockIndex) }, modifier = Modifier.fillMaxWidth()) {
+                                Row(Modifier.height(IntrinsicSize.Min)) {
+                                    Box(Modifier.width(5.dp).fillMaxHeight().background(Color(0xFFF2A900)))
+                                    Column(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(plainPreview(mark.quote), maxLines = 6, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                                        if (mark.note.isNotBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(10.dp)) {
+                                            Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Icon(Icons.Outlined.EditNote, null, Modifier.size(18.dp))
+                                                Text(br.com.estudario.ui.components.NoteTags.split(mark.note).second, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                            }
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                            Text("Abrir na teoria", Modifier.clickable { onOpenTheory(mark.theoryId, mark.blockIndex) }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                                            if (mark.note.isBlank()) Text("Anotar", Modifier.clickable { editingMarkNote = mark }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                                         }
                                     }
-                                    Text("Abrir na teoria", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                                    IconButton(onClick = { viewModel.deleteTheoryMark(mark) }) { Icon(Icons.Outlined.DeleteOutline, "Tirar grifo", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                                 }
-                                IconButton(onClick = { viewModel.deleteTheoryMark(mark) }) { Icon(Icons.Outlined.DeleteOutline, "Tirar grifo", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                             }
                         }
                     }
                 }
-                NotebookTab.QUESTIONS -> {
-                    val rows = favoriteQuestions.filter { matches(it.question.statement, topicById[it.question.topicId]?.title) }
-                    if (favoriteQuestions.isNotEmpty() && needle.isEmpty()) item(key = "train-all") {
-                        Button(onClick = onTrainFavorites, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Treinar as ${favoriteQuestions.size} questões salvas")
-                        }
+                if (bag.notes.isNotEmpty()) {
+                    item(key = "s-notes") { BagSection(Icons.Outlined.EditNote, "Anotações", bag.notes.size) }
+                    bag.notes.sortedByDescending { it.createdAt }.forEach { note ->
+                        item(key = "n-${note.id}") { br.com.estudario.ui.components.NotePaperCard(note.text, note.createdAt, onClick = { viewing = note }) }
                     }
-                    if (rows.isEmpty()) emptyItem(NotebookTab.QUESTIONS.icon, "Nenhuma questão salva", "No treino, toque no coração das questões que você quer rever: as difíceis, as que sempre caem, as que você errou por detalhe.", needle.isNotEmpty())
-                    grouped(rows, { place(it.question.topicId) }, expanded, onOpenTopic, action = { target ->
-                        target.topic?.let { topic -> TextButton(onClick = { onTrainTopicFavorites(topic.id) }) { Text("Treinar") } }
-                    }) { row ->
-                        ElevatedCard(Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    val meta = listOfNotNull(row.question.board, row.question.year?.toString(), row.question.difficulty?.name?.lowercase()?.replaceFirstChar(Char::uppercase))
-                                    if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                    Text(plainPreview(row.question.statement), maxLines = 4, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-                                    if (row.question.answerCount > 0) Text(
-                                        "${row.question.correctCount} acerto(s) em ${row.question.answerCount} tentativa(s)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                }
+                if (bag.tips.isNotEmpty()) {
+                    item(key = "s-tips") { BagSection(Icons.Outlined.Lightbulb, "Dicas e pegadinhas", bag.tips.size) }
+                    bag.tips.sortedBy { it.kind }.forEach { snippet ->
+                        item(key = "t-${snippet.id}") {
+                            if (snippet.kind == SnippetKind.RECUPERACAO) {
+                                RecallCard(snippet.text, snippet.answer, revealKey = snippet.id) {
+                                    IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar do caderno", tint = MaterialTheme.colorScheme.primary) }
                                 }
-                                IconButton(onClick = { viewModel.toggleQuestionFavorite(row.question) }) { Icon(Icons.Outlined.Favorite, "Tirar dos salvos", tint = MaterialTheme.colorScheme.primary) }
+                            } else {
+                                val trap = snippet.kind == SnippetKind.PEGADINHA
+                                ElevatedCard(Modifier.fillMaxWidth()) {
+                                    Row(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            KindPill(if (trap) "PEGADINHA" else "DICA", if (trap) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer)
+                                            br.com.estudario.ui.components.StudyInlineText(snippet.text, style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                        IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar do caderno", tint = MaterialTheme.colorScheme.primary) }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                NotebookTab.FLASHCARDS -> {
-                    val cards = savedCards.filter { matches(it.text, it.answer, topicById[it.topicId]?.title) }
-                    val decks = savedDecks.filter { matches(it.title, topicById[it.topicId]?.title) }
-                    if (cards.isEmpty() && decks.isEmpty()) emptyItem(NotebookTab.FLASHCARDS.icon, "Nenhum flashcard salvo", "Nos tópicos, abra os Flashcards (aba REVISÃO). Salve o baralho inteiro no marcador do topo, ou só o cartão que interessa em \"Salvar este cartão\".", needle.isNotEmpty())
-                    val entries = cards.map { Triple(place(it.topicId), it, null as SummaryEntity?) } + decks.map { Triple(place(it.topicId), null, it) }
-                    grouped(entries, { it.first }, expanded, onOpenTopic, action = { target ->
-                        if (cards.any { place(it.topicId).key == target.key }) TextButton(onClick = { cardsFor = target }) { Text("Praticar") }
-                    }) { (_, card, deck) ->
-                        if (deck != null) {
+                if (bag.cards.isNotEmpty() || bag.decks.isNotEmpty()) {
+                    item(key = "s-cards") { BagSection(Icons.Outlined.Style, "Flashcards", bag.cards.size + bag.decks.size) }
+                    bag.decks.forEach { deck ->
+                        item(key = "d-${deck.id}") {
                             val count = remember(deck.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(deck.markdown).size }
                             ElevatedCard(onClick = { deckFor = deck }, modifier = Modifier.fillMaxWidth()) {
                                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -330,48 +340,184 @@ fun StudyNotebookScreen(
                                     Icon(Icons.Outlined.PlayArrow, "Praticar", tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
-                        } else if (card != null) {
+                        }
+                    }
+                    bag.cards.forEach { card ->
+                        item(key = "c-${card.id}") {
                             RecallCard(card.text, card.answer, revealKey = card.id) {
                                 IconButton(onClick = { viewModel.deleteSnippet(card) }) { Icon(Icons.Outlined.DeleteOutline, "Tirar dos salvos") }
                             }
                         }
                     }
                 }
-                NotebookTab.TIPS -> {
-                    val rows = tips.filter { matches(it.text, it.answer, topicById[it.topicId]?.title) }
-                    if (rows.isEmpty()) emptyItem(NotebookTab.TIPS.icon, "Nenhuma dica salva", "Nos tópicos, na aba DICAS, toque na estrela das dicas, pegadinhas e perguntas de memorização que você quer levar para a véspera da prova.", needle.isNotEmpty())
-                    grouped(rows.sortedBy { it.kind }, { place(it.topicId) }, expanded, onOpenTopic, onReview = onReviewSubject) { snippet ->
-                        if (snippet.kind == SnippetKind.RECUPERACAO) {
-                            RecallCard(snippet.text, snippet.answer, revealKey = snippet.id) {
-                                IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar do caderno", tint = MaterialTheme.colorScheme.primary) }
-                            }
-                        } else {
-                            val trap = snippet.kind == SnippetKind.PEGADINHA
+                if (bag.questions.isNotEmpty()) {
+                    item(key = "s-questions") { BagSection(Icons.Outlined.Quiz, "Questões salvas", bag.questions.size) }
+                    bag.questions.forEach { row ->
+                        item(key = "q-${row.question.id}") {
                             ElevatedCard(Modifier.fillMaxWidth()) {
                                 Row(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        KindPill(if (trap) "PEGADINHA" else "DICA", if (trap) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer)
-                                        br.com.estudario.ui.components.StudyInlineText(snippet.text, style = MaterialTheme.typography.bodyMedium)
+                                        val meta = listOfNotNull(row.question.board, row.question.year?.toString(), row.question.difficulty?.name?.lowercase()?.replaceFirstChar(Char::uppercase))
+                                        if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                        Text(plainPreview(row.question.statement), maxLines = 4, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                                        if (row.question.answerCount > 0) Text("${row.question.correctCount} acerto(s) em ${row.question.answerCount} tentativa(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    IconButton(onClick = { viewModel.saveSnippet(snippet.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar do caderno", tint = MaterialTheme.colorScheme.primary) }
+                                    IconButton(onClick = { viewModel.toggleQuestionFavorite(row.question) }) { Icon(Icons.Outlined.Favorite, "Tirar dos salvos", tint = MaterialTheme.colorScheme.primary) }
                                 }
                             }
                         }
                     }
                 }
-                NotebookTab.NOTES -> {
-                    // As anotações livres e as notas feitas nos trechos da teoria, juntas e mais novas primeiro.
-                    val rows = (notes.filter { matches(it.text, it.topicId?.let(topicById::get)?.title) }.map { it as Any } +
-                        marks.filter { it.note.isNotBlank() && matches(it.note, it.quote, topicById[theoryById[it.theoryId]?.topicId]?.title) }.map { it as Any })
-                        .sortedByDescending { (it as? UserNoteEntity)?.createdAt ?: (it as br.com.estudario.data.local.TheoryMarkEntity).createdAt }
-                    if (rows.isEmpty()) emptyItem(NotebookTab.NOTES.icon, "Nenhuma anotação ainda", "Escreva com suas palavras: macetes, resumos, dúvidas. Na leitura, selecione um trecho e escolha Grifar com nota: ela também aparece aqui.", needle.isNotEmpty())
-                    grouped(rows, { if (it is UserNoteEntity) place(it.topicId) else place(theoryById[(it as br.com.estudario.data.local.TheoryMarkEntity).theoryId]?.topicId) }, expanded, onOpenTopic, onReview = onReviewSubject) { row ->
-                        if (row is UserNoteEntity) br.com.estudario.ui.components.NotePaperCard(row.text, row.createdAt, onClick = { viewing = row })
-                        else (row as br.com.estudario.data.local.TheoryMarkEntity).let { mark ->
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                br.com.estudario.ui.components.NotePaperCard(mark.note, mark.createdAt, onClick = { viewing = mark }, quote = plainPreview(mark.quote))
-                                Text("Abrir na teoria", Modifier.padding(start = 12.dp).clickable { onOpenTheory(mark.theoryId, mark.blockIndex) }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                            }
+            }
+        }
+        return
+    }
+    if (opened != null && bag == null) openTopic = null
+
+    // ============================== AS MATÉRIAS ==============================
+    val allCards = orderedBags.flatMap { it.value.cards }
+    Scaffold(
+        floatingActionButton = {
+            ExtendedFloatingActionButton(onClick = { editingNote = UserNoteEntity(text = "") }, icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Nova anotação") })
+        },
+    ) { padding ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            val total = bags.values.sumOf { it.total }
+            val subjectsWithItems = bags.keys.mapNotNull { place(it.takeIf { id -> id >= 0 }).subject?.id }.distinct().size
+            item(key = "hero") { NotebookHero(total, subjectsWithItems) }
+            if (total > 0) item(key = "review-all") {
+                // Revisão completa: passar por todos os grifos, todas as anotações, todos os flashcards...
+                val allMarks = orderedBags.flatMap { it.value.marks }
+                val allNotes = orderedBags.flatMap { it.value.notes }
+                val allTips = orderedBags.flatMap { it.value.tips }
+                ReviewAllCard(
+                    listOfNotNull(
+                        Triple(Icons.Outlined.PlayArrow, "Tudo, um por um", (allMarks.size + allNotes.size + allTips.size)).takeIf { it.third > 0 }?.let { it to { reviewing = "Revisão completa" to orderedBags.flatMap { e -> bagCards(e.value) } } },
+                        Triple(Icons.Outlined.BorderColor, "Grifos", allMarks.size).takeIf { it.third > 0 }?.let { it to { reviewing = "Todos os grifos" to allMarks.map { m -> markCard(m) } } },
+                        Triple(Icons.Outlined.EditNote, "Anotações", allNotes.size + allMarks.count { it.note.isNotBlank() }).takeIf { it.third > 0 }?.let { it to { reviewing = "Todas as anotações" to (allNotes.map(::noteCard) + allMarks.filter { m -> m.note.isNotBlank() }.map { m -> markCard(m, "NOTA NUM TRECHO") }) } },
+                        Triple(Icons.Outlined.Lightbulb, "Dicas", allTips.size).takeIf { it.third > 0 }?.let { it to { reviewing = "Todas as dicas" to allTips.map(::tipCard) } },
+                        Triple(Icons.Outlined.Style, "Flashcards", allCards.size).takeIf { it.third > 0 }?.let { it to { cardsFor = "Todos os flashcards" to allCards } },
+                        Triple(Icons.Outlined.Quiz, "Questões", favoriteQuestions.size).takeIf { it.third > 0 }?.let { it to onTrainFavorites },
+                    ),
+                )
+            }
+            item(key = "search") {
+                OutlinedTextField(
+                    query, { query = it }, Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    placeholder = { Text("Buscar matéria, tópico ou o que você guardou") },
+                    singleLine = true, shape = RoundedCornerShape(16.dp),
+                )
+            }
+            // Busca: tópicos cujo nome ou conteúdo guardado tem o texto.
+            fun bagMatches(id: Long, b: TopicBag): Boolean {
+                if (needle.isEmpty()) return true
+                val p = place(id.takeIf { it >= 0 })
+                return matches(p.title, p.subtitle) || b.marks.any { matches(it.quote, it.note) } || b.notes.any { matches(it.text) } ||
+                    b.tips.any { matches(it.text, it.answer) } || b.cards.any { matches(it.text, it.answer) } || b.questions.any { matches(it.question.statement) }
+            }
+            val visible = orderedBags.filter { bagMatches(it.key, it.value) }
+            if (total == 0) item(key = "empty") { EmptyHint(Icons.Outlined.EditNote, "Seu caderno está em branco", "Na leitura da teoria, grife trechos e escreva notas. Salve questões, dicas e flashcards nos tópicos. Tudo aparece aqui, por matéria.") }
+            else if (visible.isEmpty()) item(key = "nothing") { EmptyHint(Icons.Outlined.Search, "Nada encontrado", "Nenhuma matéria, tópico ou item guardado tem esse texto.") }
+            item(key = "label") { if (visible.isNotEmpty()) Text("SUAS MATÉRIAS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp)) }
+            visible.groupBy { place(it.key.takeIf { id -> id >= 0 }).subject }.forEach { (subject, entries) ->
+                val sid = subject?.id ?: -1L
+                // Buscando, as matérias já vêm abertas.
+                val open = needle.isNotEmpty() || sid in expanded
+                item(key = "subj-$sid") {
+                    SubjectCard(
+                        name = subject?.name ?: "Geral",
+                        bags = entries.map { it.value },
+                        open = open,
+                        onToggle = { if (sid in expanded) expanded.remove(sid) else expanded.add(sid) },
+                    )
+                }
+                if (open) entries.forEach { (id, b) ->
+                    item(key = "topic-$sid-$id") {
+                        TopicRow(place(id.takeIf { it >= 0 }).title, b) { openTopic = id }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Uma linha de contagens por tipo ("12 grifos · 3 notas · 5 cards"). */
+private fun bagSummary(bags: List<TopicBag>): String {
+    val parts = listOf(
+        bags.sumOf { it.marks.size } to ("grifo" to "grifos"),
+        bags.sumOf { it.notes.size } to ("anotação" to "anotações"),
+        bags.sumOf { it.tips.size } to ("dica" to "dicas"),
+        bags.sumOf { it.cards.size + it.decks.size } to ("flashcard" to "flashcards"),
+        bags.sumOf { it.questions.size } to ("questão" to "questões"),
+    ).filter { it.first > 0 }
+    return parts.joinToString(" · ") { (n, w) -> "$n ${if (n == 1) w.first else w.second}" }
+}
+
+/** A matéria: o desenho dela, o nome, o que tem guardado e quantos tópicos. Toca para abrir os tópicos. */
+@Composable
+private fun SubjectCard(name: String, bags: List<TopicBag>, open: Boolean, onToggle: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val color = br.com.estudario.ui.components.subjectAccentColor(name, br.com.estudario.ui.theme.estudarioColors().subjectPalette)
+    Surface(
+        onClick = onToggle,
+        shape = RoundedCornerShape(20.dp),
+        color = if (open) color.copy(alpha = .10f) else scheme.surfaceContainerHigh,
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (open) color.copy(alpha = .45f) else scheme.outlineVariant.copy(alpha = .5f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(name), color, 50.dp)
+            Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(bagSummary(bags), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("${bags.size} ${if (bags.size == 1) "tópico" else "tópicos"}", style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
+            }
+            Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (open) "Fechar" else "Abrir")
+        }
+    }
+}
+
+/** O tópico dentro da matéria aberta: o nome, o que tem guardado, e a seta para abrir tudo dele. */
+@Composable
+private fun TopicRow(title: String, bag: TopicBag, onOpen: () -> Unit) {
+    Surface(onClick = onOpen, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f)), modifier = Modifier.fillMaxWidth().padding(start = 18.dp)) {
+        Row(Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(bagSummary(listOf(bag)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
+                Text("${bag.total}", Modifier.padding(horizontal = 10.dp, vertical = 2.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+            }
+            Icon(Icons.Outlined.ChevronRight, "Abrir", Modifier.padding(start = 4.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+/** A revisão completa: um botão por tipo (todos os grifos, todos os flashcards...) e "tudo, um por um". */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ReviewAllCard(actions: List<Pair<Triple<ImageVector, String, Int>, () -> Unit>>) {
+    if (actions.isEmpty()) return
+    val scheme = MaterialTheme.colorScheme
+    Surface(shape = RoundedCornerShape(20.dp), color = scheme.surfaceContainerHigh, border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = .5f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Revisão completa", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black)
+            Text("Passe por tudo o que guardou, de todas as matérias, na ordem do edital.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                actions.forEachIndexed { i, (info, run) ->
+                    val (icon, label, count) = info
+                    val first = i == 0
+                    Surface(onClick = run, shape = RoundedCornerShape(50), color = if (first) scheme.primary else scheme.surface, border = if (first) null else androidx.compose.foundation.BorderStroke(1.dp, scheme.outlineVariant)) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(icon, null, Modifier.size(18.dp), tint = if (first) scheme.onPrimary else scheme.primary)
+                            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = if (first) scheme.onPrimary else scheme.onSurface)
+                            Text("$count", style = MaterialTheme.typography.labelMedium, color = if (first) scheme.onPrimary.copy(alpha = .8f) else scheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -380,76 +526,57 @@ fun StudyNotebookScreen(
     }
 }
 
-/**
- * Agrupa por matéria (fechada ao entrar, só o cabeçalho com a contagem) e, dentro dela, por tópico
- * na ordem do edital. Com muitas matérias o Caderno fica um índice limpo: abre só o que vai estudar.
- */
-private fun <T> LazyListScope.grouped(
-    rows: List<T>,
-    placeOf: (T) -> Place,
-    expanded: MutableList<String>,
-    onOpenTopic: (Long) -> Unit,
-    action: @Composable (Place) -> Unit = {},
-    onReview: ((SubjectEntity?) -> Unit)? = null,
-    content: @Composable (T) -> Unit,
+/** O topo do tópico aberto: voltar, a matéria, o tópico, o resumo e as ações de estudo. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TopicBagHeader(
+    subject: String,
+    title: String,
+    bag: TopicBag,
+    onBack: () -> Unit,
+    onReview: (() -> Unit)?,
+    onCards: (() -> Unit)?,
+    onQuestions: (() -> Unit)?,
+    onOpenContent: (() -> Unit)?,
 ) {
-    val bySubject = rows.groupBy { placeOf(it).subject }.entries.sortedWith(compareBy({ it.key == null }, { it.key?.position ?: Int.MAX_VALUE }, { it.key?.name ?: "" }))
-    bySubject.forEach { (subject, list) ->
-        val key = "s-${subject?.id ?: "none"}"
-        val open = key in expanded
-        val byTopic = list.groupBy(placeOf).entries.sortedWith(compareBy({ it.key.topic == null }, { it.key.topic?.position ?: 0 }, { it.key.title }))
-        item(key = "subject-$key") {
-            SubjectHeader(subject?.name ?: "Geral", list.size, byTopic.size, open, onToggle = { if (open) expanded.remove(key) else expanded.add(key) }, onReview = onReview?.let { r -> { r(subject) } })
-        }
-        if (open) byTopic.forEach { (target, items) ->
-            item(key = "topic-$key-${target.key}") { TopicLabel(target, items.size, onOpenTopic, action) }
-            items.forEachIndexed { index, row ->
-                item(key = "row-$key-${target.key}-$index-${row.hashCode()}") { Box(Modifier.padding(start = 12.dp)) { content(row) } }
-            }
-        }
-    }
-}
-
-/** Cabeçalho da matéria: a inicial num selo, o nome, quantos itens e tópicos, revisar e abrir. */
-@Composable
-private fun SubjectHeader(name: String, count: Int, topics: Int, open: Boolean, onToggle: () -> Unit, onReview: (() -> Unit)?) {
     val scheme = MaterialTheme.colorScheme
-    Surface(
-        onClick = onToggle,
-        shape = RoundedCornerShape(18.dp),
-        color = if (open) scheme.primaryContainer.copy(alpha = .55f) else scheme.surfaceContainerHigh,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (open) scheme.primary.copy(alpha = .35f) else scheme.outlineVariant.copy(alpha = .5f)),
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-    ) {
-        Row(Modifier.padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            // O desenho da matéria (turma do Folha), igual ao do edital e do início.
-            br.com.estudario.ui.brand.SubjectArtTile(
-                br.com.estudario.domain.catalog.SubjectArt.iconFor(name),
-                br.com.estudario.ui.components.subjectAccentColor(name, br.com.estudario.ui.theme.estudarioColors().subjectPalette),
-                44.dp,
-            )
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("$count ${if (count == 1) "item" else "itens"} · $topics ${if (topics == 1) "tópico" else "tópicos"}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+    val color = br.com.estudario.ui.components.subjectAccentColor(subject, br.com.estudario.ui.theme.estudarioColors().subjectPalette)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 4.dp)) {
+            Icon(Icons.Outlined.ChevronLeft, null); Text("Todas as matérias")
+        }
+        Surface(shape = RoundedCornerShape(22.dp), color = color.copy(alpha = .12f), border = androidx.compose.foundation.BorderStroke(1.5.dp, color.copy(alpha = .4f)), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject), color, 56.dp)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text(subject.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                        Text(bagSummary(listOf(bag)), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                    }
+                }
+                if (onReview != null) Button(onClick = onReview, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Revisar este tópico, um por um")
+                }
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onCards != null) androidx.compose.material3.OutlinedButton(onClick = onCards) { Icon(Icons.Outlined.Style, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Praticar flashcards") }
+                    if (onQuestions != null) androidx.compose.material3.OutlinedButton(onClick = onQuestions) { Icon(Icons.Outlined.Quiz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Treinar questões") }
+                    if (onOpenContent != null) androidx.compose.material3.OutlinedButton(onClick = onOpenContent) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Abrir conteúdo") }
+                }
             }
-            if (onReview != null) IconButton(onClick = onReview) { Icon(Icons.Outlined.PlayArrow, "Revisar esta matéria", tint = scheme.primary) }
-            Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (open) "Fechar" else "Abrir", Modifier.padding(end = 6.dp))
         }
     }
 }
 
-/** O tópico dentro da matéria aberta: uma linha discreta com a contagem, abrir e a ação do tipo. */
+/** O título de uma parte do tópico aberto (Grifos, Anotações...). */
 @Composable
-private fun TopicLabel(target: Place, count: Int, onOpenTopic: (Long) -> Unit, action: @Composable (Place) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)))
-        Text(
-            target.title,
-            Modifier.weight(1f).padding(start = 8.dp).then(if (target.topic != null) Modifier.clickable { onOpenTopic(target.topic.id) } else Modifier),
-            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-        )
-        Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 6.dp))
-        action(target)
+private fun BagSection(icon: ImageVector, label: String, count: Int) {
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
+            Text("$count", Modifier.padding(horizontal = 8.dp, vertical = 1.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
