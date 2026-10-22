@@ -2434,6 +2434,30 @@
     const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, rgba(color, a)); gr.addColorStop(1, rgba(color, 0));
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 2 * PI); g.fill();
   }
+  /**
+   * Fundo luminoso (raios, brilho, ondas de choque, bolinhas de luz) desenhado numa tela à parte e
+   * apagado suave numa elipse em volta de (cx, cy): a luz some no escuro antes de chegar em qualquer
+   * borda do quadro, sem o "quadrado" cortando os raios.
+   */
+  function backdrop(g, el, cx, cy, rx, ry, paint) {
+    const c = el._bgc || (el._bgc = document.createElement("canvas"));
+    if (c.width !== g.canvas.width || c.height !== g.canvas.height) { c.width = g.canvas.width; c.height = g.canvas.height; }
+    const b = c.getContext("2d");
+    b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, c.width, c.height); b.setTransform(g.getTransform());
+    paint(b);
+    b.save(); b.globalCompositeOperation = "destination-in"; b.translate(cx, cy); b.scale(1, ry / rx);
+    const m = b.createRadialGradient(0, 0, 0, 0, 0, rx);
+    m.addColorStop(0, "#000"); m.addColorStop(0.45, "rgba(0,0,0,0.92)"); m.addColorStop(0.75, "rgba(0,0,0,0.45)"); m.addColorStop(1, "rgba(0,0,0,0)");
+    b.fillStyle = m; b.fillRect(-rx * 1.2, -rx * 1.2, rx * 2.4, rx * 2.4); b.restore();
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(c, 0, 0); g.restore();
+  }
+  // bolinhas de luz desfocadas, flutuando devagar (dão profundidade ao palco)
+  function bokeh(g, t, cx, cy, color, a, n = 10) {
+    for (let i = 0; i < n; i++) {
+      const ang = i * 2.39996 + t * 0.05 * (i % 2 ? 1 : -1), r = 14 + ((i * 37) % 40), x = cx + cos(ang) * r * 1.3, y = cy + sin(ang) * r * 0.8 + sin(t * 0.6 + i) * 2;
+      glowAt(g, x, y, 2.5 + (i % 4) * 1.6, color, a * (0.5 + 0.5 * sin(t * 0.9 + i * 1.3)));
+    }
+  }
   function floorLight(g, x, y, r, color, a) { g.save(); g.translate(x, y); g.scale(1, 0.2); glowAt(g, 0, 0, r, color, a); g.restore(); }
   function sceneRays(g, x, y, n, len, color, a, rot, wide = 0.11) {
     if (a <= 0) return;
@@ -2498,23 +2522,36 @@
     // fundo: luz de palco atrás do caderno
     starDust(g, t, 1);
     const pop = segT(T, 3.05, 3.5);
-    glowAt(g, 50, 33, 52, "#6158F0", 0.35 + 0.25 * pop);
-    sceneRays(g, 50, 33, 14, 66, "#FFD66B", outC(segT(T, 3.0, 3.6)) * (0.8 + 0.2 * sin(t * 2)), t * 0.18);
-    shockRing(g, 50, 33, segT(T, 3.0, 3.8), "#FFE59A", 58);
+    const reach = el._reach();
+    backdrop(g, el, 50, 36, reach, reach * 0.92, (b) => {
+      glowAt(b, 50, 34, 60, "#6158F0", 0.4 + 0.25 * pop);
+      bokeh(b, t, 50, 40, "#B9B2FF", 0.35);
+      sceneRays(b, 50, 33, 18, 90, "#FFD66B", outC(segT(T, 3.0, 3.6)) * (0.8 + 0.2 * sin(t * 2)), t * 0.18, 0.07);
+      sceneRays(b, 50, 33, 9, 70, "#FFFFFF", 0.35 * outC(segT(T, 3.1, 3.8)), -t * 0.12, 0.035);
+      glowAt(b, 50, 33, 40, "#FFD66B", 0.45 * outC(segT(T, 3.0, 3.4)) * (1 - 0.4 * segT(T, 3.4, 5)));
+      shockRing(b, 50, 33, segT(T, 3.0, 3.8), "#FFE59A", 58);
+      shockRing(b, 50, 33, segT(T, 3.15, 4.1), "#FFFFFF", 70);
+    });
     // a página: entra girando, vira no meio e brilha no fim
     const enter = outBack(segT(T, 0.1, 0.75)), flip = segT(T, 1.45, 1.95), sx = cos(PI * flip), fresh = flip > 0.5;
     const W = 62, H = 46, cx = 50, cy = 33 + sin(t * 1.4) * 0.6 * segT(T, 3.6, 4.2);
     g.save(); g.globalAlpha = clamp(enter * 1.5, 0, 1);
     g.translate(cx, cy); g.rotate((-3 + (1 - enter) * -24) * PI / 180); g.scale(Math.max(0.02, Math.abs(sx)) * (0.4 + 0.6 * enter), 0.4 + 0.6 * enter);
     // sombra e papel
-    g.fillStyle = "rgba(10,6,40,0.35)"; g.fillRect(-W / 2 + 1.4, -H / 2 + 2.2, W, H);
+    const paper = new Path2D(); { const r = 2.2, x0 = -W / 2, y0 = -H / 2; paper.moveTo(x0 + r, y0); paper.lineTo(x0 + W - r, y0); paper.quadraticCurveTo(x0 + W, y0, x0 + W, y0 + r); paper.lineTo(x0 + W, y0 + H - r); paper.quadraticCurveTo(x0 + W, y0 + H, x0 + W - r, y0 + H); paper.lineTo(x0 + r, y0 + H); paper.quadraticCurveTo(x0, y0 + H, x0, y0 + H - r); paper.lineTo(x0, y0 + r); paper.quadraticCurveTo(x0, y0, x0 + r, y0); paper.closePath(); }
+    g.save(); g.shadowColor = "rgba(8,4,40,0.55)"; g.shadowBlur = 10 * this_k(el); g.shadowOffsetY = 1.5 * this_k(el);
     g.fillStyle = fresh ? vGrad(g, ["#FFFDF6", "#FFF6DD"], -H / 2, H / 2) : vGrad(g, [PAPER, "#F1EDE6"], -H / 2, H / 2);
-    g.fillRect(-W / 2, -H / 2, W, H);
+    g.fill(paper); g.restore();
+    g.save(); g.clip(paper);
+    // a fibra do papel e um brilho de luz passando por cima
+    for (let i = 0; i < 40; i++) circle(g, "rgba(150,135,110,0.07)", 0.35, -W / 2 + ((i * 37) % W), -H / 2 + ((i * 23) % H));
+    { const sx2 = -W + ((t * 0.18) % 1) * W * 3, lg = g.createLinearGradient(sx2, -H, sx2 + 14, H); lg.addColorStop(0, "rgba(255,255,255,0)"); lg.addColorStop(0.5, "rgba(255,255,255,0.45)"); lg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = lg; g.fillRect(-W / 2, -H / 2, W, H); }
     if (fresh) { const gl = segT(T, 3.0, 3.3) * (1 - segT(T, 3.3, 4.4)); if (gl > 0) { g.fillStyle = `rgba(255,224,122,${0.5 * gl})`; g.fillRect(-W / 2, -H / 2, W, H); } }
     for (let y = -H / 2 + 10; y < H / 2; y += 5) line(g, fresh ? "rgba(245,184,61,0.45)" : "rgba(111,176,255,0.45)", -W / 2, y, W / 2, y, 0.3, false);
     line(g, "rgba(232,86,109,0.6)", -W / 2 + 8, -H / 2, -W / 2 + 8, H / 2, 0.35, false);
     // espiral do caderno
-    for (let i = 0; i < 11; i++) { const x = -W / 2 + 5 + i * 5.2; circle(g, "rgba(38,33,92,0.85)", 0.9, x, -H / 2 + 3); const r = new Path2D(); r.ellipse(x, -H / 2 + 0.6, 1.1, 2.8, 0, PI * 0.95, PI * 2.05); stroke(g, r, "#B7B9C9", 0.7); }
+    g.restore();
+    for (let i = 0; i < 11; i++) { const x = -W / 2 + 5 + i * 5.2; circle(g, "rgba(38,33,92,0.85)", 0.9, x, -H / 2 + 3); const r = new Path2D(); r.ellipse(x, -H / 2 + 0.6, 1.1, 2.8, 0, PI * 0.95, PI * 2.05); stroke(g, r, "#B7B9C9", 0.7); line(g, "rgba(255,255,255,0.8)", x - 0.4, -H / 2 - 1.6, x - 0.2, -H / 2 - 0.8, 0.25); }
     if (!fresh) {
       handNumber(g, old, 3, 4, 22, 1, ["#3A2FC4"], 2.2);
       // o risco do lápis por cima do número antigo
@@ -2533,11 +2570,22 @@
       g.save(); g.translate(cx, cy); g.rotate(-3 * PI / 180); g.scale(Math.abs(sx), 1);
       const shine = segT(T, 3.0, 3.25) * (1 - segT(T, 3.5, 4.5)) * 0.9 + 0.1 * segT(T, 3.0, 3.2);
       if (shine > 0) { g.shadowColor = "rgba(255,200,80,0.95)"; g.shadowBlur = 12 * shine; }
-      const tl = handNumber(g, lvl, 3, 4, 26, write, ["#2A209E", "#5247E0"], 3.2);
+      const ink = g.createLinearGradient(-20, -10, 20, 16); ink.addColorStop(0, "#2A209E"); ink.addColorStop(1, "#8A46E0");
+      const tl = handNumber(g, lvl, 3, 4, 26, write, [ink, "rgba(255,255,255,0.35)"], 3.4);
       g.shadowBlur = 0;
+      // a folha de ouro: depois de escrito, o número vira dourado de baixo para cima, com um brilho correndo
+      const foil = segT(T, 3.0, 3.6);
+      if (foil > 0) {
+        g.save(); const cl = new Path2D(); cl.rect(-40, 20 - 40 * outC(foil), 80, 60); g.clip(cl);
+        const gold = g.createLinearGradient(-20, -12, 20, 14); gold.addColorStop(0, "#FFE59A"); gold.addColorStop(0.5, "#F5B83D"); gold.addColorStop(1, "#C98A12");
+        handNumber(g, lvl, 3, 4, 26, 1, ["#7A4F05", gold, "rgba(255,255,255,0.55)"], 3.6);
+        g.restore();
+        const sweep = ((T - 3.2) * 0.45) % 1;
+        if (T > 3.2) { g.save(); const cl2 = new Path2D(); const x = -30 + sweep * 70; cl2.moveTo(x, -16); cl2.lineTo(x + 6, -16); cl2.lineTo(x - 2, 20); cl2.lineTo(x - 8, 20); cl2.closePath(); g.clip(cl2); handNumber(g, lvl, 3, 4, 26, 1, ["#FFFFFF"], 3.6); g.restore(); }
+      }
       // sublinhado de capricho
       const ul = segT(T, 2.62 + 0.42 * (lvl.length - 1), 2.92 + 0.42 * (lvl.length - 1));
-      if (ul > 0) { const p = new Path2D(); const x0 = -10 - lvl.length * 4, x1 = x0 + (22 + lvl.length * 8) * ul; p.moveTo(x0 + 3, 19); p.quadraticCurveTo((x0 + x1) / 2 + 3, 16.6, x1 + 3, 18.4); stroke(g, p, "#F5B83D", 1.6); tip = [cx + x1 + 3, cy + 18.4]; }
+      if (ul > 0) { const p = new Path2D(); const x0 = -10 - lvl.length * 4, x1 = x0 + (22 + lvl.length * 8) * ul; p.moveTo(x0 + 3, 19); p.quadraticCurveTo((x0 + x1) / 2 + 3, 16.6, x1 + 3, 18.4); stroke(g, p, "#C98A12", 2.2); stroke(g, p, "#FFD66B", 1.3); tip = [cx + x1 + 3, cy + 18.4]; }
       else { const a = -3 * PI / 180, [x, y] = [tl[0] * Math.abs(sx), tl[1]]; tip = [cx + x * cos(a) - y * sin(a), cy + x * sin(a) + y * cos(a)]; }
       g.restore();
       // rastro de brilho atrás da ponta
@@ -2620,12 +2668,17 @@
     starDust(g, t, 1);
     // facho de luz de cima
     const beam = segT(T, 0, 0.6);
-    if (beam > 0) { const p = new Path2D(); p.moveTo(40, -4); p.lineTo(60, -4); p.lineTo(84, 104); p.lineTo(16, 104); p.closePath(); const gr = g.createLinearGradient(0, -4, 0, 104); gr.addColorStop(0, `rgba(255,255,255,${0.16 * beam})`); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fill(p); }
+    if (beam > 0) { const p = new Path2D(); p.moveTo(36, -60); p.lineTo(64, -60); p.lineTo(88, 104); p.lineTo(12, 104); p.closePath(); const gr = g.createLinearGradient(0, -60, 0, 104); gr.addColorStop(0, `rgba(255,255,255,${0.16 * beam})`); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fill(p); }
     const stampAt = 1.65, hit = segT(T, stampAt, stampAt + 0.2);
-    glowAt(g, 50, 40, 46, C[1], 0.25 + 0.3 * segT(T, stampAt, stampAt + 0.4));
-    sceneRays(g, 50, 40, 16, 70, C[0], outC(segT(T, stampAt, stampAt + 0.6)) * (0.75 + 0.25 * sin(t * 2.2)), t * 0.22, 0.08);
-    shockRing(g, 50, 40, segT(T, stampAt, stampAt + 0.8), C[0], 46);
-    shockRing(g, 50, 40, segT(T, stampAt + 0.12, stampAt + 1.1), "#FFFFFF", 56);
+    const reach = el._reach();
+    backdrop(g, el, 50, 38, reach, reach * 0.92, (b) => {
+      glowAt(b, 50, 38, 60, C[1], 0.25 + 0.35 * segT(T, stampAt, stampAt + 0.4));
+      bokeh(b, t, 50, 42, C[0], 0.4);
+      sceneRays(b, 50, 36, 20, 92, C[0], outC(segT(T, stampAt, stampAt + 0.6)) * (0.75 + 0.25 * sin(t * 2.2)), t * 0.22, 0.06);
+      sceneRays(b, 50, 36, 10, 74, "#FFFFFF", 0.3 * outC(segT(T, stampAt + 0.1, stampAt + 0.8)), -t * 0.15, 0.03);
+      shockRing(b, 50, 36, segT(T, stampAt, stampAt + 0.8), C[0], 46);
+      shockRing(b, 50, 36, segT(T, stampAt + 0.12, stampAt + 1.1), "#FFFFFF", 60);
+    });
     // a medalha desce na fita girando e para de frente, com uma molinha
     const u = Math.max(0, T - 0.15), MY = 34;
     const my = T < 0.15 ? -40 : u < 1.6 ? lerp(-40, MY, outBack(u / 1.5)) : MY + sin(t * 1.6) * 0.8;
@@ -2634,9 +2687,9 @@
     // as duas tiras da fita, presas na argola
     const ribbon = (side) => {
       const p = new Path2D(), top = my - R - 1.5;
-      p.moveTo(50 + side * 1.6 * Math.abs(sxm), top); p.lineTo(50 + side * 22, -12); p.lineTo(50 + side * 12, -12); p.lineTo(50 + side * (-2.6) * Math.abs(sxm), top); p.closePath();
-      g.fillStyle = side < 0 ? vGrad(g, ["#3A2FC4", "#5247E0"], -12, top) : vGrad(g, ["#2A209E", "#3A2FC4"], -12, top); g.fill(p);
-      g.save(); g.clip(p); for (const k of [0.38, 0.62]) { const q = new Path2D(); q.moveTo(50 + side * lerp(22, 12, k), -12); q.lineTo(50 + side * lerp(1.6, -2.6, k) * Math.abs(sxm), top); stroke(g, q, C[1], 1.2); } g.restore();
+      p.moveTo(50 + side * 1.6 * Math.abs(sxm), top); p.lineTo(50 + side * 36, -60); p.lineTo(50 + side * 26, -60); p.lineTo(50 + side * (-2.6) * Math.abs(sxm), top); p.closePath();
+      g.fillStyle = side < 0 ? vGrad(g, ["#3A2FC4", "#5247E0"], -60, top) : vGrad(g, ["#2A209E", "#3A2FC4"], -60, top); g.fill(p);
+      g.save(); g.clip(p); for (const k of [0.38, 0.62]) { const q = new Path2D(); q.moveTo(50 + side * lerp(36, 26, k), -60); q.lineTo(50 + side * lerp(1.6, -2.6, k) * Math.abs(sxm), top); stroke(g, q, C[1], 1.2); } g.restore();
     };
     ribbon(-1); ribbon(1);
     circle(g, C[2], 2.2, 50, my - R - 1.2); circle(g, C[0], 1.3, 50, my - R - 1.2);
@@ -2683,22 +2736,51 @@
     g.fillStyle = lit > 0.5 ? "rgba(122,36,8,0.85)" : "rgba(255,255,255,0.55)"; g.font = "900 4.2px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText(letter, 0, 9);
   }
+  // cor do fogo pela idade da labareda: branco-amarelo na base, laranja no meio, vermelho e fumaça no alto
+  const FIRE = [[0, [255, 252, 225]], [0.18, [255, 220, 120]], [0.42, [255, 150, 45]], [0.68, [235, 70, 30]], [1, [120, 30, 40]]];
+  function fireColor(u) {
+    for (let i = 1; i < FIRE.length; i++) if (u <= FIRE[i][0]) { const [a, ca] = FIRE[i - 1], [b, cb] = FIRE[i], k = (u - a) / (b - a); return ca.map((v, j) => Math.round(v + (cb[j] - v) * k)); }
+    return FIRE[FIRE.length - 1][1];
+  }
+  /**
+   * A chama grande da sequência, como fogo de verdade: dezenas de labaredas que nascem na base, sobem
+   * balançando, encolhem e mudam de cor, somadas com luz (o centro fica quase branco), com um núcleo
+   * quente embaixo, o calor tremendo em volta e fagulhas escapando.
+   */
   function drawBigFlame(g, x, base, h, t) {
     if (h <= 0.5) return;
-    const layer = (w, hh, stops, ph) => {
-      const p = new Path2D(), tipX = x + sin(t * 3.1 + ph) * w * 0.18;
-      p.moveTo(x - w, base);
-      p.bezierCurveTo(x - w * 1.25, base - hh * 0.42, x - w * 0.5 + sin(t * 4 + ph) * w * 0.12, base - hh * 0.62, x - w * 0.42, base - hh * 0.74);
-      p.bezierCurveTo(x - w * 0.3, base - hh * 0.6, x - w * 0.06, base - hh * 0.7, tipX, base - hh);
-      p.bezierCurveTo(x + w * 0.2, base - hh * 0.72, x + w * 0.3, base - hh * 0.66, x + w * 0.48, base - hh * 0.8 + sin(t * 5 + ph) * 1.2);
-      p.bezierCurveTo(x + w * 0.62, base - hh * 0.55, x + w * 1.25, base - hh * 0.4, x + w, base);
-      p.quadraticCurveTo(x, base + w * 0.3, x - w, base); p.closePath();
-      g.fillStyle = vGrad(g, stops, base - hh, base); g.fill(p);
-    };
-    glowAt(g, x, base - h * 0.45, h * 0.9, "#FF8A2A", 0.35);
-    layer(h * 0.36, h, ["#FFB13B", "#FF6A2C", "#C2183F"], 0);
-    layer(h * 0.27, h * 0.8, ["#FFE07A", "#FFA43A", "#FF6A2C"], 1.7);
-    layer(h * 0.17, h * 0.56, ["#FFFFFF", "#FFF1BF", "#FFD36B"], 3.1);
+    const w = h * 0.4;
+    glowAt(g, x, base - h * 0.42, h * 1.05, "#FF6A1A", 0.32);
+    glowAt(g, x, base - h * 0.2, h * 0.55, "#FFB13B", 0.35);
+    g.save(); g.globalCompositeOperation = "lighter";
+    const N = 90;
+    for (let i = 0; i < N; i++) {
+      const seed = (i * 0.6180339887) % 1, seed2 = (i * 0.7548776662) % 1, speed = 0.7 + seed2 * 0.6;
+      const u = (t * speed + seed) % 1;                                   // 0 nasce, 1 some
+      const side = (seed2 - 0.5) * 2;
+      const lean = sin(t * 1.7 + u * 3) * w * 0.12 * u;                    // a chama inteira balança
+      const flick = sin(t * 9 + i * 1.3) * w * 0.05 * u + sin(t * 4.3 + i) * w * 0.08 * u * u;
+      const px = x + side * w * 0.75 * (1 - u) ** 1.4 + lean + flick;
+      const py = base - u * h * (0.75 + seed * 0.35);
+      const r = w * (0.5 + 0.25 * seed) * (1 - u) ** 0.65 + 0.5;
+      const alpha = (u < 0.08 ? u / 0.08 : 1) * (1 - u) ** 1.1 * 0.42;
+      const c = fireColor(u * (0.85 + 0.3 * seed2));
+      const gr = g.createRadialGradient(px, py, 0, px, py, r);
+      gr.addColorStop(0, `rgba(${c},${alpha})`); gr.addColorStop(0.55, `rgba(${c},${alpha * 0.55})`); gr.addColorStop(1, `rgba(${c},0)`);
+      g.fillStyle = gr; g.beginPath(); g.ellipse(px, py, r * 0.8, r, 0, 0, 2 * PI); g.fill();
+    }
+    // núcleo quente na base
+    const cy = base - h * 0.14, core = g.createRadialGradient(x, cy, 0, x, cy, w * 0.75);
+    core.addColorStop(0, "rgba(255,255,240,0.85)"); core.addColorStop(0.4, "rgba(255,225,140,0.45)"); core.addColorStop(1, "rgba(255,180,60,0)");
+    g.fillStyle = core; g.beginPath(); g.ellipse(x, cy, w * 0.75, w * 0.55, 0, 0, 2 * PI); g.fill();
+    g.restore();
+    // fagulhas escapando para os lados e para cima
+    for (let i = 0; i < 14; i++) {
+      const u = (t * (0.35 + (i % 5) * 0.06) + i * 0.137) % 1, sd = (i * 0.618) % 1 - 0.5;
+      const px = x + sd * w * 1.6 + sin(t * 3 + i) * 3 * u, py = base - h * 0.3 - u * h * 0.9;
+      const a = (1 - u) * 0.9, c = fireColor(0.2 + u * 0.5);
+      glowAt(g, px, py, 1.6, `rgb(${c})`, a * 0.6); circle(g, `rgba(255,240,200,${a})`, 0.35 + 0.3 * (1 - u), px, py);
+    }
   }
   function cenaSequencia(g, T, t, el) {
     const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look();
@@ -2708,7 +2790,8 @@
     const milestone = days % 7 === 0 || days === 3 || days === 30 || days === 50 || days === 100;
     starDust(g, t, 0.8);
     // varal
-    const vp = new Path2D(); vp.moveTo(-6, 2); for (let x = -6; x <= 106; x += 4) vp.lineTo(x, stringY(x) - 3 * (1 - ((x - 50) / 56) ** 2) * 0 + (x < -1 || x > 101 ? -1 : 0));
+    // o varal vem de fora do quadro (some suave na borda), num arco único
+    const vp = new Path2D(); for (let x = -40; x <= 140; x += 4) { const y = 5 + 8 * (1 - ((x - 50) / 56) ** 2); x === -40 ? vp.moveTo(x, y) : vp.lineTo(x, y); }
     stroke(g, vp, "rgba(255,255,255,0.35)", 0.45);
     // a faísca: sai do punho do Folha num arco até a lanterna de hoje
     const launch = 1.05, hitT = 1.62, lastX = xs[n - 1], lastY = stringY(lastX) + 8.6;
@@ -2717,13 +2800,20 @@
     // a chama grande cresce atrás do Folha, com o número
     const fh = 64 * outBack(segT(T, 2.0, 2.6)) * (1 + 0.03 * sin(t * 5));
     drawBigFlame(g, 50, 98, fh, t);
-    if (fh > 1) for (let i = 0; i < 10; i++) { const ph = (t * 0.5 + i * 0.1) % 1, x = 50 + sin(i * 2.3 + t) * 18 * (1 - ph * 0.5), y = 94 - ph * fh * 1.1; circle(g, `rgba(255,${180 + (i % 3) * 25},90,${(1 - ph) * 0.9})`, 0.8 * (1 - ph) + 0.3, x, y); }
     // o número na chama: o de ontem sobe e some, o de hoje entra de baixo
     if (fh > 40) {
-      const roll = segT(T, 2.55, 2.95), prevN = String(days - 1), cur = String(days), cy = 98 - fh * 0.74;
-      g.save(); const clip = new Path2D(); clip.rect(16, cy - 12, 68, 24); g.clip(clip);
-      if (days > 1 && roll < 1) { g.globalAlpha = 1 - roll; handNumber(g, prevN, 50, cy - outC(roll) * 20, 17, 1, ["#9A2A0E", "#FFFFFF"], 3.6); g.globalAlpha = 1; }
-      if (roll > 0 || days === 1) handNumber(g, cur, 50, cy + (1 - outBack(days === 1 ? 1 : roll)) * 20, 17, 1, ["#9A2A0E", "#FFFFFF"], 3.6);
+      const roll = segT(T, 2.55, 3.1), prevN = String(days - 1), cur = String(days), cy = 98 - fh * 0.74;
+      glowAt(g, 50, cy, 22, "#FF8A2A", 0.35 * clamp(roll * 2, days === 1 ? 1 : 0, 1));
+      g.save();
+      // o de ontem sobe e some; o de hoje entra crescendo, com um tranco (sem recorte nenhum)
+      const num = (txt, y, a, k) => {
+        g.save(); g.globalAlpha = a; g.translate(50, y); g.scale(k, k); g.translate(-50, -y);
+        handNumber(g, txt, 50, y, 17, 1, ["rgba(255,140,40,0.28)"], 8); handNumber(g, txt, 50, y, 17, 1, ["#7A1A08", "#FFF6E0"], 3.8);
+        g.restore();
+      };
+      const out = clamp(roll / 0.4, 0, 1), inn = days === 1 ? 1 : clamp((roll - 0.3) / 0.7, 0, 1);
+      if (days > 1 && out < 1) num(prevN, cy - outC(out) * 16, (1 - out) ** 2, 1 - 0.3 * out);
+      if (inn > 0) num(cur, cy, clamp(inn * 3, 0, 1), 0.5 + 0.5 * outBack(inn));
       g.restore();
     }
     // lanternas
@@ -2797,9 +2887,13 @@
     const look = el._look(worn && slot && piece ? { [slot]: piece } : null);
     starDust(g, t, 0.9);
     // raios atrás do Folha depois que ele veste
-    sceneRays(g, 50, 72, legendary ? 18 : 12, 74, glow[0], outC(segT(T, flashT, flashT + 0.7)) * (0.8 + 0.2 * sin(t * 2)), t * 0.2);
-    if (legendary) sceneRays(g, 50, 72, 9, 60, "#FFFFFF", 0.5 * outC(segT(T, flashT + 0.2, flashT + 1)), -t * 0.3, 0.05);
-    glowAt(g, 50, 72, 50, glow[1], 0.18 + 0.25 * segT(T, flashT, flashT + 0.5));
+    const reach = el._reach();
+    backdrop(g, el, 50, 66, reach, reach * 0.85, (b) => {
+      glowAt(b, 50, 70, 58, glow[1], 0.18 + 0.3 * segT(T, flashT, flashT + 0.5));
+      bokeh(b, t, 50, 60, glow[0], 0.35);
+      sceneRays(b, 50, 70, legendary ? 22 : 16, 90, glow[0], outC(segT(T, flashT, flashT + 0.7)) * (0.8 + 0.2 * sin(t * 2)), t * 0.2, 0.06);
+      if (legendary) sceneRays(b, 50, 70, 10, 74, "#FFFFFF", 0.45 * outC(segT(T, flashT + 0.2, flashT + 1)), -t * 0.3, 0.04);
+    });
     // o Folha: atrás da caixa, espiando; na luz, pula para a frente vestindo a peça
     const jump = segT(T, flashT, flashT + 0.6), arc = sin(PI * jump) * 14;
     const show = slot === "hand" || slot === "gloves" ? "present" : "proud";
@@ -2852,12 +2946,15 @@
     if (worn) for (let i = 0; i < (legendary ? 8 : 5); i++) { const ph = (t * 0.45 + i / 8) % 1; star4(g, 14 + ((i * 29) % 72), 92 - ph * 70, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : glow[0], sin(PI * ph))); }
   }
 
+  // escala do desenho em pixels de tela (sombras e desfoques do canvas são em pixels, não na grade)
+  const this_k = (el) => el._k || 1;
+
   const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
   class EstudarioCena extends HTMLElement {
-    static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity"]; }
+    static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity", "bleed"]; }
     connectedCallback() {
       if (!this._canvas) {
-        this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.width = this._canvas.style.height = "100%";
+        this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.pointerEvents = "none";
         this.appendChild(this._canvas); this.setAttribute("role", "img");
         if (!this.style.display) this.style.display = "block";
         if ("ResizeObserver" in window) { this._ro = new ResizeObserver(() => this._size()); this._ro.observe(this); }
@@ -2867,7 +2964,9 @@
       cancelAnimationFrame(this._raf); this._raf = requestAnimationFrame(loop);
     }
     disconnectedCallback() { cancelAnimationFrame(this._raf); }
-    attributeChangedCallback(n) { if (n === "size") this._size(); else if (this._canvas) this._restart(); }
+    attributeChangedCallback(n) { if (n === "size" || n === "bleed") this._size(); else if (this._canvas) this._restart(); }
+    // até onde a luz do fundo pode ir (na grade): mais longe quando a cena sangra além da caixa
+    _reach() { return 50 + (this._bleed || 0) * 0.85; }
     _restart() {
       this._start = performance.now();
       const tipo = this.getAttribute("tipo"), glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum;
@@ -2880,10 +2979,16 @@
       if (!this._canvas) return;
       const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, 2.5);
       if (attr) { this.style.width = w + "px"; }
-      this.style.height = Math.round(w * CENA_H / 100) + "px";
-      const cw = Math.round(w * dpr), ch = Math.round(w * CENA_H / 100 * dpr);
+      const h = Math.round(w * CENA_H / 100);
+      this.style.height = h + "px";
+      // bleed="30": o desenho passa 30% da largura para cada lado da caixa (a luz se espalha pela tela)
+      const bleed = Math.max(0, parseFloat(this.getAttribute("bleed") || "0")), off = Math.round(w * bleed / 100);
+      this._bleed = bleed;
+      if (getComputedStyle(this).position === "static") this.style.position = "relative";
+      const st = this._canvas.style; st.position = "absolute"; st.left = st.top = -off + "px"; st.width = w + 2 * off + "px"; st.height = h + 2 * off + "px";
+      const cw = Math.round((w + 2 * off) * dpr), ch = Math.round((h + 2 * off) * dpr);
       if (this._canvas.width !== cw || this._canvas.height !== ch) { this._canvas.width = cw; this._canvas.height = ch; }
-      this._k = w * dpr / 100;
+      this._k = w * dpr / 100; this._off = off * dpr;
     }
     _frame(now) {
       const g = this._canvas.getContext("2d"), draw = CENAS[this.getAttribute("tipo")];
@@ -2891,13 +2996,15 @@
       // at="2.5": quadro parado naquele instante do roteiro (para conferir o desenho)
       const at = this.getAttribute("at"), still = reduceMotion.matches || at != null, T = at != null ? +at : still ? 9 : (now - this._start) / 1000, t = at != null ? +at : still ? 0.35 : now / 1000;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this._canvas.width, this._canvas.height);
-      g.setTransform(this._k, 0, 0, this._k, 0, 0);
+      g.setTransform(this._k, 0, 0, this._k, this._off || 0, this._off || 0);
       draw(g, T, t, this);
+      // borda macia: nada encosta na borda do quadro (o que sangra para fora some aos poucos)
+      const b = (this._bleed || 0), x0 = -b, x1 = 100 + b, y0 = -b, y1 = CENA_H + b, W = x1 - x0, H = y1 - y0;
       g.save(); g.globalCompositeOperation = "destination-in";
-      const fx = g.createLinearGradient(0, 0, 100, 0); fx.addColorStop(0, "rgba(0,0,0,0)"); fx.addColorStop(0.07, "#000"); fx.addColorStop(0.93, "#000"); fx.addColorStop(1, "rgba(0,0,0,0)");
-      g.fillStyle = fx; g.fillRect(0, 0, 100, CENA_H);
-      const fy = g.createLinearGradient(0, 0, 0, CENA_H); fy.addColorStop(0, "rgba(0,0,0,0)"); fy.addColorStop(0.05, "#000"); fy.addColorStop(0.97, "#000"); fy.addColorStop(1, "rgba(0,0,0,0)");
-      g.fillStyle = fy; g.fillRect(0, 0, 100, CENA_H);
+      const fx = g.createLinearGradient(x0, 0, x1, 0); fx.addColorStop(0, "rgba(0,0,0,0)"); fx.addColorStop(Math.min(0.3, 7 / W), "#000"); fx.addColorStop(1 - Math.min(0.3, 7 / W), "#000"); fx.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = fx; g.fillRect(x0, y0, W, H);
+      const fy = g.createLinearGradient(0, y0, 0, y1); fy.addColorStop(0, "rgba(0,0,0,0)"); fy.addColorStop(Math.min(0.3, 5 / H), "#000"); fy.addColorStop(1 - Math.min(0.3, 3 / H), "#000"); fy.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = fy; g.fillRect(x0, y0, W, H);
       g.restore();
     }
   }

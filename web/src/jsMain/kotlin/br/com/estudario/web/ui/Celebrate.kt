@@ -218,7 +218,8 @@ private fun Scene(item: Celebration) {
     Div({ classes("cn-stage") }) {
         org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
             elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-cena"),
-            applyAttrs = { attrs.forEach { (k, v) -> attr(k, v) }; attr("aria-label", label) },
+            // bleed: a luz da cena se espalha além da caixa e some suave no fundo da tela
+            applyAttrs = { attrs.forEach { (k, v) -> attr(k, v) }; attr("bleed", "34"); attr("aria-label", label) },
             content = null,
         )
     }

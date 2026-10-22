@@ -50,16 +50,16 @@ private const val LOAD_SLACK = 0.35f
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun FolhaScene(attrs: List<Pair<String, String>>, modifier: Modifier = Modifier) {
+fun FolhaScene(attrs: List<Pair<String, String>>, modifier: Modifier = Modifier, stageWidthDp: Int = 0, bleedDp: Int = 0) {
     val context = LocalContext.current
-    val html = remember(attrs) {
+    val html = remember(attrs, stageWidthDp, bleedDp) {
         val look = JSONObject().apply {
             FolhaSlot.entries.forEach { slot -> put(slot.key, FolhaLookStore.read(context, slot) ?: FolhaWardrobe.default(slot).id) }
         }
         val sets = attrs.joinToString("") { (k, v) -> "c.setAttribute(${JSONObject.quote(k)},${JSONObject.quote(v)});" }
         """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:sans-serif}estudario-cena{width:100%}</style></head>
-<body><script src="turma.js"></script><script src="folha-live.js"></script><script>folhaSetLook($look);var c=document.createElement('estudario-cena');$sets document.body.appendChild(c);</script></body></html>"""
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:sans-serif}estudario-cena{${if (stageWidthDp > 0) "width:${stageWidthDp}px;margin:${bleedDp}px auto 0" else "width:100%"}}</style></head>
+<body><script src="turma.js"></script><script src="folha-live.js"></script><script>folhaSetLook($look);var c=document.createElement('estudario-cena');$sets${if (bleedDp > 0) "c.setAttribute('bleed','" + (bleedDp * 100 / stageWidthDp) + "');" else ""} document.body.appendChild(c);</script></body></html>"""
     }
     AndroidView(
         factory = { ctx ->
@@ -102,12 +102,21 @@ fun SceneCelebration(
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(CelTop, CelMid, CelBottom)))) {
             val stageW = min(360.dp, min(maxWidth - 32.dp, (maxHeight - 320.dp) / 1.1f)).coerceAtLeast(220.dp)
+            val screenW = maxWidth
             Column(
                 Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
                 androidx.compose.runtime.key(sceneKey) {
-                    FolhaScene(scene, Modifier.width(stageW).aspectRatio(1f / 1.1f))
+                    // a cena ocupa o lugar do palco, mas a WebView é maior (a tela toda de largura e uma
+                    // sobra em cima e embaixo): a luz se espalha além da caixa e some suave no fundo
+                    val bleed = stageW * 0.34f
+                    Box(Modifier.width(stageW).aspectRatio(1f / 1.1f), contentAlignment = Alignment.Center) {
+                        FolhaScene(
+                            scene, Modifier.requiredSize(screenW, stageW * 1.1f + bleed * 2),
+                            stageWidthDp = stageW.value.toInt(), bleedDp = bleed.value.toInt(),
+                        )
+                    }
                     val a = revealAlpha(reveal)
                     Column(
                         Modifier.graphicsLayer { alpha = a; translationY = (1f - a) * 14.dp.toPx() },
