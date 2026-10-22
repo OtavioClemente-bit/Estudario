@@ -123,7 +123,8 @@ private fun showcaseMood(slot: FolhaSlot) = if (slot == FolhaSlot.MAO || slot ==
 fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopBar: Boolean = true) {
     val context = LocalContext.current
     val progress by viewModel.progress.collectAsState()
-    @Suppress("UNUSED_VARIABLE") val chosenNow by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
+    // A versão das escolhas: lida (não só observada) para a tela redesenhar a marcação "Usando" a cada troca.
+    val chosenVersion by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
     var slot by remember { mutableStateOf(FolhaSlot.CAPA) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
     var cheer by remember { mutableIntStateOf(0) }
@@ -214,19 +215,20 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
             item { Text(slot.hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item {
                 val list = FolhaWardrobe.of(slot)
+                val chosenId = remember(chosenVersion, slot, summary) { FolhaWardrobePrefs.chosen(context, slot, summary).id }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 3) {
                     list.forEach { item ->
                         val open = FolhaWardrobe.unlocked(item, summary)
                         WardrobeTile(
                             item = item, open = open,
-                            selected = FolhaWardrobePrefs.chosen(context, slot, summary).id == item.id,
+                            selected = chosenId == item.id,
                             trying = trying?.let { it.slot == item.slot && it.id == item.id } == true,
                             progress = if (open) null else FolhaWardrobe.progress(item, summary),
                             modifier = Modifier.weight(1f),
                         ) {
                             if (open) {
                                 trying = null
-                                if (FolhaWardrobePrefs.chosen(context, slot, summary).id != item.id) { FolhaWardrobePrefs.write(context, listOf(item)); cheer++ }
+                                if (chosenId != item.id) { FolhaWardrobePrefs.write(context, listOf(item)); cheer++ }
                             } else trying = if (trying?.let { it.slot == item.slot && it.id == item.id } == true) null else item
                         }
                     }
