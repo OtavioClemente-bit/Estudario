@@ -48,22 +48,41 @@ object FolhaLook {
         private set
 
     private fun storageKey(slot: FolhaSlot) = "estudario.folha.${slot.name.lowercase()}"
+    private const val UPDATED_KEY = "estudario.folha.updatedAt"
+    /** Chave na foto sincronizada da conta (a mesma do app, FolhaLookStore.kt). */
+    private const val SNAPSHOT_KEY = "folhaLook"
     private fun read(key: String): String? = runCatching { localStorage.getItem(key) }.getOrNull()
 
+    /** O visual guardado na conta (vindo do app ou deste site), se for mais novo que o deste navegador. */
+    private fun cloudLook(): kotlinx.serialization.json.JsonObject? {
+        val cloud = Store.data.obj(SNAPSHOT_KEY) ?: return null
+        val cloudAt = (cloud["updatedAt"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: 0.0
+        val localAt = read(UPDATED_KEY)?.toDoubleOrNull() ?: 0.0
+        return cloud.takeIf { cloudAt >= localAt }
+    }
+
     fun chosen(slot: FolhaSlot, summary: ProgressEngine.ProgressSummary): FolhaItem {
-        val saved = read(storageKey(slot))
+        val saved = (cloudLook()?.get(slot.key) as? kotlinx.serialization.json.JsonPrimitive)?.content
+            ?: read(storageKey(slot))
             // escolha da versão antiga (um "acessório" só) vale para a categoria nova
             ?: FolhaWardrobe.legacyAccessory(read("estudario.folha.acessorio"))?.takeIf { it.slot == slot }?.id
         return FolhaWardrobe.resolve(slot, saved, summary)
     }
 
-    fun choose(item: FolhaItem) {
-        runCatching { localStorage.setItem(storageKey(item.slot), item.id) }
-        choices++
-    }
+    fun choose(item: FolhaItem) = chooseAll(listOf(item))
 
+    /**
+     * Troca peças: guarda neste navegador e na foto da conta (o app recebe na próxima sincronização).
+     * Vai o visual inteiro, com o horário da troca; vale sempre a troca mais recente.
+     */
     fun chooseAll(items: Collection<FolhaItem>) {
+        val now = kotlin.js.Date.now()
+        val summary = Progress.of(Store.data).progress
+        val current = FolhaSlot.entries.associate { it.key to chosen(it, summary).id } + items.associate { it.slot.key to it.id }
         items.forEach { runCatching { localStorage.setItem(storageKey(it.slot), it.id) } }
+        runCatching { localStorage.setItem(UPDATED_KEY, now.toLong().toString()) }
+        val look = kotlinx.serialization.json.JsonObject(current.mapValues { kotlinx.serialization.json.JsonPrimitive(it.value) } + ("updatedAt" to kotlinx.serialization.json.JsonPrimitive(now.toLong())))
+        Store.update { it.withObject(SNAPSHOT_KEY, look) }
         choices++
     }
 

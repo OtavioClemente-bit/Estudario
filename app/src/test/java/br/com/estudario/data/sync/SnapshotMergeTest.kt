@@ -36,6 +36,20 @@ class SnapshotMergeTest {
         assertEquals(1, merged.getJSONArray("theories").length())
     }
 
+    /** Visual do Folha trocado no app e no site: fica o trocado por último, nos dois sentidos. */
+    @Test
+    fun visualDoFolhaFicaOTrocadoPorUltimo() {
+        fun look(hat: String, at: Long) = JSONObject().put("hat", hat).put("updatedAt", at)
+        val base = JSONObject().put("folhaLook", look("capelo", 1))
+        val phone = JSONObject().put("folhaLook", look("coroa", 10))
+        val site = JSONObject().put("folhaLook", look("mago", 20))
+
+        assertEquals("mago", SnapshotMerge.merge(base, phone, site).getJSONObject("folhaLook").getString("hat"))
+        assertEquals("mago", SnapshotMerge.merge(base, site, phone).getJSONObject("folhaLook").getString("hat"))
+        // só um lado tem visual: ele fica
+        assertEquals("coroa", SnapshotMerge.merge(null, phone, JSONObject()).getJSONObject("folhaLook").getString("hat"))
+    }
+
     @Test
     fun cadaLadoConcluiUmaTarefaENenhumaSePerde() {
         val base = snapshot(task("a", "PLANEJADA"), task("b", "PLANEJADA"))

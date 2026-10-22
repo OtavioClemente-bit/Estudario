@@ -66,6 +66,11 @@ class Snapshot private constructor(val root: JsonObject) {
         return Snapshot(JsonObject(root + (key to updated)))
     }
 
+    /** Nova foto com o objeto [key] trocado (campos que não são tabela, como o visual do Folha). */
+    fun withObject(key: String, value: JsonObject): Snapshot = Snapshot(JsonObject(root + (key to value)))
+
+    fun obj(key: String): JsonObject? = root[key] as? JsonObject
+
     fun append(key: String, item: JsonObject): Snapshot =
         Snapshot(JsonObject(root + (key to JsonArray(array(key) + item))))
 

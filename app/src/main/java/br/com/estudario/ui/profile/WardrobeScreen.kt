@@ -56,24 +56,12 @@ import br.com.estudario.ui.components.LoadingScreen
 import br.com.estudario.ui.theme.screenPadding
 import kotlinx.coroutines.delay
 
-/** As peças escolhidas no armário, neste aparelho. [choices] muda quando a pessoa troca uma peça. */
+/** As peças escolhidas no armário (FolhaLookStore, sincronizado com o site), vistas pela tela. */
 object FolhaWardrobePrefs {
-    var choices by mutableIntStateOf(0)
-        private set
-
-    private fun prefs(context: Context) = context.getSharedPreferences("folha_look", Context.MODE_PRIVATE)
-
-    fun read(context: Context, slot: FolhaSlot): String? = prefs(context).getString(slot.name.lowercase(), null)
-        // escolha da versão antiga (um "acessório" só) vale para a categoria nova
-        ?: FolhaWardrobe.legacyAccessory(prefs(context).getString("acessorio", null))?.takeIf { it.slot == slot }?.id
-
-    fun write(context: Context, items: Collection<FolhaItem>) {
-        prefs(context).edit().apply { items.forEach { putString(it.slot.name.lowercase(), it.id) } }.apply()
-        choices++
-    }
+    fun write(context: Context, items: Collection<FolhaItem>) = br.com.estudario.data.FolhaLookStore.write(context, items)
 
     fun chosen(context: Context, slot: FolhaSlot, summary: ProgressEngine.ProgressSummary): FolhaItem =
-        FolhaWardrobe.resolve(slot, read(context, slot), summary)
+        FolhaWardrobe.resolve(slot, br.com.estudario.data.FolhaLookStore.read(context, slot), summary)
 }
 
 /**
@@ -89,7 +77,8 @@ fun FolhaLookSync(viewModel: AppViewModel) {
     LaunchedEffect(Unit) {
         while (true) { delay(60_000); hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
     }
-    LaunchedEffect(progress, streak, hour, FolhaWardrobePrefs.choices) {
+    val choices by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
+    LaunchedEffect(progress, streak, hour, choices) {
         val summary = progress ?: return@LaunchedEffect
         FolhaSlot.entries.forEach { FolhaLook.set(it.key, FolhaWardrobePrefs.chosen(context, it, summary).id) }
         val s = streak
@@ -131,7 +120,7 @@ private val TRY_MOODS = listOf(
 fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopBar: Boolean = true) {
     val context = LocalContext.current
     val progress by viewModel.progress.collectAsState()
-    @Suppress("UNUSED_VARIABLE") val chosenNow = FolhaWardrobePrefs.choices
+    @Suppress("UNUSED_VARIABLE") val chosenNow by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
     var slot by remember { mutableStateOf(FolhaSlot.CAPA) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
     var cheer by remember { mutableIntStateOf(0) }
