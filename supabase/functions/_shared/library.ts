@@ -227,7 +227,7 @@ export const LIBRARY_MIN = {
 // "TODO" só em maiúsculas: "todo"/"Todo" é palavra comum em português.
 const PLACEHOLDERS = {
   test: (value: string) =>
-    /lorem ipsum|[[(]a ser preenchid|^a ser preenchid|\[inserir|\[completar|conte[uú]do gen[eé]rico/im.test(value) || /\bxxx\b/.test(value) || /\bTODO\b/.test(value),
+    /lorem ipsum|[[(]a ser preenchid|^a ser preenchid|\[inserir|\[completar|conte[uú]do gen[eé]rico/im.test(value) || /\bxxx\b/.test(value) || /(?<!\p{L})TODO(?!\p{L})/u.test(value), // \b não vê letra acentuada: "MÉTODO" virava "TODO"
 };
 const KEYS = ["e1", "e2", "e3", "e4", "e5", "e6"];
 
