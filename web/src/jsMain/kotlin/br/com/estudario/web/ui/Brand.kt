@@ -28,7 +28,12 @@ import kotlin.math.exp
  * ele fica ouvindo. O texto inteiro, invisível, reserva a altura do balão para nada pular.
  */
 @Composable
-fun FolhaTalking(text: String, size: Int = 88, onFolhaClick: (() -> Unit)? = null, extra: String? = null, restMood: String = "idle") {
+fun FolhaTalking(original: String, size: Int = 88, onFolhaClick: (() -> Unit)? = null, extra: String? = null, restMood: String = "idle") {
+    // Tocando nele, a frase do toque entra neste balão por uns segundos (folha-live.js avisa pelo evento
+    // "folha-quip"), em vez de abrir um segundo balão em cima; depois volta a frase principal.
+    var quip by remember(original) { mutableStateOf<String?>(null) }
+    LaunchedEffect(quip) { val q = quip ?: return@LaunchedEffect; delay(q.length * 45L + 2600L); quip = null }
+    val text = quip ?: original
     var shown by remember(text) { mutableStateOf(0) }
     LaunchedEffect(text) {
         shown = 0
@@ -46,7 +51,10 @@ fun FolhaTalking(text: String, size: Int = 88, onFolhaClick: (() -> Unit)? = nul
         }
     }
     val talking = shown < text.length
-    Div({ classes(*listOfNotNull("folha-talk", extra).toTypedArray()) }) {
+    Div({
+        classes(*listOfNotNull("folha-talk", extra).toTypedArray())
+        addEventListener("folha-quip") { e -> e.preventDefault(); quip = (e.nativeEvent.asDynamic().detail as? String) }
+    }) {
         Div({
             classes("folha-talk-avatar")
             onFolhaClick?.let { click -> onClick { click() } }

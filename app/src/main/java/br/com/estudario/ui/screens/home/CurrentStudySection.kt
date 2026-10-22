@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,8 +104,11 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
             hour = java.time.LocalTime.now().hour,
             seed = seed,
         )
+        // tocando nele, a frase do toque aparece neste mesmo balão por uns segundos
+        var quip by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+        androidx.compose.runtime.LaunchedEffect(quip) { val q = quip ?: return@LaunchedEffect; kotlinx.coroutines.delay(q.length * 45L + 2600L); quip = null }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            br.com.estudario.ui.assistant.FolhaTalking(88.dp, fala, onClick = onGenerate ?: onStart)
+            br.com.estudario.ui.assistant.FolhaTalking(88.dp, fala, onClick = onGenerate ?: onStart, onQuip = { quip = it })
             Spacer(Modifier.width(4.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Eyebrow((if (state.progressFraction != null) "Continuando" else "Agora").uppercase())
@@ -115,7 +119,7 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
                         drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(size.width, 0f); lineTo(0f, size.height / 2); lineTo(size.width, size.height); close() }, bubble)
                     }
                     Text(
-                        fala,
+                        quip ?: fala,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,

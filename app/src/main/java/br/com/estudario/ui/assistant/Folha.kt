@@ -271,6 +271,8 @@ fun Folha(
     enter: Boolean = true,
     /** Saindo: acena e sobe sumindo (quem fecha a tela espera [FOLHA_LEAVE_MS]). */
     leaving: Boolean = false,
+    /** A tela já tem um balão de conversa com ele: a fala do toque vai para lá (sem balão em cima dele). */
+    onQuip: ((String) -> Unit)? = null,
 ) {
     val sim = remember { FolhaSim().also { it.enterPending = enter } }
     var frame by remember { mutableLongStateOf(0L) }
@@ -321,7 +323,8 @@ fun Folha(
     // a caixa leva o modifier de quem chamou; o balão de fala se ancora nela
     androidx.compose.foundation.layout.Box(modifier) {
     val q = sim.quip
-    if (q != null) androidx.compose.ui.window.Popup(alignment = androidx.compose.ui.Alignment.TopCenter, offset = androidx.compose.ui.unit.IntOffset(0, -with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.62f).roundToPx() })) {
+    if (onQuip != null) LaunchedEffect(q) { if (q != null) onQuip(q) }
+    if (q != null && onQuip == null) androidx.compose.ui.window.Popup(alignment = androidx.compose.ui.Alignment.TopCenter, offset = androidx.compose.ui.unit.IntOffset(0, -with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.62f).roundToPx() })) {
         androidx.compose.foundation.layout.Box(
             androidx.compose.ui.Modifier.widthIn(max = maxOf(180.dp, size * 1.5f)).shadow(6.dp, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                 .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -354,11 +357,11 @@ const val FOLHA_LEAVE_MS = 760L
  * ler (mais ou menos) em voz alta.
  */
 @Composable
-fun FolhaTalking(size: Dp, text: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+fun FolhaTalking(size: Dp, text: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, onQuip: ((String) -> Unit)? = null) {
     val total = (text.length * 45L).coerceIn(900L, 3200L)
     var talking by remember(text) { mutableStateOf(true) }
     LaunchedEffect(text) { delay(total); talking = false }
-    Folha(size, modifier, if (talking) FolhaMood.TALKING else FolhaMood.IDLE, onClick, say = if (talking) text else null, sayMillis = total)
+    Folha(size, modifier, if (talking) FolhaMood.TALKING else FolhaMood.IDLE, onClick, say = if (talking) text else null, sayMillis = total, onQuip = onQuip)
 }
 
 /**

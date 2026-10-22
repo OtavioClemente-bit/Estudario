@@ -2028,7 +2028,11 @@
     _quip(text, now) {
       const size = parseInt(this.getAttribute("size") || "96", 10);
       if (!text || size < 80 || this.hasAttribute("quiet") || reduceMotion.matches || (this._quipAt && now - this._quipAt < 3500)) return;
-      this._quipAt = now; this._quipSay = speechPlan(text); this._quipUntil = now + this._quipSay.end + 500;
+      this._quipAt = now;
+      // a tela já tem um balão de conversa com ele (FolhaTalking): a fala vai para lá
+      const ev = new CustomEvent("folha-quip", { detail: text, bubbles: true, cancelable: true });
+      if (!this.dispatchEvent(ev)) return;
+      this._quipSay = speechPlan(text); this._quipUntil = now + this._quipSay.end + 500;
       const b = document.createElement("div");
       b.className = "folha-quip"; b.textContent = text; b.setAttribute("aria-live", "polite");
       // no corpo da página (fixo em cima dele), para nenhum cartão cortar o balão
