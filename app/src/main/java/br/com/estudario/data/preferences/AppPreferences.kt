@@ -25,6 +25,8 @@ class AppPreferences(private val context: Context) {
     private val notificationsKey = booleanPreferencesKey("notifications_enabled")
     private val dailyReminderKey = booleanPreferencesKey("daily_reminder_enabled")
     private val pendingAlertsKey = booleanPreferencesKey("pending_alerts_enabled")
+    private val smartReminderKey = booleanPreferencesKey("smart_reminder")
+    private val streakGuardKey = booleanPreferencesKey("streak_guard")
     private val reminderHourKey = intPreferencesKey("reminder_hour")
     private val reminderMinuteKey = intPreferencesKey("reminder_minute")
     private val themeModeKey = stringPreferencesKey("theme_mode")
@@ -68,6 +70,10 @@ class AppPreferences(private val context: Context) {
     val notificationsEnabled: Flow<Boolean> = context.dataStore.data.map { it[notificationsKey] ?: false }
     val dailyReminderEnabled: Flow<Boolean> = context.dataStore.data.map { it[dailyReminderKey] ?: true }
     val pendingAlertsEnabled: Flow<Boolean> = context.dataStore.data.map { it[pendingAlertsKey] ?: true }
+    /** Lembrete no horário em que a pessoa costuma estudar (aprendido do histórico), em vez do horário fixo. */
+    val smartReminderEnabled: Flow<Boolean> = context.dataStore.data.map { it[smartReminderKey] ?: true }
+    /** Aviso no fim do dia quando a sequência ainda não foi garantida. */
+    val streakGuardEnabled: Flow<Boolean> = context.dataStore.data.map { it[streakGuardKey] ?: true }
     val reminderHour: Flow<Int> = context.dataStore.data.map { it[reminderHourKey] ?: 19 }
     val reminderMinute: Flow<Int> = context.dataStore.data.map { it[reminderMinuteKey] ?: 0 }
     val themeMode: Flow<String> = context.dataStore.data.map { it[themeModeKey] ?: if (it[darkKey] == true) "DARK" else "SYSTEM" }
@@ -268,6 +274,8 @@ class AppPreferences(private val context: Context) {
     suspend fun setNotificationsEnabled(value: Boolean) { context.dataStore.edit { it[notificationsKey] = value } }
     suspend fun setDailyReminderEnabled(value: Boolean) { context.dataStore.edit { it[dailyReminderKey] = value } }
     suspend fun setPendingAlertsEnabled(value: Boolean) { context.dataStore.edit { it[pendingAlertsKey] = value } }
+    suspend fun setSmartReminderEnabled(value: Boolean) { context.dataStore.edit { it[smartReminderKey] = value } }
+    suspend fun setStreakGuardEnabled(value: Boolean) { context.dataStore.edit { it[streakGuardKey] = value } }
     suspend fun setReminderTime(hour: Int, minute: Int) { context.dataStore.edit { it[reminderHourKey] = hour; it[reminderMinuteKey] = minute } }
     suspend fun setThemeMode(value: String) { context.dataStore.edit { it[themeModeKey] = value; it[darkKey] = value == "DARK" } }
     suspend fun setQuestionTimer(value: Boolean) { context.dataStore.edit { it[questionTimerKey] = value } }

@@ -27,6 +27,11 @@ object StudyNotificationCoordinator {
     private const val DAILY_WORK = "daily_study_reminder"
     private const val PENDING_WORK = "pending_study_check"
     private const val WEEKLY_WORK = "weekly_study_summary"
+    private const val GUARD_WORK = "streak_guard"
+    internal const val SNOOZE_WORK = "reminder_snooze"
+    internal const val ACTION_SNOOZE = "br.com.estudario.SNOOZE_REMINDER"
+    /** Fim do dia: o aviso de que a sequência ainda não foi garantida. */
+    private const val GUARD_HOUR = 21
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -57,11 +62,13 @@ object StudyNotificationCoordinator {
             work.cancelUniqueWork(DAILY_WORK)
             work.cancelUniqueWork(PENDING_WORK)
             work.cancelUniqueWork(WEEKLY_WORK)
+            work.cancelUniqueWork(GUARD_WORK)
             return
         }
         if (preferences.dailyReminderEnabled.first()) scheduleWeekly(context) else work.cancelUniqueWork(WEEKLY_WORK)
-        if (preferences.dailyReminderEnabled.first()) scheduleDaily(context, preferences.reminderHour.first(), preferences.reminderMinute.first())
+        if (preferences.dailyReminderEnabled.first()) reminderTime(context, preferences).let { (h, m) -> scheduleDaily(context, h, m) }
         else work.cancelUniqueWork(DAILY_WORK)
+        if (preferences.streakGuardEnabled.first()) scheduleGuard(context) else work.cancelUniqueWork(GUARD_WORK)
         if (preferences.pendingAlertsEnabled.first()) schedulePending(context)
         else work.cancelUniqueWork(PENDING_WORK)
     }
@@ -75,6 +82,55 @@ object StudyNotificationCoordinator {
             .addTag(DAILY_WORK)
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(DAILY_WORK, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /**
+     * O minuto do dia em que a pessoa costuma começar a estudar (mediana do primeiro estudo de cada dia
+     * nas últimas 3 semanas); nulo com menos de 4 dias de histórico.
+     */
+    suspend fun usualStudyMinute(context: Context): Int? {
+        val app = context.applicationContext as EstudarioApplication
+        val dao = app.database.dao()
+        val zone = java.time.ZoneId.systemDefault()
+        val since = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(21)
+        val starts = dao.attemptsOnce().map { it.answeredAt } + dao.reviewHistoryOnce().map { it.reviewedAt } +
+            dao.sessionsOnce().map { it.completedAt - it.durationSeconds * 1000L } + dao.focusSessionsOnce().map { it.completedAt - it.durationSeconds * 1000L }
+        val firstPerDay = starts.filter { it >= since }
+            .map { java.time.Instant.ofEpochMilli(it).atZone(zone) }
+            .groupBy { it.toLocalDate() }
+            .map { (_, list) -> list.minOf { it.hour * 60 + it.minute } }
+        return br.com.estudario.domain.StudyInsights.usualStart(firstPerDay)
+    }
+
+    /** O horário do lembrete: o aprendido (um pouco antes do horário de costume) ou o fixo escolhido. */
+    suspend fun reminderTime(context: Context, preferences: AppPreferences): Pair<Int, Int> {
+        if (preferences.smartReminderEnabled.first()) usualStudyMinute(context)?.let { usual ->
+            val m = br.com.estudario.domain.StudyInsights.reminderMinute(usual)
+            return m / 60 to m % 60
+        }
+        return preferences.reminderHour.first() to preferences.reminderMinute.first()
+    }
+
+    /** O aviso da sequência: todo dia às 21h (só chega se a sequência ainda não foi garantida). */
+    fun scheduleGuard(context: Context) {
+        val now = ZonedDateTime.now()
+        var next = now.withHour(GUARD_HOUR).withMinute(0).withSecond(0).withNano(0)
+        if (!next.isAfter(now)) next = next.plusDays(1)
+        val request = OneTimeWorkRequestBuilder<StreakGuardWorker>()
+            .setInitialDelay(Duration.between(now, next).toMillis(), TimeUnit.MILLISECONDS)
+            .addTag(GUARD_WORK)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(GUARD_WORK, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    /** "Lembrar em 1 hora": o mesmo lembrete volta daqui a uma hora. */
+    fun snooze(context: Context) {
+        val request = OneTimeWorkRequestBuilder<DailyStudyReminderWorker>()
+            .setInitialDelay(1, TimeUnit.HOURS)
+            .setInputData(workDataOf("snooze" to true))
+            .addTag(SNOOZE_WORK)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(SNOOZE_WORK, ExistingWorkPolicy.REPLACE, request)
     }
 
     /** Resumo da semana: domingo às 19h. */
@@ -106,6 +162,8 @@ object StudyNotificationCoordinator {
     internal fun post(
         context: Context, channel: String, id: Int, title: String, body: String,
         mood: br.com.estudario.ui.assistant.FolhaMood = br.com.estudario.ui.assistant.FolhaMood.HAPPY,
+        /** Botões "Começar agora" e "Lembrar em 1 hora" (lembretes de estudo). */
+        actions: Boolean = false,
     ) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -125,6 +183,17 @@ object StudyNotificationCoordinator {
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(if (channel == CHANNEL_PENDING) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setColor(0xFF3326CE.toInt())
+            .apply {
+                if (actions) {
+                    addAction(0, "Começar agora", pendingIntent)
+                    val snooze = PendingIntent.getBroadcast(
+                        context, id + 50, Intent(context, ReminderActionReceiver::class.java).setAction(ACTION_SNOOZE).putExtra("id", id),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    )
+                    addAction(0, "Lembrar em 1 hora", snooze)
+                }
+            }
             .build()
         NotificationManagerCompat.from(context).notify(id, notification)
     }
@@ -135,8 +204,10 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
         val app = applicationContext as EstudarioApplication
         if (!app.preferences.notificationsEnabled.first() || !app.preferences.dailyReminderEnabled.first()) return Result.success()
         // Modo foco ativo: o lembrete pode esperar: interromper agora é o oposto do que a pessoa pediu.
+        val snoozed = inputData.getBoolean("snooze", false)
+        // Modo foco ativo: o lembrete pode esperar: interromper agora é o oposto do que a pessoa pediu.
         if (app.preferences.focusSession.first().active) {
-            StudyNotificationCoordinator.scheduleDaily(applicationContext, app.preferences.reminderHour.first(), app.preferences.reminderMinute.first())
+            if (!snoozed) StudyNotificationCoordinator.reminderTime(applicationContext, app.preferences).let { (h, m) -> StudyNotificationCoordinator.scheduleDaily(applicationContext, h, m) }
             return Result.success()
         }
         val dao = app.database.dao()
@@ -147,13 +218,23 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
         val studiedToday = dao.attemptsOnce().any { it.answeredAt >= today } || dao.sessionsOnce().any { it.completedAt >= today } ||
             dao.reviewHistoryOnce().any { it.reviewedAt >= today }
         if (studiedToday && due == 0) {
-            StudyNotificationCoordinator.scheduleDaily(applicationContext, app.preferences.reminderHour.first(), app.preferences.reminderMinute.first())
+            if (!snoozed) StudyNotificationCoordinator.reminderTime(applicationContext, app.preferences).let { (h, m) -> StudyNotificationCoordinator.scheduleDaily(applicationContext, h, m) }
             return Result.success()
         }
+        // o ponto fraco da semana vira a sugestão do lembrete
+        val weak = runCatching {
+            val topicSubject = dao.topicsOnce().associate { it.id to it.subjectId }
+            val subjectName = dao.subjectsOnce().associate { it.id to it.name }
+            val questionTopic = dao.questionsOnce().associate { it.question.id to it.question.topicId }
+            val answers = dao.attemptsOnce().map { a -> val sid = questionTopic[a.questionId]?.let { topicSubject[it] }; br.com.estudario.domain.StudyInsights.Answer(a.answeredAt, a.correct, sid, sid?.let { subjectName[it] }) }
+            br.com.estudario.domain.StudyInsights.weakSpot(answers, System.currentTimeMillis())
+        }.getOrNull()
+        val streak = br.com.estudario.ui.widget.FolhaWidget.read(applicationContext)?.streak ?: 0
         val body = when {
             due > 0 && queued > 0 -> "${StudyCopy.reviews(due)} e ${StudyCopy.items(queued)} na fila. ${StudyCopy.minutes(due)} de revisão já mantêm o ritmo."
             due > 0 -> "${StudyCopy.reviews(due)} para hoje, uns ${StudyCopy.minutes(due)}. Revisar no dia certo é o que fixa o conteúdo."
             queued > 0 -> "${StudyCopy.items(queued)} no seu plano. Continue do próximo bloco."
+            weak != null -> "Sugestão de hoje: 10 questões de ${weak.subject}, a matéria que mais te derrubou essa semana (${weak.accuracy}% de acerto)."
             else -> "Abra o Estudário e avance um tópico hoje. Constância vale mais que uma sessão perfeita."
         }
         // O Folha chamando para estudar, com uma fala diferente a cada dia.
@@ -164,9 +245,13 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
             "Tô aqui com o seu plano pronto!",
             "Bora manter a sequência?",
         )
-        val title = calls[java.time.LocalDate.now().dayOfYear % calls.size]
-        StudyNotificationCoordinator.post(applicationContext, "study_reminders", 1001, title, body)
-        StudyNotificationCoordinator.scheduleDaily(applicationContext, app.preferences.reminderHour.first(), app.preferences.reminderMinute.first())
+        val title = when {
+            snoozed -> "Passou uma hora: bora agora?"
+            streak >= 2 -> "Bora manter os $streak dias seguidos?"
+            else -> calls[java.time.LocalDate.now().dayOfYear % calls.size]
+        }
+        StudyNotificationCoordinator.post(applicationContext, "study_reminders", 1001, title, body, actions = true)
+        if (!snoozed) StudyNotificationCoordinator.reminderTime(applicationContext, app.preferences).let { (h, m) -> StudyNotificationCoordinator.scheduleDaily(applicationContext, h, m) }
         return Result.success()
     }
 }
@@ -249,5 +334,44 @@ class WeeklySummaryWorker(context: Context, params: WorkerParameters) : Coroutin
         val next = OneTimeWorkRequestBuilder<WeeklySummaryWorker>().setInitialDelay(7, TimeUnit.DAYS).addTag("weekly_study_summary").build()
         WorkManager.getInstance(applicationContext).enqueueUniqueWork("weekly_study_summary", ExistingWorkPolicy.APPEND_OR_REPLACE, next)
         return Result.success()
+    }
+}
+
+/**
+ * Fim do dia (21h): se a sequência está em jogo (2 dias ou mais) e hoje ainda não teve estudo, o Folha
+ * avisa uma vez, com o tamanho exato do que salva o dia. Já estudou, modo foco ou desligado: silêncio.
+ */
+class StreakGuardWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val app = applicationContext as EstudarioApplication
+        val prefs = app.preferences
+        if (prefs.notificationsEnabled.first() && prefs.streakGuardEnabled.first() && !prefs.focusSession.first().active) {
+            val dao = app.database.dao()
+            val today = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val studiedToday = dao.attemptsOnce().any { it.answeredAt >= today } || dao.sessionsOnce().any { it.completedAt >= today } ||
+                dao.reviewHistoryOnce().any { it.reviewedAt >= today }
+            val day = br.com.estudario.ui.widget.FolhaWidget.read(applicationContext)
+            val streak = day?.streak ?: 0
+            if (!studiedToday && streak >= 2) {
+                val goal = day?.goal?.takeIf { it > 0 } ?: 10
+                StudyNotificationCoordinator.post(
+                    applicationContext, "study_reminders", 1004,
+                    "Seus $streak dias seguidos acabam à meia-noite",
+                    "Ainda dá tempo! ${if (goal <= 15) "$goal questões" else "Uma tarefa do plano ou uma revisão"} já garante o dia. Eu fico aqui torcendo.",
+                    mood = br.com.estudario.ui.assistant.FolhaMood.SURPRISED, actions = true,
+                )
+            }
+        }
+        StudyNotificationCoordinator.scheduleGuard(applicationContext)
+        return Result.success()
+    }
+}
+
+/** O botão "Lembrar em 1 hora" das notificações de estudo. */
+class ReminderActionReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != StudyNotificationCoordinator.ACTION_SNOOZE) return
+        NotificationManagerCompat.from(context).cancel(intent.getIntExtra("id", 1001))
+        StudyNotificationCoordinator.snooze(context)
     }
 }

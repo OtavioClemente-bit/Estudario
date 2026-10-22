@@ -12,6 +12,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.produceState
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import br.com.estudario.ui.brand.Surface
@@ -40,6 +43,11 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
     val pending by viewModel.pendingAlertsEnabled.collectAsState()
     val hour by viewModel.reminderHour.collectAsState()
     val minute by viewModel.reminderMinute.collectAsState()
+    val smart by viewModel.smartReminderEnabled.collectAsState()
+    val guard by viewModel.streakGuardEnabled.collectAsState()
+    // o horário em que a pessoa costuma estudar (aprendido do histórico) e quando o lembrete chega
+    val usual by produceState<Int?>(null) { value = runCatching { br.com.estudario.notifications.StudyNotificationCoordinator.usualStudyMinute(context) }.getOrNull() }
+    fun hhmm(m: Int) = "%02d:%02d".format(m / 60, m % 60)
     val focusDnd by viewModel.focusDoNotDisturb.collectAsState()
     val focusScreenOn by viewModel.focusKeepScreenOn.collectAsState()
     var dndGranted by remember { mutableStateOf(FocusMode.hasDndAccess(context)) }
@@ -108,13 +116,39 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
                 )
                 HorizontalDivider()
                 ListItem(
-                    headlineContent = { Text("Horário") },
-                    supportingContent = { Text("Pode sofrer pequeno ajuste para preservar a bateria") },
+                    headlineContent = { Text("No meu horário de estudo", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = {
+                        val u = usual
+                        Text(
+                            when {
+                                !smart -> "Desligado: o lembrete chega no horário fixo abaixo."
+                                u != null -> "Você costuma começar por volta das ${hhmm(u)}. O lembrete chega às ${hhmm(br.com.estudario.domain.StudyInsights.reminderMinute(u))}, um pouco antes."
+                                else -> "Ainda aprendendo seu horário (precisa de 4 dias de estudo). Até lá, vale o horário fixo abaixo."
+                            },
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Outlined.AutoAwesome, null) },
+                    trailingContent = { Switch(smart, viewModel::setSmartReminderEnabled, enabled = enabled && daily) },
+                )
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = { Text(if (smart && usual != null) "Horário fixo (reserva)" else "Horário") },
+                    supportingContent = { Text("O Android pode ajustar alguns minutos para preservar a bateria") },
                     trailingContent = {
                         FilledTonalButton(onClick = { TimePickerDialog(context, { _, selectedHour, selectedMinute -> viewModel.setReminderTime(selectedHour, selectedMinute) }, hour, minute, true).show() }, enabled = enabled && daily) {
                             Text("%02d:%02d".format(hour, minute), fontWeight = FontWeight.Bold)
                         }
                     },
+                )
+            }
+        }
+        item {
+            ElevatedCard {
+                ListItem(
+                    headlineContent = { Text("Proteger a sequência", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Às 21h, se você tem 2 dias seguidos ou mais e ainda não estudou hoje, um aviso só, dizendo o que salva o dia.") },
+                    leadingContent = { Icon(Icons.Outlined.LocalFireDepartment, null) },
+                    trailingContent = { Switch(guard, viewModel::setStreakGuardEnabled, enabled = enabled) },
                 )
             }
         }
@@ -132,7 +166,7 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Como funciona", fontWeight = FontWeight.Bold)
-                    Text("Os avisos são calculados no próprio celular. Nenhum dado de estudo é enviado para servidor, e o Android pode ajustar alguns minutos do horário para economizar bateria.")
+                    Text("Os avisos são calculados no próprio celular, sem enviar seus dados para servidor. No máximo um lembrete de estudo por dia (mais o aviso da sequência, se ela estiver em jogo), e nada chega se você já estudou ou está no modo foco. Em cada lembrete dá para tocar em \"Lembrar em 1 hora\".")
                 }
             }
         }

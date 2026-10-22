@@ -460,6 +460,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         planViewModel = planViewModel,
                         onQuiz = { count, mode -> navController.navigate("quiz/$count/0/0/$mode/_/_") },
                         onTopic = { navController.navigate("topic/$it") },
+                        onTrainSubject = { subjectId -> navController.navigate("quiz/10/0/$subjectId/random/_/_") },
                         onStudyTask = { topicId, taskId -> navController.navigate("topic/$topicId/task/$taskId") },
                         onReviews = { navController.navigate("reviews") },
                         onProfile = { navController.navigate("profile") },

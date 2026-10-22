@@ -175,6 +175,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val notificationsEnabled = app.preferences.notificationsEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val dailyReminderEnabled = app.preferences.dailyReminderEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val pendingAlertsEnabled = app.preferences.pendingAlertsEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    val smartReminderEnabled = app.preferences.smartReminderEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    val streakGuardEnabled = app.preferences.streakGuardEnabled.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val reminderHour = app.preferences.reminderHour.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 19)
     val reminderMinute = app.preferences.reminderMinute.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
     val themeMode = app.preferences.themeMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "SYSTEM")
@@ -892,6 +894,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setNotificationsEnabled(value: Boolean) = launchCatching { app.preferences.setNotificationsEnabled(value); StudyNotificationCoordinator.refresh(app, app.preferences) }
     fun setDailyReminderEnabled(value: Boolean) = launchCatching { app.preferences.setDailyReminderEnabled(value); StudyNotificationCoordinator.refresh(app, app.preferences) }
     fun setPendingAlertsEnabled(value: Boolean) = launchCatching { app.preferences.setPendingAlertsEnabled(value); StudyNotificationCoordinator.refresh(app, app.preferences) }
+    fun setSmartReminderEnabled(value: Boolean) = launchCatching { app.preferences.setSmartReminderEnabled(value); StudyNotificationCoordinator.refresh(app, app.preferences) }
+    fun setStreakGuardEnabled(value: Boolean) = launchCatching { app.preferences.setStreakGuardEnabled(value); StudyNotificationCoordinator.refresh(app, app.preferences) }
     fun setReminderTime(hour: Int, minute: Int) = launchCatching { app.preferences.setReminderTime(hour, minute); StudyNotificationCoordinator.refresh(app, app.preferences) }
     fun sendTestNotification() { StudyNotificationCoordinator.showTest(app) }
     fun openFromNotification(destination: String) { _notificationDestination.value = destination }

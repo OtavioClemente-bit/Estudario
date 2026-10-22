@@ -126,6 +126,8 @@ fun HomeScreen(
     onSetup: () -> Unit = {},
     /** Tarefa de questões do plano: abre a bateria direto, na quantidade pedida pelo plano. */
     onPlanQuestions: (br.com.estudario.data.local.planner.PlanTaskEntity, Int) -> Unit = { task, _ -> task.topicId?.let(onTopic) },
+    /** Missão do ponto fraco: abre 10 questões da matéria. */
+    onTrainSubject: (Long) -> Unit = {},
 ) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -308,6 +310,13 @@ fun HomeScreen(
             }
         }
 
+        // o resumo da semana (domingo e segunda) e a missão do ponto fraco
+        item {
+            val questionTopic = remember(questions.size) { questions.associate { it.question.id to it.question.topicId } }
+            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter).padding(top = EstudarioSpacing.medium)) {
+                br.com.estudario.ui.screens.home.StudyInsightsSection(attempts, questionTopic, topics, subjects, streak, onTrainSubject)
+            }
+        }
         // Missão do dia: o checklist do plano de hoje, logo abaixo do que fazer agora.
         val todayLoad = planState.todayTasks.filter { it.entity.status.countsAsPlannedLoad() }
         if (activePlan != null && todayLoad.isNotEmpty()) {

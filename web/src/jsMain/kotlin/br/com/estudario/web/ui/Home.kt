@@ -87,6 +87,8 @@ fun HomeScreen() {
     Div({ classes("grid", "main-side") }) {
         Div({ classes("stack", "loose") }) {
             NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
+            WeekReportCard(data, view)
+            WeakSpotCard(data)
             if (plan != null && tasks.isNotEmpty()) DailyMission(tasks) { completing = it }
             AttentionPanel(data, plan?.id)
             HomeSyllabus(data, subjects)

@@ -278,8 +278,35 @@ object MathText {
 }
 
 /**
- * Uma fórmula, desenhada pelo KaTeX (katex.min.js) em MathML, que o navegador mostra com as próprias
- * fontes. O KaTeX recebe só o texto da fórmula e não executa nada dela; sem ele, fica o texto simples.
+ * O KaTeX (katex.min.js, 275 KB) só é baixado quando a primeira fórmula aparece: a maioria das telas
+ * não tem fórmula nenhuma. Enquanto carrega, a fórmula aparece em texto simples e é redesenhada depois.
+ */
+private object KatexLoader {
+    private var requested = false
+    private val waiting = mutableListOf<() -> Unit>()
+    fun whenReady(render: () -> Unit) {
+        if (kotlinx.browser.window.asDynamic().katex != null) { render(); return }
+        waiting += render
+        if (requested) return
+        requested = true
+        val script = kotlinx.browser.document.createElement("script") as org.w3c.dom.HTMLScriptElement
+        script.src = "katex.min.js"; script.async = true
+        script.onload = { val all = waiting.toList(); waiting.clear(); all.forEach { runCatching { it() } } }
+        kotlinx.browser.document.head?.appendChild(script)
+    }
+}
+
+private fun renderMath(element: org.w3c.dom.HTMLElement, tex: String, display: Boolean): Boolean {
+    val katex = kotlinx.browser.window.asDynamic().katex ?: return false
+    return runCatching {
+        katex.render(tex, element, kotlin.js.json("displayMode" to display, "output" to "mathml", "throwOnError" to false, "strict" to "ignore", "trust" to false))
+        MathText.fixAccents(element)
+    }.isSuccess
+}
+
+/**
+ * Uma fórmula, desenhada pelo KaTeX em MathML, que o navegador mostra com as próprias fontes. O KaTeX
+ * recebe só o texto da fórmula e não executa nada dela; sem ele, fica o texto simples.
  */
 @Composable
 fun MathTex(tex: String, display: Boolean) {
@@ -287,12 +314,10 @@ fun MathTex(tex: String, display: Boolean) {
         org.jetbrains.compose.web.dom.Span({
             classes(if (display) "math-block" else "math-inline")
             ref { element ->
-                val katex = kotlinx.browser.window.asDynamic().katex
-                val ok = katex != null && runCatching {
-                    katex.render(tex, element, kotlin.js.json("displayMode" to display, "output" to "mathml", "throwOnError" to false, "strict" to "ignore", "trust" to false))
-                    MathText.fixAccents(element)
-                }.isSuccess
-                if (!ok) element.textContent = MathText.plain(tex)
+                if (!renderMath(element, tex, display)) {
+                    element.textContent = MathText.plain(tex)
+                    KatexLoader.whenReady { if (element.isConnected) renderMath(element, tex, display) }
+                }
                 onDispose { }
             }
         })

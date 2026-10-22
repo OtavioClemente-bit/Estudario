@@ -33,16 +33,22 @@ object FolhaWidget {
         if (p.getString("key", null) == key) return
         p.edit().putString("key", key).putInt("streak", s.current).putInt("best", s.best).putBoolean("todayDone", s.todayDone)
             .putFloat("progress", s.todayProgress).putInt("todayQuestions", s.todayQuestions).putInt("goal", s.goal.questions)
-            .putInt("daysAway", away ?: -1).putInt("bond", bond).putString("name", name).apply()
+            .putInt("daysAway", away ?: -1).putInt("bond", bond).putString("name", name)
+            .putLong("day", java.time.LocalDate.now().toEpochDay()).apply()
         WidgetUpdater.update(context)
     }
 
     fun read(context: Context): State? {
         val p = prefs(context)
         if (!p.contains("key")) return null
+        // o resumo é de quando o app foi aberto por último: a sequência só vale se for de hoje, ou de
+        // ontem com o dia fechado; mais velho que isso, ela já caiu
+        val savedDay = p.getLong("day", 0L); val today = java.time.LocalDate.now().toEpochDay()
+        val savedDone = p.getBoolean("todayDone", false)
+        val streak = when { savedDay == today -> p.getInt("streak", 0); savedDay == today - 1 && savedDone -> p.getInt("streak", 0); else -> 0 }
         return State(
-            p.getInt("streak", 0), p.getInt("best", 0), p.getBoolean("todayDone", false), p.getFloat("progress", 0f), p.getInt("todayQuestions", 0),
-            p.getInt("goal", 0), p.getInt("daysAway", -1).takeIf { it >= 0 }, p.getInt("bond", 0), p.getString("name", "").orEmpty(),
+            streak, p.getInt("best", 0), savedDone && savedDay == today, if (savedDay == today) p.getFloat("progress", 0f) else 0f, if (savedDay == today) p.getInt("todayQuestions", 0) else 0,
+            p.getInt("goal", 0), p.getInt("daysAway", -1).takeIf { it >= 0 }?.plus((today - savedDay).toInt().coerceAtLeast(0)), p.getInt("bond", 0), p.getString("name", "").orEmpty(),
         )
     }
 
