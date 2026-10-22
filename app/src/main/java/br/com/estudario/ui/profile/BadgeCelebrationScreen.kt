@@ -260,15 +260,6 @@ private fun Conteudo(badge: Badge, total: Int, index: Int, leaving: Boolean = fa
             Text(faixaLabel(badge.tier), color = palette.glow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             Text("• ${badge.category.label}", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelMedium)
         }
-        // O que esse emblema libera no armário do Folha.
-        br.com.estudario.domain.FolhaWardrobe.items.filter { it.badgeId == badge.id }.forEach { gift ->
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "Nova peça no armário: ${gift.name}",
-                color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.graphicsLayer { alpha = texto }.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.14f)).padding(horizontal = 14.dp, vertical = 7.dp),
-            )
-        }
         Spacer(Modifier.height(22.dp))
         // O Folha vibrando junto com a conquista.
         Row(

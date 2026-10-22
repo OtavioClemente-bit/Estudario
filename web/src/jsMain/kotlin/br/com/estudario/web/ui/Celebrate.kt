@@ -36,6 +36,8 @@ private sealed interface Celebration {
     data class StreakDay(val days: Int, val best: Int, val week: List<Pair<String, Boolean>>, val xpToday: Int) : Celebration
     data class NewBadge(val badge: Badge) : Celebration
     data class LevelUp(val level: Int, val title: String, val totalXp: Int) : Celebration
+    /** Peça nova no armário do Folha (vem de um emblema ou de um nível): o baú abre e ele aparece vestindo. */
+    data class NewPiece(val item: br.com.estudario.domain.FolhaItem) : Celebration
 }
 
 private object CelebrationQueue {
@@ -43,6 +45,7 @@ private object CelebrationQueue {
 }
 
 private const val KEY_BADGES = "estudario.celebrated.badges"
+private const val KEY_PIECES = "estudario.celebrated.pieces"
 private const val KEY_DAY = "estudario.celebrated.day"
 private const val KEY_LEVEL = "estudario.celebrated.level"
 
@@ -61,6 +64,7 @@ fun CelebrationHost() {
             CelebrationQueue.items += Celebration.StreakDay(5, 7, listOf("S" to true, "T" to true, "Q" to false, "Q" to true, "S" to true, "S" to true, "D" to true), 86)
             CelebrationQueue.items += Celebration.NewBadge(sample)
             CelebrationQueue.items += Celebration.LevelUp(4, "Estudioso", 820)
+            br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == "coroa" }?.let { CelebrationQueue.items += Celebration.NewPiece(it) }
         }
         CelebrationQueue.items.firstOrNull()?.let { CelebrationScreen(it) { CelebrationQueue.items.removeAt(0) } }
         return
@@ -102,6 +106,18 @@ fun CelebrationHost() {
         // A sequência vem antes dos emblemas; se algo já está na tela, ela entra logo depois dele.
         val at = if (CelebrationQueue.items.isEmpty()) 0 else 1
         CelebrationQueue.items.add(at, Celebration.StreakDay(view.streak.current, view.streak.best, week, view.progress.xpToday))
+    }
+    val owned = br.com.estudario.domain.FolhaWardrobe.items.filter { br.com.estudario.domain.FolhaWardrobe.unlocked(it, view.progress) && (it.badgeId != null || it.level != null) }
+        .map { it.slot.name + ":" + it.id }.toSet()
+    LaunchedEffect(owned, ready) {
+        val known = readSet(KEY_PIECES)
+        // primeira vez neste navegador (ou ainda carregando): o que já estava liberado entra sem festa
+        if (known == null || !ready) { if (known == null) write(KEY_PIECES, owned.sorted().joinToString(",")); return@LaunchedEffect }
+        val fresh = owned - known
+        if (fresh.isEmpty()) return@LaunchedEffect
+        write(KEY_PIECES, (known + fresh).sorted().joinToString(","))
+        br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }
+            .sortedByDescending { it.rarity.ordinal }.forEach { CelebrationQueue.items += Celebration.NewPiece(it) }
     }
     LaunchedEffect(level, ready) {
         val seen = runCatching { localStorage.getItem(KEY_LEVEL) }.getOrNull()?.toIntOrNull()
@@ -158,7 +174,7 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
         window.addEventListener("keydown", keys)
         onDispose { window.removeEventListener("keydown", keys) }
     }
-    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level" }
+    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece" }
     Div({ classes("celebrate", kind); attr("role", "dialog"); attr("aria-modal", "true") }) {
         Div({ classes("cel-glow") })
         // Confete de caderno: tirinhas de papel nas cores da marca.
@@ -173,10 +189,14 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                 is Celebration.StreakDay -> StreakContent(item)
                 is Celebration.NewBadge -> BadgeContent(item.badge)
                 is Celebration.LevelUp -> LevelContent(item)
+                is Celebration.NewPiece -> PieceContent(item.item)
             }
             Div({ classes("cel-actions") }) {
                 if (item is Celebration.NewBadge) Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
-                Button({ classes("cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
+                if (item is Celebration.NewPiece) {
+                    Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Wardrobe) } }) { Text("Abrir o armário") }
+                    Button({ classes("cel-cta"); onClick { FolhaLook.choose(item.item); Toast.show("O Folha está usando: ${item.item.name}"); onClose() } }) { Text("Usar agora") }
+                } else Button({ classes("cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
             }
         }
     }
@@ -277,9 +297,6 @@ private fun BadgeContent(badge: Badge) {
     Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:.95s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
     H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.05s") }) { Text(badge.name) }
     P({ classes("cel-body", "lv-late"); attr("style", "--ld:1.2s") }) { Text(badge.requirement) }
-    wardrobeUnlockedBy(badge.id).forEach { gift ->
-        A(href = "#/${Route.Wardrobe.path}", { classes("cel-gift", "lv-late"); attr("style", "--ld:1.35s") }) { Icon("checkroom"); Text("Nova peça no armário: ${gift.name}") }
-    }
     Div({ classes("lv-folha", "bd-folha") }) {
         Div({ classes("lv-folha-body") }) { Folha(mood, 120) }
         Div({ classes("lv-bubble", "bd-bubble") }) { Text("Emblema novo! ${badge.name}. Você mereceu, continua assim!") }
@@ -320,9 +337,6 @@ private fun LevelContent(item: Celebration.LevelUp) {
     Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:1.7s") }) { Text("SUBIU DE NÍVEL") }
     H2({ classes("cel-title", "lv-late"); attr("style", "--ld:1.85s") }) { Text("Nível ${item.level} · ${item.title}") }
     if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:2.1s") }) { Icon("military_tech", filled = true); Text("Novo título!") }
-    br.com.estudario.domain.FolhaWardrobe.items.filter { it.level == item.level }.forEach { gift ->
-        A(href = "#/${Route.Wardrobe.path}", { classes("cel-gift", "lv-late"); attr("style", "--ld:2.2s") }) { Icon("checkroom"); Text("Nova peça no armário: ${gift.name}") }
-    }
     Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:2s") }) {
         Span({ classes("lv-xp-fill") })
         B { Text("${item.totalXp} XP") }
@@ -332,4 +346,23 @@ private fun LevelContent(item: Celebration.LevelUp) {
         Div({ classes("lv-folha-body") }) { Folha(folhaMood, 120) }
         Div({ classes("lv-bubble") }) { Text("Parabéns! Você chegou ao nível ${item.level}. Esse esforço tá aparecendo!") }
     }
+}
+
+/**
+ * Peça nova no armário: o baú cai, treme, abre com luz e confete e o Folha sobe vestindo a peça
+ * (folha-live.js, <estudario-bau>). O nome, a raridade e de onde veio aparecem depois da abertura.
+ */
+@Composable
+private fun PieceContent(item: br.com.estudario.domain.FolhaItem) {
+    val rarity = item.rarity.name.lowercase()
+    Div({ classes("pc-stage") }) {
+        org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
+            elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-bau"),
+            applyAttrs = { attr("size", "300"); attr("piece-slot", item.slot.key); attr("piece", item.id); attr("rarity", rarity) },
+            content = null,
+        )
+    }
+    Span({ classes("cel-eyebrow", "lv-late", "pc-rar", "r-$rarity"); attr("style", "--ld:2.2s") }) { Text("NOVA PEÇA · ${item.rarity.label.uppercase()}") }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:2.35s") }) { Text(item.name) }
+    P({ classes("cel-body", "lv-late"); attr("style", "--ld:2.5s") }) { Text("${item.slot.label} · ${br.com.estudario.domain.FolhaWardrobe.requirement(item)}") }
 }
