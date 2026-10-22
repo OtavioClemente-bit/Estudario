@@ -46,7 +46,7 @@ fun FolhaGiftHost(viewModel: AppViewModel, enabled: Boolean) {
     val queue = remember { mutableStateListOf<FolhaItem>() }
     LaunchedEffect(progress) {
         val summary = progress ?: return@LaunchedEffect
-        val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null) && FolhaWardrobe.unlocked(it, summary) }
+        val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null || it.collection != null) && FolhaWardrobe.unlocked(it, summary) }
         val seen = FolhaGiftSeen.read(context)
         if (seen == null) { FolhaGiftSeen.write(context, owned.map { it.key() }.toSet()); return@LaunchedEffect }
         val fresh = owned.filter { it.key() !in seen }

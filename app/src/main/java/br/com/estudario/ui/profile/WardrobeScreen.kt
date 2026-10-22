@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Coffee
 import androidx.compose.material.icons.outlined.LocalFireDepartment
@@ -126,6 +127,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
     // A versão das escolhas: lida (não só observada) para a tela redesenhar a marcação "Usando" a cada troca.
     val chosenVersion by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
     var slot by remember { mutableStateOf(FolhaSlot.CAPA) }
+    var showCollections by remember { mutableStateOf(false) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
     var cheer by remember { mutableIntStateOf(0) }
     var mood by remember { mutableStateOf(FolhaMood.WAVE) }
@@ -152,7 +154,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Text(
-                    "Monte o visual do Folha com peças conquistadas nos estudos. Cada emblema e cada nível liberam uma peça nova.",
+                    "Monte o visual do Folha. O jeito dele é livre; acessórios e efeitos saem das suas conquistas, e coleções completas liberam peças exclusivas.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -204,17 +206,31 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                 }
             }
             item {
-                // categorias
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FolhaSlot.entries.forEach { s ->
-                        val have = FolhaWardrobe.of(s).count { FolhaWardrobe.unlocked(it, summary) }
-                        FilterChip(s == slot, { slot = s; trying = null }, { Text("${s.label}  $have/${FolhaWardrobe.of(s).size}") })
+                // categorias, por grupo, e as coleções
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    br.com.estudario.domain.FolhaGroup.entries.forEach { group ->
+                        Text(group.label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FolhaSlot.entries.filter { it.group == group }.forEach { s ->
+                                val list = FolhaWardrobe.of(s); val have = list.count { FolhaWardrobe.unlocked(it, summary) }
+                                FilterChip(!showCollections && s == slot, { slot = s; showCollections = false; trying = null }, { Text(if (have < list.size) "${s.label}  $have/${list.size}" else s.label) })
+                            }
+                        }
                     }
+                    val done = FolhaWardrobe.collections.count { c -> FolhaWardrobe.piecesOf(c).all { FolhaWardrobe.unlocked(it, summary) } }
+                    FilterChip(showCollections, { showCollections = true; trying = null }, { Text("Coleções  $done/${FolhaWardrobe.collections.size}") }, leadingIcon = { Icon(Icons.Outlined.EmojiEvents, null, Modifier.size(18.dp)) })
                 }
             }
+            if (showCollections) {
+                item { Text("Junte as quatro peças de uma coleção para liberar a recompensa exclusiva, que não sai de outro jeito.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                FolhaWardrobe.collections.forEach { c ->
+                    item(key = "col-" + c.id) { CollectionCard(c, summary, onDress = { items -> FolhaWardrobePrefs.write(context, items); trying = null; cheer++ }, onTry = { trying = it }) }
+                }
+            } else {
             item { Text(slot.hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item {
-                val list = FolhaWardrobe.of(slot)
+                // exclusivas de coleção ficam no fim da grade
+                val list = FolhaWardrobe.of(slot).sortedBy { it.collection != null }
                 val chosenId = remember(chosenVersion, slot, summary) { FolhaWardrobePrefs.chosen(context, slot, summary).id }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 3) {
                     list.forEach { item ->
@@ -235,6 +251,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                     // completa a última linha, para os quadrados não esticarem
                     repeat((3 - list.size % 3) % 3) { Spacer(Modifier.weight(1f)) }
                 }
+            }
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth()) {
@@ -306,13 +323,84 @@ private fun WardrobeTile(
             else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 Icon(Icons.Outlined.Lock, null, Modifier.size(12.dp), tint = scheme.onSurfaceVariant)
                 Text(
-                    item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
+                    item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
                     style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
         }
         if (progress != null) LinearProgressIndicator({ progress.first.toFloat() / progress.second }, Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(RoundedCornerShape(50)))
     }
+}
+
+/**
+ * Uma coleção: as quatro peças (as que faltam aparecem trancadas; tocar faz o Folha experimentar), a
+ * recompensa exclusiva e o andamento. Completa, veste o conjunto inteiro num toque.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CollectionCard(c: br.com.estudario.domain.FolhaCollection, summary: ProgressEngine.ProgressSummary, onDress: (List<FolhaItem>) -> Unit, onTry: (FolhaItem) -> Unit) {
+    val pieces = FolhaWardrobe.piecesOf(c)
+    val reward = FolhaWardrobe.rewardOf(c) ?: return
+    val have = pieces.count { FolhaWardrobe.unlocked(it, summary) }
+    val complete = have == pieces.size
+    val scheme = MaterialTheme.colorScheme
+    ElevatedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(c.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(c.description, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                }
+                Text("$have/${pieces.size}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black,
+                    color = if (complete) scheme.onPrimary else scheme.onSurfaceVariant,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(if (complete) scheme.primary else scheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 4.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                pieces.forEach { item ->
+                    val open = FolhaWardrobe.unlocked(item, summary)
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(scheme.surfaceVariant.copy(alpha = 0.5f)).clickable { onTry(item) }.padding(vertical = 6.dp, horizontal = 2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            PieceThumb(item, 52, open)
+                            if (!open) Icon(Icons.Outlined.Lock, null, Modifier.size(14.dp), tint = scheme.onSurfaceVariant)
+                        }
+                        Text(item.slot.label.uppercase(), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = scheme.onSurfaceVariant, maxLines = 1)
+                        Text(item.name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            // a recompensa
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .border(if (complete) 1.5.dp else 1.dp, if (complete) Color(0xFFF5B83D) else scheme.outlineVariant, RoundedCornerShape(14.dp))
+                    .clickable { onTry(reward) }.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                PieceThumb(reward, 64, complete)
+                Column(Modifier.weight(1f)) {
+                    Text("RECOMPENSA EXCLUSIVA", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, letterSpacing = 1.sp)
+                    Text(reward.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                }
+                RarityTag(reward.rarity)
+            }
+            LinearProgressIndicator({ have.toFloat() / pieces.size }, Modifier.fillMaxWidth().clip(RoundedCornerShape(50)))
+            if (complete) FilledTonalButton(onClick = { onDress(pieces + reward) }, modifier = Modifier.fillMaxWidth()) { Text("Vestir conjunto") }
+            else Text("Falta: " + pieces.filterNot { FolhaWardrobe.unlocked(it, summary) }.joinToString(", ") { "${it.name} (${it.slot.label.lowercase()})" },
+                style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** O Folha vestindo uma peça (o resto do visual como está), em imagem parada. */
+@Composable
+private fun PieceThumb(item: FolhaItem, sizeDp: Int, open: Boolean) {
+    val px = with(LocalDensity.current) { sizeDp.dp.roundToPx() }
+    val thumb = remember(item.slot, item.id, px, FolhaLook.pieces()) {
+        br.com.estudario.ui.assistant.folhaBitmap(px, showcaseMood(item.slot), FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true)).asImageBitmap()
+    }
+    androidx.compose.foundation.Image(thumb, null, Modifier.size(sizeDp.dp).alpha(if (open) 1f else 0.5f))
 }
 
 /** Faixa do Perfil: o Folha como está e o atalho para o armário. */

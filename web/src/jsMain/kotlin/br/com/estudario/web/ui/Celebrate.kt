@@ -107,7 +107,7 @@ fun CelebrationHost() {
         val at = if (CelebrationQueue.items.isEmpty()) 0 else 1
         CelebrationQueue.items.add(at, Celebration.StreakDay(view.streak.current, view.streak.best, week, view.progress.xpToday))
     }
-    val owned = br.com.estudario.domain.FolhaWardrobe.items.filter { br.com.estudario.domain.FolhaWardrobe.unlocked(it, view.progress) && (it.badgeId != null || it.level != null) }
+    val owned = br.com.estudario.domain.FolhaWardrobe.items.filter { br.com.estudario.domain.FolhaWardrobe.unlocked(it, view.progress) && (it.badgeId != null || it.level != null || it.collection != null) }
         .map { it.slot.name + ":" + it.id }.toSet()
     LaunchedEffect(owned, ready) {
         val known = readSet(KEY_PIECES)

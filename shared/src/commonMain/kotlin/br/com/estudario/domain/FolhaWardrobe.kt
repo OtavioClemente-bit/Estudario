@@ -1,20 +1,38 @@
 package br.com.estudario.domain
 
+/** Grupos do armário, na ordem em que aparecem. */
+enum class FolhaGroup(val label: String) { SEU_FOLHA("Seu Folha"), ACESSORIOS("Acessórios"), EFEITOS("Efeitos") }
+
 /**
  * Onde a peça vai no Folha. [key] é o nome que o desenho usa (folha-live.js e Folha.kt); [hint] explica
- * a categoria em uma linha.
+ * a categoria em uma linha; [group] organiza o armário.
  */
-enum class FolhaSlot(val key: String, val label: String, val hint: String) {
-    CAPA("cover", "Capa", "A cor e o acabamento do livro. Os braços acompanham."),
-    CHAPEU("hat", "Chapéu", "No lugar do capelo de formatura."),
-    OCULOS("eyes", "Óculos", "Seguem o olhar do Folha."),
-    PESCOCO("neck", "Peito", "Gravatas, medalhas e enfeites no pé das páginas."),
-    MAO("hand", "Na mão", "Um item que ele segura na mão esquerda e leva junto em todos os gestos."),
-    AURA("aura", "Aura", "Um efeito em volta dele. Toque no Folha para ver o estouro."),
-    FITA("ribbon", "Marcador", "A fita de marcar página."),
-    LUVAS("gloves", "Luvas", "As mãos do Folha. Elas aparecem melhor na pose de mostrar."),
-    COMPANHEIRO("pet", "Companheiro", "Um amigo que fica ao lado dele, comemora junto e cochila junto."),
+enum class FolhaSlot(val key: String, val label: String, val hint: String, val group: FolhaGroup) {
+    CAPA("cover", "Capa", "A cor e o acabamento do livro. Os braços acompanham.", FolhaGroup.SEU_FOLHA),
+    PAGINAS("pages", "Páginas", "O papel do Folha: pautado, quadriculado, pontilhado, de partitura ou liso.", FolhaGroup.SEU_FOLHA),
+    TINTA("ink", "Tinta", "A cor dos olhos, das sobrancelhas e da boca.", FolhaGroup.SEU_FOLHA),
+    BOCHECHAS("cheeks", "Bochechas", "O rosado do rosto.", FolhaGroup.SEU_FOLHA),
+    FITA("ribbon", "Marcador", "A fita de marcar página.", FolhaGroup.SEU_FOLHA),
+    LUVAS("gloves", "Luvas", "As mãos do Folha. Elas aparecem melhor na pose de mostrar.", FolhaGroup.SEU_FOLHA),
+    CHAPEU("hat", "Chapéu", "No lugar do capelo de formatura.", FolhaGroup.ACESSORIOS),
+    OCULOS("eyes", "Óculos", "Seguem o olhar do Folha.", FolhaGroup.ACESSORIOS),
+    PESCOCO("neck", "Peito", "Gravatas, medalhas e enfeites no pé das páginas.", FolhaGroup.ACESSORIOS),
+    MAO("hand", "Na mão", "Um item que ele segura na mão esquerda e leva junto em todos os gestos.", FolhaGroup.ACESSORIOS),
+    AURA("aura", "Aura", "Um efeito em volta dele. Toque no Folha para ver o estouro.", FolhaGroup.EFEITOS),
+    COMPANHEIRO("pet", "Companheiro", "Um amigo que fica ao lado dele, comemora junto e cochila junto.", FolhaGroup.EFEITOS),
 }
+
+/**
+ * Coleção: um conjunto de peças com tema. Completar libera a [reward], uma peça exclusiva que só sai daqui.
+ * [pieces] e [reward] são (lugar, id) de peças do armário.
+ */
+data class FolhaCollection(
+    val id: String,
+    val name: String,
+    val description: String,
+    val pieces: List<Pair<FolhaSlot, String>>,
+    val reward: Pair<FolhaSlot, String>,
+)
 
 /** Raridade da peça: quanto mais difícil a conquista, mais rara. */
 enum class FolhaRarity(val label: String) { COMUM("Comum"), RARA("Rara"), EPICA("Épica"), LENDARIA("Lendária") }
@@ -30,16 +48,18 @@ data class FolhaItem(
     val rarity: FolhaRarity = FolhaRarity.COMUM,
     val badgeId: String? = null,
     val level: Int? = null,
+    /** Recompensa exclusiva de uma coleção (sai ao completar as peças dela). */
+    val collection: String? = null,
 )
 
 /**
- * O armário do Folha: nove categorias de peças que a pessoa libera estudando. Cada peça sai de uma
+ * O armário do Folha: doze categorias de peças que a pessoa libera estudando. Cada peça sai de uma
  * conquista de verdade (todos os emblemas liberam alguma coisa, e os níveis também), então nada é
  * comprado nem ganho por engano, e quem troca de aparelho recupera tudo junto com o histórico.
  */
 object FolhaWardrobe {
-    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null) =
-        FolhaItem(id, slot, name, rarity, badge, level)
+    private fun item(id: String, slot: FolhaSlot, name: String, rarity: FolhaRarity = FolhaRarity.COMUM, badge: String? = null, level: Int? = null, collection: String? = null) =
+        FolhaItem(id, slot, name, rarity, badge, level, collection)
 
     private val C = FolhaRarity.COMUM
     private val R = FolhaRarity.RARA
@@ -47,6 +67,31 @@ object FolhaWardrobe {
     private val L = FolhaRarity.LENDARIA
 
     val items: List<FolhaItem> = listOf(
+        // o próprio Folha: escolhas livres, sem conquista
+        item("lisa", FolhaSlot.PAGINAS, "Lisas"),
+        item("pautada", FolhaSlot.PAGINAS, "Pautadas"),
+        item("quadriculada", FolhaSlot.PAGINAS, "Quadriculadas"),
+        item("pontilhada", FolhaSlot.PAGINAS, "Pontilhadas"),
+        item("partitura", FolhaSlot.PAGINAS, "Partitura"),
+        item("marinho", FolhaSlot.TINTA, "Azul-marinho"),
+        item("grafite", FolhaSlot.TINTA, "Grafite"),
+        item("ameixa", FolhaSlot.TINTA, "Ameixa"),
+        item("cafe", FolhaSlot.TINTA, "Café"),
+        item("floresta", FolhaSlot.TINTA, "Floresta"),
+        item("rosa", FolhaSlot.BOCHECHAS, "Rosadas"),
+        item("pessego", FolhaSlot.BOCHECHAS, "Pêssego"),
+        item("lilas", FolhaSlot.BOCHECHAS, "Lilás"),
+        item("coral", FolhaSlot.BOCHECHAS, "Coral"),
+        item("nenhuma", FolhaSlot.BOCHECHAS, "Sem rubor"),
+
+        // recompensas de coleção (exclusivas)
+        item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, collection = "detetive"),
+        item("runas", FolhaSlot.AURA, "Runas mágicas", L, collection = "mago"),
+        item("pasta", FolhaSlot.MAO, "Pasta executiva", E, collection = "executivo"),
+        item("fogos", FolhaSlot.AURA, "Fogos de artifício", L, collection = "campeao"),
+        item("real", FolhaSlot.CAPA, "Veludo real", L, collection = "realeza"),
+        item("coelho", FolhaSlot.COMPANHEIRO, "Coelhinho", E, collection = "fofura"),
+
         // capas
         item("indigo", FolhaSlot.CAPA, "Índigo Estudário"),
         item("esmeralda", FolhaSlot.CAPA, "Esmeralda", C, badge = "meta-1"),
@@ -143,11 +188,33 @@ object FolhaWardrobe {
         item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", L, level = 35),
     )
 
+    /** Coleções, da mais fácil de completar para a mais difícil. */
+    val collections: List<FolhaCollection> = listOf(
+        FolhaCollection("fofura", "Fofura", "Coração nos olhos, flor no peito e balão na mão.",
+            listOf(FolhaSlot.CAPA to "bolinhas", FolhaSlot.OCULOS to "coracao", FolhaSlot.PESCOCO to "flor", FolhaSlot.MAO to "balao"), FolhaSlot.COMPANHEIRO to "coelho"),
+        FolhaCollection("detetive", "Detetive", "Para investigar cada tópico do edital.",
+            listOf(FolhaSlot.CHAPEU to "explorador", FolhaSlot.OCULOS to "leitura", FolhaSlot.MAO to "lupa", FolhaSlot.COMPANHEIRO to "coruja"), FolhaSlot.CAPA to "tweed"),
+        FolhaCollection("campeao", "Campeão", "Boné, óculos escuros, medalha e troféu.",
+            listOf(FolhaSlot.CHAPEU to "bone", FolhaSlot.OCULOS to "escuros", FolhaSlot.PESCOCO to "medalha", FolhaSlot.MAO to "trofeu"), FolhaSlot.AURA to "fogos"),
+        FolhaCollection("executivo", "Executivo", "Cartola, monóculo, gravata e capa grafite.",
+            listOf(FolhaSlot.CAPA to "grafite", FolhaSlot.CHAPEU to "cartola", FolhaSlot.OCULOS to "monoculo", FolhaSlot.PESCOCO to "gravata"), FolhaSlot.MAO to "pasta"),
+        FolhaCollection("mago", "Mago", "Chapéu, varinha, óculos de estrela e o dragãozinho.",
+            listOf(FolhaSlot.CHAPEU to "mago", FolhaSlot.OCULOS to "estrela", FolhaSlot.MAO to "varinha", FolhaSlot.COMPANHEIRO to "dragao"), FolhaSlot.AURA to "runas"),
+        FolhaCollection("realeza", "Realeza", "Coroa, roseta, luvas e marcador de ouro.",
+            listOf(FolhaSlot.CHAPEU to "coroa", FolhaSlot.PESCOCO to "roseta", FolhaSlot.LUVAS to "dourada", FolhaSlot.FITA to "dourada"), FolhaSlot.CAPA to "real"),
+    )
+
+    fun collection(id: String?): FolhaCollection? = collections.firstOrNull { it.id == id }
+    fun piecesOf(c: FolhaCollection): List<FolhaItem> = c.pieces.mapNotNull { (slot, id) -> find(slot, id) }
+    fun rewardOf(c: FolhaCollection): FolhaItem? = find(c.reward.first, c.reward.second)
+
     fun of(slot: FolhaSlot): List<FolhaItem> = items.filter { it.slot == slot }
-    fun default(slot: FolhaSlot): FolhaItem = of(slot).first()
+    /** A peça padrão de cada lugar (a primeira não exclusiva). */
+    fun default(slot: FolhaSlot): FolhaItem = of(slot).first { it.collection == null && it.badgeId == null && it.level == null }
     fun find(slot: FolhaSlot, id: String?): FolhaItem? = items.firstOrNull { it.slot == slot && it.id == id }
 
     fun unlocked(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean = when {
+        item.collection != null -> collection(item.collection)?.let { c -> piecesOf(c).all { unlocked(it, summary) } } ?: false
         item.badgeId != null -> summary.badges.any { it.badge.id == item.badgeId && it.earned }
         item.level != null -> summary.level >= item.level
         else -> true
@@ -155,13 +222,16 @@ object FolhaWardrobe {
 
     /** Como liberar, em uma linha ("Emblema Semana cheia: 7 dias seguidos batendo a meta", "Chegar ao nível 5"). */
     fun requirement(item: FolhaItem): String = when {
+        item.collection != null -> "Complete a coleção ${collection(item.collection)?.name ?: ""}"
         item.badgeId != null -> BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.let { "Emblema ${it.name}: ${it.requirement.replaceFirstChar { c -> c.lowercaseChar() }}" } ?: "Emblema"
         item.level != null -> "Chegar ao nível ${item.level}"
+        item.slot.group == FolhaGroup.SEU_FOLHA && item.slot != FolhaSlot.CAPA && item.slot != FolhaSlot.FITA && item.slot != FolhaSlot.LUVAS -> "Livre para escolher"
         else -> "Já vem com o Folha"
     }
 
     /** O andamento até liberar: atual, alvo e a unidade. Nulo quando já vem liberada. */
     fun progress(item: FolhaItem, summary: ProgressEngine.ProgressSummary): Triple<Int, Int, String>? {
+        item.collection?.let { id -> val c = collection(id) ?: return null; val ps = piecesOf(c); return Triple(ps.count { unlocked(it, summary) }, ps.size, "peças") }
         item.level?.let { return Triple(summary.level.coerceAtMost(it), it, "nível") }
         val p = summary.badges.firstOrNull { it.badge.id == item.badgeId } ?: return null
         return Triple(p.current.coerceAtMost(p.target), p.target, p.badge.unit)

@@ -101,6 +101,9 @@ object FolhaLook {
     var aura by mutableStateOf("nenhum")
     var gloves by mutableStateOf("branca")
     var pet by mutableStateOf("nenhum")
+    var pages by mutableStateOf("lisa")
+    var ink by mutableStateOf("marinho")
+    var cheeks by mutableStateOf("rosa")
     /** Dias seguidos: medalha no capelo a partir de 7 (bronze), 30 (prata) e 100 (ouro). */
     var streak by mutableIntStateOf(0)
     /** A sequência pode cair hoje (fim do dia, meta não batida): parado, ele fica preocupadinho. */
@@ -109,7 +112,7 @@ object FolhaLook {
     var hour by mutableStateOf<Int?>(null)
 
     /** Peça atual de cada lugar, pela chave do desenho ("cover", "hat"...). */
-    fun pieces(): Map<String, String> = mapOf("cover" to cover, "ribbon" to ribbon, "hat" to hat, "eyes" to eyes, "neck" to neck, "hand" to hand, "aura" to aura, "gloves" to gloves, "pet" to pet)
+    fun pieces(): Map<String, String> = mapOf("cover" to cover, "ribbon" to ribbon, "hat" to hat, "eyes" to eyes, "neck" to neck, "hand" to hand, "aura" to aura, "gloves" to gloves, "pet" to pet, "pages" to pages, "ink" to ink, "cheeks" to cheeks)
 
     fun set(key: String, id: String) {
         when (key) {
@@ -122,6 +125,9 @@ object FolhaLook {
             "aura" -> aura = id
             "gloves" -> gloves = id
             "pet" -> pet = id
+            "pages" -> pages = id
+            "ink" -> ink = id
+            "cheeks" -> cheeks = id
         }
     }
 }
@@ -150,6 +156,8 @@ private val COVERS = mapOf(
     "holografica" to CoverStyle(listOf(rgb(0xFFC9B6FF), rgb(0xFF9FD8FF), rgb(0xFFFFC2E2)), rgb(0xFF5B4C9A), listOf(rgb(0xFF8E7CE0), rgb(0xFFC7B8FF)), silver = true, pattern = "holo"),
     "ouro" to CoverStyle(listOf(rgb(0xFFFFDD84), rgb(0xFFEBB13A), rgb(0xFFBD8214)), rgb(0xFF7A4F05), listOf(rgb(0xFFC98A12), rgb(0xFFFFD978)), silver = true, pattern = "shine"),
     "obsidiana" to CoverStyle(listOf(rgb(0xFF34343F), rgb(0xFF1B1B24), rgb(0xFF0C0C12)), rgb(0xFF000000), listOf(rgb(0xFF22222C), rgb(0xFF4A4A5C)), pattern = "foil"),
+    "tweed" to CoverStyle(listOf(rgb(0xFF9A8A78), rgb(0xFF7A6B5B), rgb(0xFF5A4D40)), rgb(0xFF2E241B), listOf(rgb(0xFF6A5B4C), rgb(0xFFA4937F)), silver = true, pattern = "tweed", stitch = Color(0xB3E8D6BA)),
+    "real" to CoverStyle(listOf(rgb(0xFF8A4FD6), rgb(0xFF6430A8), rgb(0xFF45187C)), rgb(0xFF22093F), listOf(rgb(0xFF5A2A9C), rgb(0xFF9A6BE0)), pattern = "fleur"),
     "diamante" to CoverStyle(listOf(rgb(0xFFEAF6FF), rgb(0xFFB9DDF7), rgb(0xFF86BCE6)), rgb(0xFF4F7FA6), listOf(rgb(0xFF6FA9D9), rgb(0xFFBFE3FF)), silver = true, pattern = "facets"),
 )
 
@@ -164,7 +172,12 @@ private class Look(
     val cover: CoverStyle, val ribbon: List<Color>, val hat: String, val eyes: String, val neck: String, val hand: String, val aura: String,
     val gloves: List<Color>, val streak: Int, val atRisk: Boolean, val morning: Boolean, val night: Boolean,
     val gloveKind: String = "branca", val pet: String = "nenhum",
+    val pages: String = "lisa", val ink: Color = Color(0xFF26215C), val cheek: Color? = Color(0xFFF4A6C0),
 )
+
+/** O próprio Folha: tinta dos olhos, sobrancelhas e boca, e cor das bochechas. */
+private val INKS = mapOf("marinho" to Color(0xFF26215C), "grafite" to Color(0xFF2B2B30), "ameixa" to Color(0xFF4A1E4F), "cafe" to Color(0xFF3E2A1E), "floresta" to Color(0xFF14382B))
+private val CHEEKS = mapOf("rosa" to Color(0xFFF4A6C0), "pessego" to Color(0xFFFFB98A), "lilas" to Color(0xFFC9A6F4), "coral" to Color(0xFFFF8C75), "nenhuma" to null)
 
 private fun resolveLook(o: FolhaStyle?): Look {
     val h = FolhaLook.hour ?: java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -182,6 +195,7 @@ private fun resolveLook(o: FolhaStyle?): Look {
         morning = scene && h in 5..10,
         night = scene && (h >= 22 || h < 5),
         gloveKind = a("gloves"), pet = a("pet"),
+        pages = a("pages"), ink = INKS[a("ink")] ?: INKS.getValue("marinho"), cheek = if (a("cheeks") in CHEEKS) CHEEKS[a("cheeks")] else CHEEKS.getValue("rosa"),
     )
 }
 
@@ -248,9 +262,15 @@ fun Folha(
     sim.setMood(mood)
     sim.setLeaving(leaving)
     LaunchedEffect(say) { sim.setSay(say, sayMillis) }
+    // Economia de bateria: com o modo economia do aparelho ligado, no máximo 30 quadros por segundo.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val powerSave = remember { runCatching { (context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager).isPowerSaveMode }.getOrDefault(false) }
     LaunchedEffect(Unit) {
         var last = 0L
         while (true) withFrameNanos { now ->
+            // calmo e parado (respirando, piscando, falando): 30 quadros; cochilando ou pequeno: 20; em movimento: todos
+            val cap = sim.fpsCap(powerSave)
+            if (cap > 0 && last != 0L && now - last < 1_000_000_000L / cap - 4_000_000L) return@withFrameNanos
             val dt = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(0.05f)
             last = now
             sim.step(now / 1_000_000L, dt)
@@ -542,6 +562,18 @@ private class FolhaSim {
     var enterPending = false
     private var leaveAt = -1L
     private var burstAt = -1L
+
+    /** Quadros por segundo de que ele precisa agora (0 = todos). */
+    fun fpsCap(powerSave: Boolean): Int {
+        val busy = leaveAt >= 0 || nowMs < dizzyUntil || bounceAt >= 0 || fid != null || speaking || !inited
+        val moving = abs(v[0]) + abs(v[3]) + abs(v[5]) > 14f || abs(sqV) > 0.5f
+        if (busy || moving) return if (powerSave) 30 else 0
+        return when (shown) {
+            FolhaMood.SLEEPY -> 20
+            FolhaMood.IDLE, FolhaMood.FOCUS, FolhaMood.SAD, FolhaMood.TALKING, FolhaMood.PROUD -> if (small) 20 else 30
+            else -> if (powerSave) 30 else 0
+        }
+    }
 
     fun setLeaving(on: Boolean) { if (on && leaveAt < 0) leaveAt = nowMs else if (!on) leaveAt = -1L }
 
@@ -861,6 +893,7 @@ private fun DrawScope.drawBook(t: Float, mood: FolhaMood, small: Boolean, look: 
     val left = page(-1f); val right = page(1f)
     drawPath(left, Brush.horizontalGradient(listOf(PaperMid, Paper, Paper, PaperMid), startX = 12f, endX = 50f))
     drawPath(right, Brush.horizontalGradient(listOf(PaperMid, Paper, Paper, Color(0xFFF1EDE6)), startX = 50f, endX = 88f))
+    if (!small) drawPagePattern(look.pages, left, right)
     val gutter = arrayOf(0f to Gutter.copy(alpha = 0f), 0.55f to Gutter.copy(alpha = 0.035f), 0.85f to Gutter.copy(alpha = 0.10f), 1f to Gutter.copy(alpha = 0.20f))
     drawPath(left, Brush.horizontalGradient(*gutter, startX = 39f, endX = 50f))
     drawPath(right, Brush.horizontalGradient(*gutter, startX = 61f, endX = 50f))
@@ -937,33 +970,34 @@ private fun DrawScope.drawPageLines(t: Float, mood: FolhaMood, small: Boolean) {
 }
 
 private fun DrawScope.drawFace(f: FolhaFrame) {
+    val ink = f.look.ink; val cheekC = f.look.cheek
     val p = f.p; val t = f.t; val mood = f.mood; val small = f.small; val blink = f.blink
     val eyeL = Offset(31f + p.lookX * 1.6f, 61f + p.lookY * 1.4f); val eyeR = Offset(69f + p.lookX * 1.6f, 61f + p.lookY * 1.4f)
-    oval(Cheek.copy(alpha = p.cheek), 19f, 67f, 9f, 5f); oval(Cheek.copy(alpha = p.cheek), 72f, 67f, 9f, 5f)
+    if (cheekC != null) { oval(cheekC.copy(alpha = p.cheek), 19f, 67f, 9f, 5f); oval(cheekC.copy(alpha = p.cheek), 72f, 67f, 9f, 5f) }
 
     fun eye(c: Offset, side: Float, extraLid: Float) {
         val x = c.x; val y = c.y
         if (mood == FolhaMood.DIZZY) {   // espiral girando
             val sp = Path(); val a0 = t * 7f * side
             for (i in 0..40) { val a = a0 + i * 0.42f; val rr = 0.25f + i * 0.12f; val px = x + cos(a) * rr; val py = y + sin(a) * rr * 1.15f; if (i == 0) sp.moveTo(px, py) else sp.lineTo(px, py) }
-            drawPath(sp, Ink, style = stroke(if (small) 1.6f else 1.2f)); return
+            drawPath(sp, ink, style = stroke(if (small) 1.6f else 1.2f)); return
         }
         if (mood == FolhaMood.ECSTATIC && blink < 0.5f) {   // olhos de estrela, pulsando
             val st = star5(x, y, (if (small) 6.4f else 5.8f) * (1f + 0.1f * sin(t * 9f)))
             drawPath(st, Brush.verticalGradient(listOf(Color(0xFFFFF1BF), Gold, Color(0xFFE39A1E)), startY = y - 6f, endY = y + 5f))
-            drawPath(st, Ink, style = stroke(if (small) 1.2f else 0.8f))
+            drawPath(st, ink, style = stroke(if (small) 1.2f else 0.8f))
             if (!small) drawCircle(Color.White.copy(alpha = 0.9f), 0.9f, Offset(x - 1.2f, y - 1.6f))
             return
         }
         val rx = 4.4f * p.eyeScale * (if (small) 1.18f else 1f); val ry = 5.8f * p.eyeScale * (if (small) 1.1f else 1f)
         val up = clamp(maxOf(p.up, blink, extraLid), 0f, 1f); val low = clamp(p.low * (1 - blink), 0f, 1f)
         if (small && low > 0.45f && blink < 0.5f) {   // pequeno e feliz: o arco clássico (^^) lê melhor
-            drawPath(Path().apply { moveTo(x - 4.5f, y + 1.5f); quadraticTo(x, y - 5f, x + 4.5f, y + 1.5f) }, Ink, style = stroke(2.8f)); return
+            drawPath(Path().apply { moveTo(x - 4.5f, y + 1.5f); quadraticTo(x, y - 5f, x + 4.5f, y + 1.5f) }, ink, style = stroke(2.8f)); return
         }
         if (up > 0.96f) {   // fechado: só o traço
-            drawPath(Path().apply { moveTo(x - 4.4f, y + 0.4f); quadraticTo(x, y + 2.4f, x + 4.4f, y + 0.4f) }, Ink, style = stroke(if (small) 2.2f else 1.8f)); return
+            drawPath(Path().apply { moveTo(x - 4.4f, y + 0.4f); quadraticTo(x, y + 2.4f, x + 4.4f, y + 0.4f) }, ink, style = stroke(if (small) 2.2f else 1.8f)); return
         }
-        drawOval(Ink, Offset(x - rx, y - ry), Size(rx * 2, ry * 2))
+        drawOval(ink, Offset(x - rx, y - ry), Size(rx * 2, ry * 2))
         if (up < 0.85f && low < 0.9f) {
             drawCircle(Color.White, 1.7f * p.pupil, Offset(x - 1.4f + p.lookX * 0.6f, y - 2.2f))
             drawCircle(Color.White.copy(alpha = 0.7f), 0.8f * p.pupil, Offset(x + 1.6f, y + 1.8f))
@@ -977,7 +1011,7 @@ private fun DrawScope.drawFace(f: FolhaFrame) {
                 val ya = if (side < 0) yo else yi; val yb = if (side < 0) yi else yo
                 val mid = (ya + yb) / 2f + 1.4f * (1 - up)
                 drawPath(Path().apply { moveTo(xa, y - ry - 2f); lineTo(xb, y - ry - 2f); lineTo(xb, yb); quadraticTo(x, mid, xa, ya); close() }, Paper)
-                drawPath(Path().apply { moveTo(xa, ya); quadraticTo(x, mid, xb, yb) }, Ink, style = stroke(1.2f))
+                drawPath(Path().apply { moveTo(xa, ya); quadraticTo(x, mid, xb, yb) }, ink, style = stroke(1.2f))
             }
             if (low > 0.01f) {
                 val yl = y + ry + 0.8f - (2 * ry + 0.8f) * low
@@ -992,7 +1026,7 @@ private fun DrawScope.drawFace(f: FolhaFrame) {
     if (browA > 0.05f) for ((c, side) in listOf(eyeL to -1f, eyeR to 1f)) {
         val by = c.y - 9.8f + p.browY - (if (side > 0) p.browR else 0f) + (if (blink > 0.5f) 0.6f else 0f)
         val inner = Offset(c.x - side * 4.2f, by - p.browIn * 2.2f + (1 - p.browIn) * 0.4f); val outer = Offset(c.x + side * 4.4f, by + p.browIn * 1.2f)
-        drawPath(Path().apply { moveTo(outer.x, outer.y); quadraticTo(c.x, by - 1.4f + p.browIn * 0.6f, inner.x, inner.y) }, Ink.copy(alpha = 0.9f * browA), style = stroke(if (small) 2.2f else 1.7f))
+        drawPath(Path().apply { moveTo(outer.x, outer.y); quadraticTo(c.x, by - 1.4f + p.browIn * 0.6f, inner.x, inner.y) }, ink.copy(alpha = 0.9f * browA), style = stroke(if (small) 2.2f else 1.7f))
     }
     // lágrima (triste)
     if (mood == FolhaMood.SAD && !small) {
@@ -1007,14 +1041,14 @@ private fun DrawScope.drawFace(f: FolhaFrame) {
     val mx = 50f; val my = 73f
     if (f.gulp > 0.08f) {
         val r = 1.5f + 3.2f * f.gulp
-        oval(Ink, mx - r, my - r * 1.1f, r * 2, r * 2.2f)
+        oval(ink, mx - r, my - r * 1.1f, r * 2, r * 2.2f)
         for (i in 0 until 4) { val a = i * (PIf / 2) + 0.5f; drawCircle(Spark.copy(alpha = f.gulp), 1.8f * f.gulp * 0.9f, Offset(50f + cos(a) * (22f + 14f * (1 - f.gulp)), 58f + sin(a) * (16f + 10f * (1 - f.gulp)))) }
         return
     }
-    if (mood == FolhaMood.SURPRISED) { oval(Ink, mx - 2.6f, my - 3f, 5.2f, 6.4f); oval(Cheek, mx - 1.6f, my + 0.9f, 3.2f, 1.8f); return }
+    if (mood == FolhaMood.SURPRISED) { oval(ink, mx - 2.6f, my - 3f, 5.2f, 6.4f); oval(Cheek, mx - 1.6f, my + 0.9f, 3.2f, 1.8f); return }
     if (mood == FolhaMood.DIZZY) {
         val wv = Path(); for (i in 0..12) { val px = mx - 5f + i * (10f / 12f); val py = my + sin(i * 1.4f + t * 8f) * 0.9f; if (i == 0) wv.moveTo(px, py) else wv.lineTo(px, py) }
-        drawPath(wv, Ink, style = stroke(if (small) 2.4f else 1.8f)); return
+        drawPath(wv, ink, style = stroke(if (small) 2.4f else 1.8f)); return
     }
     var open = p.mOpen; var w = p.mW; var c = p.mCurve
     if (mood == FolhaMood.TALKING) {
@@ -1027,11 +1061,11 @@ private fun DrawScope.drawFace(f: FolhaFrame) {
     if (open < 0.12f) {
         val m = Path().apply { moveTo(mx - w, corner); quadraticTo(mx, corner + c * 1.6f, mx + w, corner) }
         if (p.tongue > 0.5f) oval(Cheek, mx + w - 2.4f, corner - 0.2f, 2.6f, 2.2f)   // língua no canto (concentrado)
-        drawPath(m, Ink, style = stroke(if (small) 2.8f else 2.3f))
+        drawPath(m, ink, style = stroke(if (small) 2.8f else 2.3f))
     } else {
         val top = corner + c * 0.15f - open * 0.6f; val depth = maxOf(1.4f, c * 1.1f) + open * 5.4f
         val m = Path().apply { moveTo(mx - w, corner); quadraticTo(mx, top, mx + w, corner); cubicTo(mx + w * 0.95f, corner + depth * 1.25f, mx - w * 0.95f, corner + depth * 1.25f, mx - w, corner); close() }
-        drawPath(m, Ink)
+        drawPath(m, ink)
         clipPath(m) { oval(Cheek, mx - w * 0.55f, corner + depth - 1.6f * open - 0.6f, w * 1.1f, 3.4f * open + 1f) }
     }
 }
@@ -1181,6 +1215,24 @@ private fun DrawScope.drawPet(t: Float, kind: String, mood: FolhaMood, small: Bo
                     drawCircle(if (sin(t * 4f) > 0f) Color(0xFFFF5C4D) else Mint, 0.9f, Offset(0f, -20.6f))
                     line(Color.White.copy(alpha = 0.6f), -4.4f, -16.6f, -2.6f, -17f, 0.4f)
                 }
+                "coelho" -> {
+                    // coelhinho: orelhas compridas que balançam, nariz que mexe e pompom de rabo
+                    val ear = sin(t * 2.2f) * 0.12f; val twitch = abs(sin(t * 7f)) * 0.4f
+                    for (s in listOf(-1f, 1f)) translate(s * 1.6f, -14f) {
+                        rotate((s * 0.18f + ear * s + (if (party) sin(t * 9f) * 0.15f else 0f) + (if (sad) s * 0.9f else 0f)) * 180f / PIf, pivot = Offset.Zero) {
+                            oval(Color(0xFFF6F2FF), -1.7f, -10.4f, 3.4f, 10.8f); drawOval(Color(0x99968CBE), Offset(-1.7f, -10.4f), Size(3.4f, 10.8f), style = Stroke(0.3f))
+                            oval(Color(0xFFFFC2D4), -0.8f, -9.2f, 1.6f, 8.4f)
+                        }
+                    }
+                    drawCircle(Color.White, 1.8f, Offset(-4.6f, -3f))
+                    drawOval(vg(listOf(Color.White, Color(0xFFE6E1F5)), -9f, 0f), Offset(-5f, -9.2f), Size(10f, 9.2f)); drawOval(Color(0x80968CBE), Offset(-5f, -9.2f), Size(10f, 9.2f), style = Stroke(0.3f))
+                    drawOval(vg(listOf(Color.White, Color(0xFFECE8F8)), -15.6f, -7.6f), Offset(-4.4f, -15.6f), Size(8.8f, 8f)); drawOval(Color(0x80968CBE), Offset(-4.4f, -15.6f), Size(8.8f, 8f), style = Stroke(0.3f))
+                    eye(-1.6f, -12f, 0.75f); eye(1.6f, -12f, 0.75f)
+                    drawPath(Path().apply { moveTo(-0.5f, -10.4f - twitch * 0.3f); lineTo(0.5f, -10.4f - twitch * 0.3f); lineTo(0f, -9.8f); close() }, Color(0xFFFF8FA3))
+                    drawPath(Path().apply { moveTo(-0.9f, -9.2f); quadraticTo(-0.45f, -8.7f, 0f, -9.4f); quadraticTo(0.45f, -8.7f, 0.9f, -9.2f) }, Ink, style = stroke(0.35f))
+                    drawCircle(Cheek.copy(alpha = 0.6f), 0.8f, Offset(-2.8f, -10.4f)); drawCircle(Cheek.copy(alpha = 0.6f), 0.8f, Offset(2.8f, -10.4f))
+                    for (s in listOf(-1f, 1f)) oval(Color(0xFFF6F2FF), s * 2.1f - 1.6f, -1.4f, 3.2f, 1.8f)
+                }
                 "dragao" -> {
                     // dragãozinho: asas batendo, rabo com espinho e baforada de fogo quando comemora
                     val flap = sin(t * (if (party) 10f else 3f)) * 0.35f
@@ -1238,6 +1290,25 @@ private fun roundRect(x: Float, y: Float, w: Float, h: Float, r: Float) = Path()
 private fun vg(colors: List<Color>, y0: Float, y1: Float) = Brush.verticalGradient(colors, startY = y0, endY = y1)
 private fun hg(colors: List<Color>, x0: Float, x1: Float) = Brush.horizontalGradient(colors, startX = x0, endX = x1)
 
+/** Padrão do papel (pautado, quadriculado, pontilhado, partitura), bem leve, por baixo do rosto. */
+private fun DrawScope.drawPagePattern(kind: String, left: Path, right: Path) {
+    if (kind == "lisa") return
+    for (page in listOf(left, right)) clipPath(page) {
+        when (kind) {
+            "pautada" -> {
+                var y = 46f; while (y < 88f) { line(Color(0x526FB0FF), 10f, y, 90f, y + 1f, 0.22f, false); y += 3.6f }
+                line(Color(0x59F05578), 17f, 38f, 17f, 90f, 0.25f, false); line(Color(0x59F05578), 83f, 38f, 83f, 90f, 0.25f, false)
+            }
+            "quadriculada" -> {
+                var y = 40f; while (y < 90f) { line(Color(0x3D6FB0FF), 10f, y, 90f, y, 0.18f, false); y += 3.2f }
+                var x = 12f; while (x < 90f) { line(Color(0x3D6FB0FF), x, 36f, x, 90f, 0.18f, false); x += 3.2f }
+            }
+            "pontilhada" -> { var y = 42f; while (y < 88f) { var x = 13f; while (x < 88f) { drawCircle(Color(0x475A5A82), 0.2f, Offset(x, y)); x += 3.2f }; y += 3.2f } }
+            "partitura" -> for (y0 in listOf(44f, 56f, 68f, 80f)) for (i in 0 until 5) line(Color(0x383C326E), 10f, y0 + i * 1.3f, 90f, y0 + i * 1.3f + 0.6f, 0.18f, false)
+        }
+    }
+}
+
 /** Textura da capa (só aparece nas bordas e no pé do livro, onde a capa fica à mostra). */
 private fun DrawScope.drawCoverPattern(t: Float, c: CoverStyle, cover: Path) {
     when (c.pattern) {
@@ -1249,6 +1320,17 @@ private fun DrawScope.drawCoverPattern(t: Float, c: CoverStyle, cover: Path) {
         }
         "dots" -> { var y = 44f; while (y < 94f) { var x = if (y % 6.4f < 3.2f) 8.6f else 10.2f; while (x < 92f) { drawCircle(Color.White.copy(alpha = 0.75f), 0.55f, Offset(x, y)); x += 3.2f }; y += 3.2f } }
         "holo" -> { val h = (t * 40f) % 360f; drawPath(cover, Brush.linearGradient((0..4).map { Color.hsl((h + it * 72f) % 360f, 0.9f, 0.72f, 0.55f) }, start = Offset(0f, 40f), end = Offset(100f, 95f))) }
+        "tweed" -> {
+            // espinha de peixe: zigue-zague miúdo em duas tonalidades
+            var y = 40f
+            while (y < 96f) { var x = 6f; while (x < 96f) { val k = ((x + y) / 3.2f) % 2f < 1f; line(if (k) Color(0x29FFF0DC) else Color(0x381E140A), x, y, x + 1.6f, y + (if (k) 1.2f else -1.2f), 0.35f, false); x += 3.2f }; y += 1.6f }
+        }
+        "fleur" -> {
+            // veludo com losangos dourados bordados
+            var y = 44f
+            while (y < 94f) { var x = if (y % 8f < 4f) 9f else 11f; while (x < 92f) { drawPath(Path().apply { moveTo(x, y - 0.9f); lineTo(x + 0.7f, y); lineTo(x, y + 0.9f); lineTo(x - 0.7f, y); close() }, Color(0x8CF5C451)); x += 4f }; y += 4f }
+            drawPath(cover, Brush.linearGradient(listOf(Color(0x1AFFFFFF), Color(0x00FFFFFF), Color(0x1F000000)), start = Offset(8f, 40f), end = Offset(92f, 95f)))
+        }
         "foil" -> { var x = -50f; while (x < 100f) { line(Color(0x73F5B83D), x, 40f, x + 54f, 95f, 0.25f, false); x += 7f } }
         "facets" -> { var x = -50f; while (x < 100f) { line(Color.White.copy(alpha = 0.35f), x, 40f, x + 30f, 95f, 0.3f, false); line(Color(0x405082B4), x + 30f, 40f, x, 95f, 0.3f, false); x += 5f } }
         else -> { var x = -50f; while (x < 100f) { line(Color.White.copy(alpha = 0.045f), x, 40f, x + 54f, 95f, 0.3f, false); line(Color.Black.copy(alpha = 0.06f), x + 54f, 40f, x, 95f, 0.3f, false); x += 1.5f } }
@@ -1693,6 +1775,17 @@ private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float,
                         drawPath(star5(0f, -10.4f, 2f), Color(0xCCA0640A))
                         if (party) { val k = abs(sin(t * 3f)); star4(-3f, -12.4f, 2.6f * k, Color.White.copy(alpha = k)); star4(5.5f, -15.5f, 1.6f * (1 - k), Color(0xFFFFF0B4).copy(alpha = 1 - k)) }
                     }
+                    "pasta" -> {
+                        // pasta executiva de couro: alça na mão, fecho dourado, costura e cantos reforçados
+                        drawPath(Path().apply { moveTo(-2.6f, 0.6f); quadraticTo(-2.6f, -2f, 0f, -2f); quadraticTo(2.6f, -2f, 2.6f, 0.6f) }, Color(0xFF3A2410), style = stroke(1.3f))
+                        drawPath(roundRect(-7f, 0.6f, 14f, 10f, 1.4f), vg(listOf(Color(0xFF8A5A2B), Color(0xFF6B4320), Color(0xFF4E2F15)), 0.6f, 10.6f))
+                        drawPath(roundRect(-7f, 0.6f, 14f, 10f, 1.4f), Color(0xFF2E1A08), style = Stroke(0.4f))
+                        drawPath(roundRect(-7f, 0.6f, 14f, 3.6f, 1.2f), vg(listOf(Color(0xFF9C6A35), Color(0xFF7A4E26)), 0.6f, 4.2f))
+                        drawPath(roundRect(-6.2f, 1.4f, 12.4f, 8.4f, 1f), Color(0x8CFFE2B4), style = Stroke(0.2f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.6f, 0.5f))))
+                        for (x in listOf(-4f, 4f)) drawPath(roundRect(x - 1f, 3.2f, 2f, 1.8f, 0.4f), vg(GOLD3, 3.2f, 5f))
+                        for ((x, y) in listOf(-6.4f to 1.2f, 6.4f to 1.2f, -6.4f to 10f, 6.4f to 10f)) drawCircle(Color(0xFFE9AE34), 0.5f, Offset(x, y))
+                        line(Color.White.copy(alpha = 0.25f), -5.6f, 5.6f, 2f, 5.6f, 0.4f)
+                    }
                     "lupa" -> {
                         // lupa de detetive: aro de latão chanfrado, vidro azulado com reflexos e cabo de madeira
                         line(Color(0xFF5A3D20), 1.4f, 5.4f, -2.2f, -4.2f, 2.2f); line(Color(0xFF8A5A2B), 1.2f, 5f, -2f, -4f, 1.2f)
@@ -1753,7 +1846,7 @@ private fun DrawScope.drawAura(t: Float, kind: String, small: Boolean, burst: Fl
         "orbita" -> for (i in 0 until 3) {
             // três estrelas em órbita: passam por trás e pela frente do Folha
             val a = t * 1.6f + i * 2f * PIf / 3f; val front = sin(a) > 0f; if (front == behind) continue
-            val x = 50f + cos(a) * 50f; val y = 62f + sin(a) * 12f; val r = (if (front) 3.8f else 2.6f) * boost
+            val x = 50f + cos(a) * 50f; val y = 80f + sin(a) * 17f; val r = (if (front) 3.8f else 2.6f) * boost
             if (front) drawPath(star5(x, y, r), vg(GOLD3, y - r, y + r)) else drawPath(star5(x, y, r), Gold.copy(alpha = 0.55f))
         }
         "chamas" -> if (behind) for (i in 0 until if (small) 2 else 4) {
@@ -1781,10 +1874,37 @@ private fun DrawScope.drawAura(t: Float, kind: String, small: Boolean, burst: Fl
                 }
             }
         }
+        "runas" -> {
+            // runas mágicas: um anel de símbolos que brilham, gira devagar e passa por trás e pela frente (por baixo do rosto)
+            val runes = listOf(floatArrayOf(0f, -2f, 0f, 2f, -1.4f, -0.6f, 1.4f, 0.6f), floatArrayOf(-1.4f, -2f, 1.4f, -2f, 0f, -2f, 0f, 2f), floatArrayOf(-1.2f, 2f, 0f, -2f, 0f, -2f, 1.2f, 2f),
+                floatArrayOf(-1.4f, -1f, 1.4f, -1f, -1.4f, 1f, 1.4f, 1f), floatArrayOf(0f, -2f, 0f, 2f, 0f, 0f, 1.4f, -1.4f), floatArrayOf(-1.4f, 2f, -1.4f, -2f, -1.4f, 0f, 1.4f, 0f))
+            for (i in 0 until 10) {
+                val a = t * 0.6f + i * 2f * PIf / 10f; val front = sin(a) > 0f; if (front == behind) continue
+                val x = 50f + cos(a) * 52f; val y = 82f + sin(a) * 15f; val k = (if (front) 1f else 0.7f) * boost; val al = (if (front) 0.95f else 0.45f) * (0.7f + 0.3f * sin(t * 3f + i))
+                drawCircle(Brush.radialGradient(listOf(Mint.copy(alpha = 0.55f * al), Color(0x009563FF)), center = Offset(x, y), radius = 4.6f * k), 4.6f * k, Offset(x, y))
+                val r = runes[i % runes.size]; val c = Color(0xFF28966E).copy(alpha = al)
+                line(c, x + r[0] * k, y + r[1] * k, x + r[2] * k, y + r[3] * k, 0.6f * k); line(c, x + r[4] * k, y + r[5] * k, x + r[6] * k, y + r[7] * k, 0.6f * k)
+            }
+        }
+        "fogos" -> if (!behind) {
+            // fogos de artifício: estouros coloridos em volta, cada um com rastro e faíscas caindo
+            val cols = listOf(Color(0xFFFFD84A), Color(0xFFFF8FA3), Mint, Color(0xFF6FB0FF), Color(0xFFB995F5))
+            val pos = listOf(12f to 24f, 88f to 20f, 20f to 6f, 82f to 4f)
+            for (i in 0 until if (small) 2 else 4) {
+                val raw = t * 0.42f + i * 0.27f; val ph = raw % 1f; val (cx, cy) = pos[i]; val c = cols[(i + raw.toInt()) % 5]
+                if (ph < 0.25f) { val u = ph / 0.25f; line(c.copy(alpha = 0.8f), cx, cy + 30f - u * 30f, cx, cy + 34f - u * 30f, 0.6f); continue }
+                val u = (ph - 0.25f) / 0.75f; val rr = (3f + u * 10f) * boost; val al = 1f - u
+                for (j in 0 until 12) {
+                    val a = j * PIf / 6f; val px = cx + cos(a) * rr; val py = cy + sin(a) * rr + u * u * 4f
+                    line(c.copy(alpha = al * 0.7f), cx + cos(a) * rr * 0.55f, cy + sin(a) * rr * 0.55f + u * u * 2.4f, px, py, 0.8f)
+                    drawCircle((if (j % 2 == 1) Color.White else c).copy(alpha = al), 0.8f, Offset(px, py))
+                }
+            }
+        }
         "galaxia" -> for (i in 0 until 18) {
             // anel de estrelinhas e poeira cósmica em volta (metade passa por trás)
             val a = t * 0.7f + i * 2f * PIf / 18f; val front = sin(a) > 0f; if (front == behind) continue
-            val x = 50f + cos(a) * 54f; val y = 60f + sin(a) * 14f
+            val x = 50f + cos(a) * 54f; val y = 80f + sin(a) * 17f
             val c = when (i % 3) { 0 -> Color.White; 1 -> Color(0xFFB995F5); else -> Color(0xFF6FB0FF) }
             drawCircle(c.copy(alpha = if (front) 0.95f else 0.5f), (if (front) 1.3f else 0.8f) * boost, Offset(x, y))
             if (i % 6 == 0) star4(x, y, (if (front) 3.4f else 2.2f) * boost, c.copy(alpha = if (front) 0.9f else 0.5f))

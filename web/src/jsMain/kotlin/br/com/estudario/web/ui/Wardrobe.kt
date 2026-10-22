@@ -131,6 +131,8 @@ fun WardrobeScreen() {
     val progress = Progress.of(Store.data).progress
     @Suppress("UNUSED_VARIABLE") val chosenNow = FolhaLook.choices
     var slot by remember { mutableStateOf(FolhaSlot.CAPA) }
+    // false: peças de uma categoria; true: coleções
+    var showCollections by remember { mutableStateOf(false) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
     var cheer by remember { mutableIntStateOf(0) }
     var mood by remember { mutableStateOf("wave") }
@@ -143,25 +145,53 @@ fun WardrobeScreen() {
     val total = FolhaWardrobe.items.size
     val legendary = FolhaWardrobe.items.count { it.rarity == FolhaRarity.LENDARIA && FolhaWardrobe.unlocked(it, progress) }
     BackToProfile()
-    PageHead("Armário do Folha", "Monte o visual do Folha com peças conquistadas nos estudos. Cada emblema e cada nível liberam uma peça nova.")
+    PageHead("Armário do Folha", "Monte o visual do Folha. O jeito dele é livre; acessórios e efeitos saem das suas conquistas, e coleções completas liberam peças exclusivas.")
     Div({ classes("grid", "main-side", "wardrobe") }) {
         Div({ classes("stack", "loose") }) {
             Card(extra = "pad-lg") {
-                // categorias
-                Div({ classes("wd-tabs"); attr("role", "tablist") }) {
-                    FolhaSlot.entries.forEach { s ->
-                        val have = FolhaWardrobe.of(s).count { FolhaWardrobe.unlocked(it, progress) }
-                        Button({
-                            type(ButtonType.Button)
-                            classes(*listOfNotNull("wd-tab", if (s == slot) "on" else null).toTypedArray())
-                            attr("role", "tab"); attr("aria-selected", (s == slot).toString())
-                            onClick { slot = s; trying = null }
-                        }) { Text(s.label); Span({ classes("wd-count") }) { Text("$have/${FolhaWardrobe.of(s).size}") } }
+                // categorias, organizadas por grupo, e as coleções
+                Div({ classes("wd-groups"); attr("role", "tablist") }) {
+                    br.com.estudario.domain.FolhaGroup.entries.forEach { group ->
+                        Div({ classes("wd-group") }) {
+                            Span({ classes("wd-group-label") }) { Text(group.label) }
+                            Div({ classes("wd-tabs") }) {
+                                FolhaSlot.entries.filter { it.group == group }.forEach { s ->
+                                    val list = FolhaWardrobe.of(s)
+                                    val have = list.count { FolhaWardrobe.unlocked(it, progress) }
+                                    val on = !showCollections && s == slot
+                                    Button({
+                                        type(ButtonType.Button)
+                                        classes(*listOfNotNull("wd-tab", if (on) "on" else null).toTypedArray())
+                                        attr("role", "tab"); attr("aria-selected", on.toString())
+                                        onClick { slot = s; showCollections = false; trying = null }
+                                    }) { Text(s.label); if (have < list.size) Span({ classes("wd-count") }) { Text("$have/${list.size}") } }
+                                }
+                            }
+                        }
+                    }
+                    Div({ classes("wd-group") }) {
+                        Span({ classes("wd-group-label") }) { Text("Coleções") }
+                        Div({ classes("wd-tabs") }) {
+                            val done = FolhaWardrobe.collections.count { c -> FolhaWardrobe.piecesOf(c).all { FolhaWardrobe.unlocked(it, progress) } }
+                            Button({
+                                type(ButtonType.Button)
+                                classes(*listOfNotNull("wd-tab", "wd-tab-col", if (showCollections) "on" else null).toTypedArray())
+                                attr("role", "tab"); attr("aria-selected", showCollections.toString())
+                                onClick { showCollections = true; trying = null }
+                            }) { Icon("emoji_events"); Text("Coleções"); Span({ classes("wd-count") }) { Text("$done/${FolhaWardrobe.collections.size}") } }
+                        }
                     }
                 }
-                P({ classes("small", "muted"); attr("style", "margin:12px 0 0") }) { Text(slot.hint) }
+                if (showCollections) {
+                    P({ classes("small", "muted"); attr("style", "margin:14px 0 0") }) { Text("Junte as quatro peças de uma coleção para liberar a recompensa exclusiva, que não sai de outro jeito.") }
+                    Div({ classes("wd-cols") }) {
+                        FolhaWardrobe.collections.forEach { c -> key(c.id) { CollectionCard(c, progress, onDress = { items -> FolhaLook.chooseAll(items); trying = null; cheer++ }, onTry = { trying = it }) } }
+                    }
+                } else {
+                P({ classes("small", "muted"); attr("style", "margin:14px 0 0") }) { Text(slot.hint) }
                 Div({ classes("wd-grid") }) {
-                    FolhaWardrobe.of(slot).forEach { item ->
+                    // exclusivas de coleção ficam no fim da grade
+                    FolhaWardrobe.of(slot).sortedBy { it.collection != null }.forEach { item ->
                         key(slot.name + item.id) {
                             val open = FolhaWardrobe.unlocked(item, progress)
                             WardrobeTile(
@@ -177,6 +207,7 @@ fun WardrobeScreen() {
                             }
                         }
                     }
+                }
                 }
             }
             Card(extra = "pad-lg") {
@@ -255,6 +286,69 @@ fun WardrobeScreen() {
     }
 }
 
+/**
+ * Uma coleção: as quatro peças (as que faltam aparecem trancadas, e tocar nelas faz o Folha
+ * experimentar), a recompensa exclusiva e o andamento. Completa, veste o conjunto inteiro num toque.
+ */
+@Composable
+private fun CollectionCard(c: br.com.estudario.domain.FolhaCollection, progress: ProgressEngine.ProgressSummary, onDress: (List<FolhaItem>) -> Unit, onTry: (FolhaItem) -> Unit) {
+    val pieces = FolhaWardrobe.piecesOf(c)
+    val reward = FolhaWardrobe.rewardOf(c) ?: return
+    val have = pieces.count { FolhaWardrobe.unlocked(it, progress) }
+    val complete = have == pieces.size
+    Div({ classes(*listOfNotNull("wd-col", if (complete) "done" else null).toTypedArray()) }) {
+        Div({ classes("wd-col-head") }) {
+            Div { B { Text(c.name) }; P({ classes("xs", "muted") }) { Text(c.description) } }
+            Span({ classes("wd-col-count", if (complete) "done" else "todo") }) { if (complete) Icon("check_circle", filled = true); Text("$have/${pieces.size}") }
+        }
+        Div({ classes("wd-col-body") }) {
+            Div({ classes("wd-col-pieces") }) {
+                pieces.forEach { item ->
+                    val open = FolhaWardrobe.unlocked(item, progress)
+                    Button({
+                        type(ButtonType.Button)
+                        classes(*listOfNotNull("wd-col-piece", if (!open) "locked" else null).toTypedArray())
+                        attr("title", if (open) item.name else "${item.name} · ${FolhaWardrobe.requirement(item)}")
+                        onClick { onTry(item) }
+                    }) {
+                        PieceThumb(item, 64)
+                        if (!open) Span({ classes("wd-col-lock") }) { Icon("lock", filled = true) }
+                        Span({ classes("wd-col-slot") }) { Text(item.slot.label) }
+                        Span({ classes("wd-col-name") }) { Text(item.name) }
+                    }
+                }
+            }
+            Div({ classes("wd-col-arrow"); attr("aria-hidden", "true") }) { Text("→") }
+            Button({
+                type(ButtonType.Button)
+                classes(*listOfNotNull("wd-col-reward", rarityClass(reward.rarity), if (!complete) "locked" else null).toTypedArray())
+                attr("title", "${reward.name} · recompensa da coleção")
+                onClick { onTry(reward) }
+            }) {
+                Span({ classes("wd-rarity", rarityClass(reward.rarity)) }) { Text(reward.rarity.label) }
+                PieceThumb(reward, 92)
+                B({ classes("wd-col-name") }) { Text(reward.name) }
+                Span({ classes("xs", "muted") }) { Text("Recompensa exclusiva") }
+            }
+        }
+        Div({ classes("wd-col-foot") }) {
+            ProgressBar(have.toDouble() / pieces.size)
+            if (complete) Btn("Vestir conjunto", { onDress(pieces + reward) }, style = "tonal", small = true, icon = "checkroom")
+            else Span({ classes("xs", "muted") }) { Text("Falta: " + pieces.filterNot { FolhaWardrobe.unlocked(it, progress) }.joinToString(", ") { "${it.name} (${it.slot.label.lowercase()})" }) }
+        }
+    }
+}
+
+/** O Folha vestindo uma peça (o resto do visual como está), em imagem parada. */
+@Composable
+private fun PieceThumb(item: FolhaItem, size: Int) {
+    val v = FolhaLook.version
+    val src = remember(item.slot, item.id, size, v) {
+        runCatching { window.asDynamic().folhaPng(kotlin.js.json("mood" to showcaseMood(item.slot), "size" to size, item.slot.key to item.id)) as? String }.getOrNull() ?: "icon.png"
+    }
+    Img(src = src, alt = "", attrs = { classes("wd-thumb"); attr("style", "width:${size}px;height:${size}px"); attr("aria-hidden", "true") })
+}
+
 @Composable
 private fun AutoDetail(icon: String, title: String, text: String) {
     Li {
@@ -284,7 +378,7 @@ private fun WardrobeTile(item: FolhaItem, open: Boolean, selected: Boolean, tryi
             open -> Span({ classes("wd-state") }) { Text("Vestir") }
             else -> Span({ classes("wd-state", "lock") }) {
                 Icon("lock", filled = true)
-                Text(item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema")
+                Text(item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema")
             }
         }
         if (!open) FolhaWardrobe.progress(item, progress)?.let { (cur, target, _) -> ProgressBar(cur.toDouble() / target) }

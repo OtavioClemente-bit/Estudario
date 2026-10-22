@@ -47,6 +47,8 @@
     ouro: { c: ["#FFDD84", "#EBB13A", "#BD8214"], under: "#7A4F05", corner: "silver", pattern: "shine", arm: ["#C98A12", "#FFD978"] },
     obsidiana: { c: ["#34343F", "#1B1B24", "#0C0C12"], under: "#000000", corner: "gold", pattern: "foil", arm: ["#22222C", "#4A4A5C"] },
     diamante: { c: ["#EAF6FF", "#B9DDF7", "#86BCE6"], under: "#4F7FA6", corner: "silver", pattern: "facets", arm: ["#6FA9D9", "#BFE3FF"] },
+    tweed: { c: ["#9A8A78", "#7A6B5B", "#5A4D40"], under: "#2E241B", corner: "silver", pattern: "tweed", stitch: "rgba(232,214,186,0.7)", arm: ["#6A5B4C", "#A4937F"] },
+    real: { c: ["#8A4FD6", "#6430A8", "#45187C"], under: "#22093F", corner: "gold", pattern: "fleur", arm: ["#5A2A9C", "#9A6BE0"] },
   };
   // Fitas: escuro, meio e claro (quatro cores = degradê pronto, como o arco-íris).
   const RIBBONS = {
@@ -62,8 +64,11 @@
   };
   // O que a pessoa escolheu e o contexto do dia; o site atualiza por window.folhaSetLook (veja o fim do arquivo).
   // streak: dias seguidos (medalha no capelo a partir de 7); atRisk: a sequência pode cair hoje; hour: para testes.
-  const SLOTS = ["cover", "ribbon", "hat", "eyes", "neck", "hand", "aura", "gloves", "pet"];
-  const LOOK = { cover: "indigo", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
+  // O próprio Folha: cor da tinta (olhos, sobrancelhas, boca) e das bochechas.
+  const INKS = { marinho: INK, grafite: "#2B2B30", ameixa: "#4A1E4F", cafe: "#3E2A1E", floresta: "#14382B" };
+  const CHEEKS = { rosa: CHEEK, pessego: "#FFB98A", lilas: "#C9A6F4", coral: "#FF8C75", nenhuma: null };
+  const SLOTS = ["cover", "pages", "ink", "cheeks", "ribbon", "gloves", "hat", "eyes", "neck", "hand", "aura", "pet"];
+  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
   // Escolhas antigas (um "acessório" só) viram a peça equivalente.
   const LEGACY_ACC = { oculos: ["eyes", "leitura"], gravata: ["neck", "borboleta"], estrela: ["neck", "broche"], louros: ["hat", "louros"], lapis: ["hand", "lapis"] };
   function resolveLook(el, over) {
@@ -75,6 +80,7 @@
     return {
       cover, coverId: a("cover"), ribbon: RIBBONS[a("ribbon")] || RIBBONS.menta, hat: a("hat"), eyes: a("eyes"), neck: a("neck"), hand: a("hand"),
       aura: a("aura"), gloves: GLOVES[a("gloves")] || GLOVES.branca, arm: cover.arm, pet: a("pet"),
+      pages: a("pages"), ink: INKS[a("ink")] || INK, cheek: a("cheeks") in CHEEKS ? CHEEKS[a("cheeks")] : CHEEK,
       streak: plain ? 0 : LOOK.streak, atRisk: !plain && LOOK.atRisk,
       morning: scene && h >= 5 && h < 11, night: scene && (h >= 22 || h < 5),
     };
@@ -351,6 +357,26 @@
     stroke(g, fold, rgba(GUTTER, 0.18), 0.25);
   }
 
+  // Padrão do papel (pautado, quadriculado, pontilhado, partitura), bem leve, por baixo do rosto.
+  function drawPagePattern(g, kind, left, right) {
+    if (!kind || kind === "lisa") return;
+    for (const page of [left, right]) {
+      g.save(); g.clip(page);
+      if (kind === "pautada") {
+        for (let y = 46; y < 88; y += 3.6) line(g, "rgba(111,176,255,0.32)", 10, y, 90, y + 1, 0.22, false);
+        line(g, "rgba(240,85,120,0.35)", 17, 38, 17, 90, 0.25, false); line(g, "rgba(240,85,120,0.35)", 83, 38, 83, 90, 0.25, false);
+      } else if (kind === "quadriculada") {
+        for (let y = 40; y < 90; y += 3.2) line(g, "rgba(111,176,255,0.24)", 10, y, 90, y, 0.18, false);
+        for (let x = 12; x < 90; x += 3.2) line(g, "rgba(111,176,255,0.24)", x, 36, x, 90, 0.18, false);
+      } else if (kind === "pontilhada") {
+        for (let y = 42; y < 88; y += 3.2) for (let x = 13; x < 88; x += 3.2) circle(g, "rgba(90,90,130,0.28)", 0.2, x, y);
+      } else if (kind === "partitura") {
+        for (const y0 of [44, 56, 68, 80]) for (let i = 0; i < 5; i++) line(g, "rgba(60,50,110,0.22)", 10, y0 + i * 1.3, 90, y0 + i * 1.3 + 0.6, 0.18, false);
+      }
+      g.restore();
+    }
+  }
+
   // Textura da capa (só aparece nas bordas e no pé do livro, onde a capa fica à mostra).
   function drawCoverPattern(g, t, C, cover) {
     const pat = C.pattern;
@@ -366,6 +392,13 @@
       const h = (t * 40) % 360, hg = g.createLinearGradient(0, 40, 100, 95);
       for (let i = 0; i <= 4; i++) hg.addColorStop(i / 4, `hsla(${(h + i * 72) % 360},90%,72%,0.55)`);
       g.fillStyle = hg; g.fill(cover);
+    } else if (pat === "tweed") {
+      // espinha de peixe: zigue-zague miúdo em duas tonalidades
+      for (let y = 40; y < 96; y += 1.6) for (let x = 6; x < 96; x += 3.2) { const k = ((x + y) / 3.2) % 2 < 1; line(g, k ? "rgba(255,240,220,0.16)" : "rgba(30,20,10,0.22)", x, y, x + 1.6, y + (k ? 1.2 : -1.2), 0.35, false); }
+    } else if (pat === "fleur") {
+      // veludo com losangos dourados bordados
+      for (let y = 44; y < 94; y += 4) for (let x = (y % 8 < 4 ? 9 : 11); x < 92; x += 4) { const d = new Path2D(); d.moveTo(x, y - 0.9); d.lineTo(x + 0.7, y); d.lineTo(x, y + 0.9); d.lineTo(x - 0.7, y); d.closePath(); g.fillStyle = "rgba(245,196,81,0.55)"; g.fill(d); }
+      const sh = g.createLinearGradient(8, 40, 92, 95); sh.addColorStop(0, "rgba(255,255,255,0.10)"); sh.addColorStop(0.5, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(0,0,0,0.12)"); g.fillStyle = sh; g.fill(cover);
     } else if (pat === "foil") {
       for (let x = -50; x < 100; x += 7) line(g, "rgba(245,184,61,0.45)", x, 40, x + 54, 95, 0.25, false);
     } else if (pat === "facets") {
@@ -425,6 +458,7 @@
     const left = page(-1), right = page(1);
     g.fillStyle = hGrad(g, [PAPER_MID, PAPER, PAPER, PAPER_MID], 12, 50); g.fill(left);
     g.fillStyle = hGrad(g, [PAPER_MID, PAPER, PAPER, "#F1EDE6"], 50, 88); g.fill(right);
+    if (!small) drawPagePattern(g, look.pages, left, right);
     const gutter = [[0, rgba(GUTTER, 0)], [0.55, rgba(GUTTER, 0.035)], [0.85, rgba(GUTTER, 0.10)], [1, rgba(GUTTER, 0.20)]];
     g.fillStyle = hGrad(g, gutter, 39, 50); g.fill(left);
     g.fillStyle = hGrad(g, gutter, 61, 50); g.fill(right);
@@ -500,36 +534,36 @@
 
   // ---- rosto
   function drawFace(g, s) {
+    const INKC = (s.look && s.look.ink) || INK, CHEEKC = s.look && "cheek" in s.look ? s.look.cheek : CHEEK;
     const { t, mood, P, blink, wink, small } = s;
     const gulp = s.gulp || 0;
     const eyeL = [31 + P.lookX * 1.6, 61 + P.lookY * 1.4], eyeR = [69 + P.lookX * 1.6, 61 + P.lookY * 1.4];
-    oval(g, rgba(CHEEK, P.cheek), 19, 67, 9, 5);
-    oval(g, rgba(CHEEK, P.cheek), 72, 67, 9, 5);
+    if (CHEEKC) { oval(g, rgba(CHEEKC, P.cheek), 19, 67, 9, 5); oval(g, rgba(CHEEKC, P.cheek), 72, 67, 9, 5); }
     const eye = ([x, y], side, extraLid) => {
       if (mood === "dizzy") {           // espiral girando
         const sp = new Path2D(), a0 = t * 7 * side;
         for (let i = 0; i <= 40; i++) { const a = a0 + i * 0.42, rr = 0.25 + i * 0.12; i ? sp.lineTo(x + cos(a) * rr, y + sin(a) * rr * 1.15) : sp.moveTo(x + cos(a) * rr, y + sin(a) * rr * 1.15); }
-        stroke(g, sp, INK, small ? 1.6 : 1.2); return;
+        stroke(g, sp, INKC, small ? 1.6 : 1.2); return;
       }
       if (mood === "ecstatic" && blink < 0.5) {   // olhos de estrela, pulsando
         const st = star5(g, x, y, (small ? 6.4 : 5.8) * (1 + 0.1 * sin(t * 9)));
         g.fillStyle = vGrad(g, ["#FFF1BF", GOLD, "#E39A1E"], y - 6, y + 5); g.fill(st);
-        g.strokeStyle = INK; g.lineWidth = small ? 1.2 : 0.8; g.lineJoin = "round"; g.stroke(st);
+        g.strokeStyle = INKC; g.lineWidth = small ? 1.2 : 0.8; g.lineJoin = "round"; g.stroke(st);
         if (!small) circle(g, "rgba(255,255,255,0.9)", 0.9, x - 1.2, y - 1.6);
         return;
       }
       const rx = 4.4 * P.eyeScale * (small ? 1.18 : 1), ry = 5.8 * P.eyeScale * (small ? 1.1 : 1);
       const up = clamp(Math.max(P.up, blink, extraLid), 0, 1), low = clamp(P.low * (1 - blink), 0, 1);
       if (small && low > 0.45 && blink < 0.5) {   // pequeno e feliz: o arco clássico (^^) lê melhor
-        const p = new Path2D(); p.moveTo(x - 4.5, y + 1.5); p.quadraticCurveTo(x, y - 5, x + 4.5, y + 1.5); stroke(g, p, INK, 2.8);
+        const p = new Path2D(); p.moveTo(x - 4.5, y + 1.5); p.quadraticCurveTo(x, y - 5, x + 4.5, y + 1.5); stroke(g, p, INKC, 2.8);
         return;
       }
       if (up > 0.96) {         // fechado: só o traço
-        const p = new Path2D(); p.moveTo(x - 4.4, y + 0.4); p.quadraticCurveTo(x, y + 2.4, x + 4.4, y + 0.4); stroke(g, p, INK, small ? 2.2 : 1.8);
+        const p = new Path2D(); p.moveTo(x - 4.4, y + 0.4); p.quadraticCurveTo(x, y + 2.4, x + 4.4, y + 0.4); stroke(g, p, INKC, small ? 2.2 : 1.8);
         return;
       }
       g.save();
-      g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 2 * PI); g.fillStyle = INK; g.fill();
+      g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 2 * PI); g.fillStyle = INKC; g.fill();
       if (up < 0.85 && low < 0.9) {
         const pr = P.pupil;
         circle(g, "#FFFFFF", 1.7 * pr, x - 1.4 + P.lookX * 0.6, y - 2.2);
@@ -545,7 +579,7 @@
         const mid = (ya + yb) / 2 + 1.4 * (1 - up);
         const lid = new Path2D(); lid.moveTo(xa, y - ry - 2); lid.lineTo(xb, y - ry - 2); lid.lineTo(xb, yb); lid.quadraticCurveTo(x, mid, xa, ya); lid.closePath();
         g.fillStyle = PAPER; g.fill(lid);
-        const e = new Path2D(); e.moveTo(xa, ya); e.quadraticCurveTo(x, mid, xb, yb); stroke(g, e, INK, 1.2);
+        const e = new Path2D(); e.moveTo(xa, ya); e.quadraticCurveTo(x, mid, xb, yb); stroke(g, e, INKC, 1.2);
       }
       if (low > 0.01) {
         // de baixo (feliz): sobe curvada e deixa o olho em meia-lua
@@ -564,7 +598,7 @@
       const by = y - 9.8 + P.browY - (side > 0 ? P.browR : 0) + (blink > 0.5 ? 0.6 : 0);
       const inner = [x - side * 4.2, by - P.browIn * 2.2 + (1 - P.browIn) * 0.4], outer = [x + side * 4.4, by + P.browIn * 1.2];
       const b = new Path2D(); b.moveTo(outer[0], outer[1]); b.quadraticCurveTo(x, by - 1.4 + P.browIn * 0.6, inner[0], inner[1]);
-      stroke(g, b, rgba(INK, 0.9 * browA), small ? 2.2 : 1.7);
+      stroke(g, b, rgba(INKC, 0.9 * browA), small ? 2.2 : 1.7);
     }
     // lágrima (triste)
     if (mood === "sad" && !small) {
@@ -579,7 +613,7 @@
     const mx = 50, my = 73;
     if (gulp > 0.08) {
       const r = 1.5 + 3.2 * gulp;
-      oval(g, INK, mx - r, my - r * 1.1, r * 2, r * 2.2);
+      oval(g, INKC, mx - r, my - r * 1.1, r * 2, r * 2.2);
       for (let i = 0; i < 4; i++) { const a = i * (PI / 2) + 0.5; circle(g, rgba(SPARK, gulp), 1.8 * gulp * 0.9, 50 + cos(a) * (22 + 14 * (1 - gulp)), 58 + sin(a) * (16 + 10 * (1 - gulp))); }
       return;
     }
@@ -589,22 +623,22 @@
       else { open = (0.5 + 0.5 * sin(t * 13)) * (0.55 + 0.45 * abs(sin(t * 3.1))); w = 4.2 + 0.8 * open; }
     }
     if (mood === "surprised") {         // "Oh!"
-      oval(g, INK, mx - 2.6, my - 3, 5.2, 6.4); oval(g, CHEEK, mx - 1.6, my + 0.9, 3.2, 1.8); return;
+      oval(g, INKC, mx - 2.6, my - 3, 5.2, 6.4); oval(g, CHEEK, mx - 1.6, my + 0.9, 3.2, 1.8); return;
     }
     if (mood === "dizzy") {             // boca ondulada
       const wv = new Path2D(); for (let i = 0; i <= 12; i++) { const x = mx - 5 + i * (10 / 12), y = my + sin(i * 1.4 + t * 8) * 0.9; i ? wv.lineTo(x, y) : wv.moveTo(x, y); }
-      stroke(g, wv, INK, small ? 2.4 : 1.8); return;
+      stroke(g, wv, INKC, small ? 2.4 : 1.8); return;
     }
     if (mood === "sad") c += sin(t * 9) * 0.35;
     const corner = my - c * 0.3;
     if (open < 0.12) {
       const p = new Path2D(); p.moveTo(mx - w, corner); p.quadraticCurveTo(mx, corner + c * 1.6, mx + w, corner);
-      stroke(g, p, INK, small ? 2.8 : 2.3);
-      if (P.tongue > 0.5) { oval(g, CHEEK, mx + w - 2.4, corner - 0.2, 2.6, 2.2); stroke(g, p, INK, small ? 2.8 : 2.3); }   // língua no canto (concentrado)
+      stroke(g, p, INKC, small ? 2.8 : 2.3);
+      if (P.tongue > 0.5) { oval(g, CHEEK, mx + w - 2.4, corner - 0.2, 2.6, 2.2); stroke(g, p, INKC, small ? 2.8 : 2.3); }   // língua no canto (concentrado)
     } else {
       const top = corner + c * 0.15 - open * 0.6, depth = Math.max(1.4, c * 1.1) + open * 5.4;
       const p = new Path2D(); p.moveTo(mx - w, corner); p.quadraticCurveTo(mx, top, mx + w, corner); p.bezierCurveTo(mx + w * 0.95, corner + depth * 1.25, mx - w * 0.95, corner + depth * 1.25, mx - w, corner); p.closePath();
-      g.fillStyle = INK; g.fill(p);
+      g.fillStyle = INKC; g.fill(p);
       g.save(); g.clip(p); oval(g, CHEEK, mx - w * 0.55, corner + depth - 1.6 * open - 0.6, w * 1.1, 3.4 * open + 1); g.restore();
     }
   }
@@ -718,6 +752,23 @@
       line(g, "#8E92A6", 0, -17.6, 0, -20.2, 0.5);
       circle(g, sin(t * 4) > 0 ? "#FF5C4D" : MINT, 0.9, 0, -20.6);
       line(g, "rgba(255,255,255,0.6)", -4.4, -16.6, -2.6, -17, 0.4);
+    } else if (kind === "coelho") {
+      // coelhinho: orelhas compridas que balançam, nariz que mexe e pompom de rabo
+      const ear = sin(t * 2.2) * 0.12, twitch = abs(sin(t * 7)) * 0.4;
+      for (const s of [-1, 1]) {
+        g.save(); g.translate(s * 1.6, -14); g.rotate(s * 0.18 + ear * s + (party ? sin(t * 9) * 0.15 : 0) + (sad ? s * 0.9 : 0));
+        const e = new Path2D(); e.ellipse(0, -5, 1.7, 5.4, 0, 0, 2 * PI); g.fillStyle = "#F6F2FF"; g.fill(e); stroke(g, e, "rgba(150,140,190,0.6)", 0.3);
+        const inner = new Path2D(); inner.ellipse(0, -5, 0.8, 4.2, 0, 0, 2 * PI); g.fillStyle = "#FFC2D4"; g.fill(inner);
+        g.restore();
+      }
+      circle(g, "#FFFFFF", 1.8, -4.6, -3);
+      const body = new Path2D(); body.ellipse(0, -4.6, 5, 4.6, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#FFFFFF", "#E6E1F5"], -9, 0); g.fill(body); stroke(g, body, "rgba(150,140,190,0.5)", 0.3);
+      const head = new Path2D(); head.ellipse(0, -11.6, 4.4, 4, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#FFFFFF", "#ECE8F8"], -15.6, -7.6); g.fill(head); stroke(g, head, "rgba(150,140,190,0.5)", 0.3);
+      eye(-1.6, -12, 0.75); eye(1.6, -12, 0.75);
+      const nose = new Path2D(); nose.moveTo(-0.5, -10.4 - twitch * 0.3); nose.lineTo(0.5, -10.4 - twitch * 0.3); nose.lineTo(0, -9.8); nose.closePath(); g.fillStyle = "#FF8FA3"; g.fill(nose);
+      const m = new Path2D(); m.moveTo(-0.9, -9.2); m.quadraticCurveTo(-0.45, -8.7, 0, -9.4); m.quadraticCurveTo(0.45, -8.7, 0.9, -9.2); stroke(g, m, INK, 0.35);
+      circle(g, rgba(CHEEK, 0.6), 0.8, -2.8, -10.4); circle(g, rgba(CHEEK, 0.6), 0.8, 2.8, -10.4);
+      for (const s of [-1, 1]) { g.beginPath(); g.ellipse(s * 2.1, -0.5, 1.6, 0.9, 0, 0, 2 * PI); g.fillStyle = "#F6F2FF"; g.fill(); }
     } else if (kind === "dragao") {
       // dragãozinho: asas batendo, rabo com espinho e baforada de fogo quando comemora
       const flap = sin(t * (party ? 10 : 3)) * 0.35;
@@ -1239,6 +1290,15 @@
       const plate = new Path2D(); plate.roundRect(-1.8, -3, 3.6, 1.4, 0.3); g.fillStyle = "#F5C451"; g.fill(plate);
       g.fillStyle = "rgba(160,100,10,0.8)"; g.fill(star5(g, 0, -10.4, 2));
       if (party) { const k = abs(sin(t * 3)); star4(g, -3, -12.4, 2.6 * k, `rgba(255,255,255,${k})`); star4(g, 5.5, -15.5, 1.6 * (1 - k), `rgba(255,240,180,${1 - k})`); }
+    } else if (kind === "pasta") {
+      // pasta executiva de couro: alça na mão, fecho dourado, costura e cantos reforçados
+      const handle = new Path2D(); handle.moveTo(-2.6, 0.6); handle.quadraticCurveTo(-2.6, -2, 0, -2); handle.quadraticCurveTo(2.6, -2, 2.6, 0.6); stroke(g, handle, "#3A2410", 1.3);
+      const body = new Path2D(); body.roundRect(-7, 0.6, 14, 10, 1.4); g.fillStyle = vGrad(g, ["#8A5A2B", "#6B4320", "#4E2F15"], 0.6, 10.6); g.fill(body); stroke(g, body, "#2E1A08", 0.4);
+      const flap = new Path2D(); flap.roundRect(-7, 0.6, 14, 3.6, 1.2); g.fillStyle = vGrad(g, ["#9C6A35", "#7A4E26"], 0.6, 4.2); g.fill(flap);
+      g.save(); g.setLineDash([0.6, 0.5]); const st = new Path2D(); st.roundRect(-6.2, 1.4, 12.4, 8.4, 1); stroke(g, st, "rgba(255,226,180,0.55)", 0.2); g.restore();
+      for (const x of [-4, 4]) { const c = new Path2D(); c.roundRect(x - 1, 3.2, 2, 1.8, 0.4); g.fillStyle = vGrad(g, GOLD3, 3.2, 5); g.fill(c); }
+      for (const [x, y] of [[-6.4, 1.2], [6.4, 1.2], [-6.4, 10], [6.4, 10]]) circle(g, "#E9AE34", 0.5, x, y);
+      line(g, "rgba(255,255,255,0.25)", -5.6, 5.6, 2, 5.6, 0.4);
     } else if (kind === "lupa") {
       // lupa de detetive: aro de latão chanfrado, vidro azulado com reflexos e cabo de madeira
       line(g, "#5A3D20", 1.4, 5.4, -2.2, -4.2, 2.2); line(g, "#8A5A2B", 1.2, 5, -2, -4, 1.2);
@@ -1288,7 +1348,7 @@
       // três estrelas em órbita: passam por trás e pela frente do Folha
       for (let i = 0; i < 3; i++) {
         const a = t * 1.6 + i * 2 * PI / 3, front = sin(a) > 0; if (front === behind) continue;
-        const x = 50 + cos(a) * 50, y = 62 + sin(a) * 12, r = (front ? 3.8 : 2.6) * boost;
+        const x = 50 + cos(a) * 50, y = 80 + sin(a) * 17, r = (front ? 3.8 : 2.6) * boost;
         g.fillStyle = front ? vGrad(g, GOLD3, y - r, y + r) : "rgba(245,184,61,0.55)"; g.fill(star5(g, x, y, r));
       }
     } else if (kind === "chamas" && behind) {
@@ -1312,11 +1372,32 @@
         else { const sp = new Path2D(); sp.moveTo(-3, 0); sp.bezierCurveTo(-1.5, -1.6, -0.5, 1.6, 1, 0); sp.bezierCurveTo(2, -1.4, 2.6, 0.8, 3.4, 0); stroke(g, sp, rgba(c, 0.95), 0.7 * boost); }
         g.restore();
       }
+    } else if (kind === "runas") {
+      // runas mágicas: um anel de símbolos que brilham, gira devagar e passa por trás e pela frente
+      const R = [[0, -2, 0, 2, -1.4, -0.6, 1.4, 0.6], [-1.4, -2, 1.4, -2, 0, -2, 0, 2], [-1.2, 2, 0, -2, 0, -2, 1.2, 2], [-1.4, -1, 1.4, -1, -1.4, 1, 1.4, 1], [0, -2, 0, 2, 0, 0, 1.4, -1.4], [-1.4, 2, -1.4, -2, -1.4, 0, 1.4, 0]];
+      for (let i = 0; i < 10; i++) {
+        const a = t * 0.6 + i * 2 * PI / 10, front = sin(a) > 0; if (front === behind) continue;
+        const x = 50 + cos(a) * 52, y = 82 + sin(a) * 15, k = (front ? 1 : 0.7) * boost, al = (front ? 0.95 : 0.45) * (0.7 + 0.3 * sin(t * 3 + i));
+        const glowG = g.createRadialGradient(x, y, 0.2, x, y, 4.6 * k); glowG.addColorStop(0, `rgba(126,224,184,${0.55 * al})`); glowG.addColorStop(1, "rgba(149,99,255,0)");
+        g.fillStyle = glowG; g.beginPath(); g.arc(x, y, 4.6 * k, 0, 2 * PI); g.fill();
+        const r = R[i % R.length]; g.save(); g.translate(x, y); g.scale(k, k);
+        g.strokeStyle = `rgba(40,150,110,${al})`; g.lineWidth = 0.6; g.lineCap = "round";
+        g.beginPath(); g.moveTo(r[0], r[1]); g.lineTo(r[2], r[3]); g.moveTo(r[4], r[5]); g.lineTo(r[6], r[7]); g.stroke(); g.restore();
+      }
+    } else if (kind === "fogos" && !behind) {
+      // fogos de artifício: estouros coloridos em volta, cada um com rastro e faíscas caindo
+      const cols = ["#FFD84A", "#FF8FA3", "#7EE0B8", "#6FB0FF", "#B995F5"];
+      for (let i = 0; i < (small ? 2 : 4); i++) {
+        const ph = (t * 0.42 + i * 0.27) % 1, cx = [12, 88, 20, 82][i], cy = [24, 20, 6, 4][i], c = cols[(i + Math.floor(t * 0.42 + i * 0.27)) % 5];
+        if (ph < 0.25) { const u = ph / 0.25; line(g, rgba(c, 0.8), cx, cy + 30 - u * 30, cx, cy + 34 - u * 30, 0.6); continue; }
+        const u = (ph - 0.25) / 0.75, rr = (3 + u * 10) * boost, al = 1 - u;
+        for (let j = 0; j < 12; j++) { const a = j * PI / 6, px = cx + cos(a) * rr, py = cy + sin(a) * rr + u * u * 4; line(g, rgba(c, al * 0.7), cx + cos(a) * rr * 0.55, cy + sin(a) * rr * 0.55 + u * u * 2.4, px, py, 0.8); circle(g, rgba(j % 2 ? "#FFFFFF" : c, al), 0.8, px, py); }
+      }
     } else if (kind === "galaxia") {
       // anel de estrelinhas e poeira cósmica em volta (metade passa por trás)
       for (let i = 0; i < 18; i++) {
         const a = t * 0.7 + i * 2 * PI / 18, front = sin(a) > 0; if (front === behind) continue;
-        const x = 50 + cos(a) * 54, y = 60 + sin(a) * 14, c = i % 3 === 0 ? "#FFFFFF" : i % 3 === 1 ? "#B995F5" : "#6FB0FF";
+        const x = 50 + cos(a) * 54, y = 80 + sin(a) * 17, c = i % 3 === 0 ? "#FFFFFF" : i % 3 === 1 ? "#B995F5" : "#6FB0FF";
         circle(g, rgba(c, front ? 0.95 : 0.5), (front ? 1.3 : 0.8) * boost, x, y);
         if (i % 6 === 0) star4(g, x, y, (front ? 3.4 : 2.2) * boost, rgba(c, front ? 0.9 : 0.5));
       }
@@ -1720,8 +1801,23 @@
       for (let i = 0; i < steps; i++) springTo(this._sq, "s", 0, h, 260);
     }
 
+    // Quadros por segundo: 60 em movimento; 30 quando ele está calmo e parado (respirando, piscando,
+    // falando), 20 cochilando e quando há muitos Folhas pequenos na tela. Economiza bateria sem perder
+    // fluidez onde ela aparece.
+    _fpsCap(now) {
+      if (!this._st || this._leaveAt || this._dizzyUntil > now || this._bounceAt >= 0) return 0;
+      const m = this._moodName, v = Math.abs(this._st.v.hop || 0) + Math.abs(this._st.v.hR1 || 0) + Math.abs(this._st.v.hL1 || 0);
+      if (v > 14 || Math.abs(this._sq.v.s || 0) > 0.5 || now - POINTER.at < 1500) return 0;
+      if (m === "sleepy") return 20;
+      if (this._small && live.size > 3) return 20;
+      if (m === "idle" || m === "focus" || m === "sad" || m === "talking" || m === "proud") return this._fid ? 0 : 30;
+      return 0;
+    }
     _frame(now) {
       if (!this._visible || !this._canvas) return;
+      const cap = reduceMotion.matches ? 0 : this._fpsCap(now);
+      if (cap && this._lastDraw && now - this._lastDraw < 1000 / cap - 4) return;
+      this._lastDraw = now;
       const g = this._canvas.getContext("2d");
       if (!g) return;
       let mood = this.mood; const still = reduceMotion.matches;
