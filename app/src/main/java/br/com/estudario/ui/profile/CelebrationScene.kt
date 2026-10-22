@@ -59,7 +59,7 @@ fun FolhaScene(attrs: List<Pair<String, String>>, modifier: Modifier = Modifier)
         val sets = attrs.joinToString("") { (k, v) -> "c.setAttribute(${JSONObject.quote(k)},${JSONObject.quote(v)});" }
         """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:sans-serif}estudario-cena{width:100%}</style></head>
-<body><script src="folha-live.js"></script><script>folhaSetLook($look);var c=document.createElement('estudario-cena');$sets document.body.appendChild(c);</script></body></html>"""
+<body><script src="turma.js"></script><script src="folha-live.js"></script><script>folhaSetLook($look);var c=document.createElement('estudario-cena');$sets document.body.appendChild(c);</script></body></html>"""
     }
     AndroidView(
         factory = { ctx ->

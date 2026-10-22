@@ -27,6 +27,10 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -178,7 +182,10 @@ private class Look(
 )
 
 /** O próprio Folha: tinta dos olhos, sobrancelhas e boca, e cor das bochechas. */
-private val INKS = mapOf("marinho" to Color(0xFF26215C), "grafite" to Color(0xFF2B2B30), "ameixa" to Color(0xFF4A1E4F), "cafe" to Color(0xFF3E2A1E), "floresta" to Color(0xFF14382B))
+private val INKS = mapOf(
+    "marinho" to Color(0xFF26215C), "azul" to Color(0xFF1F4FD8), "vermelha" to Color(0xFFC42F4B), "verde" to Color(0xFF0F8A5F), "grafite" to Color(0xFF3A3A44),
+    "roxa" to Color(0xFF6D3CE0), "cafe" to Color(0xFF6B3E1E), "ameixa" to Color(0xFF7A1F6A), "floresta" to Color(0xFF14523A), "dourada" to Color(0xFFA8700A), "nanquim" to Color(0xFF0B0B10),
+)
 private val CHEEKS = mapOf("rosa" to Color(0xFFF4A6C0), "pessego" to Color(0xFFFFB98A), "lilas" to Color(0xFFC9A6F4), "coral" to Color(0xFFFF8C75), "nenhuma" to null)
 
 private fun resolveLook(o: FolhaStyle?): Look {
@@ -323,7 +330,7 @@ fun FolhaTalking(size: Dp, text: String, modifier: Modifier = Modifier, onClick:
  * O Folha como imagem, para o ícone grande das notificações (fora do Compose). O ícone pequeno da
  * barra continua monocromático, como o Android exige; este aparece colorido ao lado do texto.
  */
-fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY, style: FolhaStyle = FolhaStyle(plain = true)): android.graphics.Bitmap {
+fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY, style: FolhaStyle = FolhaStyle(plain = true), zoom: Triple<Float, Float, Float>? = null): android.graphics.Bitmap {
     val image = androidx.compose.ui.graphics.ImageBitmap(sizePx, sizePx)
     val canvas = androidx.compose.ui.graphics.Canvas(image)
     androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
@@ -335,7 +342,13 @@ fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY, style: FolhaStyl
         // Um quadro "bonito": olhos abertos, borla no meio do balanço; cabe a mão para o alto.
         val m = if (mood == FolhaMood.THINKING) FolhaMood.IDLE else mood
         val look = resolveLook(style)
-        val sim = FolhaSim().apply { small = sizePx < 160; holding = look.hand != "nenhum"; setMood(m); settle(m) }
+        val sim = FolhaSim().apply { small = zoom == null && sizePx < 160; holding = look.hand != "nenhum"; setMood(m); settle(m) }
+        if (zoom != null) {
+            // de perto: o ponto (x, y) da grade 100 x 100 fica no centro, aumentado z vezes
+            val (z, fx, fy) = zoom; val k = size.minDimension / 100f
+            translate(size.width / 2f - fx * k * z, size.height / 2f - fy * k * z) { scale(z, z, pivot = Offset.Zero) { drawFolha(sim.snapshot(0f, look)) } }
+            return@draw
+        }
         val pet = look.pet != "nenhum" && sizePx >= 160
         val wide = look.back != "nada" || look.aura == "holofote" || look.aura == "fogos"
         val fit = when { pet || wide -> 0.76f; m == FolhaMood.PRESENT -> 0.78f; else -> 0.9f }
@@ -790,7 +803,7 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
                     if (look.hand != "nenhum" && 'L' !in front) front = "L$front"
                     drawArms(f, "LR".filter { it !in front })
                     drawBook(t, mood, small, look)
-                    drawPageLines(t, mood, small)
+                    drawPageLines(t, mood, small, look.ink)
                     if (!small) drawDogEar(t, mood)
                     if (mood == FolhaMood.THINKING) drawTurningPage(t)
                     drawFace(f)
@@ -1045,7 +1058,7 @@ private fun DrawScope.drawBook(t: Float, mood: FolhaMood, small: Boolean, look: 
     val left = page(-1f); val right = page(1f)
     drawPath(left, Brush.horizontalGradient(listOf(PaperMid, Paper, Paper, PaperMid), startX = 12f, endX = 50f))
     drawPath(right, Brush.horizontalGradient(listOf(PaperMid, Paper, Paper, Color(0xFFF1EDE6)), startX = 50f, endX = 88f))
-    if (!small) drawPagePattern(look.pages, left, right)
+    if (!small) drawPagePattern(look.pages, left, right, look.ink, t)
     val gutter = arrayOf(0f to Gutter.copy(alpha = 0f), 0.55f to Gutter.copy(alpha = 0.035f), 0.85f to Gutter.copy(alpha = 0.10f), 1f to Gutter.copy(alpha = 0.20f))
     drawPath(left, Brush.horizontalGradient(*gutter, startX = 39f, endX = 50f))
     drawPath(right, Brush.horizontalGradient(*gutter, startX = 61f, endX = 50f))
@@ -1097,7 +1110,35 @@ private fun DrawScope.drawTurningPage(t: Float) {
 
 private fun lerpColor(a: Color, b: Color, f: Float) = Color(lerp(a.red, b.red, f), lerp(a.green, b.green, f), lerp(a.blue, b.blue, f), lerp(a.alpha, b.alpha, f))
 
-private fun DrawScope.drawPageLines(t: Float, mood: FolhaMood, small: Boolean) {
+/** Gerador fixo (mesma semente, mesmos rabiscos), como o seeded() do site. */
+private class Seeded(seed: Int) {
+    private var v = seed.toLong()
+    fun next(): Float { v = (v * 1103515245L + 12345L) and 0x7fffffffL; return v / 2147483647f }
+}
+
+/**
+ * Letra cursiva de mentira (não dá para ler, mas parece escrita à mão): laços em sequência, letras altas
+ * de vez em quando e espaço entre as palavras. Guardada por posição e semente.
+ */
+private val CURSIVE = HashMap<String, Path>()
+private fun cursive(x0: Float, y0: Float, len: Float, slope: Float, seed: Int, mirror: Boolean): Path = CURSIVE.getOrPut("$x0:$y0:$len:$slope:$seed:$mirror") {
+    val r = Seeded(seed); val d = if (mirror) -1f else 1f; var x = 0f
+    fun X(u: Float) = x0 + d * u
+    fun Y(u: Float) = y0 + slope * u
+    Path().apply {
+        moveTo(x0, y0)
+        while (x < len) {
+            val w = 1.1f + r.next() * 0.8f; val tall = r.next() < 0.22f; val gap = x > 3f && r.next() < 0.16f
+            if (gap) { x += 1.4f; moveTo(X(x), Y(x)); continue }
+            val h = if (tall) 2.6f else 1.3f
+            cubicTo(X(x + w * 0.7f), Y(x) - h, X(x + w * 0.1f), Y(x) - h, X(x + w * 0.45f), Y(x + w * 0.45f))
+            quadraticTo(X(x + w * 0.75f), Y(x + w) + 0.35f, X(x + w), Y(x + w))
+            x += w
+        }
+    }
+}
+
+private fun DrawScope.drawPageLines(t: Float, mood: FolhaMood, small: Boolean, ink: Color) {
     val writing = mood == FolhaMood.THINKING
     val cycle = (t % TURN_CYCLE) / TURN_CYCLE
     val lw = if (small) 2.4f else 1.6f
@@ -1443,23 +1484,106 @@ private fun vg(colors: List<Color>, y0: Float, y1: Float) = Brush.verticalGradie
 private fun hg(colors: List<Color>, x0: Float, x1: Float) = Brush.horizontalGradient(colors, startX = x0, endX = x1)
 
 /** Padrão do papel (pautado, quadriculado, pontilhado, partitura), bem leve, por baixo do rosto. */
-private fun DrawScope.drawPagePattern(kind: String, left: Path, right: Path) {
+/** Texto pequeno à mão nas páginas (fórmulas, letras capitulares), no tamanho da grade. */
+private fun DrawScope.pageText(text: String, x: Float, y: Float, size: Float, color: Color, rot: Float = 0f, bold: Boolean = false) =
+    rotate(rot * 180f / PIf, pivot = Offset(x, y)) {
+        drawIntoCanvas { c ->
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = size; this.color = color.toArgb(); isLinearText = true; isSubpixelText = true
+                typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, if (bold) android.graphics.Typeface.BOLD_ITALIC else android.graphics.Typeface.ITALIC)
+            }
+            c.nativeCanvas.drawText(text, x, y + size * 0.35f, paint)
+        }
+    }
+
+/** O papel das páginas. Os desenhos ficam nas margens (fora dos olhos e da boca) e o escrito sai na cor da tinta. */
+private fun DrawScope.drawPagePattern(kind: String, left: Path, right: Path, ink: Color, t: Float) {
     if (kind == "lisa") return
+    fun inkA(a: Float) = ink.copy(alpha = a * 0.5f)
+    fun penPath(block: Path.() -> Unit, c: Color, w: Float) = drawPath(Path().apply(block), c, style = stroke(w))
     for (page in listOf(left, right)) clipPath(page) {
         when (kind) {
             "pautada" -> {
-                var y = 46f; while (y < 88f) { line(Color(0x526FB0FF), 10f, y, 90f, y + 1f, 0.22f, false); y += 3.6f }
-                line(Color(0x59F05578), 17f, 38f, 17f, 90f, 0.25f, false); line(Color(0x59F05578), 83f, 38f, 83f, 90f, 0.25f, false)
+                var y = 44f; while (y < 88f) { line(Color(0x805A96F0), 10f, y, 90f, y + 1f, 0.28f, false); y += 3.6f }
+                line(Color(0x8CE84669), 16f, 38f, 16f, 90f, 0.35f, false); line(Color(0x8CE84669), 84f, 38f, 84f, 90f, 0.35f, false)
             }
             "quadriculada" -> {
-                var y = 40f; while (y < 90f) { line(Color(0x3D6FB0FF), 10f, y, 90f, y, 0.18f, false); y += 3.2f }
-                var x = 12f; while (x < 90f) { line(Color(0x3D6FB0FF), x, 36f, x, 90f, 0.18f, false); x += 3.2f }
+                var y = 39f; while (y < 90f) { line(Color(0x665A96F0), 10f, y, 90f, y, 0.22f, false); y += 3.2f }
+                var x = 11.6f; while (x < 90f) { line(Color(0x665A96F0), x, 36f, x, 90f, 0.22f, false); x += 3.2f }
             }
-            "pontilhada" -> { var y = 42f; while (y < 88f) { var x = 13f; while (x < 88f) { drawCircle(Color(0x475A5A82), 0.2f, Offset(x, y)); x += 3.2f }; y += 3.2f } }
-            "partitura" -> for (y0 in listOf(44f, 56f, 68f, 80f)) for (i in 0 until 5) line(Color(0x383C326E), 10f, y0 + i * 1.3f, 90f, y0 + i * 1.3f + 0.6f, 0.18f, false)
+            "pontilhada" -> { var y = 42f; while (y < 88f) { var x = 13f; while (x < 88f) { drawCircle(Color(0x73464678), 0.3f, Offset(x, y)); x += 3.2f }; y += 3.2f } }
+            "partitura" -> {
+                for (y0 in listOf(43f, 79f)) for (i in 0 until 5) line(Color(0x6B322864), 10f, y0 + i * 1.3f, 90f, y0 + i * 1.3f + 0.6f, 0.22f, false)
+                for ((x, y) in listOf(16f to 45.6f, 21f to 44.3f, 26f to 46.9f, 74f to 44.9f, 79f to 46.2f, 84f to 43.6f, 18f to 81.6f, 24f to 80.3f, 76f to 82.2f, 82f to 80.9f)) {
+                    rotate(-0.4f * 180f / PIf, pivot = Offset(x, y + 0.3f)) { oval(inkA(0.85f), x - 0.9f, y - 0.32f, 1.8f, 1.24f) }
+                    line(inkA(0.85f), x + 0.8f, y + 0.2f, x + 0.8f, y - 3.2f, 0.3f)
+                }
+                penPath({ moveTo(12.4f, 49f); cubicTo(10.6f, 46f, 14.6f, 44.4f, 13.4f, 42f); cubicTo(12.2f, 40.4f, 11.2f, 44f, 12.6f, 46.4f); cubicTo(14.4f, 48.6f, 11.4f, 49.8f, 11.6f, 47.4f) }, inkA(0.8f), 0.35f)
+            }
+            "anotada" -> {
+                for (e in listOf(floatArrayOf(15f, 55f, 7f, 0.02f, 0f), floatArrayOf(85f, 55f, 7f, 0.02f, 1f), floatArrayOf(27f, 84f, 10f, -0.04f, 0f), floatArrayOf(73f, 84f, 10f, -0.04f, 1f)))
+                    drawPath(cursive(e[0], e[1], e[2], e[3], (e[0] * 3 + e[1]).toInt(), e[4] > 0f), inkA(0.62f), style = stroke(0.26f))
+                penPath({ moveTo(15f, 60f); quadraticTo(19f, 59.2f, 23.6f, 60.2f) }, Color(0x66E84669), 0.3f)
+                penPath({ moveTo(80f, 70f); quadraticTo(84f, 71f, 85f, 75f); moveTo(84f, 73.6f); lineTo(85f, 75f); lineTo(86.2f, 73.8f) }, inkA(0.7f), 0.4f)
+            }
+            "rabiscos" -> {
+                penPath({ var a = 0f; while (a < 14f) { val r = 0.25f * a; val x = 18f + cos(a) * r; val y = 65f + sin(a) * r; if (a == 0f) moveTo(x, y) else lineTo(x, y); a += 0.3f } }, inkA(0.6f), 0.35f)
+                drawPath(star5(83f, 64f, 2.6f), Color(0x8CF5B83D)); drawPath(star5(83f, 64f, 2.6f), inkA(0.65f), style = stroke(0.3f))
+                drawPath(heart(19f, 76f, 1.8f), Color(0x80F05A78)); drawPath(heart(19f, 76f, 1.8f), inkA(0.6f), style = stroke(0.3f))
+                penPath({ moveTo(78f, 77f); quadraticTo(77.6f, 74.6f, 80f, 74.8f); quadraticTo(81f, 73f, 83f, 74.4f); quadraticTo(85.6f, 74.4f, 85f, 77f); close() }, inkA(0.55f), 0.35f)
+                penPath({ moveTo(28f, 84f); for (i in 1 until 9) lineTo(28f + i * 1.6f, 84f + if (i % 2 == 1) -1.2f else 0f) }, inkA(0.5f), 0.35f)
+                penPath({ moveTo(62f, 84.5f); quadraticTo(66f, 82f, 71f, 83.6f); moveTo(69.6f, 82.2f); lineTo(71f, 83.6f); lineTo(69.4f, 84.8f) }, inkA(0.55f), 0.35f)
+            }
+            "formulas" -> {
+                for ((txt, x, y, a) in listOf(Quad("x²+y²=r²", 13.4f, 55f, -0.04f), Quad("√2 ≈ 1,41", 13.6f, 60f, -0.03f), Quad("Σ aᵢ", 15f, 66f, 0f), Quad("π r²", 74f, 55f, 0.03f),
+                    Quad("f(x)=2x+1", 71f, 60f, 0.02f), Quad("Δ=b²−4ac", 70.4f, 66f, 0.03f), Quad("a/b", 28f, 84.4f, -0.04f), Quad("∴ x=3", 66f, 84.6f, -0.04f)))
+                    pageText(txt, x, y, 2.2f, inkA(0.8f), a)
+                drawRect(Color(0x4DE84669), Offset(69.6f, 63.8f), Size(12f, 4.4f), style = Stroke(0.22f))
+            }
+            "postits" -> for ((i, n) in listOf(Quad(13.4f, 52f, -0.12f, Color(0xFFFFE36B)), Quad(76f, 51f, 0.1f, Color(0xFFFF9DB8)), Quad(14f, 72f, 0.08f, Color(0xFF9FD3FF)), Quad(76f, 72f, -0.08f, Color(0xFFB9F2CF))).withIndex()) {
+                val (x, y, rot, c) = n; val cx = x + 5f; val cy = y + 5f
+                rotate(rot * 180f / PIf, pivot = Offset(cx, cy)) { scale(0.7f, 0.7f, pivot = Offset(cx, cy)) {
+                    drawRect(Color(0x1F3C2814), Offset(cx - 4.6f, cy - 4.2f), Size(10f, 10f))
+                    drawRect(c.copy(alpha = 0.75f), Offset(cx - 5f, cy - 5f), Size(10f, 10f))
+                    drawRect(Color(0x8CFFFFFF), Offset(cx - 2.4f, cy - 6f), Size(4.8f, 2f))
+                    drawPath(cursive(cx - 3.6f, cy - 1.2f, 7f, 0f, (x + y).toInt() + i, false), inkA(0.7f), style = stroke(0.26f))
+                    drawPath(cursive(cx - 3.6f, cy + 2f, 5f, 0f, (x * y).toInt(), false), inkA(0.7f), style = stroke(0.26f))
+                } }
+            }
+            "mapa" -> {
+                val nodes = listOf(Triple(19f, 55f, Color(0xFFFFE36B)), Triple(15f, 66f, Color(0xFF9FD3FF)), Triple(21f, 77f, Color(0xFFFF9DB8)), Triple(81f, 55f, Color(0xFFB9F2CF)), Triple(85f, 66f, Color(0xFFFFE36B)), Triple(79f, 77f, Color(0xFFC9B6FF)))
+                for ((x, y) in nodes) line(inkA(0.45f), x, y, if (x < 50f) 27f else 73f, 66f, 0.3f)
+                for ((x, y, c) in nodes) {
+                    oval(c.copy(alpha = 0.45f), x - 3f, y - 1.9f, 6f, 3.8f); drawOval(inkA(0.6f), Offset(x - 3f, y - 1.9f), Size(6f, 3.8f), style = Stroke(0.3f))
+                    drawPath(cursive(x - 2.2f, y + 0.6f, 4.2f, 0f, (x * 7 + y).toInt(), false), inkA(0.7f), style = stroke(0.26f))
+                }
+            }
+            "pergaminho" -> {
+                drawPath(page, Color(0x6BE2BE78))
+                drawPath(page, Brush.radialGradient(0f to Color(0x00965A1E), 0.39f to Color(0x00965A1E), 1f to Color(0x6B965A1E), center = Offset(50f, 64f), radius = 46f))
+                for (i in 0 until 18) drawCircle(Color(0x1F8C5A28), 0.4f + (i % 3) * 0.3f, Offset(14f + (i * 37) % 72, 42f + (i * 23) % 44))
+                penPath({ moveTo(14f, 84f); cubicTo(18f, 80f, 22f, 86f, 26f, 82f); cubicTo(28f, 80f, 30f, 83f, 28f, 84f); moveTo(86f, 84f); cubicTo(82f, 80f, 78f, 86f, 74f, 82f); cubicTo(72f, 80f, 70f, 83f, 72f, 84f) }, inkA(0.6f), 0.45f)
+                pageText("A", 13.4f, 56f, 4f, inkA(0.7f), bold = true); pageText("Ω", 81.8f, 56f, 4f, inkA(0.7f), bold = true)
+            }
+            "aquarela" -> for ((x, y, r, c) in listOf(Quad(16f, 46f, 9f, Color(0xFFFF9DB8)), Quad(84f, 48f, 9f, Color(0xFF9FD3FF)), Quad(18f, 82f, 8f, Color(0xFFB9F2CF)), Quad(82f, 82f, 8f, Color(0xFFFFE36B)), Quad(50f, 42f, 7f, Color(0xFFC9B6FF)))) {
+                drawCircle(Brush.radialGradient(0f to c.copy(alpha = 0.32f), 0.75f to c.copy(alpha = 0.42f), 0.92f to c.copy(alpha = 0.6f), 1f to c.copy(alpha = 0f), center = Offset(x, y), radius = r), r, Offset(x, y))
+            }
+            "ouro" -> {
+                val goldLine = Color(0xCCC98A12)
+                penPath({ moveTo(13f, 42.8f); cubicTo(23f, 39.6f, 36f, 39.2f, 47.6f, 45.6f); lineTo(47.6f, 85.4f); cubicTo(36f, 80.2f, 23f, 79.8f, 13f, 82.4f); close() }, goldLine, 0.45f)
+                penPath({ moveTo(87f, 42.8f); cubicTo(77f, 39.6f, 64f, 39.2f, 52.4f, 45.6f); lineTo(52.4f, 85.4f); cubicTo(64f, 80.2f, 77f, 79.8f, 87f, 82.4f); close() }, goldLine, 0.45f)
+                for ((x, y, sx, sy) in listOf(Quad(15f, 45f, 1f, 1f), Quad(85f, 45f, -1f, 1f), Quad(15f, 80f, 1f, -1f), Quad(85f, 80f, -1f, -1f))) {
+                    penPath({ moveTo(x, y + sy * 5f); quadraticTo(x, y, x + sx * 5f, y); moveTo(x + sx * 1.6f, y + sy * 1.6f); quadraticTo(x + sx * 4f, y + sy * 0.6f, x + sx * 3.4f, y + sy * 3.2f); quadraticTo(x + sx * 2.2f, y + sy * 4.4f, x + sx * 1.6f, y + sy * 1.6f) }, Color(0xE6C98A12), 0.4f)
+                    drawCircle(Gold, 0.6f, Offset(x + sx * 2.4f, y + sy * 2.4f))
+                }
+                val sh = (t * 0.25f) % 1f; val x = 110f * sh
+                drawPath(page, Brush.linearGradient(listOf(Color(0x00FFECAA), Color(0x66FFECAA), Color(0x00FFECAA)), start = Offset(x - 8f, 30f), end = Offset(x + 8f, 92f)))
+            }
         }
     }
 }
+
+private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 /** Textura da capa (só aparece nas bordas e no pé do livro, onde a capa fica à mostra). */
 private fun DrawScope.drawCoverPattern(t: Float, c: CoverStyle, cover: Path) {

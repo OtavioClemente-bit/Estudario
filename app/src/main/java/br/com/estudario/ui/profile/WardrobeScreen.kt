@@ -13,6 +13,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.outlined.Checkroom
+import androidx.compose.material.icons.outlined.MilitaryTech
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Celebration
+import androidx.compose.material.icons.outlined.WavingHand
+import androidx.compose.material.icons.outlined.PanTool
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -105,28 +115,107 @@ private fun RarityTag(r: FolhaRarity) {
     )
 }
 
-/** Movimentos para ver as peças em ação na vitrine. */
+/** Movimentos para ver as peças em ação no palco (rótulo e ícone). */
 private val TRY_MOODS = listOf(
-    FolhaMood.IDLE to "Parado", FolhaMood.PRESENT to "Mostrar", FolhaMood.WAVE to "Acenar", FolhaMood.HAPPY to "Comemorar",
-    FolhaMood.THINKING to "Estudar", FolhaMood.ECSTATIC to "Em chamas", FolhaMood.SLEEPY to "Cochilar",
+    Triple(FolhaMood.IDLE, "Parado", Icons.Outlined.Person), Triple(FolhaMood.PRESENT, "Mostrar", Icons.Outlined.PanTool),
+    Triple(FolhaMood.WAVE, "Acenar", Icons.Outlined.WavingHand), Triple(FolhaMood.HAPPY, "Comemorar", Icons.Outlined.Celebration),
+    Triple(FolhaMood.THINKING, "Estudar", Icons.Outlined.MenuBook), Triple(FolhaMood.ECSTATIC, "Em chamas", Icons.Outlined.LocalFireDepartment),
+    Triple(FolhaMood.SLEEPY, "Cochilar", Icons.Outlined.Bedtime),
 )
 
 /** Na vitrine e nas miniaturas, mãos e itens aparecem melhor com ele mostrando (mãos para a frente). */
 private fun showcaseMood(slot: FolhaSlot) = if (slot == FolhaSlot.MAO || slot == FolhaSlot.LUVAS) FolhaMood.PRESENT else FolhaMood.IDLE
 
+/** Onde a miniatura chega perto (zoom e ponto na grade 100 x 100): o chapéu na cabeça, os óculos no rosto... */
+private fun focus(slot: FolhaSlot): Triple<Float, Float, Float>? = when (slot) {
+    FolhaSlot.CHAPEU -> Triple(2.0f, 50f, 27f)
+    FolhaSlot.OCULOS -> Triple(1.8f, 50f, 60f)
+    FolhaSlot.PAGINAS -> Triple(1.25f, 50f, 63f)
+    FolhaSlot.TINTA, FolhaSlot.BOCHECHAS -> Triple(1.75f, 50f, 63f)
+    FolhaSlot.PESCOCO -> Triple(2.2f, 50f, 82f)
+    FolhaSlot.MAO -> Triple(1.9f, 14f, 46f)
+    FolhaSlot.FITA -> Triple(2.4f, 53f, 91f)
+    FolhaSlot.COMPANHEIRO -> Triple(1.9f, -9f, 84f)
+    else -> null
+}
+
+/** Os espaços de equipamento em volta do Folha, como num jogo: acessórios à esquerda, o próprio Folha à direita. */
+private val LEFT_SLOTS = listOf(FolhaSlot.CHAPEU, FolhaSlot.OCULOS, FolhaSlot.PESCOCO, FolhaSlot.MAO, FolhaSlot.LUVAS, FolhaSlot.COSTAS)
+private val RIGHT_SLOTS = listOf(FolhaSlot.CAPA, FolhaSlot.PAGINAS, FolhaSlot.TINTA, FolhaSlot.BOCHECHAS, FolhaSlot.FITA, FolhaSlot.AURA, FolhaSlot.COMPANHEIRO)
+
+private val GameTop = Color(0xFF2A2390)
+private val GameMid = Color(0xFF17134A)
+private val GameBottom = Color(0xFF0F0C33)
+private val GameLine = Color(0x17FFFFFF)
+private val GameMute = Color(0x9EFFFFFF)
+private val Mint = Color(0xFF7EE0B8)
+private val GoldG = Color(0xFFF5B83D)
+private fun rarityColor(r: FolhaRarity) = when (r) {
+    FolhaRarity.COMUM -> Color(0xFFB9B6C9); FolhaRarity.RARA -> Color(0xFF4C9BFF); FolhaRarity.EPICA -> Color(0xFFA46BFF); FolhaRarity.LENDARIA -> GoldG
+}
+
+/** Título de colecionador pelo tanto de peças liberadas. */
+private fun collectorRank(owned: Int, total: Int): String {
+    val f = owned.toFloat() / total
+    return when { f < 0.2f -> "Iniciante"; f < 0.4f -> "Estiloso"; f < 0.6f -> "Colecionador"; f < 0.85f -> "Fashionista"; else -> "Lenda do armário" }
+}
+
+/** Peças já vistas no armário neste aparelho: o que foi liberado e ainda não foi visto ganha o selo "NOVO". */
+private object WardrobeSeen {
+    private fun prefs(context: Context) = context.getSharedPreferences("folha_look", Context.MODE_PRIVATE)
+    private fun key(item: FolhaItem) = item.slot.name + ":" + item.id
+    var version by mutableIntStateOf(0)
+        private set
+    private fun read(context: Context): Set<String>? = prefs(context).getString("vistos", null)?.split(",")?.filter { it.isNotBlank() }?.toSet()
+    private fun write(context: Context, v: Set<String>) { prefs(context).edit().putString("vistos", v.sorted().joinToString(",")).apply(); version++ }
+    /** Primeira vez no aparelho: tudo o que já está liberado entra como visto. */
+    fun init(context: Context, summary: ProgressEngine.ProgressSummary) { if (read(context) == null) write(context, FolhaWardrobe.items.filter { FolhaWardrobe.unlocked(it, summary) }.map(::key).toSet()) }
+    fun isNew(context: Context, item: FolhaItem, summary: ProgressEngine.ProgressSummary): Boolean {
+        val seen = read(context) ?: return false
+        return FolhaWardrobe.unlocked(item, summary) && key(item) !in seen
+    }
+    fun markSeen(context: Context, items: List<FolhaItem>, summary: ProgressEngine.ProgressSummary) {
+        val seen = read(context) ?: emptySet()
+        val add = items.filter { FolhaWardrobe.unlocked(it, summary) }.map(::key).filter { it !in seen }
+        if (add.isNotEmpty()) write(context, seen + add)
+    }
+}
+
+/** Painel escuro de jogo (placar, boneco, inventário). */
+@Composable
+private fun GamePanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.verticalGradient(listOf(GameTop, GameMid, GameBottom)))
+            .border(1.dp, GameLine, RoundedCornerShape(24.dp)).padding(14.dp),
+        content = content,
+    )
+}
+
+/** Barra de progresso com o texto por cima, como num jogo. */
+@Composable
+private fun GameBar(fraction: Float, label: String, modifier: Modifier = Modifier, height: Int = 18) {
+    Box(modifier.height(height.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).clip(RoundedCornerShape(50))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF6158F0), Mint, Color(0xFFFFE07A)))))
+        Text(label, color = Color.White, fontWeight = FontWeight.Black, fontSize = if (height < 16) 10.sp else 11.sp)
+    }
+}
+
 /**
- * O armário do Folha: nove categorias de peças que saem das conquistas. Escolher troca na hora (ele
- * comemora); tocar numa peça trancada mostra o Folha experimentando e diz como liberar. A vitrine tem
- * botões de movimento para ver as peças acompanhando o corpo.
+ * O armário do Folha, com cara de jogo: o Folha no palco e os espaços de equipamento em volta dele (cada
+ * um mostra a peça vestida, de perto); escolher um espaço abre o inventário daquela parte, com cartas por
+ * raridade. Peça liberada veste na hora (ele comemora); peça trancada ele experimenta no palco e a carta
+ * diz quanto falta. Em cima, o nível de colecionador e as raridades; as coleções têm aba própria.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopBar: Boolean = true) {
     val context = LocalContext.current
     val progress by viewModel.progress.collectAsState()
-    // A versão das escolhas: lida (não só observada) para a tela redesenhar a marcação "Usando" a cada troca.
+    // A versão das escolhas: lida (não só observada) para a tela redesenhar a marcação "Equipado" a cada troca.
     val chosenVersion by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
-    var slot by remember { mutableStateOf(FolhaSlot.CAPA) }
+    val seenVersion = WardrobeSeen.version
+    var slot by remember { mutableStateOf(FolhaSlot.CHAPEU) }
     var showCollections by remember { mutableStateOf(false) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
     var cheer by remember { mutableIntStateOf(0) }
@@ -135,6 +224,12 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
     LaunchedEffect(cheer) {
         if (cheer == 0) { delay(1400); mood = FolhaMood.IDLE; return@LaunchedEffect }
         mood = FolhaMood.HAPPY; delay(1300); mood = FolhaMood.IDLE
+    }
+    LaunchedEffect(progress) { progress?.let { WardrobeSeen.init(context, it) } }
+    LaunchedEffect(slot, showCollections, progress) {
+        val summary = progress ?: return@LaunchedEffect
+        if (showCollections) return@LaunchedEffect
+        delay(2500); WardrobeSeen.markSeen(context, FolhaWardrobe.of(slot), summary)
     }
     Scaffold(
         topBar = {
@@ -151,107 +246,147 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
         }
         val owned = FolhaWardrobe.items.count { FolhaWardrobe.unlocked(it, summary) }
         val total = FolhaWardrobe.items.size
+        val chosen = remember(chosenVersion, summary) { FolhaSlot.entries.associateWith { FolhaWardrobePrefs.chosen(context, it, summary) } }
+        val fresh = remember(seenVersion, summary) { FolhaWardrobe.items.filter { WardrobeSeen.isNew(context, it, summary) }.toSet() }
+        val equip: (FolhaItem) -> Unit = { item ->
+            if (FolhaWardrobe.unlocked(item, summary)) {
+                trying = null
+                if (chosen[item.slot]?.id != item.id) { FolhaWardrobePrefs.write(context, listOf(item)); cheer++ }
+            } else trying = if (trying?.let { it.slot == item.slot && it.id == item.id } == true) null else item
+        }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // ---- placar
             item {
-                Text(
-                    "Monte o visual do Folha. O jeito dele é livre; acessórios e efeitos saem das suas conquistas, e coleções completas liberam peças exclusivas.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                GamePanel {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Color(0xFFFFE59A), GoldG, Color(0xFFC98A12)))),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Outlined.MilitaryTech, null, Modifier.size(30.dp), tint = Color(0xFF5A3803)) }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("COLECIONADOR", color = GameMute, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp)
+                            Text(collectorRank(owned, total), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                            GameBar(owned.toFloat() / total, "$owned / $total peças", Modifier.fillMaxWidth())
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FolhaRarity.entries.forEach { r ->
+                            val all = FolhaWardrobe.items.filter { it.rarity == r }
+                            Row(
+                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.06f)).border(1.dp, GameLine, RoundedCornerShape(12.dp)).padding(horizontal = 6.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+                            ) {
+                                Box(Modifier.size(10.dp).rotate(45f).clip(RoundedCornerShape(2.dp)).background(rarityColor(r)))
+                                Spacer(Modifier.width(5.dp))
+                                Text("${all.count { FolhaWardrobe.unlocked(it, summary) }}", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                                Text("/${all.size}", color = GameMute, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { FolhaWardrobePrefs.write(context, FolhaWardrobe.random(summary).values); trying = null; cheer++ },
+                            modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB421), contentColor = Color(0xFF1D1670)),
+                        ) { Icon(Icons.Outlined.Casino, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Surpreenda-me", fontWeight = FontWeight.Black) }
+                        OutlinedButton(
+                            onClick = { FolhaWardrobePrefs.write(context, FolhaSlot.entries.map { FolhaWardrobe.default(it) }); trying = null; cheer++ },
+                            shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, GameLine),
+                        ) { Icon(Icons.Outlined.RestartAlt, null, Modifier.size(18.dp), tint = Color.White); Spacer(Modifier.width(6.dp)); Text("Clássico", color = Color.White, fontWeight = FontWeight.Black) }
+                    }
+                }
             }
+            // ---- o boneco: espaços de equipamento em volta do palco
             item {
-                // A vitrine: o Folha como está (ou experimentando uma peça trancada) e os movimentos de teste.
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val t = trying
-                        Box(Modifier.padding(top = 22.dp, bottom = 4.dp)) {
-                            Folha(
-                                160.dp, mood = testMood ?: if (t != null) (if (showcaseMood(t.slot) == FolhaMood.PRESENT) FolhaMood.PRESENT else FolhaMood.PROUD) else if (mood == FolhaMood.IDLE) showcaseMood(slot) else mood, onClick = {},
-                                style = FolhaStyle(pieces = t?.let { mapOf(it.slot.key to it.id) } ?: emptyMap(), noScene = true),
-                            )
+                GamePanel {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            LEFT_SLOTS.forEach { s -> EquipSlot(s, chosen.getValue(s), summary, fresh, !showCollections && s == slot) { slot = s; showCollections = false; trying = null } }
                         }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            TRY_MOODS.forEach { (m, label) ->
-                                FilterChip((testMood ?: FolhaMood.IDLE) == m, { testMood = if (m == FolhaMood.IDLE) null else m }, { Text(label) })
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            val t = trying
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(top = 26.dp, bottom = 6.dp)) {
+                                // o chão do palco
+                                Box(Modifier.align(Alignment.BottomCenter).offset(y = 6.dp).size(150.dp, 26.dp).clip(RoundedCornerShape(50))
+                                    .background(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.03f))))
+                                    .border(1.5.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50)))
+                                Folha(
+                                    140.dp, mood = testMood ?: if (t != null) (if (showcaseMood(t.slot) == FolhaMood.PRESENT) FolhaMood.PRESENT else FolhaMood.PROUD) else if (mood == FolhaMood.IDLE) showcaseMood(slot) else mood, onClick = {},
+                                    style = FolhaStyle(pieces = t?.let { mapOf(it.slot.key to it.id) } ?: emptyMap(), noScene = true),
+                                )
+                            }
+                            if (t != null) {
+                                val rc = rarityColor(t.rarity)
+                                Column(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x99100C30)).border(1.dp, rc.copy(alpha = 0.6f), RoundedCornerShape(16.dp)).padding(10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Outlined.Lock, null, Modifier.size(12.dp), tint = rc); Spacer(Modifier.width(3.dp))
+                                        Text("EXPERIMENTANDO · ${t.rarity.label.uppercase()}", color = rc, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                                    }
+                                    Text(t.name, color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp, textAlign = TextAlign.Center)
+                                    Text(FolhaWardrobe.requirement(t), color = GameMute, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 14.sp)
+                                    FolhaWardrobe.progress(t, summary)?.let { (cur, target, unit) -> GameBar(cur.toFloat() / target.coerceAtLeast(1), "$cur / $target $unit", Modifier.fillMaxWidth(), height = 14) }
+                                    TextButton(onClick = { trying = null }) { Text("Voltar ao meu visual", color = Color.White, fontSize = 12.sp) }
+                                }
+                            } else {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    TRY_MOODS.forEach { (m, label, icon) ->
+                                        val on = (testMood ?: FolhaMood.IDLE) == m
+                                        Box(
+                                            Modifier.size(34.dp).clip(RoundedCornerShape(50)).background(if (on) Mint else Color.White.copy(alpha = 0.08f))
+                                                .border(1.dp, GameLine, RoundedCornerShape(50)).clickable { testMood = if (m == FolhaMood.IDLE) null else m },
+                                            contentAlignment = Alignment.Center,
+                                        ) { Icon(icon, label, Modifier.size(18.dp), tint = if (on) Color(0xFF0F3B2B) else Color.White) }
+                                    }
+                                }
                             }
                         }
-                        if (t != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("Experimentando", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                RarityTag(t.rarity)
-                            }
-                            Text(t.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(FolhaWardrobe.requirement(t), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                            FolhaWardrobe.progress(t, summary)?.let { (cur, target, unit) ->
-                                LinearProgressIndicator({ cur.toFloat() / target }, Modifier.fillMaxWidth(0.8f).clip(RoundedCornerShape(50)))
-                                Text("$cur de $target $unit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            TextButton(onClick = { trying = null }) { Text("Voltar ao meu visual") }
-                        } else {
-                            Text("$owned de $total peças", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            LinearProgressIndicator({ owned.toFloat() / total }, Modifier.fillMaxWidth(0.8f).clip(RoundedCornerShape(50)))
-                            FolhaWardrobe.next(summary)?.let { (item, pct) ->
-                                Text("Próxima peça: ${item.name} (${(pct * 100).toInt()}%)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilledTonalButton(onClick = { FolhaWardrobePrefs.write(context, FolhaWardrobe.random(summary).values); cheer++ }) {
-                                    Icon(Icons.Outlined.Casino, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Surpreenda-me")
-                                }
-                                TextButton(onClick = { FolhaWardrobePrefs.write(context, FolhaSlot.entries.map { FolhaWardrobe.default(it) }); cheer++ }) {
-                                    Icon(Icons.Outlined.RestartAlt, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Visual clássico")
-                                }
-                            }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            RIGHT_SLOTS.forEach { s -> EquipSlot(s, chosen.getValue(s), summary, fresh, !showCollections && s == slot) { slot = s; showCollections = false; trying = null } }
                         }
                     }
                 }
             }
+            // ---- abas: inventário e coleções
             item {
-                // categorias, por grupo, e as coleções
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    br.com.estudario.domain.FolhaGroup.entries.forEach { group ->
-                        Text(group.label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FolhaSlot.entries.filter { it.group == group }.forEach { s ->
-                                val list = FolhaWardrobe.of(s); val have = list.count { FolhaWardrobe.unlocked(it, summary) }
-                                FilterChip(!showCollections && s == slot, { slot = s; showCollections = false; trying = null }, { Text(if (have < list.size) "${s.label}  $have/${list.size}" else s.label) })
-                            }
-                        }
-                    }
-                    val done = FolhaWardrobe.collections.count { c -> FolhaWardrobe.piecesOf(c).all { FolhaWardrobe.unlocked(it, summary) } }
-                    FilterChip(showCollections, { showCollections = true; trying = null }, { Text("Coleções  $done/${FolhaWardrobe.collections.size}") }, leadingIcon = { Icon(Icons.Outlined.EmojiEvents, null, Modifier.size(18.dp)) })
+                val done = FolhaWardrobe.collections.count { c -> FolhaWardrobe.piecesOf(c).all { FolhaWardrobe.unlocked(it, summary) } }
+                Row(Modifier.clip(RoundedCornerShape(16.dp)).background(GameMid).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    GameTab("Inventário", Icons.Outlined.Checkroom, !showCollections) { showCollections = false }
+                    GameTab("Coleções $done/${FolhaWardrobe.collections.size}", Icons.Outlined.EmojiEvents, showCollections) { showCollections = true; trying = null }
                 }
             }
             if (showCollections) {
-                item { Text("Junte as quatro peças de uma coleção para liberar a recompensa exclusiva, que não sai de outro jeito.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { Text("Junte as quatro peças de uma coleção para ganhar a recompensa exclusiva, que não sai de outro jeito.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 FolhaWardrobe.collections.forEach { c ->
                     item(key = "col-" + c.id) { CollectionCard(c, summary, onDress = { items -> FolhaWardrobePrefs.write(context, items); trying = null; cheer++ }, onTry = { trying = it }) }
                 }
             } else {
-            item { Text(slot.hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            item {
-                // exclusivas de coleção ficam no fim da grade
-                val list = FolhaWardrobe.of(slot).sortedBy { it.collection != null }
-                val chosenId = remember(chosenVersion, slot, summary) { FolhaWardrobePrefs.chosen(context, slot, summary).id }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 3) {
-                    list.forEach { item ->
-                        val open = FolhaWardrobe.unlocked(item, summary)
-                        WardrobeTile(
-                            item = item, open = open,
-                            selected = chosenId == item.id,
-                            trying = trying?.let { it.slot == item.slot && it.id == item.id } == true,
-                            progress = if (open) null else FolhaWardrobe.progress(item, summary),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            if (open) {
-                                trying = null
-                                if (chosenId != item.id) { FolhaWardrobePrefs.write(context, listOf(item)); cheer++ }
-                            } else trying = if (trying?.let { it.slot == item.slot && it.id == item.id } == true) null else item
+                item {
+                    val list = FolhaWardrobe.of(slot).sortedWith(compareBy({ !FolhaWardrobe.unlocked(it, summary) }, { it.collection != null }))
+                    GamePanel {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(slot.label, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.width(8.dp))
+                            Text("${list.count { FolhaWardrobe.unlocked(it, summary) }} de ${list.size}", color = GameMute, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 3.dp))
+                        }
+                        Text(slot.hint, color = GameMute, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
+                            list.forEach { item ->
+                                ItemCard(
+                                    item, open = FolhaWardrobe.unlocked(item, summary), selected = chosen[slot]?.id == item.id,
+                                    trying = trying?.let { it.slot == item.slot && it.id == item.id } == true, isNew = item in fresh,
+                                    progress = FolhaWardrobe.progress(item, summary), modifier = Modifier.weight(1f),
+                                ) { equip(item) }
+                            }
+                            // completa a última linha, para as cartas não esticarem
+                            repeat((3 - list.size % 3) % 3) { Spacer(Modifier.weight(1f)) }
                         }
                     }
-                    // completa a última linha, para os quadrados não esticarem
-                    repeat((3 - list.size % 3) % 3) { Spacer(Modifier.weight(1f)) }
                 }
-            }
             }
             item {
                 ElevatedCard(Modifier.fillMaxWidth()) {
@@ -269,6 +404,85 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
 }
 
 @Composable
+private fun GameTab(label: String, icon: ImageVector, on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Color.White.copy(alpha = 0.14f) else Color.Transparent).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(icon, null, Modifier.size(18.dp), tint = if (on) Color.White else GameMute)
+        Text(label, color = if (on) Color.White else GameMute, fontWeight = FontWeight.Black, fontSize = 14.sp)
+    }
+}
+
+/** Um espaço de equipamento: a peça vestida (de perto), o nome da parte e o selo de novidade. */
+@Composable
+private fun EquipSlot(slot: FolhaSlot, item: FolhaItem, summary: ProgressEngine.ProgressSummary, fresh: Set<FolhaItem>, on: Boolean, onClick: () -> Unit) {
+    val rc = rarityColor(item.rarity)
+    val isNew = FolhaWardrobe.of(slot).any { it in fresh }
+    Column(Modifier.width(60.dp).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(if (on) 54.dp else 50.dp).clip(RoundedCornerShape(14.dp))
+                    .background(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.03f))))
+                    .border(2.dp, if (on) Color(0xFFFFE07A) else rc.copy(alpha = 0.55f), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                // espaço vazio (sem óculos, sozinho...): o encaixe tracejado, como em jogo
+                if (item.id == "nenhum" || item.id == "nada" || item.id == "nenhuma") Icon(Icons.Outlined.Add, null, Modifier.size(20.dp), tint = GameMute)
+                else PieceThumb(item, 42, true)
+            }
+            if (isNew) Box(Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp).size(16.dp).clip(RoundedCornerShape(50)).background(Color(0xFFFF5C7A)), contentAlignment = Alignment.Center) {
+                Text("!", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+            }
+        }
+        Text(slot.label, color = if (on) Color(0xFFFFE07A) else Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+    }
+}
+
+/** A carta de uma peça: moldura da raridade, miniatura de perto, nome e o estado (equipado, equipar ou o que falta). */
+@Composable
+private fun ItemCard(
+    item: FolhaItem, open: Boolean, selected: Boolean, trying: Boolean, isNew: Boolean,
+    progress: Triple<Int, Int, String>?, modifier: Modifier = Modifier, onClick: () -> Unit,
+) {
+    val rc = rarityColor(item.rarity)
+    val border = when { selected -> Mint; trying -> Color(0xFFFFE07A); else -> rc.copy(alpha = 0.5f) }
+    Box(
+        modifier.clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(rc.copy(alpha = 0.28f), Color(0xFF221C66), Color(0xFF15113F))))
+            .border(2.dp, border, RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp, start = 4.dp, end = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Box(contentAlignment = Alignment.BottomEnd) {
+                PieceThumb(item, 70, open)
+                if (!open) Box(Modifier.size(22.dp).clip(RoundedCornerShape(50)).background(Color(0xD90A0828)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Lock, null, Modifier.size(13.dp), tint = Color.White)
+                }
+            }
+            Text(item.name, color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp, lineHeight = 14.sp, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(min = 28.dp))
+            when {
+                selected -> Text("Equipado", color = Color(0xFF0F3B2B), fontWeight = FontWeight.Black, fontSize = 10.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Mint).padding(horizontal = 8.dp, vertical = 2.dp))
+                open -> Text("Equipar", color = Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp))
+                else -> {
+                    Text(
+                        item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
+                        color = GameMute, fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (progress != null) Box(Modifier.fillMaxWidth(0.8f).height(4.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth((progress.first.toFloat() / progress.second.coerceAtLeast(1)).coerceIn(0f, 1f)).clip(RoundedCornerShape(50)).background(rc))
+                    }
+                }
+            }
+        }
+        Text(item.rarity.label.uppercase(), color = Color(0xFF120E38), fontWeight = FontWeight.Black, fontSize = 8.5.sp,
+            modifier = Modifier.align(Alignment.TopStart).clip(RoundedCornerShape(bottomEnd = 10.dp)).background(rc).padding(horizontal = 7.dp, vertical = 2.dp))
+        if (isNew) Text("NOVO", color = Color.White, fontWeight = FontWeight.Black, fontSize = 8.5.sp,
+            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFFF5C7A)).padding(horizontal = 5.dp, vertical = 1.dp))
+        else if (item.collection != null) Icon(Icons.Outlined.EmojiEvents, "Recompensa de coleção", Modifier.align(Alignment.TopEnd).padding(4.dp).size(15.dp), tint = GoldG)
+    }
+}
+
+@Composable
 private fun AutoDetail(icon: ImageVector, title: String, text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
@@ -276,59 +490,6 @@ private fun AutoDetail(icon: ImageVector, title: String, text: String) {
             Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-@Composable
-private fun WardrobeTile(
-    item: FolhaItem,
-    open: Boolean,
-    selected: Boolean,
-    trying: Boolean,
-    progress: Triple<Int, Int, String>?,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val border = when {
-        selected -> BorderStroke(2.dp, scheme.primary)
-        trying -> BorderStroke(2.dp, Color(0xFFF5B83D))
-        item.rarity == FolhaRarity.LENDARIA && open -> BorderStroke(1.5.dp, Color(0xFFF5C451))
-        else -> BorderStroke(1.dp, scheme.outlineVariant)
-    }
-    Column(
-        modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) scheme.primaryContainer else scheme.surface)
-            .border(border, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        RarityTag(item.rarity)
-        // Miniatura parada (um quadro só): uma grade de Folhas vivos pesaria à toa.
-        val px = with(LocalDensity.current) { 76.dp.roundToPx() }
-        val thumb = remember(item.slot, item.id, px, FolhaLook.pieces()) {
-            br.com.estudario.ui.assistant.folhaBitmap(px, showcaseMood(item.slot), FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true)).asImageBitmap()
-        }
-        androidx.compose.foundation.Image(thumb, null, Modifier.size(76.dp).alpha(if (open) 1f else 0.55f))
-        Text(item.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        when {
-            selected -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(Icons.Outlined.CheckCircle, null, Modifier.size(14.dp), tint = scheme.primary)
-                Text("Usando", style = MaterialTheme.typography.labelSmall, color = scheme.primary, fontWeight = FontWeight.Bold)
-            }
-            open -> Text("Vestir", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
-            else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(Icons.Outlined.Lock, null, Modifier.size(12.dp), tint = scheme.onSurfaceVariant)
-                Text(
-                    item.collection?.let { "Coleção " + (FolhaWardrobe.collection(it)?.name ?: "") } ?: item.level?.let { "Nível $it" } ?: BadgeCatalog.all.firstOrNull { it.id == item.badgeId }?.name ?: "Emblema",
-                    style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (progress != null) LinearProgressIndicator({ progress.first.toFloat() / progress.second }, Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(RoundedCornerShape(50)))
     }
 }
 
@@ -398,9 +559,9 @@ private fun CollectionCard(c: br.com.estudario.domain.FolhaCollection, summary: 
 private fun PieceThumb(item: FolhaItem, sizeDp: Int, open: Boolean) {
     val px = with(LocalDensity.current) { sizeDp.dp.roundToPx() }
     val thumb = remember(item.slot, item.id, px, FolhaLook.pieces()) {
-        br.com.estudario.ui.assistant.folhaBitmap(px, showcaseMood(item.slot), FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true)).asImageBitmap()
+        br.com.estudario.ui.assistant.folhaBitmap(px, showcaseMood(item.slot), FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true), focus(item.slot)).asImageBitmap()
     }
-    androidx.compose.foundation.Image(thumb, null, Modifier.size(sizeDp.dp).alpha(if (open) 1f else 0.5f))
+    androidx.compose.foundation.Image(thumb, null, Modifier.size(sizeDp.dp).alpha(if (open) 1f else 0.5f), colorFilter = if (open) null else androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0.15f) }))
 }
 
 /** Faixa do Perfil: o Folha como está e o atalho para o armário. */

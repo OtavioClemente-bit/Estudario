@@ -65,7 +65,7 @@
   // O que a pessoa escolheu e o contexto do dia; o site atualiza por window.folhaSetLook (veja o fim do arquivo).
   // streak: dias seguidos (medalha no capelo a partir de 7); atRisk: a sequência pode cair hoje; hour: para testes.
   // O próprio Folha: cor da tinta (olhos, sobrancelhas, boca) e das bochechas.
-  const INKS = { marinho: INK, grafite: "#2B2B30", ameixa: "#4A1E4F", cafe: "#3E2A1E", floresta: "#14382B" };
+  const INKS = { marinho: INK, azul: "#1F4FD8", vermelha: "#C42F4B", verde: "#0F8A5F", grafite: "#3A3A44", roxa: "#6D3CE0", cafe: "#6B3E1E", ameixa: "#7A1F6A", floresta: "#14523A", dourada: "#A8700A", nanquim: "#0B0B10" };
   const CHEEKS = { rosa: CHEEK, pessego: "#FFB98A", lilas: "#C9A6F4", coral: "#FF8C75", nenhuma: null };
   const SLOTS = ["cover", "pages", "ink", "cheeks", "ribbon", "gloves", "hat", "eyes", "neck", "hand", "back", "aura", "pet"];
   const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", back: "nada", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
@@ -307,7 +307,7 @@
     if (look.hand && look.hand !== "nenhum" && !front.includes("L")) front = "L" + front;
     drawArms(g, s, "LR".replace(new RegExp("[" + (front || "_") + "]", "g"), ""));
     drawBook(g, t, mood, small, look);
-    drawPageLines(g, t, mood, small);
+    drawPageLines(g, t, mood, small, look.ink);
     if (!small) drawDogEar(g, t, mood);
     if (mood === "thinking") drawTurningPage(g, t);
     drawFace(g, s);
@@ -361,20 +361,92 @@
   }
 
   // Padrão do papel (pautado, quadriculado, pontilhado, partitura), bem leve, por baixo do rosto.
-  function drawPagePattern(g, kind, left, right) {
+  // O papel das páginas. Os desenhos ficam nas margens (fora dos olhos e da boca) e o que é escrito sai na
+  // cor da tinta escolhida.
+  function drawPagePattern(g, kind, left, right, ink, t) {
     if (!kind || kind === "lisa") return;
+    ink = ink || INK;
+    const inkA = (a) => rgba(ink, a * 0.5);
     for (const page of [left, right]) {
       g.save(); g.clip(page);
       if (kind === "pautada") {
-        for (let y = 46; y < 88; y += 3.6) line(g, "rgba(111,176,255,0.32)", 10, y, 90, y + 1, 0.22, false);
-        line(g, "rgba(240,85,120,0.35)", 17, 38, 17, 90, 0.25, false); line(g, "rgba(240,85,120,0.35)", 83, 38, 83, 90, 0.25, false);
+        for (let y = 44; y < 88; y += 3.6) line(g, "rgba(90,150,240,0.5)", 10, y, 90, y + 1, 0.28, false);
+        line(g, "rgba(232,70,105,0.55)", 16, 38, 16, 90, 0.35, false); line(g, "rgba(232,70,105,0.55)", 84, 38, 84, 90, 0.35, false);
       } else if (kind === "quadriculada") {
-        for (let y = 40; y < 90; y += 3.2) line(g, "rgba(111,176,255,0.24)", 10, y, 90, y, 0.18, false);
-        for (let x = 12; x < 90; x += 3.2) line(g, "rgba(111,176,255,0.24)", x, 36, x, 90, 0.18, false);
+        for (let y = 39; y < 90; y += 3.2) line(g, "rgba(90,150,240,0.4)", 10, y, 90, y, 0.22, false);
+        for (let x = 11.6; x < 90; x += 3.2) line(g, "rgba(90,150,240,0.4)", x, 36, x, 90, 0.22, false);
       } else if (kind === "pontilhada") {
-        for (let y = 42; y < 88; y += 3.2) for (let x = 13; x < 88; x += 3.2) circle(g, "rgba(90,90,130,0.28)", 0.2, x, y);
+        for (let y = 42; y < 88; y += 3.2) for (let x = 13; x < 88; x += 3.2) circle(g, "rgba(70,70,120,0.45)", 0.3, x, y);
       } else if (kind === "partitura") {
-        for (const y0 of [44, 56, 68, 80]) for (let i = 0; i < 5; i++) line(g, "rgba(60,50,110,0.22)", 10, y0 + i * 1.3, 90, y0 + i * 1.3 + 0.6, 0.18, false);
+        for (const y0 of [43, 79]) for (let i = 0; i < 5; i++) line(g, "rgba(50,40,100,0.42)", 10, y0 + i * 1.3, 90, y0 + i * 1.3 + 0.6, 0.22, false);
+        // notas na pauta (na cor da tinta) e uma clave
+        const notes = [[16, 45.6], [21, 44.3], [26, 46.9], [74, 44.9], [79, 46.2], [84, 43.6], [18, 81.6], [24, 80.3], [76, 82.2], [82, 80.9]];
+        for (const [x, y] of notes) { g.beginPath(); g.ellipse(x, y + 0.3, 0.9, 0.62, -0.4, 0, 2 * PI); g.fillStyle = inkA(0.85); g.fill(); line(g, inkA(0.85), x + 0.8, y + 0.2, x + 0.8, y - 3.2, 0.3); }
+        const cl = new Path2D(); cl.moveTo(12.4, 49); cl.bezierCurveTo(10.6, 46, 14.6, 44.4, 13.4, 42); cl.bezierCurveTo(12.2, 40.4, 11.2, 44, 12.6, 46.4); cl.bezierCurveTo(14.4, 48.6, 11.4, 49.8, 11.6, 47.4);
+        stroke(g, cl, inkA(0.8), 0.35);
+      } else if (kind === "anotada") {
+        // caderno de quem estuda: mais linhas escritas nas margens, sublinhado e seta
+        for (const [x, y, l, sl, m] of [[15, 55, 7, 0.02, false], [85, 55, 7, 0.02, true], [27, 84, 10, -0.04, false], [73, 84, 10, -0.04, true]])
+          stroke(g, cursive(x, y, l, sl, Math.round(x * 3 + y), m), inkA(0.62), 0.26);
+        const u = new Path2D(); u.moveTo(15, 60); u.quadraticCurveTo(19, 59.2, 23.6, 60.2); stroke(g, u, "rgba(232,70,105,0.4)", 0.3);
+        const ar = new Path2D(); ar.moveTo(80, 70); ar.quadraticCurveTo(84, 71, 85, 75); ar.moveTo(84, 73.6); ar.lineTo(85, 75); ar.lineTo(86.2, 73.8); stroke(g, ar, inkA(0.7), 0.4);
+
+      } else if (kind === "rabiscos") {
+        // rabiscos de quem pensa estudando: espiral, estrela, coração, nuvenzinha e seta
+        const sp = new Path2D(); for (let a = 0; a < 14; a += 0.3) { const r = 0.25 * a, x = 18 + cos(a) * r, y = 65 + sin(a) * r; a ? sp.lineTo(x, y) : sp.moveTo(x, y); } stroke(g, sp, inkA(0.6), 0.35);
+        g.fillStyle = "rgba(245,184,61,0.55)"; g.fill(star5(g, 83, 64, 2.6)); stroke(g, star5(g, 83, 64, 2.6), inkA(0.65), 0.3);
+        g.fillStyle = "rgba(240,90,120,0.5)"; g.fill(heart(19, 76, 1.8)); stroke(g, heart(19, 76, 1.8), inkA(0.6), 0.3);
+        const cl = new Path2D(); cl.moveTo(78, 77); cl.quadraticCurveTo(77.6, 74.6, 80, 74.8); cl.quadraticCurveTo(81, 73, 83, 74.4); cl.quadraticCurveTo(85.6, 74.4, 85, 77); cl.closePath(); stroke(g, cl, inkA(0.55), 0.35);
+        const zz = new Path2D(); zz.moveTo(28, 84); for (let i = 1; i < 9; i++) zz.lineTo(28 + i * 1.6, 84 + (i % 2 ? -1.2 : 0)); stroke(g, zz, inkA(0.5), 0.35);
+        const ar = new Path2D(); ar.moveTo(62, 84.5); ar.quadraticCurveTo(66, 82, 71, 83.6); ar.moveTo(69.6, 82.2); ar.lineTo(71, 83.6); ar.lineTo(69.4, 84.8); stroke(g, ar, inkA(0.55), 0.35);
+      } else if (kind === "formulas") {
+        // fórmulas e contas nas margens, na letra do caderno
+        g.fillStyle = inkA(0.8); g.font = "italic 500 2.2px Georgia, serif"; g.textBaseline = "middle";
+        for (const [txt, x, y, a] of [["x²+y²=r²", 13.4, 55, -0.04], ["√2 ≈ 1,41", 13.6, 60, -0.03], ["Σ aᵢ", 15, 66, 0], ["π r²", 74, 55, 0.03], ["f(x)=2x+1", 71, 60, 0.02], ["Δ=b²−4ac", 70.4, 66, 0.03], ["a/b", 28, 84.4, -0.04], ["∴ x=3", 66, 84.6, -0.04]]) {
+          g.save(); g.translate(x, y); g.rotate(a); g.fillText(txt, 0, 0); g.restore();
+        }
+        const box = new Path2D(); box.rect(69.6, 63.8, 12, 4.4); stroke(g, box, "rgba(232,70,105,0.3)", 0.22);
+      } else if (kind === "postits") {
+        // bilhetinhos colados: amarelo, rosa e azul, com fita e anotação
+        for (const [x, y, rot, c] of [[13.4, 52, -0.12, "#FFE36B"], [76, 51, 0.1, "#FF9DB8"], [14, 72, 0.08, "#9FD3FF"], [76, 72, -0.08, "#B9F2CF"]]) {
+          g.save(); g.translate(x + 5, y + 5); g.rotate(rot); g.scale(0.7, 0.7); g.globalAlpha = 0.75;
+          g.fillStyle = "rgba(60,40,20,0.12)"; g.fillRect(-4.6, -4.2, 10, 10);
+          g.fillStyle = c; g.fillRect(-5, -5, 10, 10);
+          g.fillStyle = "rgba(255,255,255,0.55)"; g.fillRect(-2.4, -6, 4.8, 2);
+          stroke(g, cursive(-3.6, -1.2, 7, 0, Math.round(x + y), false), inkA(0.7), 0.26);
+          stroke(g, cursive(-3.6, 2, 5, 0, Math.round(x * y), false), inkA(0.7), 0.26);
+          g.restore();
+        }
+      } else if (kind === "mapa") {
+        // mapa mental: ideias em bolhas ligadas por traços
+        const nodes = [[19, 55, "#FFE36B"], [15, 66, "#9FD3FF"], [21, 77, "#FF9DB8"], [81, 55, "#B9F2CF"], [85, 66, "#FFE36B"], [79, 77, "#C9B6FF"]];
+        for (const [x, y] of nodes) line(g, inkA(0.45), x, y, x < 50 ? 27 : 73, 66, 0.3);
+        for (const [x, y, c] of nodes) { g.beginPath(); g.ellipse(x, y, 3, 1.9, 0, 0, 2 * PI); g.fillStyle = rgba(c, 0.45); g.fill(); g.strokeStyle = inkA(0.6); g.lineWidth = 0.3; g.stroke(); stroke(g, cursive(x - 2.2, y + 0.6, 4.2, 0, Math.round(x * 7 + y), false), inkA(0.7), 0.26); }
+      } else if (kind === "pergaminho") {
+        // papel antigo: amarelado, bordas queimadas e caligrafia com floreio
+        g.fillStyle = "rgba(226,190,120,0.42)"; g.fill(page);
+        const vig = g.createRadialGradient(50, 64, 18, 50, 64, 46); vig.addColorStop(0, "rgba(150,90,30,0)"); vig.addColorStop(1, "rgba(150,90,30,0.42)"); g.fillStyle = vig; g.fill(page);
+        for (let i = 0; i < 18; i++) circle(g, "rgba(140,90,40,0.12)", 0.4 + (i % 3) * 0.3, 14 + ((i * 37) % 72), 42 + ((i * 23) % 44));
+        const fl = new Path2D(); fl.moveTo(14, 84); fl.bezierCurveTo(18, 80, 22, 86, 26, 82); fl.bezierCurveTo(28, 80, 30, 83, 28, 84); fl.moveTo(86, 84); fl.bezierCurveTo(82, 80, 78, 86, 74, 82); fl.bezierCurveTo(72, 80, 70, 83, 72, 84);
+        stroke(g, fl, inkA(0.6), 0.45);
+        g.fillStyle = inkA(0.7); g.font = "italic 700 4px Georgia, serif"; g.textBaseline = "middle"; g.fillText("A", 13.4, 56); g.fillText("Ω", 81.8, 56);
+      } else if (kind === "aquarela") {
+        // manchas de aquarela nas pontas, com borda mais escura como tinta secando
+        for (const [x, y, r, c] of [[16, 46, 9, "#FF9DB8"], [84, 48, 9, "#9FD3FF"], [18, 82, 8, "#B9F2CF"], [82, 82, 8, "#FFE36B"], [50, 42, 7, "#C9B6FF"]]) {
+          const bl = g.createRadialGradient(x, y, 0, x, y, r); bl.addColorStop(0, rgba(c, 0.32)); bl.addColorStop(0.75, rgba(c, 0.42)); bl.addColorStop(0.92, rgba(c, 0.6)); bl.addColorStop(1, rgba(c, 0));
+          g.fillStyle = bl; g.beginPath(); g.arc(x, y, r, 0, 2 * PI); g.fill();
+        }
+      } else if (kind === "ouro") {
+        // folhas de ouro: filete dourado em volta, cantos de filigrana e um brilho que passa
+        const fr = new Path2D(); fr.moveTo(13, 42.8); fr.bezierCurveTo(23, 39.6, 36, 39.2, 47.6, 45.6); fr.lineTo(47.6, 85.4); fr.bezierCurveTo(36, 80.2, 23, 79.8, 13, 82.4); fr.closePath();
+        const fr2 = new Path2D(); fr2.moveTo(87, 42.8); fr2.bezierCurveTo(77, 39.6, 64, 39.2, 52.4, 45.6); fr2.lineTo(52.4, 85.4); fr2.bezierCurveTo(64, 80.2, 77, 79.8, 87, 82.4); fr2.closePath();
+        stroke(g, fr, "rgba(201,138,18,0.8)", 0.45); stroke(g, fr2, "rgba(201,138,18,0.8)", 0.45);
+        for (const [x, y, sx, sy] of [[15, 45, 1, 1], [85, 45, -1, 1], [15, 80, 1, -1], [85, 80, -1, -1]]) {
+          const c = new Path2D(); c.moveTo(x, y + sy * 5); c.quadraticCurveTo(x, y, x + sx * 5, y); c.moveTo(x + sx * 1.6, y + sy * 1.6); c.quadraticCurveTo(x + sx * 4, y + sy * 0.6, x + sx * 3.4, y + sy * 3.2); c.quadraticCurveTo(x + sx * 2.2, y + sy * 4.4, x + sx * 1.6, y + sy * 1.6);
+          stroke(g, c, "rgba(201,138,18,0.9)", 0.4); circle(g, GOLD, 0.6, x + sx * 2.4, y + sy * 2.4);
+        }
+        const sh = ((t || 0) * 0.25) % 1, x = lerp(0, 110, sh), gl = g.createLinearGradient(x - 8, 30, x + 8, 92);
+        gl.addColorStop(0, "rgba(255,236,170,0)"); gl.addColorStop(0.5, "rgba(255,236,170,0.4)"); gl.addColorStop(1, "rgba(255,236,170,0)"); g.fillStyle = gl; g.fill(page);
       }
       g.restore();
     }
@@ -461,7 +533,7 @@
     const left = page(-1), right = page(1);
     g.fillStyle = hGrad(g, [PAPER_MID, PAPER, PAPER, PAPER_MID], 12, 50); g.fill(left);
     g.fillStyle = hGrad(g, [PAPER_MID, PAPER, PAPER, "#F1EDE6"], 50, 88); g.fill(right);
-    if (!small) drawPagePattern(g, look.pages, left, right);
+    if (!small) drawPagePattern(g, look.pages, left, right, look.ink, t);
     const gutter = [[0, rgba(GUTTER, 0)], [0.55, rgba(GUTTER, 0.035)], [0.85, rgba(GUTTER, 0.10)], [1, rgba(GUTTER, 0.20)]];
     g.fillStyle = hGrad(g, gutter, 39, 50); g.fill(left);
     g.fillStyle = hGrad(g, gutter, 61, 50); g.fill(right);
@@ -512,7 +584,25 @@
     }
   }
 
-  function drawPageLines(g, t, mood, small) {
+  // Letra cursiva de mentira (não dá para ler, mas parece escrito à mão): laços em sequência, com letras
+  // altas de vez em quando e espaço entre as palavras. Sai sempre igual para a mesma semente.
+  const CURSIVE = new Map();
+  function cursive(x0, y0, len, slope, seed, mirror) {
+    const key = [x0, y0, len, slope, seed, mirror].join(":");
+    if (CURSIVE.has(key)) return CURSIVE.get(key);
+    const r = seeded(seed), p = new Path2D(), d = mirror ? -1 : 1; let x = 0;
+    p.moveTo(x0, y0);
+    while (x < len) {
+      const w = 1.1 + r() * 0.8, tall = r() < 0.22, gap = x > 3 && r() < 0.16;
+      const X = (u) => x0 + d * u, Y = (u) => y0 + slope * u;
+      if (gap) { x += 1.4; p.moveTo(X(x), Y(x)); continue; }
+      p.bezierCurveTo(X(x + w * 0.7), Y(x) - (tall ? 2.6 : 1.3), X(x + w * 0.1), Y(x) - (tall ? 2.6 : 1.3), X(x + w * 0.45), Y(x + w * 0.45));
+      p.quadraticCurveTo(X(x + w * 0.75), Y(x + w) + 0.35, X(x + w), Y(x + w));
+      x += w;
+    }
+    CURSIVE.set(key, p); return p;
+  }
+  function drawPageLines(g, t, mood, small, ink) {
     const writing = mood === "thinking", cycle = (t % TURN_CYCLE) / TURN_CYCLE, lw = small ? 2.4 : 1.6;
     const ln = (x0, y0, len, slope, index, mirror) => {
       const p = !writing ? 1 : clamp((cycle - TURN_SHARE) / (1 - TURN_SHARE) * 6 - index, 0, 1);
@@ -2121,6 +2211,17 @@
     return tip || [x0, y0 + h * 0.3];
   }
 
+  // ---- símbolo do emblema: o ícone desenhado à mão da turma (turma.js, estudarioGlyphUri), carregado como
+  // imagem; enquanto carrega (ou se a turma não estiver na página), o traço simples abaixo.
+  const BADGE_ICON = { seq: "Fire", meta: "Flag", plano: "Calendar", quest: "Pencil", acerto: "Target", topico: "OpenBook", edital: "Doc", revisao: "Cycle", simulado: "Clipboard", discursiva: "Pena", maratona: "Timer" };
+  const ICON_IMG = new Map();
+  function badgeIcon(cat) {
+    if (ICON_IMG.has(cat)) return ICON_IMG.get(cat);
+    let img = null;
+    const uri = window.estudarioGlyphUri && BADGE_ICON[cat] ? window.estudarioGlyphUri(BADGE_ICON[cat]) : null;
+    if (uri) { img = new Image(); img.src = uri; }
+    ICON_IMG.set(cat, img); return img;
+  }
   // ---- símbolos das categorias de emblema (caixa de -10 a 10), em traço grosso
   function badgeGlyph(g, cat, color) {
     const p = new Path2D(), F = new Path2D();
@@ -2299,9 +2400,18 @@
       // símbolo cunhado: sombra funda e relevo claro (na cunhagem ele entra grande e assenta)
       const k = R / 15 * (1 + (1 - stamp) * 0.6);
       if (stamp > 0) {
-        g.save(); g.globalAlpha = clamp(stamp * 2, 0, 1); g.scale(k * 0.62, k * 0.62);
-        g.save(); g.translate(0.5, 0.7); badgeGlyph(g, cat, rgba(C[2], 0.95)); g.restore();
-        badgeGlyph(g, cat, "#FFFFFF");
+        const img = badgeIcon(cat);
+        g.save(); g.globalAlpha = clamp(stamp * 2, 0, 1);
+        if (img && img.complete && img.naturalWidth) {
+          // o adesivo da turma no centro, com sombra de cunhagem
+          const sz = R * 1.18 * (1 + (1 - stamp) * 0.6);
+          g.shadowColor = rgba(C[2], 0.8); g.shadowBlur = 3; g.shadowOffsetY = 0.8;
+          g.drawImage(img, -sz / 2, -sz / 2 - R * 0.04, sz, sz);
+        } else {
+          g.scale(k * 0.62, k * 0.62);
+          g.save(); g.translate(0.5, 0.7); badgeGlyph(g, cat, rgba(C[2], 0.95)); g.restore();
+          badgeGlyph(g, cat, "#FFFFFF");
+        }
         g.restore();
       }
     } else {
@@ -2329,7 +2439,7 @@
     shockRing(g, 50, 40, segT(T, stampAt, stampAt + 0.8), C[0], 46);
     shockRing(g, 50, 40, segT(T, stampAt + 0.12, stampAt + 1.1), "#FFFFFF", 56);
     // a medalha desce na fita girando e para de frente, com uma molinha
-    const u = Math.max(0, T - 0.15), MY = 38;
+    const u = Math.max(0, T - 0.15), MY = 34;
     const my = T < 0.15 ? -40 : u < 1.6 ? lerp(-40, MY, outBack(u / 1.5)) : MY + sin(t * 1.6) * 0.8;
     const ang = 10 * PI * outC(segT(T, 0.15, stampAt)), sxm = cos(ang), R = 19;
     const squash = hit > 0 && hit < 1 ? sin(PI * hit) * 0.12 : 0;
@@ -2436,7 +2546,13 @@
       const flare = today ? (1 - segT(T, hitT, hitT + 0.9)) * (T > hitT ? 1 : 0) : 0;
       const kick = today && T > hitT ? 16 * Math.exp(-(T - hitT) * 2.6) * sin((T - hitT) * 9) : 0;
       g.save(); g.translate(x, y); g.rotate((sin(t * 1.3 + i) * 2.5 + kick) * PI / 180);
-      drawLantern(g, lit, flare + (lit ? wave * 0.5 : 0), t, i, today ? "H" : letter);
+      drawLantern(g, lit, flare + (lit ? wave * 0.5 : 0), t, i, letter);
+      if (today) {
+        // plaquinha "HOJE" pendurada embaixo da lanterna de hoje
+        g.fillStyle = lit > 0.5 ? "#FFB421" : "rgba(255,255,255,0.85)"; const w = 10, y0 = 19.4;
+        g.beginPath(); g.moveTo(-w / 2 + 1, y0); g.lineTo(w / 2 - 1, y0); g.quadraticCurveTo(w / 2, y0, w / 2, y0 + 1); g.lineTo(w / 2, y0 + 3); g.quadraticCurveTo(w / 2, y0 + 4, w / 2 - 1, y0 + 4); g.lineTo(-w / 2 + 1, y0 + 4); g.quadraticCurveTo(-w / 2, y0 + 4, -w / 2, y0 + 3); g.lineTo(-w / 2, y0 + 1); g.quadraticCurveTo(-w / 2, y0, -w / 2 + 1, y0); g.fill();
+        g.fillStyle = "#1D1670"; g.font = "900 2.6px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("HOJE", 0, y0 + 2.1);
+      }
       g.restore();
     });
     // estouro da faísca na lanterna
@@ -2589,6 +2705,12 @@
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this._canvas.width, this._canvas.height);
       g.setTransform(this._k, 0, 0, this._k, 0, 0);
       draw(g, T, t, this);
+      g.save(); g.globalCompositeOperation = "destination-in";
+      const fx = g.createLinearGradient(0, 0, 100, 0); fx.addColorStop(0, "rgba(0,0,0,0)"); fx.addColorStop(0.07, "#000"); fx.addColorStop(0.93, "#000"); fx.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = fx; g.fillRect(0, 0, 100, CENA_H);
+      const fy = g.createLinearGradient(0, 0, 0, CENA_H); fy.addColorStop(0, "rgba(0,0,0,0)"); fy.addColorStop(0.05, "#000"); fy.addColorStop(0.97, "#000"); fy.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = fy; g.fillRect(0, 0, 100, CENA_H);
+      g.restore();
     }
   }
   customElements.define("estudario-cena", EstudarioCena);
@@ -2599,10 +2721,10 @@
   window.folhaPng = function (o) {
     const mood = MOODS[(o && o.mood) || "happy"] || "idle", size = Math.max(8, Math.round((o && o.size) || 96));
     // peças no pedido ({ hat: "coroa" }...): vitrine do armário (só as peças, sem medalha nem hora do dia)
-    const shelf = o && SLOTS.some((k) => o[k]);
+    const shelf = o && SLOTS.some((k) => o[k]), zoom = o && o.zoom ? (+o.zoom > 1 ? +o.zoom : 1.75) : 0, zx = (o && o.fx) || 50, zy = (o && o.fy) || 63;
     const look = resolveLook(null, shelf ? Object.assign({ plain: true }, o) : null);
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    const key = [mood, size, dpr, shelf ? "shelf" : "", ...SLOTS.map((k) => (shelf && o[k]) || LOOK[k]),
+    const key = [mood, size, dpr, shelf ? "shelf" : "", zoom ? "z" + zoom + ":" + zx + ":" + zy : "", ...SLOTS.map((k) => (shelf && o[k]) || LOOK[k]),
       shelf ? 0 : look.streak >= 100 ? 3 : look.streak >= 30 ? 2 : look.streak >= 7 ? 1 : 0, look.night, look.morning].join(":");
     if (STATIC.has(key)) return STATIC.get(key);
     const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9, holding: look.hand && look.hand !== "nenhum" });
@@ -2611,7 +2733,8 @@
     const pet = look.pet && look.pet !== "nenhum" && size >= SMALL, wide = (look.back && look.back !== "nada") || look.aura === "holofote" || look.aura === "fogos";
     const g = c.getContext("2d"), k = c.width / 100, fit = pet || wide ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
     g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2));
-    drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
+    if (zoom) { g.setTransform(k * zoom, 0, 0, k * zoom, -k * zoom * zx + c.width / 2, -k * zoom * zy + c.width / 2); }
+    drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: !zoom && size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;
   };
 
