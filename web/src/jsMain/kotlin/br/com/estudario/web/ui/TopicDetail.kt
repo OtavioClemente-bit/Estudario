@@ -418,6 +418,11 @@ private fun TheoryToc(theoryId: Long, chapters: List<Pair<Int, String>>, blockCo
             Span({ classes("toc-eyebrow") }) { Text("NESTE TEXTO") }
             Div({ classes("toc-meta") }) { Text(listOfNotNull("${chapters.size} capítulos", if (marks > 0) "$marks grifo${if (marks == 1) "" else "s"}" else null).joinToString(" · ")) }
         }
+        // Letra menor ou maior sem voltar ao topo: o sumário acompanha a leitura.
+        Div({ classes("toc-font"); attr("role", "group"); attr("aria-label", "Tamanho da letra") }) {
+            org.jetbrains.compose.web.dom.Button({ classes("toc-font-btn"); attr("aria-label", "Diminuir a letra"); attr("title", "Diminuir a letra"); if (ReaderPrefs.size == 0) attr("disabled", ""); onClick { ReaderPrefs.setSize(ReaderPrefs.size - 1) } }) { Text("A−") }
+            org.jetbrains.compose.web.dom.Button({ classes("toc-font-btn", "big"); attr("aria-label", "Aumentar a letra"); attr("title", "Aumentar a letra"); if (ReaderPrefs.size == 3) attr("disabled", ""); onClick { ReaderPrefs.setSize(ReaderPrefs.size + 1) } }) { Text("A+") }
+        }
     }
     // A trilha: preenchida até o capítulo da tela.
     val fill = if (chapters.size <= 1) 0 else active * 100 / (chapters.size - 1)

@@ -125,3 +125,22 @@
     return { theoryId: first.theoryId, block: parts[0].block, quote: parts.map((p) => p.quote).join(" … "), parts, x: rect.left + rect.width / 2, y: top };
   };
 })();
+
+// A barra do topo muda de altura (o cronômetro do foco, o menu no celular). As abas e o sumário que
+// grudam embaixo dela usam --topbar-h; antes, com valor fixo, ficavam cortadas atrás da barra.
+(function () {
+  "use strict";
+  let watched = null;
+  const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+  function update() {
+    const bar = document.querySelector(".main > .topbar") || document.querySelector(".topbar");
+    if (bar && ro && bar !== watched) { if (watched) ro.unobserve(watched); ro.observe(bar); watched = bar; }
+    const h = bar ? Math.ceil(bar.getBoundingClientRect().height) : 60;
+    document.documentElement.style.setProperty("--topbar-h", h + "px");
+  }
+  // Só para achar a barra quando a página monta ou troca (leitura de tamanho uma vez por quadro).
+  let queued = false;
+  new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; if (!watched || !watched.isConnected) update(); }); } }).observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener("resize", update);
+  update();
+})();
