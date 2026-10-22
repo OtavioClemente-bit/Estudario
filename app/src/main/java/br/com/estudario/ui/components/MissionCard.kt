@@ -31,6 +31,9 @@ import br.com.estudario.ui.planner.completionActionPtBr
 import br.com.estudario.ui.planner.displayNamePtBr
 import br.com.estudario.ui.planner.minutesLabelPtBr
 
+/** A teoria vigente de cada tópico no plano (para o cartão de questões dizer onde ela está). */
+val LocalTheoryByTopic = androidx.compose.runtime.staticCompositionLocalOf<Map<Long, br.com.estudario.data.local.planner.PlanTaskEntity>> { emptyMap() }
+
 /** Abre o tópico de uma tarefa ao tocar no nome dela (dado pelo plano; concluída ou não). */
 val LocalOpenTaskTopic = androidx.compose.runtime.staticCompositionLocalOf<((Long) -> Unit)?> { null }
 
@@ -135,6 +138,27 @@ fun MissionCard(
                     modifier = if (openTopic != null && topicId != null) Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).clickable(onClickLabel = "Abrir o conteúdo") { openTopic(topicId) } else Modifier,
                 )
                 
+                // Questões de um tópico: onde está a teoria dele (feita, atrasada ou marcada para outro dia).
+                if (task.type == PlanTaskType.QUESTIONS && topicId != null && task.status != PlanTaskStatus.CONCLUIDA) {
+                    val theoryTask = LocalTheoryByTopic.current[topicId]
+                    val today = java.time.LocalDate.now().toEpochDay()
+                    fun date(day: Long) = java.time.LocalDate.ofEpochDay(day).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale("pt", "BR")))
+                    val (text, warn) = when {
+                        theoryTask == null -> "Teoria deste tópico fora do plano: confira o conteúdo antes" to true
+                        theoryTask.status == PlanTaskStatus.CONCLUIDA -> "Teoria feita em ${date(theoryTask.scheduledEpochDay)}" to false
+                        theoryTask.status == PlanTaskStatus.NAO_REALIZADA -> "Teoria pulada em ${date(theoryTask.scheduledEpochDay)}: leia o conteúdo antes" to true
+                        theoryTask.scheduledEpochDay < today -> "Teoria atrasada desde ${date(theoryTask.scheduledEpochDay)}: faça ela antes" to true
+                        theoryTask.scheduledEpochDay > task.scheduledEpochDay -> "Teoria marcada para ${date(theoryTask.scheduledEpochDay)}" to true
+                        else -> "Teoria no mesmo dia, antes destas questões" to false
+                    }
+                    Text(
+                        text,
+                        modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(if (warn) Color(0x2EF2A900) else MaterialTheme.colorScheme.surfaceVariant).then(if (openTopic != null) Modifier.clickable { openTopic(topicId) } else Modifier).padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (warn) Color(0xFFD98A00) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 // FlowRow: "45 min • 20 qts • Prioridade alta" não cabe numa linha em tela estreita
                 // ou com fonte maior; os pedaços descem para a linha de baixo em vez de serem cortados.
                 FlowRow(

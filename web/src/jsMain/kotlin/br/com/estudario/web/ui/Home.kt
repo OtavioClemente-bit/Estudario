@@ -428,6 +428,21 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
                 task.status == "NAO_REALIZADA" -> Span { Text("não realizada") }
             }
         }
+        // Questões de um tópico: onde está a teoria dele (feita, atrasada ou marcada para outro dia).
+        if (task.type == "QUESTIONS" && task.topicId != null && !done) {
+            val theory = Store.data.tasks.filter { it.topicId == task.topicId && it.planId == task.planId && it.type == "THEORY" && it.status != "REPROGRAMADA" && it.status != "CANCELADA" }.maxByOrNull { it.day }
+            val studied = Store.data.topics.firstOrNull { it.id == task.topicId }?.let(Queries::isStudied) == true
+            fun date(day: Long) = Queries.shortDate(kotlinx.datetime.LocalDate.fromEpochDays(day.toInt()))
+            val (icon, text, warn) = when {
+                theory == null -> if (studied) Triple("task_alt", "Tópico já estudado: questões para fixar", false) else Triple("info", "A teoria deste tópico não está no plano: leia o conteúdo antes", true)
+                theory.status == "CONCLUIDA" -> Triple("task_alt", "Teoria feita em ${date(theory.day)}", false)
+                theory.status == "NAO_REALIZADA" -> Triple("warning", "Teoria pulada em ${date(theory.day)}: leia o conteúdo antes", true)
+                theory.day < todayEpoch -> Triple("warning", "Teoria atrasada desde ${date(theory.day)}: faça ela antes", true)
+                theory.day > task.day -> Triple("event", "Teoria marcada para ${date(theory.day)}", true)
+                else -> Triple("menu_book", "Teoria no mesmo dia, antes destas questões", false)
+            }
+            Div({ classes(*listOfNotNull("mission-theory", if (warn) "warn" else null).toTypedArray()); attr("role", "button"); attr("tabindex", "0"); onClick { Router.go(Route.Topic(task.topicId)) } }) { Icon(icon); Text(text) }
+        }
         Div({ classes("mission-actions") }) {
             Div({ classes("row", "wrap"); attr("style", "gap:8px") }) {
                 if (done) Span({ classes("done-pill") }) { Icon("check_circle"); Text("Concluída") }

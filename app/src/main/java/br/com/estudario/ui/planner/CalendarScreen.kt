@@ -40,7 +40,11 @@ fun CalendarScreen(
     onEditAvailability: () -> Unit = {},
     onShiftRoadmapEnd: (Long) -> Unit = {},
 ) {
-    androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalOpenTaskTopic provides onOpenTopic) {
+    val theoryByTopic = remember(state.tasks) {
+        state.tasks.map { it.entity }.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null && it.status != PlanTaskStatus.REPROGRAMADA }
+            .groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxBy { it.scheduledEpochDay } }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalOpenTaskTopic provides onOpenTopic, br.com.estudario.ui.components.LocalTheoryByTopic provides theoryByTopic) {
     // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
     // aparece, antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
     when (state.selectedSection) {
