@@ -58,15 +58,15 @@ private fun rarityAccent(r: FolhaRarity) = when (r) {
 }
 
 /**
- * Peça nova (a mesma cena do site): o presente cai na frente do Folha, pula impaciente, desamarra, a
- * tampa voa e a luz da peça sai, dá a volta nele e, num clarão, ele aparece vestindo. Depois entram o
- * nome, a raridade e os botões.
+ * Peça nova (a mesma cena do site): a caixa de presente cai ao lado do Folha, se mexe sozinha com luz
+ * vazando, ele puxa a fita, a tampa voa e sobe a carta da peça (com ele vestindo); a carta voa até ele e,
+ * num clarão, ele aparece vestido. Depois entram o nome, a raridade e os botões.
  */
 @Composable
 fun FolhaGiftDialog(item: FolhaItem, onUse: () -> Unit, onClose: () -> Unit) {
     SceneCelebration(
-        scene = listOf("tipo" to "peca", "piece-slot" to item.slot.key, "piece" to item.id, "rarity" to item.rarity.name.lowercase()),
-        reveal = 3.6f,
+        scene = listOf("tipo" to "peca", "piece-slot" to item.slot.key, "piece" to item.id, "rarity" to item.rarity.name.lowercase(), "piece-name" to item.name),
+        reveal = 3.9f,
         onDismiss = onClose,
         text = {
             CelEyebrow("NOVA PEÇA · ${item.rarity.label.uppercase()}", rarityAccent(item.rarity))

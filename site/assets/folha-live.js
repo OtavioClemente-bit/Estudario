@@ -3322,101 +3322,240 @@
   }
 
   // ---- cena: peça nova (o presente)
-  const WRAP = { comum: [["#9CC0FF", "#5B84D6", "#3D63B8"], "#FFFFFF"], rara: [["#7FB8FF", "#3D8BEA", "#2160B8"], GOLD], epica: [["#C7A6FF", "#9563FF", "#6A3BD6"], GOLD], lendaria: [["#FFE59A", "#F5B83D", "#C98A12"], "#E2364F"] };
-  function drawGift(g, w, h, wrap, bow, untie, t) {
-    // caixa com base em (0, 0): papel com listras, fita em cruz, laço por cima
-    const [C, rib] = wrap, x0 = -w / 2, y0 = -h;
-    g.fillStyle = vGrad(g, [C[0], C[1], C[2]], y0, 0); g.fillRect(x0, y0, w, h);
-    g.save(); const box = new Path2D(); box.rect(x0, y0, w, h); g.clip(box);
-    for (let x = x0 - h; x < -x0; x += 5) { const p = new Path2D(); p.moveTo(x, 0); p.lineTo(x + h, y0); p.lineTo(x + h + 2, y0); p.lineTo(x + 2, 0); p.closePath(); g.fillStyle = "rgba(255,255,255,0.14)"; g.fill(p); }
-    g.fillStyle = "rgba(0,0,30,0.18)"; g.fillRect(x0, y0, w, 2.2);
-    g.restore();
-    if (bow > 0) { g.globalAlpha = bow; g.fillStyle = vGrad(g, [rib, rgba(rib, 0.85)], y0, 0); g.fillRect(-2.6, y0, 5.2, h); g.globalAlpha = 1; }
+  // 0–0,45  a caixa cai do alto e quica (poeira no chão); o Folha entra pela direita e leva um susto;
+  // 1–1,8   a caixa se mexe sozinha três vezes, com luz vazando pela tampa; o Folha se anima a cada uma;
+  // 1,9–2,4 ele puxa a ponta da fita: o laço se desfaz e a fita escorrega;
+  // 2,45    a tampa pula longe girando, sai uma coluna de luz e uma fonte de faíscas;
+  // 2,55–3,1 a carta da peça sobe da caixa girando (verso, depois frente com o Folha vestindo a peça);
+  // 3,1–3,4 a carta flutua com o brilho holográfico correndo; 3,4–3,65 voa até o Folha;
+  // 3,65    clarão: ele já está vestindo a peça, pula para o centro e comemora.
+  const WRAP = {
+    comum: { paper: ["#B9D3FF", "#6E97E6", "#3D63B8"], rib: ["#FFFFFF", "#E4E8F6", "#B9C0DA"], dots: "rgba(255,255,255,0.35)" },
+    rara: { paper: ["#9FD0FF", "#3D8BEA", "#1F55A8"], rib: ["#FFF1BF", "#F5B83D", "#B07510"], dots: "rgba(255,240,190,0.4)" },
+    epica: { paper: ["#D9C2FF", "#9563FF", "#5A2BC4"], rib: ["#FFF1BF", "#F5B83D", "#B07510"], dots: "rgba(255,240,190,0.4)" },
+    lendaria: { paper: ["#FFF0BF", "#F5B83D", "#B87C0E"], rib: ["#FF8DA0", "#E2364F", "#9A1630"], dots: "rgba(255,255,255,0.45)" },
+  };
+  const RARITY_NAME = { comum: "COMUM", rara: "RARA", epica: "ÉPICA", lendaria: "LENDÁRIA" };
+  const GIFT = { W: 30, H: 19, DX: 7, DY: -6, LID: 5 };
+  // estampa do papel: estrelinhas e bolinhas alternadas, recortadas na face
+  function giftPattern(g, x0, y0, w, h, col) {
+    for (let y = y0 + 2.5, r = 0; y < y0 + h; y += 4.2, r++) for (let x = x0 + (r % 2 ? 1.5 : 3.6); x < x0 + w; x += 4.4) {
+      if ((r + Math.round(x)) % 3 === 0) star4(g, x, y, 1.1, col); else circle(g, col, 0.42, x, y);
+    }
   }
-  function drawGiftLid(g, w, wrap, bow, untie, t) {
-    const [C, rib] = wrap, lw = w + 4;
-    g.fillStyle = vGrad(g, [C[0], C[1]], -6, 0); g.fillRect(-lw / 2, -6, lw, 6);
-    g.fillStyle = "rgba(255,255,255,0.3)"; g.fillRect(-lw / 2, -6, lw, 1.1);
+  // a caixa em três quartos: frente, lado e (sem tampa) a boca escura com a luz lá dentro
+  function drawGiftBox(g, wrap, open, inner, t) {
+    const { W, H, DX, DY } = GIFT, x0 = -W / 2, x1 = W / 2, P = wrap.paper, Rb = wrap.rib;
+    // lado direito, mais escuro
+    const side = new Path2D(); side.moveTo(x1, 0); side.lineTo(x1 + DX, DY); side.lineTo(x1 + DX, DY - H); side.lineTo(x1, -H); side.closePath();
+    g.fillStyle = vGrad(g, [P[1], P[2]], -H, 0); g.fill(side); g.fillStyle = "rgba(10,5,40,0.28)"; g.fill(side);
+    // frente com a estampa e um brilho de papel
+    const front = new Path2D(); front.rect(x0, -H, W, H);
+    g.fillStyle = vGrad(g, [P[0], P[1], P[2]], -H, 0); g.fill(front);
+    g.save(); g.clip(front); giftPattern(g, x0, -H, W, H, wrap.dots);
+    const sh = g.createLinearGradient(x0, -H, x1, 0); sh.addColorStop(0, "rgba(255,255,255,0.28)"); sh.addColorStop(0.45, "rgba(255,255,255,0)"); sh.addColorStop(1, "rgba(0,0,30,0.18)"); g.fillStyle = sh; g.fillRect(x0, -H, W, H);
+    g.restore();
+    // fita: vertical na frente e horizontal no lado (some quando desamarra)
+    if (inner.ribbon > 0) {
+      g.save(); g.globalAlpha = inner.ribbon;
+      g.fillStyle = hGrad(g, [Rb[2], Rb[0], Rb[1], Rb[2]], -2.8, 2.8); g.fillRect(-2.8, -H, 5.6, H);
+      const sb = new Path2D(); sb.moveTo(x1, -H * 0.55 - 2.4); sb.lineTo(x1 + DX, DY - H * 0.55 - 2.4); sb.lineTo(x1 + DX, DY - H * 0.55 + 2.4); sb.lineTo(x1, -H * 0.55 + 2.4); sb.closePath();
+      g.fillStyle = Rb[2]; g.fill(sb);
+      line(g, "rgba(255,255,255,0.6)", -1.6, -H, -1.6, 0, 0.35);
+      g.restore();
+    }
+    stroke(g, front, "rgba(10,5,40,0.35)", 0.3); stroke(g, side, "rgba(10,5,40,0.35)", 0.3);
+    // aberta: a boca da caixa, funda e cheia de luz
+    if (open > 0) {
+      const mouth = new Path2D(); mouth.moveTo(x0, -H); mouth.lineTo(x0 + DX, DY - H); mouth.lineTo(x1 + DX, DY - H); mouth.lineTo(x1, -H); mouth.closePath();
+      g.fillStyle = "#1A1240"; g.fill(mouth);
+      g.save(); g.clip(mouth); glowAt(g, DX / 2, -H + DY / 2, 22, inner.glow, open * (0.85 + 0.15 * sin(t * 14))); g.restore();
+    }
+  }
+  // a tampa: faixa da frente, faixa do lado e o tampo, com a fita cruzada e o laço de cetim
+  function drawGiftLid(g, wrap, bow, untie, t) {
+    const { W, DX, DY, LID } = GIFT, ow = W + 2, x0 = -ow / 2, x1 = ow / 2, P = wrap.paper, Rb = wrap.rib;
+    const top = new Path2D(); top.moveTo(x0, -LID); top.lineTo(x0 + DX, DY - LID); top.lineTo(x1 + DX, DY - LID); top.lineTo(x1, -LID); top.closePath();
+    g.fillStyle = vGrad(g, [P[0], P[1]], DY - LID, -LID); g.fill(top); g.save(); g.clip(top); g.fillStyle = "rgba(255,255,255,0.22)"; g.fill(top); g.restore();
+    const side = new Path2D(); side.moveTo(x1, 0); side.lineTo(x1 + DX, DY); side.lineTo(x1 + DX, DY - LID); side.lineTo(x1, -LID); side.closePath();
+    g.fillStyle = P[2]; g.fill(side); g.fillStyle = "rgba(10,5,40,0.25)"; g.fill(side);
+    const front = new Path2D(); front.rect(x0, -LID, ow, LID);
+    g.fillStyle = vGrad(g, [P[0], P[1]], -LID, 0); g.fill(front);
+    g.save(); g.clip(front); giftPattern(g, x0, -LID, ow, LID, wrap.dots); g.restore();
+    line(g, "rgba(10,5,40,0.3)", x0, 0, x1, 0, 0.5);
     if (bow > 0) {
-      g.globalAlpha = bow; g.fillStyle = rib; g.fillRect(-2.6, -6, 5.2, 6);
-      // laço: duas alças e as pontas, que encolhem quando desamarra
-      const k = 1 - untie;
-      if (k > 0) {
-        for (const side of [-1, 1]) {
-          g.save(); g.translate(0, -6); g.rotate(side * (0.5 + untie * 0.8)); g.scale(k, k);
-          const loop = new Path2D(); loop.moveTo(0, 0); loop.bezierCurveTo(side * 4, -9, side * 13, -7, side * 10, -1); loop.bezierCurveTo(side * 8, 2, side * 3, 1, 0, 0); loop.closePath();
-          g.fillStyle = vGrad(g, [rgba(rib, 1), rgba(rib, 0.8)], -8, 1); g.fill(loop); stroke(g, loop, "rgba(0,0,0,0.18)", 0.4);
+      g.save(); g.globalAlpha = bow;
+      // fita cruzada no tampo e descendo na faixa da frente
+      g.fillStyle = hGrad(g, [Rb[2], Rb[0], Rb[1], Rb[2]], -2.8, 2.8); g.fillRect(-2.8, -LID, 5.6, LID);
+      const cr1 = new Path2D(); cr1.moveTo(-2.8, -LID); cr1.lineTo(-2.8 + DX, DY - LID); cr1.lineTo(2.8 + DX, DY - LID); cr1.lineTo(2.8, -LID); cr1.closePath(); g.fillStyle = Rb[1]; g.fill(cr1);
+      const cr2 = new Path2D(); cr2.moveTo(x0 + DX / 2, DY / 2 - LID - 1.2); cr2.lineTo(x1 + DX / 2, DY / 2 - LID - 1.2); cr2.lineTo(x1 + DX / 2, DY / 2 - LID + 1.2); cr2.lineTo(x0 + DX / 2, DY / 2 - LID + 1.2); cr2.closePath(); g.fillStyle = Rb[1]; g.fill(cr2);
+      g.restore();
+      // o laço no centro do tampo: duas alças com dobra, nó e as pontas; desamarrando, as alças murcham
+      const k = 1 - untie, bx = DX / 2, by = DY / 2 - LID;
+      if (k > 0.02) {
+        g.save(); g.globalAlpha = bow;
+        for (const s of [-1, 1]) {
+          g.save(); g.translate(bx, by); g.rotate(s * (0.35 + untie * 0.9) + sin(t * 3 + s) * 0.03); g.scale(k, k);
+          const loop = new Path2D(); loop.moveTo(0, 0); loop.bezierCurveTo(s * 3, -10, s * 15, -9.5, s * 12.5, -1.6); loop.bezierCurveTo(s * 10.5, 2.6, s * 4, 1.6, 0, 0); loop.closePath();
+          const lg = g.createLinearGradient(0, -9, s * 12, 2); lg.addColorStop(0, Rb[0]); lg.addColorStop(0.55, Rb[1]); lg.addColorStop(1, Rb[2]); g.fillStyle = lg; g.fill(loop);
+          // dobra interna (sombra) e brilho de cetim
+          const fold = new Path2D(); fold.moveTo(s * 1.2, -0.6); fold.bezierCurveTo(s * 4, -5.5, s * 10, -6, s * 10.6, -2.2); stroke(g, fold, "rgba(0,0,0,0.22)", 0.7);
+          const gl = new Path2D(); gl.moveTo(s * 2.6, -4.4); gl.bezierCurveTo(s * 5, -8, s * 9, -8, s * 11.2, -5.2); stroke(g, gl, "rgba(255,255,255,0.55)", 0.45);
+          stroke(g, loop, "rgba(0,0,0,0.25)", 0.3);
           g.restore();
         }
-        circle(g, rib, 2.2 * k, 0, -6);
+        g.beginPath(); g.ellipse(bx, by - 0.4, 2.6 * k, 2.2 * k, 0, 0, 2 * PI); g.fillStyle = vGrad(g, [Rb[0], Rb[2]], by - 2.6, by + 2); g.fill();
+        g.restore();
       }
-      for (const side of [-1, 1]) { const tail = new Path2D(); tail.moveTo(0, -6); tail.quadraticCurveTo(side * 3, -1 + untie * 8, side * 5 + untie * side * 6, 3 + untie * 18); stroke(g, tail, rib, 1.8 * (1 - untie * 0.4)); }
-      g.globalAlpha = 1;
     }
   }
-  function cenaPeca(g, T, t, el) {
-    const slot = el.getAttribute("piece-slot"), piece = el.getAttribute("piece"), rarity = el.getAttribute("rarity") || "comum";
-    const glow = RARITY_GLOW[rarity] || RARITY_GLOW.comum, wrap = WRAP[rarity] || WRAP.comum, legendary = rarity === "lendaria";
-    const flashT = 3.35, worn = T >= flashT;
-    const look = el._look(worn && slot && piece ? { [slot]: piece } : null);
-    starDust(g, t, 0.9);
-    // raios atrás do Folha depois que ele veste
-    const reach = el._reach();
-    backdrop(g, el, 50, 66, reach, reach * 0.85, (b) => {
-      glowAt(b, 50, 70, 58, glow[1], 0.18 + 0.3 * segT(T, flashT, flashT + 0.5));
-      bokeh(b, t, 50, 60, glow[0], 0.35);
-      sceneRays(b, 50, 70, legendary ? 22 : 16, 90, glow[0], outC(segT(T, flashT, flashT + 0.7)) * (0.8 + 0.2 * sin(t * 2)), t * 0.2, 0.06);
-      if (legendary) sceneRays(b, 50, 70, 10, 74, "#FFFFFF", 0.45 * outC(segT(T, flashT + 0.2, flashT + 1)), -t * 0.3, 0.04);
-    });
-    // o Folha: atrás da caixa, espiando; na luz, pula para a frente vestindo a peça
-    const jump = segT(T, flashT, flashT + 0.6), arc = sin(PI * jump) * 14;
-    const show = slot === "hand" || slot === "gloves" ? "present" : "proud";
-    const orb = segT(T, 2.35, flashT);
-    const orbAt = (() => {
-      // sobe da caixa, dá uma volta no Folha e entra nele
-      if (orb < 0.35) { const u = outC(orb / 0.35); return [50, lerp(80, 36, u)]; }
-      const u = (orb - 0.35) / 0.65, a = -PI / 2 + u * 2 * PI * 1.0, r = 30 * (1 - u * 0.75);
-      return [50 + cos(a) * r, 64 + sin(a) * r * 0.45 + (1 - u) * -28 * (1 - u)];
-    })();
-    const o = { T, t, x: 50, y: lerp(85, 104, outC(jump)) - arc, scale: lerp(0.4, 0.56, outC(jump)), look,
-      dir: T < 0.6 ? { x: 0, y: -1 + T * 3 } : T < 2.3 ? { x: 0, y: 1 } : !worn ? { x: clamp((orbAt[0] - 50) / 26, -1, 1), y: clamp((orbAt[1] - 66) / 20, -1, 1) } : { x: 0, y: 0 },
-      script: [[0, "idle"], [0.5, "surprised"], [1.0, "idle"], [2.15, "surprised"], [2.6, "idle"], [flashT, "ecstatic"], [flashT + 1.4, "happy"], [flashT + 2.4, show]] };
-    floorLight(g, 50, 104, 30, glow[0], 0.25 + 0.2 * segT(T, flashT, flashT + 0.6));
-    sceneFolha(g, o);
-    // a caixa: cai, pula impaciente, desamarra, solta a tampa e some numa nuvem de confete
-    const fall = segT(T, 0, 0.5), land = T - 0.5;
-    let by = 104 - (1 - fall * fall) * 120, rot = 0, sq = 0;
-    if (land > 0) sq = Math.exp(-land * 7) * sin(land * 20) * 0.14;
-    for (const [a, b] of [[1.0, 1.28], [1.42, 1.7], [1.82, 2.1]]) { const u = segT(T, a, b); if (u > 0 && u < 1) { by -= sin(PI * u) * (3 + a); rot += sin(PI * u * 2) * 7; sq += -sin(PI * u) * 0.05; } }
-    const untie = segT(T, 2.0, 2.3), lidU = Math.max(0, T - 2.3), gone = segT(T, flashT - 0.05, flashT + 0.2);
-    const bw = 40, bh = 22;
-    if (gone < 1) {
-      // luz pela fresta e coluna de luz quando abre
-      if (lidU > 0) { const a = Math.min(1, lidU * 3) * (1 - gone); const p = new Path2D(); p.moveTo(50 - bw / 2 + 2, by - bh); p.lineTo(50 + bw / 2 - 2, by - bh); p.lineTo(50 + 30, -10); p.lineTo(50 - 30, -10); p.closePath(); const gr = g.createLinearGradient(0, by - bh, 0, -10); gr.addColorStop(0, rgba(glow[0], 0.75 * a)); gr.addColorStop(1, rgba(glow[0], 0)); g.fillStyle = gr; g.fill(p); }
-      g.save(); g.translate(50, by); g.rotate(rot * PI / 180); g.scale(1 + sq - gone * 0.4, 1 - sq - gone * 0.6);
-      g.fillStyle = "rgba(10,6,40,0.3)"; g.beginPath(); g.ellipse(0, 1, bw * 0.6, 2.4, 0, 0, 2 * PI); g.fill();
-      drawGift(g, bw, bh, wrap, 1 - untie, untie, t);
-      if (T > 1.0 && lidU <= 0) { const k = segT(T, 1.0, 2.3); g.fillStyle = rgba(glow[0], 0.5 + 0.5 * sin(t * 20)); g.fillRect(-bw / 2, -bh - 0.6, bw, 1.2 * k); }
-      if (lidU <= 0) { g.save(); g.translate(0, -bh); drawGiftLid(g, bw, wrap, 1, untie, t); g.restore(); }
+  // a carta da peça (centro em 0,0): moldura da raridade, o Folha vestindo a peça, nome e o brilho holográfico.
+  // flip: -1..1 (cos do giro); de costas mostra o verso com a marca.
+  function drawPieceCard(g, flip, rarity, img, name, t, shine) {
+    const w = 26, h = 34, r = 3, glow = RARITY_GLOW[rarity] || RARITY_GLOW.comum, wrap = WRAP[rarity] || WRAP.comum;
+    g.save(); g.scale(Math.max(0.03, Math.abs(flip)), 1);
+    const card = new Path2D(); card.roundRect(-w / 2, -h / 2, w, h, r);
+    if (Q === 1) { g.save(); g.shadowColor = rgba(glow[0], 0.9); g.shadowBlur = 16 * (g.getTransform().a || 1) / 4; g.fillStyle = "#000"; g.fill(card); g.restore(); }
+    // moldura de metal da raridade
+    const fg = g.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2); fg.addColorStop(0, wrap.paper[0]); fg.addColorStop(0.5, glow[0]); fg.addColorStop(1, wrap.paper[2]); g.fillStyle = fg; g.fill(card);
+    const inner = new Path2D(); inner.roundRect(-w / 2 + 1.4, -h / 2 + 1.4, w - 2.8, h - 2.8, r - 1);
+    if (flip >= 0) {
+      const bg = g.createRadialGradient(0, -3, 1, 0, -2, h * 0.7); bg.addColorStop(0, "#4B3FD8"); bg.addColorStop(0.6, "#241A80"); bg.addColorStop(1, "#110C3E"); g.fillStyle = bg; g.fill(inner);
+      g.save(); g.clip(inner);
+      sceneRays(g, 0, -2, 12, 26, glow[0], 0.55, t * 0.4, 0.09);
+      glowAt(g, 0, -2, 12, glow[0], 0.5);
+      if (img && img.complete && img.naturalWidth) g.drawImage(img, -12, -15.5, 24, 24);
+      // faixa com o nome embaixo
+      g.fillStyle = "rgba(10,6,40,0.72)"; g.fillRect(-w / 2, h / 2 - 8.6, w, 8.6);
       g.restore();
-      if (lidU > 0) {
-        // a tampa sai voando e girando
-        const lx = 50 + lidU * 46, ly = by - bh - lidU * 95 + lidU * lidU * 70;
-        if (ly > -20) { g.save(); g.translate(lx, ly); g.rotate(lidU * 4); g.scale(1 - Math.min(lidU, 1) * 0.35, 1 - Math.min(lidU, 1) * 0.35); drawGiftLid(g, bw, wrap, 0, 1, t); g.restore(); }
+      // o nome cabe na carta: diminui a letra se for comprido
+      g.fillStyle = "#FFFFFF"; g.textAlign = "center"; g.textBaseline = "middle";
+      let fsz = 3; g.font = `900 ${fsz}px Nunito, system-ui, sans-serif`; const tw = g.measureText(name).width; if (tw > w - 4) { fsz *= (w - 4) / tw; g.font = `900 ${fsz}px Nunito, system-ui, sans-serif`; }
+      g.fillText(name, 0, h / 2 - 5.4);
+      g.fillStyle = glow[0]; g.font = "900 2.1px Nunito, system-ui, sans-serif"; g.fillText((RARITY_NAME[rarity] || "").split("").join(" "), 0, h / 2 - 2.6);
+      // brilho holográfico correndo na diagonal
+      if (shine >= 0 && shine <= 1) {
+        g.save(); g.clip(card); g.globalCompositeOperation = "lighter"; g.rotate(0.5);
+        const x = lerp(-w * 1.2, w * 1.2, shine), hg = g.createLinearGradient(x - 7, 0, x + 7, 0);
+        hg.addColorStop(0, "rgba(255,255,255,0)"); hg.addColorStop(0.35, "rgba(160,220,255,0.25)"); hg.addColorStop(0.5, "rgba(255,255,255,0.55)"); hg.addColorStop(0.65, "rgba(255,170,230,0.25)"); hg.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = hg; g.fillRect(x - 7, -h, 14, h * 2); g.restore();
+      }
+    } else {
+      // verso: índigo com um losango de folhinhas e a estrela no centro
+      g.fillStyle = vGrad(g, ["#3A2FC4", "#1D1670"], -h / 2, h / 2); g.fill(inner);
+      g.save(); g.clip(inner);
+      for (let y = -h / 2; y < h / 2; y += 3.2) for (let x = -w / 2 + ((y / 3.2) % 2 ? 1.6 : 0); x < w / 2; x += 3.2) circle(g, "rgba(255,255,255,0.08)", 0.5, x, y);
+      g.restore();
+      const dm = new Path2D(); dm.moveTo(0, -9); dm.lineTo(7, 0); dm.lineTo(0, 9); dm.lineTo(-7, 0); dm.closePath(); stroke(g, dm, rgba(glow[0], 0.9), 0.6);
+      star4(g, 0, 0, 5, glow[0]); circle(g, "#FFFFFF", 0.9, 0, 0);
+    }
+    stroke(g, card, "rgba(255,255,255,0.55)", 0.35);
+    g.restore();
+  }
+  function cenaPeca(g, T, t, el) {
+    const slot = el.getAttribute("piece-slot"), piece = el.getAttribute("piece"), rarity = el.getAttribute("rarity") || "comum", name = el.getAttribute("piece-name") || "Peça nova";
+    const glow = RARITY_GLOW[rarity] || RARITY_GLOW.comum, wrap = WRAP[rarity] || WRAP.comum, legendary = rarity === "lendaria", q = Q;
+    const K = { land: 0.45, wig: [1.0, 1.38, 1.74], pull: 1.95, untie: [2.1, 2.4], pop: 2.45, rise: [2.55, 3.1], fly: [3.4, 3.65] }, flashT = K.fly[1], worn = T >= flashT;
+    const look = el._look(worn && slot && piece ? { [slot]: piece } : null);
+    // a imagem da carta: o Folha vestindo a peça (fica pronta antes da carta aparecer)
+    if (!el._cardImg && window.folhaPng && slot && piece) { const im = new Image(); im.src = window.folhaPng({ mood: "happy", size: 220, [slot]: piece }); el._cardImg = im; }
+    const BX = 33, BY = 104;
+    starDust(g, t, 0.9);
+    const reach = el._reach(), opened = T >= K.pop;
+    backdrop(g, el, 50, 62, reach, reach * 0.9, (b) => {
+      glowAt(b, 50, 66, 60, glow[1], 0.16 + 0.22 * segT(T, K.pop, K.pop + 0.4) + 0.2 * segT(T, flashT, flashT + 0.5));
+      bokeh(b, t, 50, 58, glow[0], 0.32);
+      sceneRays(b, 50, worn ? 70 : 50, legendary ? 22 : 16, 92, glow[0], (outC(segT(T, K.rise[1], K.rise[1] + 0.4)) * 0.7 + outC(segT(T, flashT, flashT + 0.6)) * 0.3) * (0.8 + 0.2 * sin(t * 2)), t * 0.2, 0.06);
+      if (legendary || rarity === "epica") sceneRays(b, 50, worn ? 70 : 50, 10, 76, "#FFFFFF", 0.4 * outC(segT(T, K.rise[1], K.rise[1] + 0.6)), -t * 0.3, 0.035);
+      shockRing(b, 50, 50, segT(T, K.rise[1], K.rise[1] + 0.7), glow[0], 46);
+      shockRing(b, 50, 72, segT(T, flashT, flashT + 0.8), "#FFFFFF", 64);
+    });
+    // ---- a caixa
+    const fall = segT(T, 0, K.land), land = T - K.land;
+    let by = BY - (1 - fall * fall) * 130, rot = 0, sq = 0;
+    if (land > 0) sq = Math.exp(-land * 8) * sin(land * 22) * 0.16;
+    let leak = 0;
+    for (const a of K.wig) { const u = segT(T, a, a + 0.26); if (u > 0 && u < 1) { by -= sin(PI * u) * 3.2; rot += sin(PI * u * 2) * 6; sq -= sin(PI * u) * 0.06; leak = Math.max(leak, sin(PI * u)); } }
+    const untie = sstep(segT(T, K.untie[0], K.untie[1])), gone = segT(T, flashT - 0.1, flashT + 0.25);
+    // sombra no chão e a poeira da queda
+    if (gone < 1) { g.save(); g.translate(BX + 3, BY + 0.6); g.scale(1, 0.18); glowAt(g, 0, 0, 22 * (1 - gone), "#05030F", 0.55 * fall); g.restore(); }
+    if (land > 0 && land < 0.7) for (let i = 0; i < 8; i++) { const s = i < 4 ? -1 : 1, u = land / 0.7, x = BX + s * (16 + (i % 4) * 3 + u * 10), y = BY - 1 - sin(PI * u) * (2 + (i % 3)); glowAt(g, x, y, 2 + u * 4, "#C9C4E8", 0.35 * (1 - u)); }
+    if (gone < 1) {
+      g.save(); g.translate(BX, by); g.rotate(rot * PI / 180); g.scale((1 + sq) * (1 - gone * 0.5), (1 - sq) * (1 - gone * 0.7)); g.globalAlpha = 1 - gone;
+      drawGiftBox(g, wrap, opened ? 1 : 0, { ribbon: 1 - untie, glow: glow[0] }, t);
+      if (!opened) {
+        // luz vazando pela fresta da tampa quando ela se mexe
+        if (leak > 0 || T > K.wig[0]) { g.save(); g.globalCompositeOperation = "lighter"; const a = 0.25 + 0.75 * leak; g.fillStyle = rgba(glow[0], a); g.fillRect(-GIFT.W / 2, -GIFT.H - 0.5, GIFT.W, 1); glowAt(g, 0, -GIFT.H, 16, glow[0], 0.45 * a); g.restore(); }
+        g.save(); g.translate(0, -GIFT.H - leak * 1.6); drawGiftLid(g, wrap, 1, untie, t); g.restore();
+      }
+      g.restore();
+      // a fita solta escorrega da caixa até o chão
+      if (untie > 0 && T < flashT) {
+        const u = untie, x0 = BX + 3.5, y0 = by - GIFT.H - 7;
+        const p = new Path2D(); p.moveTo(x0, y0 + u * 18); p.bezierCurveTo(x0 + 6, y0 + 6 + u * 12, x0 + 10 + u * 4, BY - 8, x0 + 14 + u * 8, BY - 0.6);
+        stroke(g, p, wrap.rib[1], 2.4 * (1 - u * 0.3)); stroke(g, p, "rgba(255,255,255,0.35)", 0.5);
+      }
+      // a tampa sai voando, girando, e cai fora do quadro
+      if (opened) {
+        const u = T - K.pop, lx = BX + 4 + u * 40, ly = by - GIFT.H - 6 - u * 70 + u * u * 95;
+        if (ly < 140) { g.save(); g.translate(lx, ly); g.rotate(u * 5.5); g.scale(0.9, 0.9); g.translate(0, GIFT.LID / 2); drawGiftLid(g, wrap, 0, 1, t); g.restore(); }
+        // coluna de luz e fonte de faíscas saindo da boca
+        const a = clamp(u * 4, 0, 1) * (1 - gone), mx = BX + GIFT.DX / 2, my = by - GIFT.H + GIFT.DY / 2;
+        g.save(); g.globalCompositeOperation = "lighter";
+        const col = new Path2D(); col.moveTo(mx - 14, my); col.lineTo(mx + 14, my); col.lineTo(mx + 30, -40); col.lineTo(mx - 30, -40); col.closePath();
+        const cg = g.createLinearGradient(0, my, 0, -40); cg.addColorStop(0, rgba(glow[0], 0.55 * a)); cg.addColorStop(1, rgba(glow[0], 0)); g.fillStyle = cg; g.fill(col);
+        for (let i = 0, n = Math.round(26 * q); i < n; i++) {
+          const life = 0.9 + (i % 5) * 0.12, uu = ((u + i * 0.067) % life) / life, sx = (((i * 0.618) % 1) - 0.5) * 2;
+          const x = mx + sx * 6 + sx * 22 * uu, y = my - uu * 46 + uu * uu * 30;
+          star4(g, x, y, (1 - uu) * (i % 3 === 0 ? 2 : 1.2), rgba(i % 2 ? "#FFFFFF" : glow[0], a * (1 - uu)));
+        }
+        g.restore();
       }
     }
-    // nuvem de confete quando a caixa some
-    if (T > flashT - 0.05 && T < flashT + 0.9) { const u = segT(T, flashT - 0.05, flashT + 0.9); for (let i = 0; i < 9; i++) { const a = i * 2 * PI / 9; circle(g, `rgba(255,255,255,${0.7 * (1 - u)})`, 3 + u * 5, 50 + cos(a) * u * 18, 96 + sin(a) * u * 6 - u * 4); } }
-    drawConfetti(g, el._conf, T - flashT);
-    // a luz da peça
-    if (orb > 0 && !worn) {
-      const [x, y] = orbAt;
-      glowAt(g, x, y, 12, glow[0], 0.9); star4(g, x, y, 5 + sin(t * 9) * 0.8, "#FFFFFF"); circle(g, "#FFFFFF", 1.4, x, y);
-      for (let i = 0; i < 4; i++) { const ph = (t * 2 + i / 4) % 1; star4(g, x + sin(i * 2.4) * 6 * ph, y + cos(i * 1.7) * 6 * ph + ph * 4, 1.4 * (1 - ph), rgba(glow[0], 1 - ph)); }
+    // ---- o Folha: entra pela direita, se anima com a caixa, puxa a fita e, vestido, pula para o centro
+    const enter = outC(segT(T, 0.3, 0.8)), jump = segT(T, flashT, flashT + 0.6), arc = sin(PI * jump) * 14;
+    const fx = worn ? lerp(80, 50, sstep(jump)) : lerp(120, 80, enter), fs = worn ? lerp(0.44, 0.56, outC(jump)) : 0.44;
+    const cardY = T < K.rise[0] ? 999 : T < K.rise[1] ? lerp(by - GIFT.H, 46, outC(segT(T, K.rise[0], K.rise[1]))) : 46 + sin(t * 2) * 0.8;
+    const show = slot === "hand" || slot === "gloves" ? "present" : "proud";
+    const pullW = sstep(segT(T, K.pull, K.pull + 0.15)) * (1 - sstep(segT(T, K.untie[1], K.untie[1] + 0.2)));
+    const o = { T, t, x: fx, y: BY - arc, scale: fs, look,
+      dir: T < K.pop ? { x: -1, y: 0.4 } : !worn ? { x: -0.6, y: -0.8 } : { x: 0, y: 0 },
+      script: [[0, "idle"], [K.land, "surprised"], [K.land + 0.45, "idle"], [K.pop, "surprised"], [K.rise[1], "happy"], [flashT, "ecstatic"], [flashT + 1.4, "happy"], [flashT + 2.4, show]],
+      edit: (P) => {
+        if (worn) return;
+        // cada mexida da caixa: arregala e dá um pulinho
+        for (const a of K.wig) { const u = segT(T, a + 0.05, a + 0.45); if (u > 0 && u < 1) { const e = sin(PI * u); P.eyeScale = 1 + 0.18 * e; P.pupil = 1 + 0.3 * e; P.hop += -2.4 * e; P.browY = -2 * e; P.mOpen = Math.max(P.mOpen, 0.4 * e); } }
+        // puxando a fita: a mão esquerda pega a ponta e puxa para trás, corpo inclinado
+        if (pullW > 0) {
+          const pull = segT(T, K.untie[0], K.untie[1]);
+          P.hL = [lerp(P.hL[0], lerp(4, 16, pull), pullW), lerp(P.hL[1], lerp(70, 74, pull), pullW)]; P.shapeL = "fist"; P.rotL = 0;
+          P.tilt = lerp(P.tilt, 6 * pull, pullW); P.browIn = -0.5 * pullW; P.mW = lerp(P.mW, 3, pullW); P.mCurve = lerp(P.mCurve, 0.4, pullW); P.tongue = pull > 0.1 ? 1 : 0; P.lookX = -0.8; P.lookY = 0.5;
+        }
+      } };
+    floorLight(g, fx, BY, 26, glow[0], 0.22 + 0.2 * segT(T, flashT, flashT + 0.6));
+    const P = sceneFolha(g, o);
+    // a ponta da fita na mão dele enquanto puxa
+    if (pullW > 0.05 && T < K.untie[1] + 0.2) {
+      const [hx, hy] = folhaPt(o, P, P.hL[0], P.hL[1]), x0 = BX + 4, y0 = by - GIFT.H - 7;
+      const p = new Path2D(); p.moveTo(x0, y0); p.quadraticCurveTo((x0 + hx) / 2, Math.max(y0, hy) + 4, hx, hy); stroke(g, p, wrap.rib[1], 1.8); stroke(g, p, "rgba(255,255,255,0.35)", 0.4);
     }
+    // ---- a carta: sobe girando, flutua e voa até o Folha
+    if (T >= K.rise[0] && T < flashT) {
+      const ru = segT(T, K.rise[0], K.rise[1]), fly = sstep(segT(T, K.fly[0], K.fly[1]));
+      const spin = (1 - outC(ru)) * 3 * PI, flip = cos(spin);
+      const cx = lerp(BX + GIFT.DX / 2, 50, outC(ru)), x = lerp(cx, fx, fly), y = lerp(cardY, BY - 22, fly), sc = lerp(lerp(0.3, 1, outC(ru)), 0.15, fly);
+      if (fly > 0) for (let j = 1; j <= 5; j++) { const f2 = sstep(Math.max(0, segT(T, K.fly[0], K.fly[1]) - j * 0.05)); glowAt(g, lerp(cx, fx, f2), lerp(cardY, BY - 22, f2), 5 - j * 0.6, glow[0], 0.3 * (1 - j / 6)); }
+      glowAt(g, x, y, 24 * sc, glow[0], 0.45);
+      g.save(); g.translate(x, y); g.scale(sc, sc); g.rotate(sin(t * 1.6) * 0.04 * (1 - fly));
+      drawPieceCard(g, flip, rarity, el._cardImg, name, t, T > K.rise[1] ? ((T - K.rise[1]) * 0.9) % 1.4 : -1);
+      g.restore();
+      // estrelinhas em volta da carta parada
+      if (ru >= 1 && fly < 0.3) for (let i = 0; i < 6; i++) { const a = i * PI / 3 + t * 0.6, ph = (t * 0.9 + i / 6) % 1; star4(g, x + cos(a) * 19, y + sin(a) * 21, 2 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : glow[0], sin(PI * ph))); }
+    }
+    drawConfetti(g, el._conf, T - flashT);
     // clarão da troca
     const fl = segT(T, flashT - 0.08, flashT + 0.55);
-    if (fl > 0 && fl < 1) { const a = fl < 0.15 ? fl / 0.15 : 1 - (fl - 0.15) / 0.85; glowAt(g, 50, 72, 70, "#FFFFFF", a); }
+    if (fl > 0 && fl < 1) { const a = fl < 0.15 ? fl / 0.15 : 1 - (fl - 0.15) / 0.85; glowAt(g, fx, 78, 60, "#FFFFFF", a); }
     if (worn) for (let i = 0; i < (legendary ? 8 : 5); i++) { const ph = (t * 0.45 + i / 8) % 1; star4(g, 14 + ((i * 29) % 72), 92 - ph * 70, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : glow[0], sin(PI * ph))); }
   }
 
@@ -3515,6 +3654,75 @@
     drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: !zoom && size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;
   };
+
+  // Medalha viva (tela de conquistas, ao tocar num emblema): <estudario-medalha tier cat earned size>.
+  // Gira devagar como uma moeda na mão, com a espessura da borda aparecendo; arrastando gira junto e,
+  // solta com força, rodopia e volta a balançar. O brilho passa de tempos em tempos; conquistada ganha
+  // luz e estrelinhas, trancada fica em cinza, quieta.
+  class EstudarioMedalha extends HTMLElement {
+    connectedCallback() {
+      if (!this._canvas) {
+        this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.touchAction = "pan-y";
+        this.appendChild(this._canvas); this.setAttribute("role", "img");
+        this._ang = 0; this._vel = 0; this._drag = null; this._start = performance.now();
+        this._canvas.addEventListener("pointerdown", (e) => { this._drag = { x: e.clientX, a: this._ang, t: performance.now(), lx: e.clientX }; this._vel = 0; this._canvas.setPointerCapture(e.pointerId); });
+        this._canvas.addEventListener("pointermove", (e) => {
+          if (!this._drag) return; const now = performance.now(), dt = Math.max(1, now - this._drag.t);
+          this._vel = (e.clientX - this._drag.lx) * 0.018 / (dt / 16); this._drag.lx = e.clientX; this._drag.t = now;
+          this._ang = this._drag.a + (e.clientX - this._drag.x) * 0.018;
+        });
+        const up = () => { if (!this._drag) return; if (Math.abs(this._vel) < 0.02 && Math.abs(this._ang - this._drag.a) < 0.05) this._vel = 0.42; this._drag = null; };
+        this._canvas.addEventListener("pointerup", up); this._canvas.addEventListener("pointercancel", up);
+      }
+      this._size();
+      const loop = (now) => { if (!this.isConnected) return; this._frame(now); this._raf = requestAnimationFrame(loop); };
+      this._raf = requestAnimationFrame(loop);
+    }
+    disconnectedCallback() { cancelAnimationFrame(this._raf); }
+    static get observedAttributes() { return ["tier", "cat", "earned", "size"]; }
+    attributeChangedCallback(n) { if (!this._canvas) return; if (n === "size") this._size(); this._start = performance.now(); }
+    _size() {
+      const w = parseInt(this.getAttribute("size") || "220", 10), dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      this._canvas.width = this._canvas.height = Math.round(w * dpr); this._canvas.style.width = this._canvas.style.height = w + "px"; this._k = (w * dpr) / 100;
+    }
+    _frame(now) {
+      const g = this._canvas.getContext("2d"), t = (now - this._start) / 1000, k = this._k;
+      const tier = Math.max(1, Math.min(6, parseInt(this.getAttribute("tier") || "1", 10))), cat = this.getAttribute("cat") || "seq", earned = this.getAttribute("earned") !== "false";
+      const calm = reduceMotion.matches;
+      // física do giro: arrastando segue o dedo; solto, gira com atrito e depois volta a balançar
+      if (!this._drag) {
+        if (Math.abs(this._vel) > 0.004) { this._ang += this._vel; this._vel *= 0.955; }
+        else {
+          this._vel = 0; const turns = Math.round(this._ang / (2 * PI)) * 2 * PI, sway = calm || !earned ? 0 : sin(t * 0.9) * 0.42;
+          this._ang += (turns + sway - this._ang) * 0.08;
+        }
+      }
+      const ang = this._ang, c = cos(ang), C = TIERS[tier] || TIERS[3];
+      const R = tier >= 5 ? 24 : tier >= 3 ? 28 : 33;
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this._canvas.width, this._canvas.height);
+      g.setTransform(k, 0, 0, k, 0, 0);
+      const appear = outBack(segT(t, 0, 0.6));
+      if (earned) {
+        glowAt(g, 50, 50, 48, C[1], 0.32 + 0.08 * sin(t * 2));
+        if (!calm) sceneRays(g, 50, 50, 16, 52, C[0], 0.45 * appear, t * 0.15, 0.07);
+      }
+      g.save(); g.translate(50, 50); g.scale(appear, appear);
+      if (!earned) g.filter = "grayscale(1) brightness(0.62) contrast(0.9)";
+      // a espessura da moeda aparece quando ela está de lado
+      const th = sin(ang) * R * 0.11;
+      g.save(); g.scale(Math.max(0.03, Math.abs(c)), 1);
+      g.beginPath(); g.arc(th / Math.max(0.03, Math.abs(c)), 0, R * 0.99, 0, 2 * PI); g.fillStyle = C[2]; g.fill();
+      const shine = earned && !calm ? ((t * 0.32) % 1.25) : -1;
+      drawMedalArt(g, R, earned ? tier : Math.min(tier, 2), c >= 0 ? cat : "", { deco: 1, engrave: c >= 0 ? 1 : 0, k, shine: c >= 0 ? shine : -1 });
+      g.restore();
+      g.restore();
+      if (earned && !calm) for (let i = 0; i < 7; i++) {
+        const a = i * 2 * PI / 7 + t * 0.25, ph = (t * 0.6 + i * 0.37) % 1;
+        star4(g, 50 + cos(a) * 42, 50 + sin(a) * 40, 2.6 * sin(PI * ph) * appear, rgba(i % 2 ? "#FFFFFF" : C[0], sin(PI * ph)));
+      }
+    }
+  }
+  customElements.define("estudario-medalha", EstudarioMedalha);
 
   // Medalha de emblema parada (tela de conquistas): o mesmo desenho da forja, em PNG, guardado em cache.
   // folhaMedal({ tier: 1..6, cat: "seq", earned: true, size: 80 }) -> data URL. Trancada sai em cinza.

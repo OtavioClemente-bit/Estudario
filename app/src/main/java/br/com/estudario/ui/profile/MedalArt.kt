@@ -114,9 +114,9 @@ private fun DrawScope.medal(c: Offset, r: Float, tier: Int, cat: String) {
         }
         drawCircle(Color(0x38000000), r * 0.71f, Offset.Zero, style = Stroke(r * 0.025f)); drawCircle(Color(0x59FFFFFF), r * 0.69f, Offset.Zero, style = Stroke(r * 0.012f))
         for (i in 0 until tier) { val a = PIF / 2 + (i - (tier - 1) / 2f) * 0.27f; val x = cos(a) * r * 0.58f; val y = sin(a) * r * 0.58f; drawPath(star5(x + r * 0.01f, y + r * 0.015f, r * 0.075f), col[2]); drawPath(star5(x, y, r * 0.07f), col[0]) }
-        // o símbolo cunhado
+        // o símbolo cunhado (o verso, "verso", é liso)
         val s = r / 13.5f
-        translate(0f, -r * 0.06f) { scale(s, s, pivot = Offset.Zero) {
+        if (cat != "verso") translate(0f, -r * 0.06f) { scale(s, s, pivot = Offset.Zero) {
             translate(0.55f, 0.65f) { glyph(cat, Color(0x61000000)) }
             translate(-0.4f, -0.45f) { glyph(cat, Color(0xBFFFFFFF)) }
             glyph(cat, col[2])

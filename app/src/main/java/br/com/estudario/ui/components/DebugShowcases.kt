@@ -61,6 +61,21 @@ fun BadgeShowcase() = EstudarioTheme {
     }
 }
 
+/** Vitrine de debug: cada comemoração, para testar no aparelho (e repetir ao fechar). */
+@Composable
+fun CelebrationShowcase(kind: String, tier: Int, item: String?) = EstudarioTheme {
+    val round = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.key(round.intValue) {
+        val again = { round.intValue++; Unit }
+        when (kind) {
+            "nivel" -> br.com.estudario.ui.profile.LevelUpScreen(br.com.estudario.ui.AppViewModel.LevelUp(7, "Concurseiro", newTitle = true, totalXp = 2_150), onClose = again)
+            "sequencia" -> br.com.estudario.ui.profile.StreakCelebrationScreen(br.com.estudario.ui.profile.StreakCelebration(br.com.estudario.domain.StreakSummary(current = 10, best = 10, todayDone = true), "meta"), onClose = again)
+            "peca" -> br.com.estudario.ui.profile.FolhaGiftDialog(br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == item } ?: br.com.estudario.domain.FolhaWardrobe.items.last(), onUse = again, onClose = again)
+            else -> br.com.estudario.ui.profile.BadgeCelebrationScreen(listOf(BadgeCatalog.all.first { it.tier == tier.coerceIn(1, 6) } ), onClose = again)
+        }
+    }
+}
+
 /** Vitrine de debug: a comemoração de subida de nível. */
 @Composable
 fun LevelUpShowcase() = EstudarioTheme {

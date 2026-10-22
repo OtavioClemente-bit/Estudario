@@ -36,12 +36,19 @@ import org.jetbrains.compose.web.dom.Text
 @Composable
 fun AchievementsScreen() {
     val progress = Progress.of(Store.data).progress
+    // tocar num emblema abre a medalha em destaque
+    var open by remember { mutableStateOf<String?>(null) }
+    open?.let { id -> progress.badges.firstOrNull { it.badge.id == id }?.let { MedalDetail(it, progress.badges, onPick = { open = it }, onClose = { open = null }) } }
     BackToProfile()
     PageHead("Conquistas", "${progress.earnedBadges.size} de ${progress.badges.size} emblemas. Tudo vem do seu histórico real.")
     Div({ classes("badges") }) {
         (progress.earnedBadges + progress.nextBadges).forEach { item ->
             androidx.compose.runtime.key(item.badge.id) {
-                Div({ classes(*listOfNotNull("badge", if (item.earned) "earned" else null).toTypedArray()); attr("title", item.badge.requirement) }) {
+                Div({
+                    classes(*listOfNotNull("badge", "tappable", if (item.earned) "earned" else null).toTypedArray()); attr("title", item.badge.requirement)
+                    attr("role", "button"); attr("tabindex", "0"); onClick { open = item.badge.id }
+                    onKeyDown { if (it.key == "Enter" || it.key == " ") { it.preventDefault(); open = item.badge.id } }
+                }) {
                     // a medalha do emblema (folha-live.js, folhaMedal): metal do nível, símbolo cunhado e moldura que cresce com o nível
                     Div({ classes("medal") }) {
                         val src = androidx.compose.runtime.remember(item.badge.id, item.earned) {
@@ -59,6 +66,67 @@ fun AchievementsScreen() {
                     if (!item.earned) Div({ attr("style", "width:100%") }) {
                         ProgressBar(item.percent.toDouble())
                         Span({ classes("xs", "muted") }) { Text("${item.current} / ${item.target} ${item.badge.unit}") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val TIER_COLOR = mapOf(1 to "#C27E45", 2 to "#9AA2B5", 3 to "#F5B83D", 4 to "#5E9BFF", 5 to "#F0506B", 6 to "#3FD69F")
+
+/**
+ * A medalha em destaque: a medalha viva (folha-live.js, <estudario-medalha>) girando como moeda, que dá
+ * para girar com o dedo; o nível, o que pede, o progresso até ela e a escada da categoria inteira (do
+ * Bronze à Esmeralda), onde dá para tocar nas outras.
+ */
+@Composable
+private fun MedalDetail(item: br.com.estudario.domain.BadgeProgress, all: List<br.com.estudario.domain.BadgeProgress>, onPick: (String) -> Unit, onClose: () -> Unit) {
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val esc: (org.w3c.dom.events.Event) -> Unit = { e -> if ((e as org.w3c.dom.events.KeyboardEvent).key == "Escape") onClose() }
+        kotlinx.browser.window.addEventListener("keydown", esc)
+        onDispose { kotlinx.browser.window.removeEventListener("keydown", esc) }
+    }
+    val b = item.badge
+    val cat = b.id.substringBefore("-")
+    val color = TIER_COLOR[b.tier] ?: "#F5B83D"
+    val ladder = all.filter { it.badge.category == b.category }.sortedBy { it.badge.tier }
+    Div({ classes("medal-modal"); onClick { onClose() } }) {
+        Div({ classes("medal-sheet", "rise"); attr("role", "dialog"); attr("aria-label", b.name); onClick { it.stopPropagation() } }) {
+            Button({ classes("medal-close"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            androidx.compose.runtime.key(b.id) {
+                org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
+                    elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-medalha"),
+                    applyAttrs = { attr("tier", b.tier.toString()); attr("cat", cat); attr("earned", item.earned.toString()); attr("size", "230"); attr("aria-label", "Medalha ${b.name}") },
+                    content = null,
+                )
+            }
+            Span({ classes("medal-tier"); attr("style", "--tc:$color") }) { Text("${tierName(b.tier).uppercase()} · ${b.category.label.uppercase()}") }
+            H2({ classes("medal-name") }) { Text(b.name) }
+            P({ classes("muted"); attr("style", "margin:0") }) { Text(b.requirement) }
+            if (item.earned) Span({ classes("medal-done") }) { Icon("verified", filled = true); Text("Conquistado") }
+            else Div({ classes("medal-progress") }) {
+                ProgressBar(item.percent.toDouble())
+                Span({ classes("small", "muted") }) { Text(item.hint ?: "${item.current} de ${item.target} ${b.unit} · faltam ${item.remaining}") }
+            }
+            wardrobeUnlockedBy(b.id).forEach { gift ->
+                A(href = "#/${Route.Wardrobe.path}", { classes("wd-gift", if (item.earned) "on" else "off") }) { Icon("checkroom"); Text("Libera no armário: ${gift.name}") }
+            }
+            if (ladder.size > 1) {
+                Span({ classes("eyebrow"); attr("style", "margin-top:6px") }) { Text("A ESCADA DE ${b.category.label.uppercase()}") }
+                Div({ classes("medal-ladder") }) {
+                    ladder.forEach { step ->
+                        val src = remember(step.badge.id, step.earned) {
+                            runCatching { kotlinx.browser.window.asDynamic().folhaMedal(kotlin.js.json("tier" to step.badge.tier, "cat" to cat, "earned" to step.earned, "size" to 52)) as? String }.getOrNull()
+                        }
+                        Button({
+                            classes(*listOfNotNull("medal-step", if (step.badge.id == b.id) "on" else null, if (step.earned) "earned" else null).toTypedArray())
+                            attr("aria-label", "${step.badge.name}${if (step.earned) ", conquistado" else ""}"); onClick { onPick(step.badge.id) }
+                        }) {
+                            if (src != null) Img(src = src, alt = "")
+                            // a meta de cada degrau (algumas categorias têm mais degraus que metais)
+                            Span { Text("${step.badge.target} ${step.badge.unit}") }
+                        }
                     }
                 }
             }

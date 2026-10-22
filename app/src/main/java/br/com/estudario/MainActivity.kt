@@ -112,6 +112,11 @@ class MainActivity : ComponentActivity() {
                 theories.firstOrNull()?.let { br.com.estudario.ui.screens.TheoryReaderScreen(viewModel, it.id, showInternalTopBar = false, onBack = {}) }
                 return@setContent
             }
+            // Comemorações (só debug/preview): `--es celebrationShowcase emblema|nivel|sequencia|peca` (+ `--ei tier 1..6`).
+            if (BuildConfig.DEBUG && intent?.getStringExtra("celebrationShowcase") != null) {
+                br.com.estudario.ui.components.CelebrationShowcase(intent!!.getStringExtra("celebrationShowcase")!!, intent!!.getIntExtra("tier", 3), intent!!.getStringExtra("item"))
+                return@setContent
+            }
             if (BuildConfig.DEBUG && intent?.getBooleanExtra("badgeShowcase", false) == true) {
                 br.com.estudario.ui.components.BadgeShowcase()
                 return@setContent

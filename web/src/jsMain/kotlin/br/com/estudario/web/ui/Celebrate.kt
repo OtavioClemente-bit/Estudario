@@ -148,14 +148,14 @@ fun CelebrationHost() {
 }
 
 
-private fun tierName(tier: Int) = when (tier) { 1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Safira"; 5 -> "Rubi"; else -> "Esmeralda" }
+internal fun tierName(tier: Int) = when (tier) { 1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Safira"; 5 -> "Rubi"; else -> "Esmeralda" }
 
 /** Quando a cena chega no momento principal: aí entram os textos (e, logo depois, os botões). */
 private fun revealAt(item: Celebration): Double = when (item) {
     is Celebration.LevelUp -> 2.5
     is Celebration.NewBadge -> 3.7
     is Celebration.StreakDay -> 3.0
-    is Celebration.NewPiece -> 3.6
+    is Celebration.NewPiece -> 3.9
 }
 
 /**
@@ -207,7 +207,7 @@ private fun Scene(item: Celebration) {
         is Celebration.LevelUp -> listOf("tipo" to "nivel", "nivel" to item.level.toString())
         is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier))
         is Celebration.StreakDay -> listOf("tipo" to "sequencia", "dias" to item.days.toString(), "semana" to item.week.joinToString(",") { (l, done) -> l + if (done) "1" else "0" })
-        is Celebration.NewPiece -> listOf("tipo" to "peca", "piece-slot" to item.item.slot.key, "piece" to item.item.id, "rarity" to item.item.rarity.name.lowercase())
+        is Celebration.NewPiece -> listOf("tipo" to "peca", "piece-slot" to item.item.slot.key, "piece" to item.item.id, "rarity" to item.item.rarity.name.lowercase(), "piece-name" to item.item.name)
     }
     val label = when (item) {
         is Celebration.LevelUp -> "O Folha comemora o nível ${item.level}"
