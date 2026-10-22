@@ -310,8 +310,6 @@ private fun ProfileContent(
                 if (current != null) Band { WardrobeBand(current, onWardrobe) }
             }
             item { Divider() }
-            item { streak?.let { s -> Band { BondBand(s.activeDays) } } }
-            item { Divider() }
 
             item { DailyGoalBand(profile.dailyGoal.questions, onDailyGoalChange) }
             item { Divider() }

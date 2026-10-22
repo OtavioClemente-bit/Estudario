@@ -643,7 +643,6 @@ private fun MainNavigation(viewModel: AppViewModel) {
         levelUp?.let { event -> if (celebration == null && badgeUnlock.isEmpty() && tourStep == null) br.com.estudario.ui.profile.LevelUpScreen(event, viewModel::consumeLevelUp) }
         // Peça nova no armário: o baú abre depois das outras comemorações.
         br.com.estudario.ui.profile.FolhaGiftHost(viewModel, enabled = celebration == null && badgeUnlock.isEmpty() && levelUp == null && tourStep == null)
-        br.com.estudario.ui.profile.FolhaBondHost(viewModel, enabled = celebration == null && badgeUnlock.isEmpty() && levelUp == null && tourStep == null)
         val xpGain by viewModel.xpGain.collectAsState()
         br.com.estudario.ui.profile.XpGainToast(xpGain)
         if (showPlansFromMenu) br.com.estudario.ui.plans.PlansDialog(onDismiss = { showPlansFromMenu = false }, onSignIn = { showPlansFromMenu = false; navController.navigate("profile") })

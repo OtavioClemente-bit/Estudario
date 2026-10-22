@@ -1,22 +1,15 @@
 package br.com.estudario.web.ui
 
-import androidx.compose.runtime.Composable
 import br.com.estudario.domain.FolhaBond
 import br.com.estudario.domain.FolhaMemory
 import br.com.estudario.web.data.ProgressView
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Snapshot
 import br.com.estudario.web.data.Store
-import kotlinx.browser.localStorage
-import org.jetbrains.compose.web.dom.B
-import org.jetbrains.compose.web.dom.Div
-import org.jetbrains.compose.web.dom.P
-import org.jetbrains.compose.web.dom.Span
-import org.jetbrains.compose.web.dom.Text
 
 /**
- * O Folha como amigo, no site: o nível da amizade (FolhaBond), a memória dele na tela inicial
- * (FolhaMemory) e o cartão do vínculo no perfil.
+ * O Folha como amigo, no site: o nome da pessoa e a memória dele na tela inicial (FolhaMemory). A
+ * amizade (FolhaBond) não aparece em lugar nenhum: só libera gestos novos com o tempo.
  */
 object FolhaFriend {
     /** Primeiro nome da pessoa (ou nulo na demonstração e sem nome). */
@@ -45,7 +38,7 @@ object FolhaFriend {
         val last = lastSubject(data)
         return FolhaMemory.home(
             FolhaMemory.Context(
-                name = firstName(), bond = FolhaBond.level(view.streak.activeDays).index, bondUp = null,
+                name = firstName(), bond = FolhaBond.level(view.streak.activeDays).index,
                 daysAway = FolhaBond.daysAway(view.streak.calendar, Queries.todayDate()), todayDone = view.streak.todayDone,
                 streak = view.streak.current, daysToExam = daysToExam?.toInt(), lastSubject = last?.first, lastSubjectDaysAgo = last?.second,
                 hour = hour, seed = seed,
@@ -54,36 +47,3 @@ object FolhaFriend {
     }
 }
 
-/** Cartão do Perfil: o vínculo com o Folha, os corações da amizade e o que o próximo nível libera. */
-@Composable
-fun BondCard(view: ProgressView) {
-    val days = view.streak.activeDays
-    val level = FolhaBond.level(days)
-    val next = FolhaBond.next(days)
-    Div({ classes("card", "pad-lg", "bond-card") }) {
-        Div({ classes("bond-top") }) {
-            Div({ classes("bond-folha") }) { Folha(if (level.index >= 3) "happy" else "wave", 72) }
-            Div({ classes("grow") }) {
-                Div({ classes("eyebrow") }) { Text("AMIZADE COM O FOLHA") }
-                B({ classes("bond-name") }) { Text(level.name) }
-                Div({ classes("bond-hearts"); attr("aria-label", "Nível ${level.index + 1} de ${FolhaBond.levels.size}") }) {
-                    FolhaBond.levels.forEach { l -> Span({ classes(*listOfNotNull("bond-heart", if (l.index <= level.index) "on" else null).toTypedArray()) }) }
-                }
-            }
-        }
-        if (next != null) {
-            Div({ classes("bond-bar") }) { Span({ attr("style", "width:${(FolhaBond.progress(days) * 100).toInt()}%") }) }
-            P({ classes("small", "muted"); attr("style", "margin:6px 0 0") }) {
-                Text("Mais ${next.days - days} ${if (next.days - days == 1) "dia" else "dias"} estudando juntos para virar "); B { Text(next.name) }; Text(". ${next.unlock}")
-            }
-        } else P({ classes("small", "muted"); attr("style", "margin:6px 0 0") }) { Text("Vocês chegaram ao topo da amizade. ${level.unlock}") }
-        P({ classes("xs", "faint"); attr("style", "margin:6px 0 0") }) { Text("Conta cada dia com estudo, mesmo que não seja seguido. Ninguém perde amizade por faltar.") }
-    }
-}
-
-/** Marca o nível de amizade já comemorado neste navegador. */
-internal object BondSeen {
-    private const val KEY = "estudario.folha.amizade"
-    fun read(): Int? = runCatching { localStorage.getItem(KEY) }.getOrNull()?.toIntOrNull()
-    fun write(v: Int) { runCatching { localStorage.setItem(KEY, v.toString()) } }
-}

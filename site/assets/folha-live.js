@@ -2852,46 +2852,9 @@
     if (worn) for (let i = 0; i < (legendary ? 8 : 5); i++) { const ph = (t * 0.45 + i / 8) % 1; star4(g, 14 + ((i * 29) % 72), 92 - ph * 70, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : glow[0], sin(PI * ph))); }
   }
 
-  // ---- cena: a amizade com o Folha subiu (vinculo nivel="3" de="7")
-  // Um coração grande atrás dele enche de baixo para cima, as sete marcas da amizade em arco acendem até
-  // o nível novo (que estoura com brilho) e o Folha dá um abraço apertado em você.
-  function cenaVinculo(g, T, t, el) {
-    const lvl = Math.max(1, parseInt(el.getAttribute("nivel") || "1", 10)), total = parseInt(el.getAttribute("de") || "7", 10), look = el._look();
-    starDust(g, t, 1);
-    const beat = 1 + 0.05 * Math.max(0, sin(t * 5)) * segT(T, 1.6, 2);
-    const grow = outBack(segT(T, 0.1, 0.8)), fill = outC(segT(T, 0.7, 1.7)) * (0.35 + 0.65 * lvl / (total - 1));
-    glowAt(g, 50, 52, 54, "#FF8FA3", 0.25 + 0.25 * segT(T, 1.6, 2.2));
-    sceneRays(g, 50, 52, 12, 64, "#FFB8C8", outC(segT(T, 1.6, 2.3)) * (0.7 + 0.3 * sin(t * 2)), t * 0.2);
-    // coração grande, enchendo de rosa
-    g.save(); g.translate(50, 52); g.scale(grow * beat, grow * beat);
-    const H = heart(0, 0, 30);
-    g.fillStyle = "rgba(255,255,255,0.08)"; g.fill(H); stroke(g, H, "rgba(255,190,210,0.6)", 1.2);
-    g.save(); g.clip(H); const top = 30 - 60 * fill;
-    const wave = new Path2D(); wave.moveTo(-40, 40); wave.lineTo(-40, top); for (let x = -40; x <= 40; x += 4) wave.lineTo(x, top + sin(x * 0.18 + t * 3) * 1.4); wave.lineTo(40, 40); wave.closePath();
-    g.fillStyle = vGrad(g, ["#FF9DB8", "#F0506B", "#C0263D"], top, 30); g.fill(wave);
-    g.restore();
-    g.beginPath(); g.ellipse(-12, -14, 6, 3.4, -0.6, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.35)"; g.fill();
-    g.restore();
-    // as marcas da amizade em arco (o nível novo estoura)
-    for (let i = 1; i < total; i++) {
-      const a = PI + (i - 0.5) / (total - 1) * PI, x = 50 + cos(a) * 42, y = 50 + sin(a) * 36, on = i < lvl || (i === lvl && T > 1.9);
-      const pop = i === lvl ? outBack(segT(T, 1.9, 2.3)) : 1, r = (i === lvl ? 4.4 : 3.4) * (on ? pop : 1);
-      if (on) glowAt(g, x, y, r * 3, "#FF8FA3", 0.5);
-      g.fillStyle = on ? vGrad(g, ["#FFC2D1", "#F0506B"], y - r, y + r) : "rgba(255,255,255,0.14)"; g.fill(heart(x, y, r));
-      if (i === lvl) shockRing(g, x, y, segT(T, 1.9, 2.6), "#FFE0E8", 12);
-    }
-    // coraçõezinhos subindo
-    if (T > 1.6) for (let i = 0; i < 9; i++) { const ph = (t * 0.4 + i / 9) % 1, x = 14 + ((i * 31) % 72) + sin(t + i) * 3, y = 104 - ph * 90; g.save(); g.globalAlpha = sin(PI * ph) * 0.8; g.fillStyle = i % 3 ? "#FF8FA3" : "#FFFFFF"; g.fill(heart(x, y, 1.6 + (i % 3) * 0.6)); g.restore(); }
-    drawConfetti(g, el._conf, T - 1.9);
-    const o = { T, t, x: 50, y: 106 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.5, look, dir: { x: 0, y: -0.4 },
-      script: [[0, "idle"], [0.9, "surprised"], [1.9, "ecstatic"], [3.4, "happy"], [5, "proud"]] };
-    floorLight(g, 50, 105, 30, "#FF8FA3", 0.25);
-    sceneFolha(g, o);
-  }
-
-  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca, vinculo: cenaVinculo };
+  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
   class EstudarioCena extends HTMLElement {
-    static get observedAttributes() { return ["size", "tipo", "nivel", "de", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity"]; }
+    static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity"]; }
     connectedCallback() {
       if (!this._canvas) {
         this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.width = this._canvas.style.height = "100%";
@@ -2908,7 +2871,7 @@
     _restart() {
       this._start = performance.now();
       const tipo = this.getAttribute("tipo"), glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum;
-      const cols = tipo === "vinculo" ? ["#FF8FA3", "#FFC2D1", "#FFFFFF", "#F0506B", SPARK] : tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
+      const cols = tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
       this._conf = makeConfetti(7 + (tipo || "").length, tipo === "peca" && this.getAttribute("rarity") === "lendaria" ? 60 : 44, cols);
     }
     // o visual do Folha: o que a pessoa escolheu, em vitrine (sem medalha de sequência nem café da manhã)

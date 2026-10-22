@@ -7,9 +7,9 @@ import br.com.estudario.time.*
 data class FolhaBondLevel(val index: Int, val name: String, val days: Int, val unlock: String)
 
 /**
- * O vínculo com o Folha: sobe com os dias em que a pessoa estudou (não precisam ser seguidos), então
- * ninguém perde amizade por faltar, só demora mais. Cada nível libera um jeito novo dele: gestos ao
- * toque, falas e, no fim, a aura de amizade.
+ * O vínculo com o Folha: sobe com os dias em que a pessoa estudou (não precisam ser seguidos). Não
+ * aparece em tela nenhuma; só faz o Folha ficar mais próximo com o tempo (gestos novos ao toque e
+ * falas de amigo).
  */
 object FolhaBond {
     val levels: List<FolhaBondLevel> = listOf(
@@ -39,16 +39,13 @@ object FolhaBond {
 }
 
 /**
- * A memória do Folha na tela inicial: o que ele fala quando tem algo pessoal para dizer (subiu a
- * amizade, você sumiu e voltou, a prova está chegando, o que você estudou ontem, seu nome). Quando não
+ * A memória do Folha na tela inicial: o que ele fala quando tem algo pessoal para dizer (você sumiu e voltou, a prova está chegando, o que você estudou ontem, seu nome). Quando não
  * tem nada especial, devolve nulo e a tela usa a frase de sempre.
  */
 object FolhaMemory {
     data class Context(
         val name: String?,
         val bond: Int,
-        /** O nível de amizade que acabou de subir (ainda não comemorado na tela), se houver. */
-        val bondUp: FolhaBondLevel?,
         val daysAway: Int?,
         val todayDone: Boolean,
         val streak: Int,
@@ -68,9 +65,6 @@ object FolhaMemory {
     fun home(c: Context): Line? {
         val nome = c.name?.takeIf { it.isNotBlank() && it != "estudante" }
         val voce = nome ?: "você"
-        c.bondUp?.let { up ->
-            return Line("Nossa amizade subiu: agora somos ${up.name}! ${up.unlock}", "ecstatic")
-        }
         val away = c.daysAway
         if (away != null && away >= 2) {
             if (c.todayDone) return Line(listOf(

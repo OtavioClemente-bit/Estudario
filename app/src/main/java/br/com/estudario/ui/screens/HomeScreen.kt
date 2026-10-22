@@ -266,7 +266,7 @@ fun HomeScreen(
                     }
                     br.com.estudario.domain.FolhaMemory.home(
                         br.com.estudario.domain.FolhaMemory.Context(
-                            name = profile.firstName, bond = br.com.estudario.domain.FolhaBond.level(s?.activeDays ?: 0).index, bondUp = null,
+                            name = profile.firstName, bond = br.com.estudario.domain.FolhaBond.level(s?.activeDays ?: 0).index,
                             daysAway = s?.let { br.com.estudario.domain.FolhaBond.daysAway(it.calendar, br.com.estudario.time.today()) },
                             todayDone = s?.todayDone == true, streak = s?.current ?: 0,
                             daysToExam = activePlan?.examEpochDay?.let { (it - LocalDate.now().toEpochDay()).toInt() }?.takeIf { it >= 0 },

@@ -208,7 +208,6 @@ fun ProfileScreen() {
                 }
             }
             WardrobeCard(progress)
-            BondCard(br.com.estudario.web.data.Progress.of(br.com.estudario.web.data.Store.data))
             Card {
                 ProfileLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} emblemas", Route.Achievements)
                 ProfileLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
