@@ -1,6 +1,13 @@
 package br.com.estudario.ui.assistant
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.offset
@@ -268,6 +275,20 @@ fun Folha(
     val sim = remember { FolhaSim().also { it.enterPending = enter } }
     var frame by remember { mutableLongStateOf(0L) }
     sim.small = size < SMALL
+    // grande e tocável: fala, pensa, sente carinho e cumprimenta quando você volta
+    sim.chatty = onClick != null && size >= 80.dp && style?.noScene != true
+    if (sim.chatty) {
+        val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+        androidx.compose.runtime.DisposableEffect(owner) {
+            var pausedAt = 0L
+            val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) pausedAt = System.currentTimeMillis()
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && pausedAt > 0 && System.currentTimeMillis() - pausedAt > 60_000) sim.greet()
+            }
+            owner.lifecycle.addObserver(obs)
+            onDispose { owner.lifecycle.removeObserver(obs) }
+        }
+    }
     sim.setMood(mood)
     sim.setLeaving(leaving)
     LaunchedEffect(say) { sim.setSay(say, sayMillis) }
@@ -294,11 +315,24 @@ fun Folha(
         onClick()
     } else Modifier
 
+    val pet = if (sim.chatty) Modifier.pointerInput(Unit) {
+        detectHorizontalDragGestures { change, dx -> sim.pet(dx, this.size.width.toFloat(), if (change.position.x > this.size.width / 2f) 1f else -1f) }
+    } else Modifier
+    // a caixa leva o modifier de quem chamou; o balão de fala se ancora nela
+    androidx.compose.foundation.layout.Box(modifier) {
+    val q = sim.quip
+    if (q != null) androidx.compose.ui.window.Popup(alignment = androidx.compose.ui.Alignment.TopCenter, offset = androidx.compose.ui.unit.IntOffset(0, -with(androidx.compose.ui.platform.LocalDensity.current) { (size * 0.62f).roundToPx() })) {
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.widthIn(max = maxOf(180.dp, size * 1.5f)).shadow(6.dp, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+        ) { androidx.compose.material3.Text(q, color = Ink, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+    }
     Canvas(
-        modifier
+        Modifier
             .size(size)
             .semantics { contentDescription = "Folha, do Estudário" }
-            .then(clickable),
+            .then(clickable)
+            .then(pet),
     ) {
         frame.let { }   // redesenha a cada quadro
         val f = sim.snapshot(gulp, resolveLook(style))
@@ -308,6 +342,7 @@ fun Folha(
             drawFolha(f)
             drawContext.canvas.restore()
         }
+    }
     }
 }
 
@@ -429,6 +464,25 @@ private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fid
                 p.mOpen = 1.1f * e; p.mW = lerp(5f, 3.2f, e); p.mCurve = lerp(3.4f, 0.4f, e); p.browY = -1.6f * e
             }
             "glance" -> { p.lookX = fid.side * e; p.lookY = -0.1f; p.up = 0.25f * e; p.browR = if (fid.side > 0) 1.4f * e else 0f; p.browY = -0.4f * e; p.mW = lerp(5f, 3.6f, e); p.mCurve = lerp(3.4f, 1f, e) }
+            "read" -> {   // lê a própria página: os olhos correm a linha
+                p.lookY = lerp(p.lookY, 0.85f, e); p.lookX = e * sin(fu * 14f) * 0.8f; p.up = 0.3f * e; p.browY = 0.4f * e
+                p.mW = lerp(5f, 3.4f, e); p.mCurve = lerp(3.4f, 1.4f, e); p.tilt += 1.5f * e
+            }
+            "whistle" -> {   // assobia olhando para cima, balançando no ritmo
+                p.mW = lerp(5f, 1.8f, e); p.mCurve = lerp(3.4f, 0f, e); p.mOpen = 0.55f * e; p.lookX = 0.5f * e; p.lookY = -0.6f * e; p.browY = -0.8f * e
+                p.tilt += sin(fu * 18f) * 2.2f * e; p.hop = -abs(sin(fu * 9f)) * 1.2f * e
+            }
+            "peek" -> {   // inclina para o lado e dá um tchauzinho
+                val side = fid.side; val wv = sin(t * 13f) * e
+                p.tilt = side * 7f * e; p.hop = -1.2f * e; p.low = 0.4f * e; p.mW = 5.6f; p.mCurve = 4.4f; p.mOpen = 0.4f * e; p.cheek = lerp(0.45f, 0.65f, e); p.lookX = side * 0.8f * e; p.lookY = -0.2f * e
+                if (side > 0f) { p.hR0 = lerp(p.hR0, 100f, e); p.hR1 = lerp(p.hR1, 32f, e) + wv * 1.4f; if (e > 0.3f) p.shapeR = Hand.OPEN; p.rotR = (-10f + 24f * sin(t * 13f)) * e; p.bendR = -5f * e }
+                else { p.hL0 = lerp(p.hL0, 0f, e); p.hL1 = lerp(p.hL1, 32f, e) + wv * 1.4f; if (e > 0.3f) p.shapeL = Hand.OPEN; p.rotL = (10f - 24f * sin(t * 13f)) * e; p.bendL = -5f * e }
+            }
+            "hatflip" -> {   // joga o chapéu para cima e pega (o chapéu voa no desenho)
+                val k = sin(PIf * clamp(fu, 0f, 1f))
+                p.lookY = -k; p.lookX = 0f; p.mOpen = 0.5f * k; p.mW = lerp(5f, 3.4f, k); p.mCurve = lerp(3.4f, 2f, k); p.browY = -1.6f * k
+                p.hR0 = lerp(p.hR0, 88f, k); p.hR1 = lerp(p.hR1, 42f, k); if (k > 0.3f) p.shapeR = Hand.OPEN; p.rotR = -30f * k; p.bendR = -4f * k
+            }
             "bounce" -> {
                 p.hop = -3.2f * abs(sin(PIf * fu * 2)); p.low = 0.45f * e; p.mOpen = 0.6f * e; p.mW = 5.6f; p.mCurve = 4.4f; p.cheek = lerp(0.45f, 0.7f, e)
                 p.hL0 = lerp(p.hL0, 4f, e); p.hL1 = lerp(p.hL1, 58f, e); p.hR0 = lerp(p.hR0, 96f, e); p.hR1 = lerp(p.hR1, 58f, e)
@@ -578,10 +632,20 @@ private class FolhaSim {
     var enterPending = false
     private var leaveAt = -1L
     private var burstAt = -1L
+    // vida: reação ao toque, carinho, balão de pensamento e frase do balão
+    private var react: String? = null; private var reactAt = 0L; private var lastReact: String? = null
+    private var petUntil = 0L; private var petSide = 1f; private var petW = 0f; private var petAcc = 0f; private var wasPet = false
+    private var thought: String? = null; private var thoughtAt = 0L; private var nextThought = 0L; private var lastThought: String? = null
+    private var quipAt = -100_000L; private var quipUntil = 0L; private var lastDt = 0f
+    /** A frase do balão agora (a tela mostra em cima dele); nula sem frase. */
+    var quip by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
+    /** Folha grande e tocável: fala ao ser tocado e pensa quando fica à toa. */
+    var chatty = false
 
     /** Quadros por segundo de que ele precisa agora (0 = todos). */
     fun fpsCap(powerSave: Boolean): Int {
-        val busy = leaveAt >= 0 || nowMs < dizzyUntil || bounceAt >= 0 || fid != null || speaking || !inited
+        val busy = leaveAt >= 0 || nowMs < dizzyUntil || bounceAt >= 0 || fid != null || speaking || !inited || react != null || petW > 0.02f || nowMs < petUntil || thought != null
         val moving = abs(v[0]) + abs(v[3]) + abs(v[5]) > 14f || abs(sqV) > 0.5f
         if (busy || moving) return if (powerSave) 30 else 0
         return when (shown) {
@@ -605,11 +669,33 @@ private class FolhaSim {
         sayTimes = LongArray(text.length) { (raw[it] * k).toLong() }; sayEnd = (at * k).toLong()
     }
 
+    /** Toque: amassa e reage de um jeito diferente a cada vez; se for grande, solta uma frase. */
     fun poke() {
-        bounceAt = nowMs; wink = true; winkUntil = nowMs + 710; idleSince = nowMs
+        bounceAt = nowMs; idleSince = nowMs
+        var k = REACTIONS.random().first
+        if (k == lastReact) k = REACTIONS[(REACTIONS.indexOfFirst { it.first == k } + 1) % REACTIONS.size].first
+        react = k; reactAt = nowMs; lastReact = k
+        if (k == "wink") { wink = true; winkUntil = nowMs + 710 }
+        say(tapLine())
         taps.removeAll { nowMs - it > 1400 }; taps.add(nowMs)
         if (taps.size >= 4) { dizzyUntil = nowMs + 2200; taps.clear() }
         burstAt = nowMs
+    }
+
+    /** Carinho: arrastar o dedo de um lado para o outro em cima dele. [dx] em pixels; [w] a largura dele. */
+    fun pet(dx: Float, w: Float, side: Float) {
+        petAcc = petAcc * 0.97f + abs(dx)
+        if (petAcc > w * 1.5f) { petUntil = nowMs + 700; petSide = side; idleSince = nowMs }
+    }
+
+    /** Voltou para o app depois de um tempo: dá um pulo e cumprimenta. */
+    fun greet() { react = "hop"; reactAt = nowMs; say(BACK_LINES.random()) }
+
+    /** Uma frase no balão, com a boca acompanhando (só nos grandes e no máximo uma a cada 3,5 s). */
+    private fun say(text: String) {
+        if (!chatty || nowMs - quipAt < 3500) return
+        val total = (text.length * 45L).coerceIn(900L, 2600L)
+        setSay(text, total); quipAt = nowMs; quipUntil = nowMs + total + 400; quip = text
     }
 
     /** Para imagens paradas: pula as molas direto para a pose. */
@@ -621,11 +707,14 @@ private class FolhaSim {
 
     fun step(now: Long, dt: Float) {
         if (!inited) { nowMs = now; idleSince = now; nextBlink = now + 1800; nextFid = now + 6000 + Random.nextLong(5000) }
-        nowMs = now; t += dt
+        nowMs = now; t += dt; lastDt = dt
         var m = mood
         if (leaveAt >= 0) m = FolhaMood.WAVE
         else if (now < dizzyUntil) m = FolhaMood.DIZZY
         else if (mood == FolhaMood.IDLE && now - idleSince > 40_000) m = FolhaMood.SLEEPY
+        // falando a frase do balão, se ele estiver tranquilo
+        if (now < quipUntil && m in QUIP_MOODS) m = FolhaMood.TALKING
+        if (quip != null && now > quipUntil + 1400) quip = null
         if (shown == FolhaMood.SLEEPY && m != FolhaMood.SLEEPY) bounceAt = now        // acorda num susto
         if (m != shown && inited) { sqV += 9f; v[3] += 40f; v[5] += 40f }              // antecipação
         if (m != shown || !inited) { moodAt = now; if (inited) prevShown = shown }
@@ -704,7 +793,7 @@ private class FolhaSim {
     private fun fidget(now: Long, m: FolhaMood): Fidget? {
         if (m != FolhaMood.IDLE) { fid = null; nextFid = now + 5000 + Random.nextLong(4000); return null }
         if (fid == null && now > nextFid) {
-            val kinds = listOf("cap" to 1700L, "yawn" to 2300L, "glance" to 1500L, "bounce" to 1100L)
+            val kinds = listOf("cap" to 1700L, "yawn" to 2300L, "glance" to 1500L, "bounce" to 1100L, "read" to 2600L, "whistle" to 2400L, "peek" to 1800L, "hatflip" to 1500L)
             var k = kinds[Random.nextInt(kinds.size)]
             if (k.first == lastFid) k = kinds[(kinds.indexOf(k) + 1) % kinds.size]
             fid = Fidget(k.first, now, k.second, if (Random.nextBoolean()) -1f else 1f); lastFid = k.first
@@ -723,8 +812,71 @@ private class FolhaSim {
         return exp(-s * 5.5f) * cos(s * 17f)
     }
 
+    /**
+     * A vida por cima da pose: carinho, reação ao toque, chapéu voando, assobio e o balão de pensamento
+     * quando ele fica parado à toa. Mexe no quadro [p] e devolve os extras do desenho.
+     */
+    private fun life(p: PoseValues): Life? {
+        if (small) return null
+        val now = nowMs
+        fun env(u: Float) = sin(PIf * clamp(u, 0f, 1f)).pow(0.6f)
+        fun mix(get: () -> Float, set: (Float) -> Unit, v: Float, w: Float) = set(lerp(get(), v, w))
+        var turn = 1f; var hatUp = 0f; var hatSpin = 0f; var whistle = 0f; var hearts = 0f; var th: String? = null; var thU = 0f
+        val petting = now < petUntil
+        petW += ((if (petting) 1f else 0f) - petW) * minOf(1f, lastDt * (if (petting) 9f else 5f))
+        if (!petting) petAcc *= 0.9f
+        if (petW > 0.01f) {
+            val w = petW
+            p.low = lerp(p.low, 0.78f, w); p.up = lerp(p.up, 0.1f, w); p.cheek = lerp(p.cheek, 1f, w); p.tilt = lerp(p.tilt, petSide * 6f + sin(t * 9f) * 1.2f, w)
+            p.mW = lerp(p.mW, 5.8f, w); p.mCurve = lerp(p.mCurve, 4.8f, w); p.mOpen = lerp(p.mOpen, 0.3f, w); p.hop = lerp(p.hop, -0.8f + sin(t * 9f) * 0.4f, w); p.browY = lerp(p.browY, -1.2f, w)
+            hearts = w
+            if (petting) wasPet = true else if (wasPet && w < 0.5f) { wasPet = false; say(PET_LINES.random()) }
+        }
+        react?.let { k ->
+            val dur = REACTIONS.firstOrNull { it.first == k }?.second ?: 900L
+            val u = (now - reactAt).toFloat() / dur
+            if (u >= 1f) react = null else {
+                val w = env(u)
+                when (k) {
+                    "giggle" -> { p.low = lerp(p.low, 0.8f, w); p.up = lerp(p.up, 0.1f, w); p.cheek = lerp(p.cheek, 1f, w); p.mOpen = lerp(p.mOpen, 0.85f, w); p.mW = lerp(p.mW, 6f, w); p.mCurve = lerp(p.mCurve, 5f, w); p.tilt += sin(u * 42f) * 4f * w; p.hop += -abs(sin(u * 21f)) * 1.5f * w }
+                    "spin" -> { turn = cos(2f * PIf * (1f - (1f - u).pow(3))); p.hop += -sin(PIf * u) * 6f; p.mOpen = lerp(p.mOpen, 0.6f, w); p.pupil = lerp(p.pupil, 1.3f, w) }
+                    "hop" -> {
+                        p.hop += -sin(PIf * u) * 13f; hatUp = maxOf(0f, sin(PIf * clamp((u - 0.08f) / 0.92f, 0f, 1f))) * 9f
+                        p.low = lerp(p.low, 0.6f, w); p.mOpen = lerp(p.mOpen, 1f, w); p.mW = lerp(p.mW, 6.2f, w); p.mCurve = lerp(p.mCurve, 5f, w); p.pupil = lerp(p.pupil, 1.3f, w)
+                        p.hL0 = lerp(p.hL0, 2f, w); p.hL1 = lerp(p.hL1, 42f, w); p.hR0 = lerp(p.hR0, 98f, w); p.hR1 = lerp(p.hR1, 42f, w); if (w > 0.4f) { p.shapeL = Hand.FIST; p.shapeR = Hand.FIST }
+                    }
+                    "love" -> { p.low = lerp(p.low, 0.78f, w); p.cheek = lerp(p.cheek, 1f, w); p.mW = lerp(p.mW, 5.4f, w); p.mCurve = lerp(p.mCurve, 4.6f, w); p.mOpen = lerp(p.mOpen, 0.2f, w); hearts = maxOf(hearts, w) }
+                    "wink" -> { p.low = lerp(p.low, 0.5f, w); p.mCurve = lerp(p.mCurve, 4.4f, w); p.cheek = lerp(p.cheek, 0.8f, w) }
+                }
+            }
+        }
+        fid?.let { fd ->
+            val u = clamp((now - fd.start).toFloat() / fd.dur, 0f, 1f)
+            if (fd.kind == "hatflip") { hatUp = 20f * sin(PIf * u); hatSpin = 360f * u }
+            if (fd.kind == "whistle") whistle = env(u)
+        }
+        // balão de pensamento: de vez em quando, parado e à toa, ele sonha acordado com alguma coisa
+        val calm = shown == FolhaMood.IDLE && fid == null && react == null && !petting && now > quipUntil
+        if (nextThought == 0L) nextThought = now + 9000 + Random.nextLong(12000)
+        if (thought == null && chatty && calm && now > nextThought) {
+            var k = THOUGHTS.random(); if (k == lastThought) k = THOUGHTS[(THOUGHTS.indexOf(k) + 1) % THOUGHTS.size]
+            thought = k; thoughtAt = now; lastThought = k
+        }
+        thought?.let { k ->
+            val u = (now - thoughtAt) / 3600f
+            if (u >= 1f || (shown != FolhaMood.IDLE && u < 0.88f)) { thought = null; nextThought = now + 16000 + Random.nextLong(14000) }
+            else {
+                val w = env(u)
+                p.lookX = lerp(p.lookX, 0.75f, w); p.lookY = lerp(p.lookY, -0.9f, w); p.mCurve = lerp(p.mCurve, 3.8f, w); p.mW = lerp(p.mW, 4.4f, w); p.browY = lerp(p.browY, -0.8f, w)
+                th = k; thU = u
+            }
+        }
+        return Life(turn, hatUp, hatSpin, whistle, hearts, th, thU)
+    }
+
     fun snapshot(gulp: Float, look: Look): FolhaFrame {
         val p = PoseValues().also { it.set(x); it.shapeL = shapeL; it.shapeR = shapeR }
+        val lifeNow = life(p)
         worried = look.atRisk
         holding = look.hand != "nenhum"
         var fade = 1f; var rise = 0f
@@ -735,16 +887,47 @@ private class FolhaSim {
             t = t, mood = shown, small = small, p = p, vy = v[0], blink = blink,
             wink = if (wink || shown == FolhaMood.WINK) 1f else 0f, popL = popL, popR = popR,
             squash = maxOf(bounce(), gulp * 0.45f) + clamp(sq * 0.1f, -0.2f, 0.25f), gulp = gulp,
-            speechOpen = if (speaking) mouthOpen else null, speechRound = mouthRound,
+            speechOpen = if (speaking) mouthOpen else null, speechRound = mouthRound, life = lifeNow,
         )
     }
 }
+
+/** Humores em que ele para para falar a frase do balão. */
+private val QUIP_MOODS = setOf(FolhaMood.IDLE, FolhaMood.WAVE, FolhaMood.HAPPY, FolhaMood.PROUD, FolhaMood.POINT)
 
 private class FolhaFrame(
     val look: Look, val tm: Float, val fade: Float, val rise: Float, val burst: Float, val prevMood: FolhaMood? = null,
     val t: Float, val mood: FolhaMood, val small: Boolean, val p: PoseValues, val vy: Float, val blink: Float, val wink: Float,
     val popL: Float, val popR: Float, val squash: Float, val gulp: Float, val speechOpen: Float?, val speechRound: Float,
+    val life: Life? = null,
 )
+
+/** O que a vida põe por cima do desenho: giro, chapéu voando, notas do assobio, corações e o balão de pensamento. */
+private class Life(
+    val turn: Float = 1f, val hatUp: Float = 0f, val hatSpin: Float = 0f, val whistle: Float = 0f, val hearts: Float = 0f,
+    val thought: String? = null, val thoughtU: Float = 0f,
+)
+
+/** Reações ao toque (cada toque, uma diferente) e quanto duram, em ms. */
+private val REACTIONS = listOf("giggle" to 900L, "spin" to 750L, "hop" to 950L, "love" to 1300L, "wink" to 800L)
+/** O que ele imagina no balão de pensamento. */
+private val THOUGHTS = listOf("bulb", "heart", "star", "book", "coffee", "note", "question", "trophy", "pizza")
+/** Frases: tocar nele, fazer carinho e voltar para o app. Curtas, no jeito dele (as mesmas do site). */
+private val TAP_LINES = listOf(
+    "Ei! Isso faz cócegas!", "Hehe, de novo!", "Tô aqui, firme e forte!", "Bora mais um tópico?", "Você tá indo bem, viu?",
+    "Psiu… revisar amanhã fixa o dobro.", "Já bebeu água hoje?", "Cada questão é um passo pra posse!", "Eu acredito em você. Muito!",
+    "Ai, minhas páginas!", "Folha, ao seu dispor!", "Um tópico de cada vez, combinado?", "Errar aqui é acertar na prova.",
+    "Tô torcendo por você!", "Quer ver um giro? Toca de novo!", "Uma pausa curtinha também é estudo.", "Hoje a gente vence o edital um pouquinho.",
+)
+private val MORNING_LINES = listOf("Bom dia! Já tomou café?", "Cedinho assim? Orgulho!", "Manhã é a melhor hora pra memória.")
+private val NIGHT_LINES = listOf("Tá tarde, hein? Mais um e cama!", "Estudo da noite também conta.", "Não esquece de dormir, tá? A memória agradece.")
+private val PET_LINES = listOf("Ahh, que carinho bom!", "Hehe, faz de novo!", "Você é demais!", "Fiquei vermelhinho…", "Agora eu estudo até de cabeça pra baixo!")
+internal val BACK_LINES = listOf("Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!")
+private fun tapLine(): String {
+    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val list = if (Random.nextInt(4) == 0) (if (h in 5..10) MORNING_LINES else if (h >= 22 || h < 5) NIGHT_LINES else TAP_LINES) else TAP_LINES
+    return list.random()
+}
 
 // ===================================================================== desenho (grade 100 x 100)
 
@@ -794,6 +977,9 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
         translate(0f, p.hop) {
             scale(squashX / sqrt(stretch), squashY * stretch, pivot = Offset(50f, 88f)) {
                 rotate(p.tilt, pivot = Offset(50f, 80f)) {
+                // girando no lugar (reação ao toque): o corpo achata e vira, como em 3D
+                val turn = f.life?.turn ?: 1f
+                scale(if (abs(turn) < 0.04f) (if (turn < 0f) -0.04f else 0.04f) else turn, 1f, pivot = Offset(50f, 0f)) {
                     val look = f.look
                     drawAura(t, look.aura, small, f.burst, behind = true)
                     drawBack(t, look.back, mood, small, p.hop)
@@ -813,14 +999,15 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
                     val nightcap = look.night && look.hat == "capelo" && (mood == FolhaMood.IDLE || mood == FolhaMood.SLEEPY)
                     // no pulo de comemoração o chapéu sai um pouco da cabeça e volta (atrasado em relação ao corpo)
                     val fly = if (mood == FolhaMood.HAPPY || mood == FolhaMood.ECSTATIC) maxOf(0f, sin(t * 5.2f - 0.9f)).pow(2) else 0f
-                    translate(0f, -fly * (if (mood == FolhaMood.ECSTATIC) 6f else 4f)) {
-                        rotate(p.capRot + fly * 8f * sin(t * 2.6f), pivot = Offset(50f, 38f)) {
+                    translate(0f, -fly * (if (mood == FolhaMood.ECSTATIC) 6f else 4f) - (f.life?.hatUp ?: 0f)) {
+                        rotate(p.capRot + fly * 8f * sin(t * 2.6f) + (f.life?.hatSpin ?: 0f), pivot = Offset(50f, 38f)) {
                             if (nightcap) drawNightcap(t, p.tilt, f.vy) else drawHat(f, look, p.tilt)
                         }
                     }
                     if (front.isNotEmpty()) drawArms(f, front)
                     if (mood == FolhaMood.RELIEVED && !small) drawRelief(f.tm)
                     if (look.atRisk && mood == FolhaMood.IDLE && !small) drawSweat(t)
+                }
                 }
             }
         }
@@ -839,6 +1026,81 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
         drawAura(t, look.aura, small, f.burst, behind = false)
         if (look.aura == "holofote") drawSpotLamps(t)
         drawBurst(f.burst)
+        f.life?.let { drawLife(t, it, small) }
+    }
+}
+
+// ---- vida: notas do assobio, corações do carinho e o balão de pensamento
+private fun DrawScope.drawLife(t: Float, l: Life, small: Boolean) {
+    if (l.whistle > 0.05f) for (i in 0 until 3) {
+        val ph = (t * 0.7f + i / 3f) % 1f; val a = sin(PIf * ph) * l.whistle; val x = 62f + ph * 22f + sin(t * 3f + i) * 2f; val y = 74f - ph * 30f
+        rotate(sin(t * 2f + i) * 0.3f * 180f / PIf, pivot = Offset(x, y)) { scale(1.8f, 1.8f, pivot = Offset(x, y)) {
+            val c = Color(0xFF3A2FC4).copy(alpha = a)
+            rotate(-0.45f * 180f / PIf, pivot = Offset(x, y)) { oval(c, x - 1.6f, y - 1.15f, 3.2f, 2.3f) }
+            line(c, x + 1.35f, y - 0.3f, x + 1.35f, y - 5.6f, 0.5f)
+            drawPath(Path().apply { moveTo(x + 1.35f, y - 5.6f); cubicTo(x + 3.4f, y - 4.8f, x + 3.8f, y - 3.2f, x + 2.8f, y - 2f) }, c, style = stroke(0.55f))
+        } }
+    }
+    if (l.hearts > 0.05f) for (i in 0 until if (small) 2 else 4) {
+        val ph = (t * 0.6f + i / 4f) % 1f; val a = sin(PIf * ph) * l.hearts; val side = if (i % 2 == 1) 1f else -1f
+        val x = 50f + side * (24f + i * 4f) + sin(t * 2f + i) * 2f; val y = 44f - ph * 34f; val r = 2.4f + ph * 1.4f
+        drawPath(heart(x, y, r), vg(listOf(Color(0xFFFF8FA3).copy(alpha = a), Color(0xFFE0475E).copy(alpha = a)), y - r, y + r))
+    }
+    val th = l.thought ?: return
+    val u = l.thoughtU
+    val pop = when { u < 0.12f -> { val x = u / 0.12f; val c = 1.9f; 1f + (c + 1f) * (x - 1f).pow(3) + c * (x - 1f).pow(2) }; u > 0.88f -> 1f - (u - 0.88f) / 0.12f; else -> 1f }
+    if (pop <= 0f) return
+    val a = clamp(pop * 1.4f, 0f, 1f); val cx = 84f; val cy = sin(t * 2f) * 0.8f; val sc = (0.4f + 0.6f * pop) * 1.4f
+    for ((x, y, r) in listOf(Triple(70f, 22f, 1.4f), Triple(75f, 14.5f, 2.3f))) { drawCircle(Color(0x2E26215C).copy(alpha = 0.18f * a), r + 0.7f, Offset(x, y)); drawCircle(Color.White.copy(alpha = a), r, Offset(x, y)) }
+    translate(cx, cy) { scale(sc, sc, pivot = Offset.Zero) {
+        val puffs = listOf(Triple(-6f, 1.5f, 5f), Triple(0f, -2.5f, 6.6f), Triple(6f, 1f, 5.2f), Triple(0f, 3.6f, 5.4f), Triple(-3f, -1f, 5f), Triple(3.4f, -1.4f, 5f))
+        for ((x, y, r) in puffs) drawCircle(Color(0xFF26215C).copy(alpha = 0.22f * a), r + 0.9f, Offset(x, y + 0.6f))
+        for ((x, y, r) in puffs) drawCircle(Color.White.copy(alpha = a), r, Offset(x, y))
+        drawThoughtIcon(th, t, a)
+    } }
+}
+
+private fun DrawScope.drawThoughtIcon(kind: String, t: Float, a: Float) {
+    fun c(v: Long) = Color(v).copy(alpha = a)
+    when (kind) {
+        "bulb" -> {
+            drawCircle(Brush.radialGradient(listOf(c(0xE6FFE07A), Color(0x00FFE07A)), center = Offset(0f, -1.4f), radius = 6f), 6f, Offset(0f, -1.4f))
+            drawCircle(c(0xFFFFD84A), 3f, Offset(0f, -1.6f)); drawRect(c(0xFF8E92A6), Offset(-1.5f, 1.2f), Size(3f, 2.2f)); line(c(0xFF6B7088), -1.5f, 2.3f, 1.5f, 2.3f, 0.35f)
+            drawCircle(Color.White.copy(alpha = 0.8f * a), 0.8f, Offset(-1f, -2.6f))
+        }
+        "heart" -> drawPath(heart(0f, 0f, 3.4f), vg(listOf(c(0xFFFF8FA3), c(0xFFE0475E)), -4f, 3f))
+        "star" -> drawPath(star5(0f, 0.3f, 4.2f), vg(GOLD_STOPS.map { it.copy(alpha = a) }, -4f, 4f))
+        "book" -> {
+            drawPath(Path().apply { moveTo(0f, -1.6f); quadraticTo(-2.4f, -3f, -4.6f, -2.2f); lineTo(-4.6f, 2.6f); quadraticTo(-2.4f, 1.8f, 0f, 3f); quadraticTo(2.4f, 1.8f, 4.6f, 2.6f); lineTo(4.6f, -2.2f); quadraticTo(2.4f, -3f, 0f, -1.6f); close() }, c(0xFF5247E0))
+            line(Color.White.copy(alpha = a), 0f, -1.4f, 0f, 2.8f, 0.4f); line(Color.White.copy(alpha = 0.7f * a), -3.6f, -0.6f, -1f, -0.2f, 0.3f); line(Color.White.copy(alpha = 0.7f * a), 1f, -0.2f, 3.6f, -0.6f, 0.3f)
+        }
+        "coffee" -> {
+            val mug = Path().apply { moveTo(-3f, -1.2f); lineTo(2.4f, -1.2f); lineTo(2f, 3f); lineTo(-2.6f, 3f); close() }
+            drawPath(mug, Color.White.copy(alpha = a)); drawPath(mug, c(0xFF26215C), style = Stroke(0.45f))
+            drawArc(c(0xFF26215C), -90f, 180f, false, Offset(1.6f, -0.4f), Size(2.4f, 2.4f), style = Stroke(0.45f)); drawRect(c(0xFF8A5A2B), Offset(-2.7f, -1f), Size(4.8f, 0.9f))
+            for (i in 0 until 2) { val x = -1f + i * 1.8f; val k = sin(t * 3f + i); drawPath(Path().apply { moveTo(x, -2f); quadraticTo(x + k, -3.4f, x, -4.6f) }, c(0xB38C82AA), style = stroke(0.4f)) }
+        }
+        "note" -> {
+            val col = c(0xFF3A2FC4)
+            rotate(-0.45f * 180f / PIf, pivot = Offset(-1.6f, 2.2f)) { oval(col, -3.1f, 1.1f, 3f, 2.2f) }; rotate(-0.45f * 180f / PIf, pivot = Offset(2.4f, 1.4f)) { oval(col, 0.9f, 0.3f, 3f, 2.2f) }
+            line(col, -0.3f, 2f, -0.3f, -3.4f, 0.5f); line(col, 3.7f, 1.2f, 3.7f, -4.2f, 0.5f)
+            drawPath(Path().apply { moveTo(-0.3f, -3.4f); lineTo(3.7f, -4.2f); lineTo(3.7f, -3.2f); lineTo(-0.3f, -2.4f); close() }, col)
+        }
+        "question" -> {
+            val q = Path().apply { moveTo(-2.2f, -1.6f); cubicTo(-2.2f, -4.6f, 2.6f, -4.6f, 2.4f, -1.6f); cubicTo(2.3f, 0f, 0f, 0.2f, 0f, 1.6f) }
+            drawPath(q, c(0xFF5247E0), style = stroke(1.3f)); drawCircle(c(0xFF5247E0), 0.8f, Offset(0f, 3.6f))
+        }
+        "trophy" -> {
+            val gold = vg(GOLD_STOPS.map { it.copy(alpha = a) }, -3.4f, 3f)
+            drawPath(Path().apply { moveTo(-2.8f, -3f); lineTo(2.8f, -3f); quadraticTo(2.6f, 1f, 0f, 1.4f); quadraticTo(-2.6f, 1f, -2.8f, -3f); close() }, gold)
+            drawRect(gold, Offset(-0.6f, 1.2f), Size(1.2f, 1.4f)); drawRect(gold, Offset(-2f, 2.5f), Size(4f, 1f))
+            drawArc(c(0xFFF5B83D), 90f, 180f, false, Offset(-4f, -2.8f), Size(2.4f, 2.4f), style = Stroke(0.5f)); drawArc(c(0xFFF5B83D), -90f, 180f, false, Offset(1.6f, -2.8f), Size(2.4f, 2.4f), style = Stroke(0.5f))
+        }
+        "pizza" -> {
+            drawPath(Path().apply { moveTo(0f, 3.6f); lineTo(-3.6f, -2.6f); quadraticTo(0f, -4.2f, 3.6f, -2.6f); close() }, c(0xFFF7C35A))
+            drawPath(Path().apply { moveTo(-3.6f, -2.6f); quadraticTo(0f, -4.4f, 3.6f, -2.6f); lineTo(3.2f, -1.8f); quadraticTo(0f, -3.2f, -3.2f, -1.8f); close() }, c(0xFFC98A4B))
+            for ((x, y) in listOf(-1f to -1f, 1.2f to -0.6f, 0f to 1.4f)) drawCircle(c(0xFFE0475E), 0.8f, Offset(x, y))
+        }
     }
 }
 
@@ -1109,34 +1371,6 @@ private fun DrawScope.drawTurningPage(t: Float) {
 }
 
 private fun lerpColor(a: Color, b: Color, f: Float) = Color(lerp(a.red, b.red, f), lerp(a.green, b.green, f), lerp(a.blue, b.blue, f), lerp(a.alpha, b.alpha, f))
-
-/** Gerador fixo (mesma semente, mesmos rabiscos), como o seeded() do site. */
-private class Seeded(seed: Int) {
-    private var v = seed.toLong()
-    fun next(): Float { v = (v * 1103515245L + 12345L) and 0x7fffffffL; return v / 2147483647f }
-}
-
-/**
- * Letra cursiva de mentira (não dá para ler, mas parece escrita à mão): laços em sequência, letras altas
- * de vez em quando e espaço entre as palavras. Guardada por posição e semente.
- */
-private val CURSIVE = HashMap<String, Path>()
-private fun cursive(x0: Float, y0: Float, len: Float, slope: Float, seed: Int, mirror: Boolean): Path = CURSIVE.getOrPut("$x0:$y0:$len:$slope:$seed:$mirror") {
-    val r = Seeded(seed); val d = if (mirror) -1f else 1f; var x = 0f
-    fun X(u: Float) = x0 + d * u
-    fun Y(u: Float) = y0 + slope * u
-    Path().apply {
-        moveTo(x0, y0)
-        while (x < len) {
-            val w = 1.1f + r.next() * 0.8f; val tall = r.next() < 0.22f; val gap = x > 3f && r.next() < 0.16f
-            if (gap) { x += 1.4f; moveTo(X(x), Y(x)); continue }
-            val h = if (tall) 2.6f else 1.3f
-            cubicTo(X(x + w * 0.7f), Y(x) - h, X(x + w * 0.1f), Y(x) - h, X(x + w * 0.45f), Y(x + w * 0.45f))
-            quadraticTo(X(x + w * 0.75f), Y(x + w) + 0.35f, X(x + w), Y(x + w))
-            x += w
-        }
-    }
-}
 
 private fun DrawScope.drawPageLines(t: Float, mood: FolhaMood, small: Boolean, ink: Color) {
     val writing = mood == FolhaMood.THINKING
@@ -1484,22 +1718,15 @@ private fun vg(colors: List<Color>, y0: Float, y1: Float) = Brush.verticalGradie
 private fun hg(colors: List<Color>, x0: Float, x1: Float) = Brush.horizontalGradient(colors, startX = x0, endX = x1)
 
 /** Padrão do papel (pautado, quadriculado, pontilhado, partitura), bem leve, por baixo do rosto. */
-/** Texto pequeno à mão nas páginas (fórmulas, letras capitulares), no tamanho da grade. */
-private fun DrawScope.pageText(text: String, x: Float, y: Float, size: Float, color: Color, rot: Float = 0f, bold: Boolean = false) =
-    rotate(rot * 180f / PIf, pivot = Offset(x, y)) {
-        drawIntoCanvas { c ->
-            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                textSize = size; this.color = color.toArgb(); isLinearText = true; isSubpixelText = true
-                typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, if (bold) android.graphics.Typeface.BOLD_ITALIC else android.graphics.Typeface.ITALIC)
-            }
-            c.nativeCanvas.drawText(text, x, y + size * 0.35f, paint)
-        }
-    }
+/** Papéis coloridos: o claro e a borda um pouco mais forte. */
+private val PAPERS = mapOf(
+    "creme" to (Color(0x99FFF0CD) to Color(0xB3F0D7A5)), "rosa" to (Color(0x99FFDAE6) to Color(0xB3FABED2)), "menta" to (Color(0x99D2F7E6) to Color(0xB3AAE6CD)),
+    "ceu" to (Color(0xA6D6EAFF) to Color(0xBFAFD2FA)), "lavanda" to (Color(0x9EE8DEFF) to Color(0xB8CDBCFA)), "kraft" to (Color(0x9ED6B080) to Color(0xB8BE915F)),
+)
 
-/** O papel das páginas. Os desenhos ficam nas margens (fora dos olhos e da boca) e o escrito sai na cor da tinta. */
+/** O papel das páginas: pauta, quadriculado, pontilhado e papéis coloridos, sem rabisco na cara dele. */
 private fun DrawScope.drawPagePattern(kind: String, left: Path, right: Path, ink: Color, t: Float) {
     if (kind == "lisa") return
-    fun inkA(a: Float) = ink.copy(alpha = a * 0.5f)
     fun penPath(block: Path.() -> Unit, c: Color, w: Float) = drawPath(Path().apply(block), c, style = stroke(w))
     for (page in listOf(left, right)) clipPath(page) {
         when (kind) {
@@ -1512,58 +1739,17 @@ private fun DrawScope.drawPagePattern(kind: String, left: Path, right: Path, ink
                 var x = 11.6f; while (x < 90f) { line(Color(0x665A96F0), x, 36f, x, 90f, 0.22f, false); x += 3.2f }
             }
             "pontilhada" -> { var y = 42f; while (y < 88f) { var x = 13f; while (x < 88f) { drawCircle(Color(0x73464678), 0.3f, Offset(x, y)); x += 3.2f }; y += 3.2f } }
-            "partitura" -> {
-                for (y0 in listOf(43f, 79f)) for (i in 0 until 5) line(Color(0x6B322864), 10f, y0 + i * 1.3f, 90f, y0 + i * 1.3f + 0.6f, 0.22f, false)
-                for ((x, y) in listOf(16f to 45.6f, 21f to 44.3f, 26f to 46.9f, 74f to 44.9f, 79f to 46.2f, 84f to 43.6f, 18f to 81.6f, 24f to 80.3f, 76f to 82.2f, 82f to 80.9f)) {
-                    rotate(-0.4f * 180f / PIf, pivot = Offset(x, y + 0.3f)) { oval(inkA(0.85f), x - 0.9f, y - 0.32f, 1.8f, 1.24f) }
-                    line(inkA(0.85f), x + 0.8f, y + 0.2f, x + 0.8f, y - 3.2f, 0.3f)
-                }
-                penPath({ moveTo(12.4f, 49f); cubicTo(10.6f, 46f, 14.6f, 44.4f, 13.4f, 42f); cubicTo(12.2f, 40.4f, 11.2f, 44f, 12.6f, 46.4f); cubicTo(14.4f, 48.6f, 11.4f, 49.8f, 11.6f, 47.4f) }, inkA(0.8f), 0.35f)
-            }
-            "anotada" -> {
-                for (e in listOf(floatArrayOf(15f, 55f, 7f, 0.02f, 0f), floatArrayOf(85f, 55f, 7f, 0.02f, 1f), floatArrayOf(27f, 84f, 10f, -0.04f, 0f), floatArrayOf(73f, 84f, 10f, -0.04f, 1f)))
-                    drawPath(cursive(e[0], e[1], e[2], e[3], (e[0] * 3 + e[1]).toInt(), e[4] > 0f), inkA(0.62f), style = stroke(0.26f))
-                penPath({ moveTo(15f, 60f); quadraticTo(19f, 59.2f, 23.6f, 60.2f) }, Color(0x66E84669), 0.3f)
-                penPath({ moveTo(80f, 70f); quadraticTo(84f, 71f, 85f, 75f); moveTo(84f, 73.6f); lineTo(85f, 75f); lineTo(86.2f, 73.8f) }, inkA(0.7f), 0.4f)
-            }
-            "rabiscos" -> {
-                penPath({ var a = 0f; while (a < 14f) { val r = 0.25f * a; val x = 18f + cos(a) * r; val y = 65f + sin(a) * r; if (a == 0f) moveTo(x, y) else lineTo(x, y); a += 0.3f } }, inkA(0.6f), 0.35f)
-                drawPath(star5(83f, 64f, 2.6f), Color(0x8CF5B83D)); drawPath(star5(83f, 64f, 2.6f), inkA(0.65f), style = stroke(0.3f))
-                drawPath(heart(19f, 76f, 1.8f), Color(0x80F05A78)); drawPath(heart(19f, 76f, 1.8f), inkA(0.6f), style = stroke(0.3f))
-                penPath({ moveTo(78f, 77f); quadraticTo(77.6f, 74.6f, 80f, 74.8f); quadraticTo(81f, 73f, 83f, 74.4f); quadraticTo(85.6f, 74.4f, 85f, 77f); close() }, inkA(0.55f), 0.35f)
-                penPath({ moveTo(28f, 84f); for (i in 1 until 9) lineTo(28f + i * 1.6f, 84f + if (i % 2 == 1) -1.2f else 0f) }, inkA(0.5f), 0.35f)
-                penPath({ moveTo(62f, 84.5f); quadraticTo(66f, 82f, 71f, 83.6f); moveTo(69.6f, 82.2f); lineTo(71f, 83.6f); lineTo(69.4f, 84.8f) }, inkA(0.55f), 0.35f)
-            }
-            "formulas" -> {
-                for ((txt, x, y, a) in listOf(Quad("x²+y²=r²", 13.4f, 55f, -0.04f), Quad("√2 ≈ 1,41", 13.6f, 60f, -0.03f), Quad("Σ aᵢ", 15f, 66f, 0f), Quad("π r²", 74f, 55f, 0.03f),
-                    Quad("f(x)=2x+1", 71f, 60f, 0.02f), Quad("Δ=b²−4ac", 70.4f, 66f, 0.03f), Quad("a/b", 28f, 84.4f, -0.04f), Quad("∴ x=3", 66f, 84.6f, -0.04f)))
-                    pageText(txt, x, y, 2.2f, inkA(0.8f), a)
-                drawRect(Color(0x4DE84669), Offset(69.6f, 63.8f), Size(12f, 4.4f), style = Stroke(0.22f))
-            }
-            "postits" -> for ((i, n) in listOf(Quad(13.4f, 52f, -0.12f, Color(0xFFFFE36B)), Quad(76f, 51f, 0.1f, Color(0xFFFF9DB8)), Quad(14f, 72f, 0.08f, Color(0xFF9FD3FF)), Quad(76f, 72f, -0.08f, Color(0xFFB9F2CF))).withIndex()) {
-                val (x, y, rot, c) = n; val cx = x + 5f; val cy = y + 5f
-                rotate(rot * 180f / PIf, pivot = Offset(cx, cy)) { scale(0.7f, 0.7f, pivot = Offset(cx, cy)) {
-                    drawRect(Color(0x1F3C2814), Offset(cx - 4.6f, cy - 4.2f), Size(10f, 10f))
-                    drawRect(c.copy(alpha = 0.75f), Offset(cx - 5f, cy - 5f), Size(10f, 10f))
-                    drawRect(Color(0x8CFFFFFF), Offset(cx - 2.4f, cy - 6f), Size(4.8f, 2f))
-                    drawPath(cursive(cx - 3.6f, cy - 1.2f, 7f, 0f, (x + y).toInt() + i, false), inkA(0.7f), style = stroke(0.26f))
-                    drawPath(cursive(cx - 3.6f, cy + 2f, 5f, 0f, (x * y).toInt(), false), inkA(0.7f), style = stroke(0.26f))
-                } }
-            }
-            "mapa" -> {
-                val nodes = listOf(Triple(19f, 55f, Color(0xFFFFE36B)), Triple(15f, 66f, Color(0xFF9FD3FF)), Triple(21f, 77f, Color(0xFFFF9DB8)), Triple(81f, 55f, Color(0xFFB9F2CF)), Triple(85f, 66f, Color(0xFFFFE36B)), Triple(79f, 77f, Color(0xFFC9B6FF)))
-                for ((x, y) in nodes) line(inkA(0.45f), x, y, if (x < 50f) 27f else 73f, 66f, 0.3f)
-                for ((x, y, c) in nodes) {
-                    oval(c.copy(alpha = 0.45f), x - 3f, y - 1.9f, 6f, 3.8f); drawOval(inkA(0.6f), Offset(x - 3f, y - 1.9f), Size(6f, 3.8f), style = Stroke(0.3f))
-                    drawPath(cursive(x - 2.2f, y + 0.6f, 4.2f, 0f, (x * 7 + y).toInt(), false), inkA(0.7f), style = stroke(0.26f))
-                }
+            "partitura" -> for (y0 in listOf(43f, 79f)) for (i in 0 until 5) line(Color(0x5C322864), 10f, y0 + i * 1.3f, 90f, y0 + i * 1.3f + 0.6f, 0.22f, false)
+            "creme", "rosa", "menta", "ceu", "lavanda", "kraft" -> {
+                // papel colorido, liso, com a fibra bem de leve
+                val (c1, c2) = PAPERS.getValue(kind)
+                drawPath(page, Brush.horizontalGradient(listOf(c2, c1, c1, c2), startX = 10f, endX = 90f))
+                if (kind == "kraft") for (i in 0 until 26) line(Color(0x29784F28), 12f + (i * 37) % 76, 40f + (i * 23) % 46, 14f + (i * 37) % 76, 40.4f + (i * 23) % 46, 0.25f)
             }
             "pergaminho" -> {
                 drawPath(page, Color(0x6BE2BE78))
                 drawPath(page, Brush.radialGradient(0f to Color(0x00965A1E), 0.39f to Color(0x00965A1E), 1f to Color(0x6B965A1E), center = Offset(50f, 64f), radius = 46f))
                 for (i in 0 until 18) drawCircle(Color(0x1F8C5A28), 0.4f + (i % 3) * 0.3f, Offset(14f + (i * 37) % 72, 42f + (i * 23) % 44))
-                penPath({ moveTo(14f, 84f); cubicTo(18f, 80f, 22f, 86f, 26f, 82f); cubicTo(28f, 80f, 30f, 83f, 28f, 84f); moveTo(86f, 84f); cubicTo(82f, 80f, 78f, 86f, 74f, 82f); cubicTo(72f, 80f, 70f, 83f, 72f, 84f) }, inkA(0.6f), 0.45f)
-                pageText("A", 13.4f, 56f, 4f, inkA(0.7f), bold = true); pageText("Ω", 81.8f, 56f, 4f, inkA(0.7f), bold = true)
             }
             "aquarela" -> for ((x, y, r, c) in listOf(Quad(16f, 46f, 9f, Color(0xFFFF9DB8)), Quad(84f, 48f, 9f, Color(0xFF9FD3FF)), Quad(18f, 82f, 8f, Color(0xFFB9F2CF)), Quad(82f, 82f, 8f, Color(0xFFFFE36B)), Quad(50f, 42f, 7f, Color(0xFFC9B6FF)))) {
                 drawCircle(Brush.radialGradient(0f to c.copy(alpha = 0.32f), 0.75f to c.copy(alpha = 0.42f), 0.92f to c.copy(alpha = 0.6f), 1f to c.copy(alpha = 0f), center = Offset(x, y), radius = r), r, Offset(x, y))

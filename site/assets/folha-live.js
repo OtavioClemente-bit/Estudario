@@ -177,6 +177,21 @@
         p.mOpen = 1.1 * e; p.mW = lerp(5, 3.2, e); p.mCurve = lerp(3.4, 0.4, e); p.browY = -1.6 * e;
       } else if (fid.kind === "glance") { // olha de lado, desconfiado
         const side = fid.side || 1; p.lookX = side * e; p.lookY = -0.1; p.up = 0.25 * e; p.browR = 1.4 * e * (side > 0 ? 1 : 0); p.browY = -0.4 * e; p.mW = lerp(5, 3.6, e); p.mCurve = lerp(3.4, 1, e);
+      } else if (fid.kind === "read") {   // lê a própria página: os olhos correm a linha
+        p.lookY = lerp(p.lookY, 0.85, e); p.lookX = e * sin(fid.u * 14) * 0.8; p.up = 0.3 * e; p.browY = 0.4 * e;
+        p.mW = lerp(5, 3.4, e); p.mCurve = lerp(3.4, 1.4, e); p.tilt += 1.5 * e;
+      } else if (fid.kind === "whistle") { // assobia olhando para cima, balançando no ritmo
+        p.mW = lerp(5, 1.8, e); p.mCurve = lerp(3.4, 0, e); p.mOpen = 0.55 * e; p.lookX = 0.5 * e; p.lookY = -0.6 * e; p.browY = -0.8 * e;
+        p.tilt += sin(fid.u * 18) * 2.2 * e; p.hop = -abs(sin(fid.u * 9)) * 1.2 * e;
+      } else if (fid.kind === "peek") {  // inclina para o lado e dá um tchauzinho para você
+        const side = fid.side || 1, wv = sin(t * 13) * e;
+        p.tilt = side * 7 * e; p.hop = -1.2 * e; p.low = 0.4 * e; p.mW = 5.6; p.mCurve = 4.4; p.mOpen = 0.4 * e; p.cheek = lerp(0.45, 0.65, e); p.lookX = side * 0.8 * e; p.lookY = -0.2 * e;
+        if (side > 0) { p.hR = [lerp(p.hR[0], 100, e), lerp(p.hR[1], 32, e) + wv * 1.4]; if (e > 0.3) p.shapeR = "open"; p.rotR = (-10 + 24 * sin(t * 13)) * e; p.bendR = -5 * e; }
+        else { p.hL = [lerp(p.hL[0], 0, e), lerp(p.hL[1], 32, e) + wv * 1.4]; if (e > 0.3) p.shapeL = "open"; p.rotL = (10 - 24 * sin(t * 13)) * e; p.bendL = -5 * e; }
+      } else if (fid.kind === "hatflip") { // joga o chapéu para cima e pega (o chapéu voa em _frame)
+        const k = sin(PI * fid.u);
+        p.lookY = -k; p.lookX = 0; p.mOpen = 0.5 * k; p.mW = lerp(5, 3.4, k); p.mCurve = lerp(3.4, 2, k); p.browY = -1.6 * k;
+        p.hR = [lerp(p.hR[0], 88, k), lerp(p.hR[1], 42, k)]; if (k > 0.3) p.shapeR = "open"; p.rotR = -30 * k; p.bendR = -4 * k;
       } else if (fid.kind === "bounce") { // pulinho de animação
         p.hop = -3.2 * abs(sin(PI * fid.u * 2)); p.low = 0.45 * e; p.mOpen = 0.6 * e; p.mW = 5.6; p.mCurve = 4.4; p.cheek = lerp(0.45, 0.7, e);
         p.hL = [lerp(p.hL[0], 4, e), lerp(p.hL[1], 58, e)]; p.hR = [lerp(p.hR[0], 96, e), lerp(p.hR[1], 58, e)];
@@ -297,6 +312,9 @@
     g.translate(0, hop);
     g.translate(50, 88); g.scale(squashX / Math.sqrt(stretch), squashY * stretch); g.translate(-50, -88);
     g.translate(50, 80); g.rotate(tilt * PI / 180); g.translate(-50, -80);
+    const ex = s.ex || {};
+    // girando no lugar (reação ao toque): o corpo achata e vira, como em 3D
+    if (ex.turn != null && ex.turn !== 1) { g.translate(50, 0); g.scale(Math.abs(ex.turn) < 0.04 ? 0.04 * Math.sign(ex.turn || 1) : ex.turn, 1); g.translate(-50, 0); }
     // quem fica na frente do livro: as duas mãos folheando ou com a cara de susto; só a do lápis no foco
     const look = s.look || resolveLook(null);
     drawAura(g, t, look.aura, small, s.burst || 0, true);
@@ -317,7 +335,7 @@
     const nightcap = look.night && look.hat === "capelo" && (mood === "idle" || mood === "sleepy");
     // no pulo de comemoração o chapéu sai um pouco da cabeça e volta (atrasado em relação ao corpo)
     const party = mood === "happy" || mood === "ecstatic", fly = party ? Math.max(0, sin(t * 5.2 - 0.9)) ** 2 : 0;
-    g.save(); g.translate(50, 38 - fly * (mood === "ecstatic" ? 6 : 4)); g.rotate(((P.capRot || 0) + fly * 8 * sin(t * 2.6)) * PI / 180); g.translate(-50, -38);
+    g.save(); g.translate(50, 38 - fly * (mood === "ecstatic" ? 6 : 4) - (ex.hatUp || 0)); g.rotate(((P.capRot || 0) + fly * 8 * sin(t * 2.6) + (ex.hatSpin || 0)) * PI / 180); g.translate(-50, -38);
     if (nightcap) drawNightcap(g, t, tilt, s.vy); else drawHat(g, s, look, tilt);
     g.restore();
     if (front) drawArms(g, s, front);
@@ -332,6 +350,7 @@
     drawAura(g, t, look.aura, small, s.burst || 0, false);
     if (look.aura === "holofote") drawSpotLamps(g, t);
     drawBurst(g, s.burst || 0);
+    if (s.ex) drawLife(g, t, s.ex, small);
     if (mood === "sleepy") drawZzz(g, t, small);
     if (mood === "dizzy") drawDizzyStars(g, t);
     if (mood === "focus" && !small) drawFocusMarks(g, t);
@@ -361,12 +380,11 @@
   }
 
   // Padrão do papel (pautado, quadriculado, pontilhado, partitura), bem leve, por baixo do rosto.
-  // O papel das páginas. Os desenhos ficam nas margens (fora dos olhos e da boca) e o que é escrito sai na
-  // cor da tinta escolhida.
+  // Papéis coloridos: o claro e a borda um pouco mais forte.
+  const PAPERS = { creme: ["rgba(255,240,205,0.6)", "rgba(240,215,165,0.7)"], rosa: ["rgba(255,218,230,0.6)", "rgba(250,190,210,0.7)"], menta: ["rgba(210,247,230,0.6)", "rgba(170,230,205,0.7)"], ceu: ["rgba(214,234,255,0.65)", "rgba(175,210,250,0.75)"], lavanda: ["rgba(232,222,255,0.62)", "rgba(205,188,250,0.72)"], kraft: ["rgba(214,176,128,0.62)", "rgba(190,145,95,0.72)"] };
+  // O papel das páginas: pauta, quadriculado, pontilhado e papéis coloridos, sem rabisco na cara dele.
   function drawPagePattern(g, kind, left, right, ink, t) {
     if (!kind || kind === "lisa") return;
-    ink = ink || INK;
-    const inkA = (a) => rgba(ink, a * 0.5);
     for (const page of [left, right]) {
       g.save(); g.clip(page);
       if (kind === "pautada") {
@@ -378,58 +396,17 @@
       } else if (kind === "pontilhada") {
         for (let y = 42; y < 88; y += 3.2) for (let x = 13; x < 88; x += 3.2) circle(g, "rgba(70,70,120,0.45)", 0.3, x, y);
       } else if (kind === "partitura") {
-        for (const y0 of [43, 79]) for (let i = 0; i < 5; i++) line(g, "rgba(50,40,100,0.42)", 10, y0 + i * 1.3, 90, y0 + i * 1.3 + 0.6, 0.22, false);
-        // notas na pauta (na cor da tinta) e uma clave
-        const notes = [[16, 45.6], [21, 44.3], [26, 46.9], [74, 44.9], [79, 46.2], [84, 43.6], [18, 81.6], [24, 80.3], [76, 82.2], [82, 80.9]];
-        for (const [x, y] of notes) { g.beginPath(); g.ellipse(x, y + 0.3, 0.9, 0.62, -0.4, 0, 2 * PI); g.fillStyle = inkA(0.85); g.fill(); line(g, inkA(0.85), x + 0.8, y + 0.2, x + 0.8, y - 3.2, 0.3); }
-        const cl = new Path2D(); cl.moveTo(12.4, 49); cl.bezierCurveTo(10.6, 46, 14.6, 44.4, 13.4, 42); cl.bezierCurveTo(12.2, 40.4, 11.2, 44, 12.6, 46.4); cl.bezierCurveTo(14.4, 48.6, 11.4, 49.8, 11.6, 47.4);
-        stroke(g, cl, inkA(0.8), 0.35);
-      } else if (kind === "anotada") {
-        // caderno de quem estuda: mais linhas escritas nas margens, sublinhado e seta
-        for (const [x, y, l, sl, m] of [[15, 55, 7, 0.02, false], [85, 55, 7, 0.02, true], [27, 84, 10, -0.04, false], [73, 84, 10, -0.04, true]])
-          stroke(g, cursive(x, y, l, sl, Math.round(x * 3 + y), m), inkA(0.62), 0.26);
-        const u = new Path2D(); u.moveTo(15, 60); u.quadraticCurveTo(19, 59.2, 23.6, 60.2); stroke(g, u, "rgba(232,70,105,0.4)", 0.3);
-        const ar = new Path2D(); ar.moveTo(80, 70); ar.quadraticCurveTo(84, 71, 85, 75); ar.moveTo(84, 73.6); ar.lineTo(85, 75); ar.lineTo(86.2, 73.8); stroke(g, ar, inkA(0.7), 0.4);
-
-      } else if (kind === "rabiscos") {
-        // rabiscos de quem pensa estudando: espiral, estrela, coração, nuvenzinha e seta
-        const sp = new Path2D(); for (let a = 0; a < 14; a += 0.3) { const r = 0.25 * a, x = 18 + cos(a) * r, y = 65 + sin(a) * r; a ? sp.lineTo(x, y) : sp.moveTo(x, y); } stroke(g, sp, inkA(0.6), 0.35);
-        g.fillStyle = "rgba(245,184,61,0.55)"; g.fill(star5(g, 83, 64, 2.6)); stroke(g, star5(g, 83, 64, 2.6), inkA(0.65), 0.3);
-        g.fillStyle = "rgba(240,90,120,0.5)"; g.fill(heart(19, 76, 1.8)); stroke(g, heart(19, 76, 1.8), inkA(0.6), 0.3);
-        const cl = new Path2D(); cl.moveTo(78, 77); cl.quadraticCurveTo(77.6, 74.6, 80, 74.8); cl.quadraticCurveTo(81, 73, 83, 74.4); cl.quadraticCurveTo(85.6, 74.4, 85, 77); cl.closePath(); stroke(g, cl, inkA(0.55), 0.35);
-        const zz = new Path2D(); zz.moveTo(28, 84); for (let i = 1; i < 9; i++) zz.lineTo(28 + i * 1.6, 84 + (i % 2 ? -1.2 : 0)); stroke(g, zz, inkA(0.5), 0.35);
-        const ar = new Path2D(); ar.moveTo(62, 84.5); ar.quadraticCurveTo(66, 82, 71, 83.6); ar.moveTo(69.6, 82.2); ar.lineTo(71, 83.6); ar.lineTo(69.4, 84.8); stroke(g, ar, inkA(0.55), 0.35);
-      } else if (kind === "formulas") {
-        // fórmulas e contas nas margens, na letra do caderno
-        g.fillStyle = inkA(0.8); g.font = "italic 500 2.2px Georgia, serif"; g.textBaseline = "middle";
-        for (const [txt, x, y, a] of [["x²+y²=r²", 13.4, 55, -0.04], ["√2 ≈ 1,41", 13.6, 60, -0.03], ["Σ aᵢ", 15, 66, 0], ["π r²", 74, 55, 0.03], ["f(x)=2x+1", 71, 60, 0.02], ["Δ=b²−4ac", 70.4, 66, 0.03], ["a/b", 28, 84.4, -0.04], ["∴ x=3", 66, 84.6, -0.04]]) {
-          g.save(); g.translate(x, y); g.rotate(a); g.fillText(txt, 0, 0); g.restore();
-        }
-        const box = new Path2D(); box.rect(69.6, 63.8, 12, 4.4); stroke(g, box, "rgba(232,70,105,0.3)", 0.22);
-      } else if (kind === "postits") {
-        // bilhetinhos colados: amarelo, rosa e azul, com fita e anotação
-        for (const [x, y, rot, c] of [[13.4, 52, -0.12, "#FFE36B"], [76, 51, 0.1, "#FF9DB8"], [14, 72, 0.08, "#9FD3FF"], [76, 72, -0.08, "#B9F2CF"]]) {
-          g.save(); g.translate(x + 5, y + 5); g.rotate(rot); g.scale(0.7, 0.7); g.globalAlpha = 0.75;
-          g.fillStyle = "rgba(60,40,20,0.12)"; g.fillRect(-4.6, -4.2, 10, 10);
-          g.fillStyle = c; g.fillRect(-5, -5, 10, 10);
-          g.fillStyle = "rgba(255,255,255,0.55)"; g.fillRect(-2.4, -6, 4.8, 2);
-          stroke(g, cursive(-3.6, -1.2, 7, 0, Math.round(x + y), false), inkA(0.7), 0.26);
-          stroke(g, cursive(-3.6, 2, 5, 0, Math.round(x * y), false), inkA(0.7), 0.26);
-          g.restore();
-        }
-      } else if (kind === "mapa") {
-        // mapa mental: ideias em bolhas ligadas por traços
-        const nodes = [[19, 55, "#FFE36B"], [15, 66, "#9FD3FF"], [21, 77, "#FF9DB8"], [81, 55, "#B9F2CF"], [85, 66, "#FFE36B"], [79, 77, "#C9B6FF"]];
-        for (const [x, y] of nodes) line(g, inkA(0.45), x, y, x < 50 ? 27 : 73, 66, 0.3);
-        for (const [x, y, c] of nodes) { g.beginPath(); g.ellipse(x, y, 3, 1.9, 0, 0, 2 * PI); g.fillStyle = rgba(c, 0.45); g.fill(); g.strokeStyle = inkA(0.6); g.lineWidth = 0.3; g.stroke(); stroke(g, cursive(x - 2.2, y + 0.6, 4.2, 0, Math.round(x * 7 + y), false), inkA(0.7), 0.26); }
+        for (const y0 of [43, 79]) for (let i = 0; i < 5; i++) line(g, "rgba(50,40,100,0.36)", 10, y0 + i * 1.3, 90, y0 + i * 1.3 + 0.6, 0.22, false);
+      } else if (PAPERS[kind]) {
+        // papel colorido, liso, com a fibra bem de leve
+        const [c1, c2] = PAPERS[kind];
+        g.fillStyle = hGrad(g, [c2, c1, c1, c2], 10, 90); g.fill(page);
+        if (kind === "kraft") for (let i = 0; i < 26; i++) line(g, "rgba(120,80,40,0.16)", 12 + ((i * 37) % 76), 40 + ((i * 23) % 46), 14 + ((i * 37) % 76), 40.4 + ((i * 23) % 46), 0.25);
       } else if (kind === "pergaminho") {
-        // papel antigo: amarelado, bordas queimadas e caligrafia com floreio
+        // papel antigo: amarelado, com as bordas queimadas
         g.fillStyle = "rgba(226,190,120,0.42)"; g.fill(page);
         const vig = g.createRadialGradient(50, 64, 18, 50, 64, 46); vig.addColorStop(0, "rgba(150,90,30,0)"); vig.addColorStop(1, "rgba(150,90,30,0.42)"); g.fillStyle = vig; g.fill(page);
         for (let i = 0; i < 18; i++) circle(g, "rgba(140,90,40,0.12)", 0.4 + (i % 3) * 0.3, 14 + ((i * 37) % 72), 42 + ((i * 23) % 44));
-        const fl = new Path2D(); fl.moveTo(14, 84); fl.bezierCurveTo(18, 80, 22, 86, 26, 82); fl.bezierCurveTo(28, 80, 30, 83, 28, 84); fl.moveTo(86, 84); fl.bezierCurveTo(82, 80, 78, 86, 74, 82); fl.bezierCurveTo(72, 80, 70, 83, 72, 84);
-        stroke(g, fl, inkA(0.6), 0.45);
-        g.fillStyle = inkA(0.7); g.font = "italic 700 4px Georgia, serif"; g.textBaseline = "middle"; g.fillText("A", 13.4, 56); g.fillText("Ω", 81.8, 56);
       } else if (kind === "aquarela") {
         // manchas de aquarela nas pontas, com borda mais escura como tinta secando
         for (const [x, y, r, c] of [[16, 46, 9, "#FF9DB8"], [84, 48, 9, "#9FD3FF"], [18, 82, 8, "#B9F2CF"], [82, 82, 8, "#FFE36B"], [50, 42, 7, "#C9B6FF"]]) {
@@ -584,24 +561,6 @@
     }
   }
 
-  // Letra cursiva de mentira (não dá para ler, mas parece escrito à mão): laços em sequência, com letras
-  // altas de vez em quando e espaço entre as palavras. Sai sempre igual para a mesma semente.
-  const CURSIVE = new Map();
-  function cursive(x0, y0, len, slope, seed, mirror) {
-    const key = [x0, y0, len, slope, seed, mirror].join(":");
-    if (CURSIVE.has(key)) return CURSIVE.get(key);
-    const r = seeded(seed), p = new Path2D(), d = mirror ? -1 : 1; let x = 0;
-    p.moveTo(x0, y0);
-    while (x < len) {
-      const w = 1.1 + r() * 0.8, tall = r() < 0.22, gap = x > 3 && r() < 0.16;
-      const X = (u) => x0 + d * u, Y = (u) => y0 + slope * u;
-      if (gap) { x += 1.4; p.moveTo(X(x), Y(x)); continue; }
-      p.bezierCurveTo(X(x + w * 0.7), Y(x) - (tall ? 2.6 : 1.3), X(x + w * 0.1), Y(x) - (tall ? 2.6 : 1.3), X(x + w * 0.45), Y(x + w * 0.45));
-      p.quadraticCurveTo(X(x + w * 0.75), Y(x + w) + 0.35, X(x + w), Y(x + w));
-      x += w;
-    }
-    CURSIVE.set(key, p); return p;
-  }
   function drawPageLines(g, t, mood, small, ink) {
     const writing = mood === "thinking", cycle = (t % TURN_CYCLE) / TURN_CYCLE, lw = small ? 2.4 : 1.6;
     const ln = (x0, y0, len, slope, index, mirror) => {
@@ -1667,6 +1626,63 @@
       }
     }
   }
+  // ---- vida: notas do assobio, corações do carinho e o balão de pensamento
+  function drawLife(g, t, ex, small) {
+    if (ex.whistle > 0.05) for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.7 + i / 3) % 1, a = sin(PI * ph) * ex.whistle, x = 62 + ph * 22 + sin(t * 3 + i) * 2, y = 74 - ph * 30;
+      g.save(); g.translate(x, y); g.rotate(sin(t * 2 + i) * 0.3); g.scale(1.8, 1.8);
+      const c = `rgba(58,47,196,${a})`; g.beginPath(); g.ellipse(0, 0, 1.6, 1.15, -0.45, 0, 2 * PI); g.fillStyle = c; g.fill();
+      line(g, c, 1.35, -0.3, 1.35, -5.6, 0.5); const fl = new Path2D(); fl.moveTo(1.35, -5.6); fl.bezierCurveTo(3.4, -4.8, 3.8, -3.2, 2.8, -2); stroke(g, fl, c, 0.55);
+      g.restore();
+    }
+    if (ex.hearts > 0.05) for (let i = 0; i < (small ? 2 : 4); i++) {
+      const ph = (t * 0.6 + i / 4) % 1, a = sin(PI * ph) * ex.hearts, side = i % 2 ? 1 : -1, x = 50 + side * (24 + i * 4) + sin(t * 2 + i) * 2, y = 44 - ph * 34, r = 2.4 + ph * 1.4;
+      g.save(); g.globalAlpha = a; g.fillStyle = vGrad(g, ["#FF8FA3", "#E0475E"], y - r, y + r); g.fill(heart(x, y, r)); g.restore();
+    }
+    if (ex.thought && !small) drawThought(g, t, ex.thought);
+  }
+  // Balão de pensamento (nuvenzinha com um desenho dentro) em cima, à direita do chapéu.
+  function drawThought(g, t, th) {
+    const u = th.u, pop = u < 0.12 ? outBack(u / 0.12) : u > 0.88 ? 1 - (u - 0.88) / 0.12 : 1;
+    if (pop <= 0) return;
+    const cx = 84, cy = 0 + sin(t * 2) * 0.8, sc = (0.4 + 0.6 * pop) * 1.4;
+    g.save(); g.globalAlpha = clamp(pop * 1.4, 0, 1);
+    for (const [x, y, r] of [[70, 22, 1.4], [75, 14.5, 2.3]]) { circle(g, "rgba(38,33,92,0.18)", r + 0.7, x, y); circle(g, "#FFFFFF", r, x, y); }
+    g.translate(cx, cy); g.scale(sc, sc);
+    const puffs = [[-6, 1.5, 5], [0, -2.5, 6.6], [6, 1, 5.2], [0, 3.6, 5.4], [-3, -1, 5], [3.4, -1.4, 5]];
+    for (const [x, y, r] of puffs) circle(g, "rgba(38,33,92,0.22)", r + 0.9, x, y + 0.6);
+    for (const [x, y, r] of puffs) circle(g, "#FFFFFF", r, x, y);
+    drawThoughtIcon(g, th.kind, t);
+    g.restore();
+  }
+  function drawThoughtIcon(g, kind, t) {
+    if (kind === "bulb") {
+      const gl = g.createRadialGradient(0, -1.4, 0.4, 0, -1.4, 6); gl.addColorStop(0, "rgba(255,224,122,0.9)"); gl.addColorStop(1, "rgba(255,224,122,0)"); g.fillStyle = gl; g.beginPath(); g.arc(0, -1.4, 6, 0, 2 * PI); g.fill();
+      circle(g, "#FFD84A", 3, 0, -1.6); g.fillStyle = "#8E92A6"; g.fillRect(-1.5, 1.2, 3, 2.2); line(g, "#6B7088", -1.5, 2.3, 1.5, 2.3, 0.35);
+      circle(g, "rgba(255,255,255,0.8)", 0.8, -1, -2.6);
+    } else if (kind === "heart") { g.fillStyle = vGrad(g, ["#FF8FA3", "#E0475E"], -4, 3); g.fill(heart(0, 0, 3.4)); }
+    else if (kind === "star") { g.fillStyle = vGrad(g, GOLD3, -4, 4); g.fill(star5(g, 0, 0.3, 4.2)); }
+    else if (kind === "book") {
+      const l = new Path2D(); l.moveTo(0, -1.6); l.quadraticCurveTo(-2.4, -3, -4.6, -2.2); l.lineTo(-4.6, 2.6); l.quadraticCurveTo(-2.4, 1.8, 0, 3); l.quadraticCurveTo(2.4, 1.8, 4.6, 2.6); l.lineTo(4.6, -2.2); l.quadraticCurveTo(2.4, -3, 0, -1.6); l.closePath();
+      g.fillStyle = "#5247E0"; g.fill(l); line(g, "#FFFFFF", 0, -1.4, 0, 2.8, 0.4); line(g, "rgba(255,255,255,0.7)", -3.6, -0.6, -1, -0.2, 0.3); line(g, "rgba(255,255,255,0.7)", 1, -0.2, 3.6, -0.6, 0.3);
+    } else if (kind === "coffee") {
+      g.fillStyle = "#FFFFFF"; g.strokeStyle = INK; g.lineWidth = 0.45; g.beginPath(); g.moveTo(-3, -1.2); g.lineTo(2.4, -1.2); g.lineTo(2, 3); g.lineTo(-2.6, 3); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); g.arc(2.8, 0.8, 1.2, -PI / 2, PI / 2); g.stroke(); g.fillStyle = "#8A5A2B"; g.fillRect(-2.7, -1, 4.8, 0.9);
+      for (let i = 0; i < 2; i++) { const p = new Path2D(), x = -1 + i * 1.8, k = sin(t * 3 + i); p.moveTo(x, -2); p.quadraticCurveTo(x + k, -3.4, x, -4.6); stroke(g, p, "rgba(140,130,170,0.7)", 0.4); }
+    } else if (kind === "note") {
+      const c = "#3A2FC4"; g.beginPath(); g.ellipse(-1.6, 2.2, 1.5, 1.1, -0.45, 0, 2 * PI); g.fillStyle = c; g.fill(); g.beginPath(); g.ellipse(2.4, 1.4, 1.5, 1.1, -0.45, 0, 2 * PI); g.fill();
+      line(g, c, -0.3, 2, -0.3, -3.4, 0.5); line(g, c, 3.7, 1.2, 3.7, -4.2, 0.5); const b = new Path2D(); b.moveTo(-0.3, -3.4); b.lineTo(3.7, -4.2); b.lineTo(3.7, -3.2); b.lineTo(-0.3, -2.4); b.closePath(); g.fill(b);
+    } else if (kind === "question") { g.fillStyle = "#5247E0"; g.font = "900 8px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", 0, 0.6); }
+    else if (kind === "trophy") {
+      g.fillStyle = vGrad(g, GOLD3, -3.4, 3); g.beginPath(); g.moveTo(-2.8, -3); g.lineTo(2.8, -3); g.quadraticCurveTo(2.6, 1, 0, 1.4); g.quadraticCurveTo(-2.6, 1, -2.8, -3); g.fill();
+      g.fillRect(-0.6, 1.2, 1.2, 1.4); g.fillRect(-2, 2.5, 4, 1); g.strokeStyle = GOLD; g.lineWidth = 0.5; g.beginPath(); g.arc(-2.8, -1.6, 1.2, PI / 2, PI * 1.5); g.stroke(); g.beginPath(); g.arc(2.8, -1.6, 1.2, -PI / 2, PI / 2); g.stroke();
+    } else if (kind === "pizza") {
+      g.fillStyle = "#F7C35A"; g.beginPath(); g.moveTo(0, 3.6); g.lineTo(-3.6, -2.6); g.quadraticCurveTo(0, -4.2, 3.6, -2.6); g.closePath(); g.fill();
+      g.fillStyle = "#C98A4B"; g.beginPath(); g.moveTo(-3.6, -2.6); g.quadraticCurveTo(0, -4.4, 3.6, -2.6); g.lineTo(3.2, -1.8); g.quadraticCurveTo(0, -3.2, -3.2, -1.8); g.closePath(); g.fill();
+      for (const [x, y] of [[-1, -1], [1.2, -0.6], [0, 1.4]]) circle(g, "#E0475E", 0.8, x, y);
+    }
+  }
+
   // Toque com aura: um estouro de brilhos rápido.
   function drawBurst(g, burst) {
     if (burst <= 0) return;
@@ -1871,6 +1887,28 @@
   function tick(now) { rafId = 0; for (const el of live) el._frame(now); if (live.size) rafId = requestAnimationFrame(tick); }
   function wake() { if (!rafId && live.size) rafId = requestAnimationFrame(tick); }
 
+  // Reações ao toque (cada toque, uma diferente) e quanto duram.
+  const REACTIONS = ["giggle", "spin", "hop", "love", "wink"];
+  const REACT_MS = { giggle: 900, spin: 750, hop: 950, love: 1300, wink: 800 };
+  // O que ele imagina no balão de pensamento.
+  const THOUGHTS = ["bulb", "heart", "star", "book", "coffee", "note", "question", "trophy", "pizza"];
+  // Frases: tocar nele, fazer carinho e voltar para a aba. Curtas, no jeito dele.
+  const TAP_LINES = [
+    "Ei! Isso faz cócegas!", "Hehe, de novo!", "Tô aqui, firme e forte!", "Bora mais um tópico?", "Você tá indo bem, viu?",
+    "Psiu… revisar amanhã fixa o dobro.", "Já bebeu água hoje?", "Cada questão é um passo pra posse!", "Eu acredito em você. Muito!",
+    "Ai, minhas páginas!", "Folha, ao seu dispor!", "Um tópico de cada vez, combinado?", "Errar aqui é acertar na prova.",
+    "Tô torcendo por você!", "Quer ver um giro? Toca de novo!", "Uma pausa curtinha também é estudo.", "Hoje a gente vence o edital um pouquinho.",
+  ];
+  const MORNING_LINES = ["Bom dia! Já tomou café?", "Cedinho assim? Orgulho!", "Manhã é a melhor hora pra memória."];
+  const NIGHT_LINES = ["Tá tarde, hein? Mais um e cama!", "Estudo da noite também conta.", "Não esquece de dormir, tá? A memória agradece."];
+  const PET_LINES = ["Ahh, que carinho bom!", "Hehe, faz de novo!", "Você é demais!", "Fiquei vermelhinho…", "Agora eu estudo até de cabeça pra baixo!"];
+  const BACK_LINES = ["Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!"];
+  function pickLine(list) {
+    const h = new Date().getHours();
+    if (list === TAP_LINES && Math.random() < 0.25) list = h >= 5 && h < 11 ? MORNING_LINES : h >= 22 || h < 5 ? NIGHT_LINES : list;
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
   const MOODS = { idle: "idle", thinking: "thinking", talking: "talking", happy: "happy", sad: "sad", wave: "wave", point: "point", wink: "idle",
     surprised: "surprised", proud: "proud", focus: "focus", sleepy: "sleepy", dizzy: "dizzy", relieved: "relieved", ecstatic: "ecstatic", present: "present" };
 
@@ -1923,6 +1961,8 @@
         this.setAttribute("role", "img");
         if (!this.hasAttribute("aria-label")) this.setAttribute("aria-label", "Folha, do Estudário");
         this.addEventListener("click", () => this.poke());
+        // carinho: passar o mouse (ou o dedo) de um lado para o outro em cima dele
+        this.addEventListener("pointermove", (e) => this._petMove(e));
         // chega pulando na tela (cai de leve, amassa ao pousar), a não ser que peça para entrar parado
         if (!reduceMotion.matches && !this.hasAttribute("noenter")) this._enterAt = performance.now();
       }
@@ -1936,17 +1976,25 @@
       }
       live.add(this); wake();
     }
-    disconnectedCallback() { live.delete(this); if (this._io) this._io.disconnect(); }
+    disconnectedCallback() { live.delete(this); if (this._io) this._io.disconnect(); if (this._quipEl) { this._quipEl.remove(); this._quipEl = null; } }
     attributeChangedCallback(name) {
       if (name === "size") this._size();
       if (name === "say") { const t = this.getAttribute("say"); this._say = t ? speechPlan(t) : null; this._sayAt = performance.now(); }
     }
     get mood() { return MOODS[this.getAttribute("mood") || "idle"] || "idle"; }
 
-    /** Toque: amassa, pula e pisca um olho. */
+    /**
+     * Toque: amassa e reage de um jeito diferente a cada vez (risadinha, giro, pulão com o chapéu voando,
+     * coração ou piscadela) e, se for grande o bastante, solta uma frase.
+     */
     poke() {
       const now = performance.now();
-      this._bounceAt = now; this._wink = true; this._winkUntil = now + 110 + 600;
+      this._bounceAt = now;
+      let k = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
+      if (k === this._lastReact) k = REACTIONS[(REACTIONS.indexOf(k) + 1) % REACTIONS.length];
+      this._react = { kind: k, at: now }; this._lastReact = k;
+      if (k === "wink") { this._wink = true; this._winkUntil = now + 110 + 600; }
+      this._quip(pickLine(TAP_LINES), now);
       this._taps = (this._taps || []).filter((x) => now - x < 1400); this._taps.push(now);
       if (this._taps.length >= 4) { this._dizzyUntil = now + 2200; this._taps = []; }
       this._burstAt = now;
@@ -1958,6 +2006,52 @@
       if (reduceMotion.matches) return;
       this._leaveAt = performance.now(); live.add(this); wake();
     }
+
+    /** Carinho: soma o quanto o ponteiro andou em cima dele; esfregando de um lado para o outro, ele derrete. */
+    _petMove(e) {
+      if (reduceMotion.matches) return;
+      const now = performance.now(), last = this._pm;
+      if (last && now - last.t < 160) {
+        this._petAcc = (this._petAcc || 0) * Math.exp(-(now - last.t) / 600) + Math.hypot(e.clientX - last.x, e.clientY - last.y);
+        const size = parseInt(this.getAttribute("size") || "96", 10);
+        if (this._petAcc > size * 1.5) {
+          if (!(this._petUntil > now)) this._petStart = now;
+          this._petUntil = now + 700;
+          const r = this.getBoundingClientRect(); this._petSide = e.clientX > r.left + r.width / 2 ? 1 : -1;
+          live.add(this); wake();
+        }
+      } else this._petAcc = 0;
+      this._pm = { x: e.clientX, y: e.clientY, t: now };
+    }
+
+    /** Uma fala curta num balão em cima dele, com a boca acompanhando. Só nos Folhas grandes e não mais que uma a cada 3,5 s. */
+    _quip(text, now) {
+      const size = parseInt(this.getAttribute("size") || "96", 10);
+      if (!text || size < 80 || this.hasAttribute("quiet") || reduceMotion.matches || (this._quipAt && now - this._quipAt < 3500)) return;
+      this._quipAt = now; this._quipSay = speechPlan(text); this._quipUntil = now + this._quipSay.end + 500;
+      const b = document.createElement("div");
+      b.className = "folha-quip"; b.textContent = text; b.setAttribute("aria-live", "polite");
+      // no corpo da página (fixo em cima dele), para nenhum cartão cortar o balão
+      const rect = this.getBoundingClientRect();
+      b.style.cssText = "position:fixed;left:" + (rect.left + rect.width / 2) + "px;bottom:" + (window.innerHeight - rect.top + 4) + "px;transform:translateX(-50%);z-index:4000;pointer-events:none;white-space:normal;width:max-content;max-width:" + Math.max(170, size * 1.5) + "px;" +
+        "background:#fff;color:#26215C;font-family:inherit;font-weight:800;font-size:13px;line-height:1.3;padding:8px 12px;border-radius:16px;box-shadow:0 6px 18px rgba(20,14,70,.22);text-align:center";
+      const tail = document.createElement("span");
+      tail.style.cssText = "position:absolute;left:50%;top:100%;margin-left:-6px;border:6px solid transparent;border-top-color:#fff";
+      b.appendChild(tail);
+      if (this._quipEl) this._quipEl.remove();
+      this._quipEl = b; document.body.appendChild(b);
+      if (b.animate) b.animate([{ opacity: 0, transform: "translateX(-50%) translateY(6px) scale(.8)" }, { opacity: 1, transform: "translateX(-50%) translateY(0) scale(1)" }], { duration: 220, easing: "cubic-bezier(.2,1.4,.4,1)" });
+      const ms = this._quipSay.end + 1600;
+      setTimeout(() => {
+        if (this._quipEl !== b) return;
+        const done = () => { b.remove(); if (this._quipEl === b) this._quipEl = null; };
+        if (b.animate) b.animate([{ opacity: 1 }, { opacity: 0, transform: "translateX(-50%) translateY(-6px)" }], { duration: 260 }).onfinish = done; else done();
+      }, ms);
+      live.add(this); wake();
+    }
+
+    /** Voltou para a aba depois de um tempo: ele dá um pulo e cumprimenta. */
+    greet(now) { this._react = { kind: "hop", at: now }; this._quip(pickLine(BACK_LINES), now); live.add(this); wake(); }
 
     _size() {
       if (!this._canvas) return;
@@ -2023,7 +2117,7 @@
       if (mood !== "idle") { this._fid = null; this._nextFid = now + 5000 + Math.random() * 4000; return null; }
       if (!this._nextFid) this._nextFid = now + 6000 + Math.random() * 5000;
       if (!this._fid && now > this._nextFid) {
-        const kinds = [["cap", 1700], ["yawn", 2300], ["glance", 1500], ["bounce", 1100]];
+        const kinds = [["cap", 1700], ["yawn", 2300], ["glance", 1500], ["bounce", 1100], ["read", 2600], ["whistle", 2400], ["peek", 1800], ["hatflip", 1500]];
         let k = kinds[Math.floor(Math.random() * kinds.length)];
         if (this._lastFid === k[0]) k = kinds[(kinds.indexOf(k) + 1) % kinds.length];
         this._fid = { kind: k[0], start: now, dur: k[1], side: Math.random() < 0.5 ? -1 : 1 }; this._lastFid = k[0];
@@ -2065,11 +2159,67 @@
       for (let i = 0; i < steps; i++) springTo(this._sq, "s", 0, h, 260);
     }
 
+    /**
+     * A vida por cima da pose: reação ao toque, carinho, chapéu voando na mania "hatflip", assobio e o
+     * balão de pensamento quando ele fica parado à toa. Mexe em P (o quadro) e devolve os extras do desenho.
+     */
+    _life(now, t, dt, mood, P) {
+      const ex = {}, env = (u) => sin(PI * clamp(u, 0, 1)) ** 0.6;
+      const mix = (k, v, w) => { P[k] = lerp(P[k], v, w); };
+      // carinho: olhos fechadinhos de felicidade, inclina para o lado da mão, bochecha vermelha e coraçõezinhos
+      const petting = this._petUntil > now;
+      this._petW = (this._petW || 0) + ((petting ? 1 : 0) - (this._petW || 0)) * Math.min(1, dt * (petting ? 9 : 5));
+      if (this._petW > 0.01) {
+        const w = this._petW, sd = this._petSide || 1;
+        mix("low", 0.78, w); mix("up", 0.1, w); mix("cheek", 1, w); mix("tilt", sd * 6 + sin(t * 9) * 1.2, w); mix("mW", 5.8, w); mix("mCurve", 4.8, w); mix("mOpen", 0.3, w);
+        mix("hop", -0.8 + sin(t * 9) * 0.4, w); mix("browY", -1.2, w);
+        ex.hearts = w;
+        if (this._wasPet && !petting && w < 0.5) { this._wasPet = false; this._quip(pickLine(PET_LINES), now); }
+        if (petting) this._wasPet = true;
+      }
+      // reação ao toque
+      const r = this._react;
+      if (r) {
+        const dur = REACT_MS[r.kind] || 900, u = (now - r.at) / dur;
+        if (u >= 1) this._react = null;
+        else {
+          const w = env(u);
+          if (r.kind === "giggle") { mix("low", 0.8, w); mix("up", 0.1, w); mix("cheek", 1, w); mix("mOpen", 0.85, w); mix("mW", 6, w); mix("mCurve", 5, w); P.tilt += sin(u * 42) * 4 * w; P.hop += -abs(sin(u * 21)) * 1.5 * w; }
+          else if (r.kind === "spin") { ex.turn = cos(2 * PI * outC(u)); P.hop += -sin(PI * u) * 6; mix("mOpen", 0.6, w); mix("pupil", 1.3, w); }
+          else if (r.kind === "hop") {
+            P.hop += -sin(PI * u) * 13; ex.hatUp = Math.max(0, sin(PI * clamp((u - 0.08) / 0.92, 0, 1))) * 9;
+            mix("low", 0.6, w); mix("mOpen", 1, w); mix("mW", 6.2, w); mix("mCurve", 5, w); mix("pupil", 1.3, w);
+            mix("hL0", 2, w); mix("hL1", 42, w); mix("hR0", 98, w); mix("hR1", 42, w); if (w > 0.4) { P.shapeL = "fist"; P.shapeR = "fist"; }
+          } else if (r.kind === "love") { mix("low", 0.78, w); mix("cheek", 1, w); mix("mW", 5.4, w); mix("mCurve", 4.6, w); mix("mOpen", 0.2, w); ex.hearts = Math.max(ex.hearts || 0, w); }
+          else if (r.kind === "wink") { mix("low", 0.5, w); mix("mCurve", 4.4, w); mix("cheek", 0.8, w); }
+        }
+      }
+      // mania de jogar o chapéu: voa girando e volta para a cabeça
+      if (this._fid && this._fid.kind === "hatflip") { const u = (now - this._fid.start) / this._fid.dur, k = sin(PI * clamp(u, 0, 1)); ex.hatUp = 20 * k; ex.hatSpin = 360 * clamp(u, 0, 1); }
+      if (this._fid && this._fid.kind === "whistle") ex.whistle = env((now - this._fid.start) / this._fid.dur);
+      // balão de pensamento: de vez em quando, parado e à toa, ele sonha acordado com alguma coisa
+      const size = parseInt(this.getAttribute("size") || "96", 10), calm = mood === "idle" && !this._fid && !this._react && !petting && !(this._quipUntil > now);
+      if (!this._nextThought) this._nextThought = now + 9000 + Math.random() * 12000;
+      if (!this._thought && calm && size >= 90 && now > this._nextThought) {
+        let k = THOUGHTS[Math.floor(Math.random() * THOUGHTS.length)]; if (k === this._lastThought) k = THOUGHTS[(THOUGHTS.indexOf(k) + 1) % THOUGHTS.length];
+        this._thought = { kind: k, at: now }; this._lastThought = k;
+      }
+      if (this._thought) {
+        const u = (now - this._thought.at) / 3600;
+        if (u >= 1 || (mood !== "idle" && u < 0.88)) { this._thought = null; this._nextThought = now + 16000 + Math.random() * 14000; }
+        else {
+          const w = env(u); mix("lookX", 0.75, w); mix("lookY", -0.9, w); mix("mCurve", 3.8, w); mix("mW", 4.4, w); mix("browY", -0.8, w);
+          ex.thought = { kind: this._thought.kind, u };
+        }
+      }
+      return ex;
+    }
+
     // Quadros por segundo: 60 em movimento; 30 quando ele está calmo e parado (respirando, piscando,
     // falando), 20 cochilando e quando há muitos Folhas pequenos na tela. Economiza bateria sem perder
     // fluidez onde ela aparece.
     _fpsCap(now) {
-      if (!this._st || this._leaveAt || this._dizzyUntil > now || this._bounceAt >= 0) return 0;
+      if (!this._st || this._leaveAt || this._dizzyUntil > now || this._bounceAt >= 0 || this._react || this._petUntil > now || (this._petW || 0) > 0.02 || this._thought || this._quipUntil > now) return 0;
       const m = this._moodName, v = Math.abs(this._st.v.hop || 0) + Math.abs(this._st.v.hR1 || 0) + Math.abs(this._st.v.hL1 || 0);
       if (v > 14 || Math.abs(this._sq.v.s || 0) > 0.5 || now - POINTER.at < 1500) return 0;
       if (m === "sleepy") return 20;
@@ -2097,6 +2247,9 @@
       }
       this._canvas.style.opacity = fade < 1 ? String(fade) : "";
       this._canvas.style.transform = rise ? `translateY(${-rise}%)` : "";
+      // falando a frase do balão (se ele estiver tranquilo)
+      const quipping = !still && this._quipUntil > now && /^(idle|wave|happy|proud|point)$/.test(mood);
+      if (quipping) mood = "talking";
       if (mood !== this._moodName) { this._prevMood = this._moodName; this._moodName = mood; this._moodAt = now; }
       const look = resolveLook(this);
       const t = still ? 0.35 : (now - this._start) / 1000;
@@ -2109,10 +2262,11 @@
       this._advance(mood, t, dt, still ? null : this._fidget(now, mood), { tm, worried: look.atRisk, holding: look.hand && look.hand !== "nenhum" });
       // fala: a boca segue a letra atual do texto (com mola, para não tremer)
       let speech = null;
-      if (this._say && mood === "talking") {
-        const el = now - this._sayAt, st = this._say.steps;
+      const sayPlanNow = quipping ? this._quipSay : this._say, sayAt = quipping ? this._quipAt : this._sayAt;
+      if (sayPlanNow && mood === "talking") {
+        const el = now - sayAt, st = sayPlanNow.steps;
         let ch = "";
-        if (el < this._say.end) { let lo = 0, hi = st.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (st[m][0] <= el) lo = m; else hi = m - 1; } ch = st[lo][1]; }
+        if (el < sayPlanNow.end) { let lo = 0, hi = st.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (st[m][0] <= el) lo = m; else hi = m - 1; } ch = st[lo][1]; }
         const want = mouthFor(ch), k = dt ? 1 - Math.exp(-dt * 28) : 1;
         this._mouth = this._mouth || { open: 0, round: 0 };
         this._mouth.open += (want.open - this._mouth.open) * k; this._mouth.round += (want.round - this._mouth.round) * k;
@@ -2123,9 +2277,11 @@
       g.clearRect(0, 0, this._canvas.width, this._canvas.height);
       const k = this._px / (100 + 2 * MARGIN);
       g.setTransform(k, 0, 0, k, MARGIN * k, MARGIN * k);
+      const P = { ...this._st.x, shapeL: this._shape.L, shapeR: this._shape.R };
+      const ex = still ? null : this._life(now, t, dt, mood, P);
       drawFolha(g, {
-        t, mood, small: this._small,
-        P: { ...this._st.x, shapeL: this._shape.L, shapeR: this._shape.R },
+        t, mood, small: this._small, ex,
+        P,
         vy: this._st.v.hop || 0,
         blink: still ? 0 : this._blink,
         wink: this._wink || winkAttr ? 1 : 0,
@@ -2756,6 +2912,15 @@
     els.forEach((el) => el.leave());
     setTimeout(done, LEAVE_MS);
   };
+  // Voltou para a aba depois de mais de um minuto fora: os Folhas grandes cumprimentam (um só fala).
+  let hiddenAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { hiddenAt = performance.now(); return; }
+    if (!hiddenAt || performance.now() - hiddenAt < 60000) return;
+    const now = performance.now();
+    const big = Array.from(document.querySelectorAll("estudario-folha")).filter((el) => el.isConnected && parseInt(el.getAttribute("size") || "96", 10) >= 80 && !el.hasAttribute("quiet"));
+    big.slice(0, 1).forEach((el) => el.greet(now));
+  });
   if (reduceMotion.addEventListener) reduceMotion.addEventListener("change", () => {
     document.querySelectorAll("estudario-folha").forEach((el) => { if (el.isConnected) live.add(el); });
     wake();
