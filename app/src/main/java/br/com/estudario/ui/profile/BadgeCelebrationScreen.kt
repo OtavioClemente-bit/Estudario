@@ -264,7 +264,7 @@ private fun Conteudo(badge: Badge, total: Int, index: Int, leaving: Boolean = fa
         br.com.estudario.domain.FolhaWardrobe.items.filter { it.badgeId == badge.id }.forEach { gift ->
             Spacer(Modifier.height(10.dp))
             Text(
-                "Novo no armário do Folha: ${gift.name}",
+                "Nova peça no armário: ${gift.name}",
                 color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.graphicsLayer { alpha = texto }.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.14f)).padding(horizontal = 14.dp, vertical = 7.dp),
             )
