@@ -672,7 +672,7 @@ private fun TheoryReader(theory: Theory) {
             val trap = calloutTrap(block)
             Div({
                 id("tb-${theory.id}-$i")
-                classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }, if (i in markedBlocks) "marked" else null, if (i == flashBlock) "flash-mark" else null).toTypedArray())
+                classes(*listOfNotNull("tblock", trap?.let { if (it) "callout-trap" else "callout-tip" }, if (i in markedBlocks) "marked" else null, if (theoryMarks.any { it.blockIndex == i && it.quote == blocks[i] }) "marked-whole" else null, if (i == flashBlock) "flash-mark" else null).toTypedArray())
             }) {
                 // Tabela se grifa inteira, num toque (selecionar célula por célula fica torto).
                 if (block.lines().count { it.trimStart().startsWith("|") } >= 2) {
