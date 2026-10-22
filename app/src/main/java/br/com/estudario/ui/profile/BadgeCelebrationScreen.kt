@@ -21,8 +21,9 @@ private fun faixaLabel(tier: Int) = when (tier) {
 }
 
 /**
- * Emblema novo (a mesma cena do site): a medalha desce girando presa na fita, para de frente, é
- * cunhada com o símbolo da categoria e ganha a faixa com o nível; o Folha leva um susto e comemora.
+ * Emblema novo (a mesma cena do site, "a forja"): o metal derretido enche o molde, o martelo cunha o
+ * símbolo da categoria em três batidas, a medalha esfria no vapor e sobe pronta, com a fita e a moldura
+ * do nível; o Folha acompanha concentrado e comemora.
  * Quando cai mais de um emblema de uma vez, cada um ganha a sua cena, em sequência.
  */
 @Composable
@@ -32,7 +33,7 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
     val badge = badges.getOrNull(index) ?: return
     SceneCelebration(
         scene = listOf("tipo" to "emblema", "tier" to badge.tier.toString(), "categoria" to badge.id.substringBefore("-"), "faixa" to faixaLabel(badge.tier)),
-        reveal = 2.0f,
+        reveal = 3.4f,
         onDismiss = onClose,
         sceneKey = index,
         text = {

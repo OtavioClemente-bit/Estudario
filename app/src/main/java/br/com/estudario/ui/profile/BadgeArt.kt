@@ -304,7 +304,7 @@ fun BadgeArt(badge: Badge, earned: Boolean, size: Dp, modifier: Modifier = Modif
 
 /** Versão pequena usada em listas e no perfil. */
 @Composable
-internal fun BadgeMedal(badge: Badge, earned: Boolean, size: Dp = 56.dp) = BadgeArt(badge, earned, size)
+internal fun BadgeMedal(badge: Badge, earned: Boolean, size: Dp = 56.dp) = MedalArt(badge, earned, size)
 
 /** Usado apenas pelo texto de apoio: a cor da faixa, sem o desenho. */
 internal fun tierColor(tier: Int): Color = tierPalette(tier).dark

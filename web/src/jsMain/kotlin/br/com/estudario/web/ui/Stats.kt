@@ -42,7 +42,14 @@ fun AchievementsScreen() {
         (progress.earnedBadges + progress.nextBadges).forEach { item ->
             androidx.compose.runtime.key(item.badge.id) {
                 Div({ classes(*listOfNotNull("badge", if (item.earned) "earned" else null).toTypedArray()); attr("title", item.badge.requirement) }) {
-                    Div({ classes("medal") }) { Icon(if (item.earned) "military_tech" else "lock", filled = item.earned) }
+                    // a medalha do emblema (folha-live.js, folhaMedal): metal do nível, símbolo cunhado e moldura que cresce com o nível
+                    Div({ classes("medal") }) {
+                        val src = androidx.compose.runtime.remember(item.badge.id, item.earned) {
+                            runCatching { kotlinx.browser.window.asDynamic().folhaMedal(kotlin.js.json("tier" to item.badge.tier, "cat" to item.badge.id.substringBefore("-"), "earned" to item.earned, "size" to 84)) as? String }.getOrNull()
+                        }
+                        if (src != null) org.jetbrains.compose.web.dom.Img(src = src, alt = "", attrs = { classes("medal-art"); attr("aria-hidden", "true") }) else Icon(if (item.earned) "military_tech" else "lock", filled = item.earned)
+                        if (!item.earned) Span({ classes("medal-lock") }) { Icon("lock", filled = true) }
+                    }
                     Span({ classes("name") }) { Text(item.badge.name) }
                     Span({ classes("xs", "muted") }) { Text(item.badge.requirement) }
                     // O que esse emblema libera no armário do Folha.

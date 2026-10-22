@@ -2347,6 +2347,9 @@
   //                                                desamarra, a luz sai, dá a volta nele e ele aparece vestindo.
   // Grade de 100 x 110. Sem tamanho, ocupa a largura do pai. Pouco movimento: mostra o quadro final.
   const CENA_H = 110;
+  // Qualidade da cena desenhando agora: 1 normal; abaixo de 1 no modo leve (aparelho lento), com menos
+  // partículas, menos camadas de luz e sem sombras borradas. Cada cena mede a própria velocidade.
+  let Q = 1;
   const segT = (T, a, b) => clamp((T - a) / (b - a), 0, 1);
   const outC = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
   const outBack = (x) => { x = clamp(x, 0, 1); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
@@ -2399,17 +2402,6 @@
     return tip || [x0, y0 + h * 0.3];
   }
 
-  // ---- símbolo do emblema: o ícone desenhado à mão da turma (turma.js, estudarioGlyphUri), carregado como
-  // imagem; enquanto carrega (ou se a turma não estiver na página), o traço simples abaixo.
-  const BADGE_ICON = { seq: "Fire", meta: "Flag", plano: "Calendar", quest: "Pencil", acerto: "Target", topico: "OpenBook", edital: "Doc", revisao: "Cycle", simulado: "Clipboard", discursiva: "Pena", maratona: "Timer" };
-  const ICON_IMG = new Map();
-  function badgeIcon(cat) {
-    if (ICON_IMG.has(cat)) return ICON_IMG.get(cat);
-    let img = null;
-    const uri = window.estudarioGlyphUri && BADGE_ICON[cat] ? window.estudarioGlyphUri(BADGE_ICON[cat]) : null;
-    if (uri) { img = new Image(); img.src = uri; }
-    ICON_IMG.set(cat, img); return img;
-  }
   // ---- símbolos das categorias de emblema (caixa de -10 a 10), em traço grosso
   function badgeGlyph(g, cat, color) {
     const p = new Path2D(), F = new Path2D();
@@ -2453,7 +2445,7 @@
   }
   // bolinhas de luz desfocadas, flutuando devagar (dão profundidade ao palco)
   function bokeh(g, t, cx, cy, color, a, n = 10) {
-    for (let i = 0; i < n; i++) {
+    for (let i = 0, m = Math.round(n * Q); i < m; i++) {
       const ang = i * 2.39996 + t * 0.05 * (i % 2 ? 1 : -1), r = 14 + ((i * 37) % 40), x = cx + cos(ang) * r * 1.3, y = cy + sin(ang) * r * 0.8 + sin(t * 0.6 + i) * 2;
       glowAt(g, x, y, 2.5 + (i % 4) * 1.6, color, a * (0.5 + 0.5 * sin(t * 0.9 + i * 1.3)));
     }
@@ -2645,7 +2637,7 @@
       const wings = outBack(segT(T, LVL.wings, LVL.wings + 0.7));
       g.save(); g.translate(CX, CY); g.scale(sc, sc); g.rotate((1 - outC(slam)) * -0.25); g.translate(-CX, -CY); g.globalAlpha = clamp(slam * 3, 0, 1);
       if (wings > 0) { drawWing(g, -1, wings, t); drawWing(g, 1, wings, t); }
-      g.save(); g.shadowColor = "rgba(255,190,60,0.85)"; g.shadowBlur = 14 * k; drawCrest(g, t, lvl, k, T > 2.4 ? ((T - 2.4) * 0.4) % 1.4 : -1); g.restore();
+      g.save(); if (Q === 1) { g.shadowColor = "rgba(255,190,60,0.85)"; g.shadowBlur = 14 * k; } drawCrest(g, t, lvl, k, T > 2.4 ? ((T - 2.4) * 0.4) % 1.4 : -1); g.restore();
       // a faixa "NÍVEL" embaixo
       const ban = outBack(segT(T, LVL.banner, LVL.banner + 0.45));
       if (ban > 0) {
@@ -2671,118 +2663,232 @@
     drawConfetti(g, el._conf, T - LVL.boom);
   }
 
-  // ---- cena: emblema
-  const TIERS = { 1: ["#F2C49A", "#C27E45", "#7D4520"], 2: ["#FFFFFF", "#C7CDD9", "#7D8699"], 3: ["#FFF1BF", "#F5B83D", "#B07510"], 4: ["#CFE3FF", "#5E9BFF", "#1F4FB8"], 5: ["#FFD0D8", "#F0506B", "#A0172F"], 6: ["#D4FFEE", "#3FD69F", "#0E7C55"] };
-  function drawMedal(g, R, front, tier, cat, stamp, t, glint) {
-    const C = TIERS[tier] || TIERS[3];
-    // serrilhado da borda
-    const rim = new Path2D(); for (let i = 0; i <= 72; i++) { const a = i * PI / 36, r = i % 2 ? R : R - 0.7; i ? rim.lineTo(cos(a) * r, sin(a) * r) : rim.moveTo(cos(a) * r, sin(a) * r); }
-    const lg = g.createLinearGradient(-R, -R, R, R); lg.addColorStop(0, C[0]); lg.addColorStop(0.45, C[1]); lg.addColorStop(1, C[2]);
-    g.fillStyle = lg; g.fill(rim);
-    const bev = g.createLinearGradient(-R, -R, R, R); bev.addColorStop(0, C[2]); bev.addColorStop(0.6, C[1]); bev.addColorStop(1, C[0]);
-    circle(g, bev, R * 0.84, 0, 0);
-    const face = g.createRadialGradient(-R * 0.25, -R * 0.3, 1, 0, 0, R * 0.78); face.addColorStop(0, front ? C[0] : C[1]); face.addColorStop(1, front ? C[1] : C[2]);
-    circle(g, face, R * 0.76, 0, 0);
-    // anel interno pontilhado e louros
-    for (let i = 0; i < 40; i++) { const a = i * PI / 20; circle(g, rgba(C[2], 0.55), 0.32, cos(a) * R * 0.69, sin(a) * R * 0.69); }
-    for (const side of [-1, 1]) for (let i = 0; i < 6; i++) {
-      const a = PI / 2 + side * (0.35 + i * 0.3), x = cos(a) * R * 0.6, y = sin(a) * R * 0.6;
-      g.save(); g.translate(x, y); g.rotate(a + side * PI / 2 + side * 0.5);
-      g.beginPath(); g.ellipse(0, 0, R * 0.08, R * 0.036, 0, 0, 2 * PI); g.fillStyle = rgba(C[2], 0.7); g.fill(); g.restore();
-    }
-    if (front) {
-      // símbolo cunhado: sombra funda e relevo claro (na cunhagem ele entra grande e assenta)
-      const k = R / 15 * (1 + (1 - stamp) * 0.6);
-      if (stamp > 0) {
-        const img = badgeIcon(cat);
-        g.save(); g.globalAlpha = clamp(stamp * 2, 0, 1);
-        if (img && img.complete && img.naturalWidth) {
-          // o adesivo da turma no centro, com sombra de cunhagem
-          const sz = R * 1.18 * (1 + (1 - stamp) * 0.6);
-          g.shadowColor = rgba(C[2], 0.8); g.shadowBlur = 3; g.shadowOffsetY = 0.8;
-          g.drawImage(img, -sz / 2, -sz / 2 - R * 0.04, sz, sz);
-        } else {
-          g.scale(k * 0.62, k * 0.62);
-          g.save(); g.translate(0.5, 0.7); badgeGlyph(g, cat, rgba(C[2], 0.95)); g.restore();
-          badgeGlyph(g, cat, "#FFFFFF");
-        }
-        g.restore();
-      }
-    } else {
-      g.save(); g.scale(R / 26, R / 26); g.fillStyle = rgba(C[2], 0.8); g.fill(star5(g, 0, 0, 9)); g.restore();
-    }
-    // reflexo de vidro e brilho que passa
-    const hl = new Path2D(); hl.arc(0, 0, R * 0.9, PI * 1.05, PI * 1.45); stroke(g, hl, "rgba(255,255,255,0.75)", R * 0.06);
-    if (glint > 0 && glint < 1) {
-      g.save(); g.clip(rim); g.rotate(-0.6);
-      const x = lerp(-R * 1.6, R * 1.6, glint), gr = g.createLinearGradient(x - 6, 0, x + 6, 0);
-      gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,255,255,0.85)"); gr.addColorStop(1, "rgba(255,255,255,0)");
-      g.fillStyle = gr; g.fillRect(x - 6, -R * 2, 12, R * 4); g.restore();
-    }
-  }
-  function cenaEmblema(g, T, t, el) {
-    const tier = parseInt(el.getAttribute("tier") || "3", 10), cat = el.getAttribute("categoria") || "seq", faixa = (el.getAttribute("faixa") || "").toUpperCase();
-    const C = TIERS[tier] || TIERS[3], look = el._look();
-    starDust(g, t, 1);
-    // facho de luz de cima
-    const beam = segT(T, 0, 0.6);
-    if (beam > 0) { const p = new Path2D(); p.moveTo(36, -60); p.lineTo(64, -60); p.lineTo(88, 104); p.lineTo(12, 104); p.closePath(); const gr = g.createLinearGradient(0, -60, 0, 104); gr.addColorStop(0, `rgba(255,255,255,${0.16 * beam})`); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fill(p); }
-    const stampAt = 1.65, hit = segT(T, stampAt, stampAt + 0.2);
-    const reach = el._reach();
-    backdrop(g, el, 50, 38, reach, reach * 0.92, (b) => {
-      glowAt(b, 50, 38, 60, C[1], 0.25 + 0.35 * segT(T, stampAt, stampAt + 0.4));
-      bokeh(b, t, 50, 42, C[0], 0.4);
-      sceneRays(b, 50, 36, 20, 92, C[0], outC(segT(T, stampAt, stampAt + 0.6)) * (0.75 + 0.25 * sin(t * 2.2)), t * 0.22, 0.06);
-      sceneRays(b, 50, 36, 10, 74, "#FFFFFF", 0.3 * outC(segT(T, stampAt + 0.1, stampAt + 0.8)), -t * 0.15, 0.03);
-      shockRing(b, 50, 36, segT(T, stampAt, stampAt + 0.8), C[0], 46);
-      shockRing(b, 50, 36, segT(T, stampAt + 0.12, stampAt + 1.1), "#FFFFFF", 60);
-    });
-    // a medalha desce na fita girando e para de frente, com uma molinha
-    const u = Math.max(0, T - 0.15), MY = 34;
-    const my = T < 0.15 ? -40 : u < 1.6 ? lerp(-40, MY, outBack(u / 1.5)) : MY + sin(t * 1.6) * 0.8;
-    const ang = 10 * PI * outC(segT(T, 0.15, stampAt)), sxm = cos(ang), R = 19;
-    const squash = hit > 0 && hit < 1 ? sin(PI * hit) * 0.12 : 0;
-    // as duas tiras da fita, presas na argola
-    const ribbon = (side) => {
-      const p = new Path2D(), top = my - R - 1.5;
-      p.moveTo(50 + side * 1.6 * Math.abs(sxm), top); p.lineTo(50 + side * 36, -60); p.lineTo(50 + side * 26, -60); p.lineTo(50 + side * (-2.6) * Math.abs(sxm), top); p.closePath();
-      g.fillStyle = side < 0 ? vGrad(g, ["#3A2FC4", "#5247E0"], -60, top) : vGrad(g, ["#2A209E", "#3A2FC4"], -60, top); g.fill(p);
-      g.save(); g.clip(p); for (const k of [0.38, 0.62]) { const q = new Path2D(); q.moveTo(50 + side * lerp(36, 26, k), -60); q.lineTo(50 + side * lerp(1.6, -2.6, k) * Math.abs(sxm), top); stroke(g, q, C[1], 1.2); } g.restore();
-    };
-    ribbon(-1); ribbon(1);
-    circle(g, C[2], 2.2, 50, my - R - 1.2); circle(g, C[0], 1.3, 50, my - R - 1.2);
-    g.save(); g.translate(50, my); g.scale(Math.max(0.04, Math.abs(sxm)) * (1 + squash), 1 - squash);
-    g.shadowColor = rgba(C[1], 0.8); g.shadowBlur = 10 * segT(T, stampAt, stampAt + 0.3);
-    drawMedal(g, R, sxm >= 0, tier, cat, segT(T, stampAt - 0.05, stampAt + 0.25), t, T > 2.2 ? ((T - 2.2) % 2.8) / 0.9 : -1);
-    g.restore();
-    // faixa com o nome do nível do emblema
-    const ban = outBack(segT(T, 1.95, 2.45));
-    if (ban > 0 && faixa) {
-      g.save(); g.translate(50, my + R + 6.5); g.scale(ban, 1);
-      for (const side of [-1, 1]) { const p = new Path2D(); p.moveTo(side * 17, -3); p.lineTo(side * 24, -3.6); p.lineTo(side * 21.5, 0.4); p.lineTo(side * 24, 4.4); p.lineTo(side * 17, 4); p.closePath(); g.fillStyle = C[2]; g.fill(p); }
-      const b = new Path2D(); b.moveTo(-19, -4.2); b.quadraticCurveTo(0, -6, 19, -4.2); b.lineTo(19, 3.8); b.quadraticCurveTo(0, 2, -19, 3.8); b.closePath();
-      g.fillStyle = hGrad(g, [C[2], C[1], C[0], C[1], C[2]], -19, 19); g.fill(b); stroke(g, b, rgba(C[2], 0.9), 0.4);
-      g.fillStyle = tier === 2 || tier === 3 || tier === 6 ? "#2A1A05" : "#FFFFFF"; g.font = "900 4.4px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(faixa.split("").join(" "), 0, -0.6);
-      g.restore();
-    }
-    // estrelinhas piscando em volta
-    if (T > stampAt) for (let i = 0; i < 7; i++) { const a = i * 2 * PI / 7 + 0.3, ph = (t * 0.7 + i * 0.37) % 1; star4(g, 50 + cos(a) * 30, 40 + sin(a) * 26, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : C[0], sin(PI * ph))); }
-    drawConfetti(g, el._conf, T - stampAt);
-    // o Folha: olha a medalha descendo, leva um susto com a cunhagem e comemora
-    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0.2, 0.7))) * 30, scale: 0.5, look, dir: { x: 0, y: -1 },
-      script: [[0, "idle"], [stampAt, "surprised"], [stampAt + 0.35, "happy"], [3.6, "proud"]] };
-    floorLight(g, 50, 107, 30, "#FFFFFF", 0.22);
-    sceneFolha(g, o);
-  }
-
-  // ---- cena: sequência
   // cor do fogo pela idade da labareda: branco-amarelo na base, laranja no meio, vermelho e fumaça no alto
   const FIRE = [[0, [255, 252, 225]], [0.18, [255, 220, 120]], [0.42, [255, 150, 45]], [0.68, [235, 70, 30]], [1, [120, 30, 40]]];
   function fireColor(u) {
     for (let i = 1; i < FIRE.length; i++) if (u <= FIRE[i][0]) { const [a, ca] = FIRE[i - 1], [b, cb] = FIRE[i], k = (u - a) / (b - a); return ca.map((v, j) => Math.round(v + (cb[j] - v) * k)); }
     return FIRE[FIRE.length - 1][1];
   }
+  // ---- cena: emblema (a forja)
+  const TIERS = { 1: ["#F2C49A", "#C27E45", "#7D4520"], 2: ["#FFFFFF", "#C7CDD9", "#7D8699"], 3: ["#FFF1BF", "#F5B83D", "#B07510"], 4: ["#CFE3FF", "#5E9BFF", "#1F4FB8"], 5: ["#FFD0D8", "#F0506B", "#A0172F"], 6: ["#D4FFEE", "#3FD69F", "#0E7C55"] };
+  /**
+   * A medalha de emblema, de colecionador (centro em 0,0, raio R). O símbolo da categoria é cunhado no
+   * metal (baixo-relevo), a face tem guilhochê e as estrelinhas do nível; a moldura cresce com o nível:
+   * Bronze e Prata a moeda limpa, Ouro ganha louros, Safira a gema no topo, Rubi a roseta, Esmeralda as asas.
+   * o: { deco 0..1 (decorações crescendo), engrave 0..1 (símbolo cunhado), heat 0..1 (incandescente), shine (-1 sem) }
+   */
+  function drawMedalArt(g, R, tier, cat, o) {
+    const C = TIERS[tier] || TIERS[3], deco = o.deco == null ? 1 : o.deco, eng = o.engrave == null ? 1 : o.engrave, heat = o.heat || 0;
+    const metal = (x0, y0, x1, y1, a, b, c) => { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, a); gr.addColorStop(0.5, b); gr.addColorStop(1, c); return gr; };
+    // ---- moldura de trás
+    if (tier >= 5 && deco > 0) {
+      // roseta: estrela de 16 pontas, em duas camadas
+      for (const [ro, ri, rot, col] of [[1.62, 1.28, 0, C[2]], [1.48, 1.18, PI / 16, C[1]]]) {
+        const p = new Path2D(); for (let i = 0; i < 32; i++) { const a = rot + i * PI / 16, r = R * (i % 2 ? ri : ro) * deco; i ? p.lineTo(cos(a) * r, sin(a) * r) : p.moveTo(cos(a) * r, sin(a) * r); } p.closePath();
+        g.fillStyle = metal(-R, -R, R, R, col, C[1], C[2]); g.fill(p); g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 0.3; g.stroke(p);
+      }
+    }
+    if (tier >= 6 && deco > 0) {
+      // asas de metal dos dois lados
+      for (const side of [-1, 1]) for (let i = 4; i >= 0; i--) {
+        g.save(); g.translate(side * R * 0.85, -R * 0.15); g.scale(side * deco, deco); g.rotate((-20 - i * 14) * PI / 180);
+        const len = R * (1.05 + i * 0.16), f = new Path2D(); f.moveTo(0, -R * 0.12); f.bezierCurveTo(len * 0.4, -R * 0.3, len * 0.85, -R * 0.24, len, -R * 0.03); f.bezierCurveTo(len * 0.85, R * 0.1, len * 0.4, R * 0.16, 0, R * 0.12); f.closePath();
+        g.fillStyle = metal(0, 0, len, 0, C[2], C[1], C[0]); g.fill(f); g.strokeStyle = "rgba(0,0,0,0.3)"; g.lineWidth = 0.3; g.stroke(f); g.restore();
+      }
+    }
+    if (tier >= 3 && deco > 0) {
+      // louros: dois ramos subindo pelos lados
+      for (const side of [-1, 1]) {
+        const stem = new Path2D(); stem.arc(0, 0, R * 1.13, PI / 2 + side * 0.25, PI / 2 + side * (0.25 + 1.95 * deco), side < 0);
+        g.strokeStyle = C[2]; g.lineWidth = R * 0.05; g.stroke(stem);
+        const n = Math.round(9 * deco);
+        for (let i = 0; i < n; i++) {
+          const a = PI / 2 + side * (0.4 + i * 0.205), x = cos(a) * R * 1.13, y = sin(a) * R * 1.13;
+          for (const off of [-1, 1]) {
+            g.save(); g.translate(x, y); g.rotate(a + side * PI / 2 + off * 0.55 + side * 0.25);
+            const leaf = new Path2D(); leaf.ellipse(R * 0.16, 0, R * 0.17, R * 0.07, 0, 0, 2 * PI);
+            g.fillStyle = metal(0, -R * 0.07, R * 0.3, R * 0.07, C[0], C[1], C[2]); g.fill(leaf);
+            line(g, "rgba(0,0,0,0.22)", R * 0.02, 0, R * 0.3, 0, R * 0.02); g.restore();
+          }
+        }
+      }
+    }
+    // ---- a moeda
+    const rim = new Path2D(); for (let i = 0; i <= 96; i++) { const a = i * PI / 48, r = i % 2 ? R : R * 0.965; i ? rim.lineTo(cos(a) * r, sin(a) * r) : rim.moveTo(cos(a) * r, sin(a) * r); }
+    g.save(); if (Q === 1) { g.shadowColor = "rgba(10,4,30,0.5)"; g.shadowBlur = R * 0.4 * (o.k || 1); g.shadowOffsetY = R * 0.06 * (o.k || 1); }
+    g.fillStyle = metal(-R, -R, R, R, C[0], C[1], C[2]); g.fill(rim); g.restore();
+    g.fillStyle = metal(R, R, -R, -R, C[0], C[1], C[2]); g.beginPath(); g.arc(0, 0, R * 0.87, 0, 2 * PI); g.fill();   // chanfro
+    const face = g.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R * 0.82); face.addColorStop(0, C[0]); face.addColorStop(0.65, C[1]); face.addColorStop(1, C[2]);
+    g.fillStyle = face; g.beginPath(); g.arc(0, 0, R * 0.8, 0, 2 * PI); g.fill();
+    // guilhochê: anéis finos e raios bem leves
+    g.save(); g.beginPath(); g.arc(0, 0, R * 0.8, 0, 2 * PI); g.clip();
+    for (let i = 1; i <= 7; i++) { g.beginPath(); g.arc(0, 0, R * 0.8 * i / 7.5, 0, 2 * PI); g.strokeStyle = "rgba(255,255,255,0.13)"; g.lineWidth = R * 0.008; g.stroke(); }
+    for (let i = 0; i < 36; i++) { const a = i * PI / 18; line(g, "rgba(0,0,0,0.06)", 0, 0, cos(a) * R * 0.8, sin(a) * R * 0.8, R * 0.01); }
+    g.restore();
+    const ring = new Path2D(); ring.arc(0, 0, R * 0.71, 0, 2 * PI); stroke(g, ring, "rgba(0,0,0,0.22)", R * 0.025); const ring2 = new Path2D(); ring2.arc(0, 0, R * 0.69, 0, 2 * PI); stroke(g, ring2, "rgba(255,255,255,0.35)", R * 0.012);
+    // estrelinhas do nível, embaixo dentro da moeda
+    for (let i = 0; i < tier; i++) { const a = PI / 2 + (i - (tier - 1) / 2) * 0.27, x = cos(a) * R * 0.58, y = sin(a) * R * 0.58; g.fillStyle = C[2]; g.fill(star5(g, x + R * 0.01, y + R * 0.015, R * 0.075)); g.fillStyle = C[0]; g.fill(star5(g, x, y, R * 0.07)); }
+    // o símbolo cunhado: sombra funda, borda clara e o miolo um tom abaixo da face
+    if (eng > 0) {
+      const s = R / 13.5 * (1 + (1 - eng) * 0.25);
+      g.save(); g.globalAlpha = clamp(eng * 1.5, 0, 1); g.translate(0, -R * 0.06); g.scale(s, s);
+      g.save(); g.translate(0.55, 0.65); badgeGlyph(g, cat, "rgba(0,0,0,0.38)"); g.restore();
+      g.save(); g.translate(-0.4, -0.45); badgeGlyph(g, cat, "rgba(255,255,255,0.75)"); g.restore();
+      badgeGlyph(g, cat, C[2]);
+      g.restore();
+    }
+    // brilho de vidro e argola em cima
+    const hl = new Path2D(); hl.arc(0, 0, R * 0.92, PI * 1.08, PI * 1.45); stroke(g, hl, "rgba(255,255,255,0.75)", R * 0.05);
+    if (tier >= 4 && deco > 0) {
+      // gema lapidada no topo da moldura
+      const gy = -R * 1.02, gs = R * 0.2 * deco;
+      const gem = new Path2D(); gem.moveTo(0, gy - gs); gem.lineTo(gs * 0.9, gy - gs * 0.2); gem.lineTo(0, gy + gs * 0.9); gem.lineTo(-gs * 0.9, gy - gs * 0.2); gem.closePath();
+      g.fillStyle = metal(-gs, gy - gs, gs, gy + gs, "#FFFFFF", tier === 4 ? "#5E9BFF" : tier === 5 ? "#F0506B" : "#3FD69F", "#1A1040"); g.fill(gem);
+      line(g, "rgba(255,255,255,0.7)", -gs * 0.9, gy - gs * 0.2, gs * 0.9, gy - gs * 0.2, R * 0.015); line(g, "rgba(255,255,255,0.5)", 0, gy - gs, 0, gy + gs * 0.9, R * 0.012);
+    }
+    if (o.shine >= 0 && o.shine <= 1) {
+      g.save(); g.clip(rim); g.rotate(-0.6);
+      const x = lerp(-R * 1.6, R * 1.6, o.shine), gr = g.createLinearGradient(x - R * 0.35, 0, x + R * 0.35, 0);
+      gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,255,255,0.8)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = gr; g.fillRect(x - R * 0.35, -R * 2, R * 0.7, R * 4); g.restore();
+    }
+    // incandescente: brasa laranja por cima, sumindo conforme esfria
+    if (heat > 0) {
+      g.save(); g.clip(rim); g.globalAlpha = heat;
+      const hg = g.createRadialGradient(0, 0, 0, 0, 0, R); hg.addColorStop(0, "#FFF6D0"); hg.addColorStop(0.45, "#FFB13B"); hg.addColorStop(1, "#E04A1A");
+      g.globalCompositeOperation = "source-atop"; g.fillStyle = hg; g.fillRect(-R, -R, R * 2, R * 2); g.restore();
+      glowAt(g, 0, 0, R * 1.5, "#FF8A2A", 0.45 * heat);
+    }
+  }
+
+  // o martelo: cabo de madeira e cabeça de aço, girando em volta de um pivô fora da cena
+  function drawHammer(g, ang) {
+    const px = 96, py = 60, len = 46;
+    g.save(); g.translate(px, py); g.rotate(ang);
+    g.fillStyle = hGrad(g, ["#6D3D1F", "#BC7D4E", "#7A4A22"], 0, 0); g.fillStyle = vGrad(g, ["#C08453", "#82491F"], -1.8, 1.8); g.fillRect(0, -1.8, len, 3.6);
+    line(g, "rgba(255,255,255,0.25)", 2, -0.8, len - 2, -0.8, 0.4);
+    g.translate(len, 0);
+    const head = vGrad(g, ["#F2F3F8", "#9AA2B5", "#4A5068"], -4.4, 4.4);
+    g.fillStyle = head; g.fillRect(-6, -11, 12, 22); g.fillStyle = "#3A3F55"; g.fillRect(-6, -11, 12, 2); g.fillRect(-6, 9, 12, 2);
+    line(g, "rgba(255,255,255,0.6)", -4.6, -8.5, -4.6, 8.5, 0.6);
+    g.restore();
+  }
+
+  const FORGE = { pour: 0.45, full: 1.25, hits: [1.5, 1.9, 2.3], quench: 2.5, cool: 3.0, rise: 3.05, deco: 3.25, banner: 3.55 };
+  function cenaEmblema(g, T, t, el) {
+    const tier = parseInt(el.getAttribute("tier") || "3", 10), cat = el.getAttribute("categoria") || "seq", faixa = (el.getAttribute("faixa") || "").toUpperCase();
+    const C = TIERS[tier] || TIERS[3], look = el._look(), k = this_k(el), q = Q;
+    const MX = 50, MY = 38, R = 15;
+    // golpes do martelo: ângulo do martelo e o instante de cada pancada
+    const raised = -100 * PI / 180, hitA = -140 * PI / 180;
+    let hamAng = null, lastHit = -9, hits = 0;
+    for (let i = 0; i < FORGE.hits.length; i++) {
+      const h = FORGE.hits[i];
+      if (T >= h) { hits = i + 1; lastHit = h; }
+      const u = (T - (h - 0.32)) / 0.32;   // descida do martelo nos 0,32 s antes da pancada
+      if (u >= 0 && u <= 1) hamAng = lerp(raised - 0.25, hitA, u * u);
+    }
+    if (hamAng == null && T > FORGE.hits[0] - 0.6 && T < FORGE.hits[2] + 0.35) hamAng = T > lastHit && T - lastHit < 0.12 ? hitA : lerp(hitA, raised - 0.25, outC(segT(T - lastHit, 0.05, 0.3)));
+    const sinceHit = T - lastHit, shake = sinceHit >= 0 && sinceHit < 0.25 ? (1 - sinceHit / 0.25) * 1.3 : 0;
+    g.save(); g.translate(sin(t * 89) * shake, cos(t * 73) * shake);
+    // ---- fundo
+    const reach = el._reach(), reveal = outC(segT(T, FORGE.rise, FORGE.rise + 0.5));
+    backdrop(g, el, MX, MY + 6, reach, reach * 0.95, (b) => {
+      glowAt(b, MX, MY + 4, 60, reveal > 0 ? C[1] : "#FF6A1A", reveal > 0 ? 0.28 + 0.1 * sin(t * 2) : 0.18 + 0.2 * segT(T, FORGE.pour, FORGE.full));
+      bokeh(b, t, MX, MY + 6, reveal > 0 ? C[0] : "#FFB13B", 0.3 * q, 12);
+      sceneRays(b, MX, MY, 20, 92, C[0], reveal * (0.7 + 0.25 * sin(t * 2.2)), t * 0.2, 0.06);
+      if (q > 0.6) sceneRays(b, MX, MY, 10, 74, "#FFFFFF", 0.3 * reveal, -t * 0.15, 0.03);
+      shockRing(b, MX, MY, segT(T, FORGE.rise, FORGE.rise + 0.8), C[0], 56);
+      for (const h of FORGE.hits) shockRing(b, MX, MY, segT(T, h, h + 0.45), "#FFE07A", 30);
+    });
+    // ---- o molde de pedra (some quando a medalha sai)
+    const moldA = 1 - segT(T, FORGE.rise, FORGE.rise + 0.4), moldIn = outBack(segT(T, 0.05, 0.45));
+    if (moldA > 0) {
+      g.save(); g.globalAlpha = moldA; g.translate(MX, MY + 1); g.scale(moldIn, moldIn);
+      const outer = R + 4.2;
+      g.fillStyle = vGrad(g, ["#4A4472", "#2A2550", "#16122F"], -outer, outer); g.beginPath(); g.arc(0, 0, outer, 0, 2 * PI); g.fill();
+      g.fillStyle = "rgba(0,0,0,0.55)"; g.beginPath(); g.arc(0, 0.6, R + 0.6, 0, 2 * PI); g.fill();
+      for (let i = 0; i < 10; i++) circle(g, "rgba(255,255,255,0.06)", 0.6 + (i % 3) * 0.3, cos(i * 2.3) * (R + 2.4), sin(i * 2.3) * (R + 2.4));
+      g.restore();
+    }
+    // ---- o metal derretido: jato caindo e o molde enchendo
+    const pourOn = T > FORGE.pour && T < FORGE.full + 0.15, fill = outC(segT(T, FORGE.pour + 0.15, FORGE.full));
+    if (pourOn) {
+      const tail = segT(T, FORGE.full, FORGE.full + 0.15), top = -70 + tail * 90, bottom = MY - R * (fill * 2 - 1) - 1;
+      const p = new Path2D(); for (let y = top; y <= bottom; y += 2) { const x = MX + sin(y * 0.4 + t * 18) * 0.5; y === top ? p.moveTo(x, y) : p.lineTo(x, y); }
+      fireLine(g, p, 1.6, 1);
+    }
+    if (T > FORGE.pour + 0.15 && T < FORGE.rise + 0.05) {
+      g.save(); g.translate(MX, MY);
+      const cl = new Path2D(); cl.rect(-R - 1, R - 2 * R * fill, 2 * R + 2, 2 * R * fill + 1); g.clip(cl);
+      if (hits === 0) {
+        // líquido: dourado-branco no meio, laranja na borda, com bolhas
+        const lq = g.createRadialGradient(0, 0, 0, 0, 0, R); lq.addColorStop(0, "#FFF6D0"); lq.addColorStop(0.55, "#FFB13B"); lq.addColorStop(1, "#E04A1A");
+        g.fillStyle = lq; g.beginPath(); g.arc(0, 0, R, 0, 2 * PI); g.fill();
+        for (let i = 0; i < 7; i++) { const u = (t * 1.3 + i / 7) % 1; circle(g, `rgba(255,255,240,${0.7 * (1 - u)})`, 0.5 + u * 0.8, cos(i * 2.1) * R * 0.6, sin(i * 2.1) * R * 0.6); }
+      } else {
+        // depois do primeiro golpe já é medalha, ainda em brasa, com o símbolo aparecendo a cada pancada
+        drawMedalArt(g, R, tier, cat, { deco: 0, engrave: hits / 3, heat: 1 - segT(T, FORGE.quench, FORGE.cool), k });
+      }
+      g.restore();
+      glowAt(g, MX, MY, R * 1.6, "#FF8A2A", 0.5 * fill * (1 - segT(T, FORGE.quench, FORGE.cool)));
+    }
+    // ---- faíscas das marteladas (caem com gravidade)
+    for (const h of FORGE.hits) {
+      const u = T - h; if (u < 0 || u > 0.9) continue;
+      glowAt(g, MX + 5, MY - 9, 14 * (1 - u), "#FFF6D0", 0.9 * (1 - u / 0.3) * (u < 0.3 ? 1 : 0));
+      for (let i = 0; i < Math.round(26 * q); i++) {
+        const a = -PI * (0.05 + (i * 0.618 % 1) * 0.9), v = 30 + (i * 0.7548 % 1) * 40, x = MX + 5 + cos(a) * v * u, y = MY - 9 + sin(a) * v * u + 60 * u * u;
+        const c = fireColor(u * 0.9); line(g, `rgba(${c},${1 - u})`, x, y, x - cos(a) * 2, y - sin(a) * 2 + 1.2 * u, 0.45);
+      }
+    }
+    // ---- vapor da têmpera
+    if (T > FORGE.quench && T < FORGE.cool + 1) {
+      for (let i = 0; i < Math.round(12 * q); i++) {
+        const start = FORGE.quench + i * 0.05, u = segT(T, start, start + 1.1); if (u <= 0 || u >= 1) continue;
+        const x = MX + (((i * 0.618) % 1) - 0.5) * 30 + sin(t + i) * 2, y = MY - u * 30;
+        glowAt(g, x, y, 4 + u * 7, "#E6E9F5", 0.4 * sin(PI * u));
+      }
+    }
+    // ---- o martelo
+    if (hamAng != null) drawHammer(g, hamAng);
+    // ---- a medalha pronta: sai do molde, ganha a fita, as decorações e a faixa
+    if (T >= FORGE.rise) {
+      const rise = outBack(segT(T, FORGE.rise, FORGE.rise + 0.5)), y = MY - 3 * rise + sin(t * 1.6) * 0.6 * rise;
+      // a fita descendo do alto até a argola
+      const rib = outC(segT(T, FORGE.rise + 0.1, FORGE.rise + 0.6)), top = y - R - 1.4;
+      if (rib > 0) for (const side of [-1, 1]) {
+        const p = new Path2D(), x1 = MX + side * 30, y1 = lerp(top, -60, rib);
+        p.moveTo(MX + side * 1.4, top); p.lineTo(x1, y1); p.lineTo(x1 - side * 9, y1); p.lineTo(MX - side * 2.4, top); p.closePath();
+        g.fillStyle = side < 0 ? vGrad(g, ["#3A2FC4", "#5247E0"], -60, top) : vGrad(g, ["#2A209E", "#3A2FC4"], -60, top); g.fill(p);
+        g.save(); g.clip(p); for (const kk of [0.35, 0.65]) { const ln = new Path2D(); ln.moveTo(lerp(x1, x1 - side * 9, kk), y1); ln.lineTo(MX + side * lerp(1.4, -2.4, kk), top); stroke(g, ln, C[1], 1.1); } g.restore();
+      }
+      circle(g, C[2], 1.9, MX, top); circle(g, C[0], 1.1, MX, top);
+      g.save(); g.translate(MX, y);
+      drawMedalArt(g, R, tier, cat, { deco: outBack(segT(T, FORGE.deco, FORGE.deco + 0.6)), engrave: 1, heat: 0, k, shine: T > 3.9 ? ((T - 3.9) * 0.36) % 1.3 : -1 });
+      g.restore();
+      // faixa com o nome do nível do emblema
+      const ban = outBack(segT(T, FORGE.banner, FORGE.banner + 0.45));
+      if (ban > 0 && faixa) {
+        g.save(); g.translate(MX, y + R + (tier >= 5 ? 9 : 6.5)); g.scale(ban, 1);
+        for (const sd of [-1, 1]) { const p = new Path2D(); p.moveTo(sd * 13, -2.6); p.lineTo(sd * 19, -3); p.lineTo(sd * 17, 0.4); p.lineTo(sd * 19, 3.8); p.lineTo(sd * 13, 3.4); p.closePath(); g.fillStyle = C[2]; g.fill(p); }
+        const bp = new Path2D(); bp.moveTo(-15, -3.6); bp.quadraticCurveTo(0, -5, 15, -3.6); bp.lineTo(15, 3.2); bp.quadraticCurveTo(0, 1.8, -15, 3.2); bp.closePath();
+        g.fillStyle = hGrad(g, [C[2], C[1], C[0], C[1], C[2]], -15, 15); g.fill(bp); stroke(g, bp, "rgba(0,0,0,0.35)", 0.35);
+        g.fillStyle = tier === 2 || tier === 3 || tier === 6 ? "#2A1A05" : "#FFFFFF"; g.font = "900 3.6px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(faixa.split("").join(" "), 0, -0.4); g.restore();
+      }
+      for (let i = 0; i < 7; i++) { const a = i * 2 * PI / 7 + 0.3 + t * 0.2, ph = (t * 0.7 + i * 0.37) % 1; star4(g, MX + cos(a) * 28, y + sin(a) * 24, 2.4 * sin(PI * ph) * reveal, rgba(i % 2 ? "#FFFFFF" : C[0], sin(PI * ph))); }
+    }
+    g.restore();
+    // ---- o Folha: assiste a forja, se encolhe a cada martelada e comemora no fim
+    const flinch = sinceHit >= 0 && sinceHit < 0.3;
+    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0.2, 0.7))) * 30, scale: 0.5, look, dir: { x: 0.1, y: -1 },
+      script: flinch && T < FORGE.quench ? [[0, "surprised"]] : [[0, "idle"], [FORGE.hits[0] - 0.05, "focus"], [FORGE.rise, "ecstatic"], [4.6, "happy"], [6, "proud"]] };
+    floorLight(g, 50, 107, 30, reveal > 0 ? C[0] : "#FF8A2A", 0.22);
+    sceneFolha(g, o);
+    drawConfetti(g, el._conf, T - FORGE.rise);
+  }
+
   // ---- cena: sequência (a fênix)
   // 0–0,6 s   escuro com brasas; as marcas da semana aparecem num arco, como braseiros apagados;
   // 0,6–1,65  uma faísca corre o arco acendendo cada dia estudado (no dia que faltou, engasga e solta fumaça);
@@ -2795,14 +2901,14 @@
   function fireLine(g, p, w, a) {
     if (a <= 0.01) return;
     g.save(); g.globalCompositeOperation = "lighter"; g.lineCap = "round"; g.lineJoin = "round";
-    for (const [mul, col, al] of [[3.4, "255,60,20", 0.1], [2.0, "255,130,40", 0.24], [1.0, "255,205,100", 0.55], [0.38, "255,250,230", 0.9]]) {
+    for (const [mul, col, al] of Q < 1 ? [[2.2, "255,120,40", 0.32], [0.6, "255,240,200", 0.9]] : [[3.4, "255,60,20", 0.1], [2.0, "255,130,40", 0.24], [1.0, "255,205,100", 0.55], [0.38, "255,250,230", 0.9]]) {
       g.strokeStyle = `rgba(${col},${al * a})`; g.lineWidth = w * mul; g.stroke(p);
     }
     g.restore();
   }
   // a asa direita (ombro em 0,0, a esquerda é o espelho): penas longas em leque, curvas, cada uma um traço de fogo
   function phoenixWing(g, t, open, flap, a) {
-    const N = 10, tips = [];
+    const N = Q < 1 ? 7 : 10, tips = [];
     for (let i = 0; i < N; i++) {
       const f = i / (N - 1), spread = -62 + f * 78, closed = 62 + f * 18;
       const ang = (spread * open + closed * (1 - open) + flap * (1 - f * 0.5)) * PI / 180;
@@ -2894,7 +3000,7 @@
       sceneRays(b, PX, PY, 16, 90, "#FFB13B", fire * (0.5 + 0.15 * sin(t * 2)), t * 0.1, 0.05);
       shockRing(b, PX, PY, segT(T, SEQ.boom, SEQ.boom + 0.7), "#FFE07A", 52);
       shockRing(b, PX, PY, segT(T, SEQ.wings + 0.3, SEQ.wings + 1.1), "#FF8A2A", 70);
-      for (let i = 0; i < 26; i++) { const u = (t * (0.08 + (i % 5) * 0.015) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.4, `rgb(${c})`, (1 - u) * (0.35 + 0.4 * fire)); }
+      for (let i = 0, m = Math.round(26 * Q); i < m; i++) { const u = (t * (0.08 + (i % 5) * 0.015) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.4, `rgb(${c})`, (1 - u) * (0.35 + 0.4 * fire)); }
     });
     // ---- as marcas da semana: braseiros que acendem com a faísca do pavio
     const fuseU = segT(T, SEQ.fuse, SEQ.hit), fuseX = lerp(ax(0) - 6, ax(n - 1), fuseU);
@@ -2942,7 +3048,7 @@
     const num = segT(T, SEQ.number, SEQ.number + 0.5), beat = 1 + 0.06 * Math.max(0, sin(t * 4.2)) ** 6 + (num < 1 ? (1 - outBack(num)) * -0.4 : 0);
     fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, clamp(num * 2, 0, 1), beat);
     // fagulhas soltas da fênix
-    if (born > 0) for (let i = 0; i < 16; i++) { const u = (t * (0.4 + (i % 4) * 0.08) + i * 0.0625) % 1, sd = ((i * 0.618) % 1 - 0.5) * 2, x = PX + sd * 38 * (0.4 + u), y = PY - 6 - u * 34 + sd * sd * 8; const c = fireColor(0.15 + u * 0.6); circle(g, `rgba(${c},${(1 - u) * open})`, 0.3 + 0.3 * (1 - u), x, y); }
+    if (born > 0) for (let i = 0, m = Math.round(16 * Q); i < m; i++) { const u = (t * (0.4 + (i % 4) * 0.08) + i * 0.0625) % 1, sd = ((i * 0.618) % 1 - 0.5) * 2, x = PX + sd * 38 * (0.4 + u), y = PY - 6 - u * 34 + sd * sd * 8; const c = fireColor(0.15 + u * 0.6); circle(g, `rgba(${c},${(1 - u) * open})`, 0.3 + 0.3 * (1 - u), x, y); }
     g.restore();
     // ---- o Folha: olha a faísca correndo, leva um susto no estouro e comemora em chamas
     const o = { T, t, x: 50, y: 110 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.46, look, dir: { x: lerp(-0.8, 0.8, fuseU), y: T < SEQ.hit ? 0.2 : -1 },
@@ -2956,7 +3062,7 @@
     if (h <= 0.3) return;
     glowAt(g, 0, -h * 0.4, h * 0.9, "#FF8A2A", 0.4);
     g.save(); g.globalCompositeOperation = "lighter";
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0, n = Math.round(18 * Q); i < n; i++) {
       const seed = (i * 0.618) % 1, u = (t * (0.9 + seed * 0.6) + seed) % 1;
       const px = (seed - 0.5) * w * (1 - u) + sin(t * 8 + i) * w * 0.12 * u, py = -u * h, r = w * 0.55 * (1 - u) ** 0.7 + 0.3;
       const c = fireColor(u), al = (u < 0.1 ? u / 0.1 : 1) * (1 - u) * 0.6;
@@ -3096,7 +3202,7 @@
     _look(over) { return resolveLook(null, Object.assign({ plain: true }, over || {})); }
     _size() {
       if (!this._canvas) return;
-      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, this._lite ? 1.25 : 2.5);
       if (attr) { this.style.width = w + "px"; }
       const h = Math.round(w * CENA_H / 100);
       this.style.height = h + "px";
@@ -3114,9 +3220,18 @@
       if (!g || !draw || !this._k) return;
       // at="2.5": quadro parado naquele instante do roteiro (para conferir o desenho)
       const at = this.getAttribute("at"), still = reduceMotion.matches || at != null, T = at != null ? +at : still ? 9 : (now - this._start) / 1000, t = at != null ? +at : still ? 0.35 : now / 1000;
+      // proteção de desempenho: depois de 1,5 s, se a média ficar acima de 25 ms por quadro (menos de 40 por
+      // segundo), a cena passa para o modo leve até o fim (menos partículas, menos luz, resolução menor)
+      if (!still) {
+        if (this._lastNow) { const dt = Math.min(200, now - this._lastNow); this._ema = this._ema ? this._ema * 0.92 + dt * 0.08 : dt; }
+        this._lastNow = now;
+        if (!this._lite && now - this._start > 1500 && this._ema > 25) { this._lite = true; this._size(); }
+      }
+      Q = this._lite ? 0.5 : 1;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this._canvas.width, this._canvas.height);
       g.setTransform(this._k, 0, 0, this._k, this._off || 0, this._off || 0);
       draw(g, T, t, this);
+      Q = 1;
       // borda macia: nada encosta na borda do quadro (o que sangra para fora some aos poucos)
       const b = (this._bleed || 0), x0 = -b, x1 = 100 + b, y0 = -b, y1 = CENA_H + b, W = x1 - x0, H = y1 - y0;
       g.save(); g.globalCompositeOperation = "destination-in";
@@ -3150,6 +3265,24 @@
     if (zoom) { g.setTransform(k * zoom, 0, 0, k * zoom, -k * zoom * zx + c.width / 2, -k * zoom * zy + c.width / 2); }
     drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: !zoom && size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;
+  };
+
+  // Medalha de emblema parada (tela de conquistas): o mesmo desenho da forja, em PNG, guardado em cache.
+  // folhaMedal({ tier: 1..6, cat: "seq", earned: true, size: 80 }) -> data URL. Trancada sai em cinza.
+  const MEDALS = new Map();
+  window.folhaMedal = function (o) {
+    const size = Math.max(16, Math.round((o && o.size) || 80)), dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const tier = (o && o.tier) || 1, cat = (o && o.cat) || "seq", earned = !(o && o.earned === false);
+    const key = [size, dpr, tier, cat, earned].join(":");
+    if (MEDALS.has(key)) return MEDALS.get(key);
+    const c = document.createElement("canvas"); c.width = c.height = Math.round(size * dpr);
+    const g = c.getContext("2d"), k = c.width / 100;
+    g.setTransform(k, 0, 0, k, 0, 0); g.translate(50, 50);
+    // a moldura (louros, roseta, asas) precisa de espaço: quanto mais alto o nível, menor a moeda
+    const R = tier >= 5 ? 25 : tier >= 3 ? 30 : 38;
+    if (!earned) g.filter = "grayscale(1) brightness(0.62) contrast(0.9)";
+    drawMedalArt(g, R, earned ? tier : Math.min(tier, 2), cat, { deco: 1, engrave: 1, k });
+    const url = c.toDataURL("image/png"); MEDALS.set(key, url); return url;
   };
 
   // O site avisa o que a pessoa escolheu no armário e o contexto do dia: { cover, ribbon, hat, eyes, neck, hand, aura, gloves, streak, atRisk }.
