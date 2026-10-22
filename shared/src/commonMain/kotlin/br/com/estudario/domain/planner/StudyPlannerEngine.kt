@@ -223,6 +223,25 @@ class StudyPlannerEngine(
         flexiblePass(respectShare = true)
         if (dailyShare < 100) flexiblePass(respectShare = false)
 
+        // A teoria de um tópico vem antes das questões e revisões dele. Ao remarcar o atrasado, a
+        // teoria podia cair num dia depois das questões do mesmo tópico; elas vão para o dia da
+        // (última parte da) teoria, logo depois dela (juntando com o cartão do mesmo tipo, se houver).
+        run {
+            val lastTheory = generated.filter { it.type == PlanTaskType.THEORY && it.topicId != null }
+                .groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxWith(compareBy({ it.date }, { it.sequence })) }
+            val fixed = mutableListOf<PlannerTask>()
+            generated.forEach { task ->
+                val theory = task.topicId?.let { lastTheory[it] }
+                val moved = if (theory != null && task.type != PlanTaskType.THEORY && task.date < theory.date) task.copy(date = theory.date, sequence = theory.sequence) else task
+                val twin = fixed.indexOfFirst { it.topicId != null && it.topicId == moved.topicId && it.type == moved.type && it.date == moved.date }
+                if (moved !== task && twin >= 0) {
+                    val prev = fixed[twin]
+                    fixed[twin] = prev.copy(plannedMinutes = prev.plannedMinutes + moved.plannedMinutes, plannedQuestions = prev.plannedQuestions + moved.plannedQuestions)
+                } else fixed += moved
+            }
+            generated.clear(); generated += fixed
+        }
+
         val dependencyUnallocated = blocked.map {
             UnallocatedDemand(it.id, it.minutes, "Dependência ainda não concluída.")
         }
