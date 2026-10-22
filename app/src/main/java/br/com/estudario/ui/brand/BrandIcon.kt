@@ -113,6 +113,9 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "EditNote", "BorderColor" -> Glyph.Pencil
     "LightMode" -> Glyph.Sun
     "DarkMode", "Bedtime" -> Glyph.Moon
+    "Coffee", "LocalCafe" -> Glyph.Coffee
+    "Checkroom" -> Glyph.Hanger
+    "Casino" -> Glyph.Dice
     "PhoneAndroid", "Devices" -> Glyph.Phone
     "FiberNew" -> Glyph.Gem
     "EmojiEventsOutlined" -> Glyph.Trophy

@@ -13,7 +13,7 @@
 // O canvas sobra para fora da caixa (MARGIN), para mão e borla nunca serem cortadas.
 //
 // Uso: <estudario-folha mood="idle|thinking|talking|happy|sad|wave|point|wink|surprised|proud|focus|sleepy|relieved|ecstatic"
-//        size="96" [say="texto"] [cover|ribbon|hat|eyes|neck|hand|aura|gloves="peça do armário"] [plain] [noenter]>
+//        size="96" [say="texto"] [cover|ribbon|hat|eyes|neck|hand|aura|gloves|pet="peça do armário"] [plain] [noscene] [noenter]>
 // Armário e contexto do dia: window.folhaSetLook({ cover, hat, ..., streak, atRisk }); saída: window.folhaLeave(raiz, fim).
 // Toque: amassa, pula e pisca. el.gulp (0..1) abre a boca para "engolir" folhas (tela de processamento).
 // Um laço de animação só para todos, parado fora da tela; quadro fixo para quem pede menos movimento.
@@ -54,15 +54,16 @@
     lilas: ["#9466DD", "#B995F5", "#ECDFFF"], preta: ["#111118", "#2F2F3A", "#77778A"], dourada: ["#C98A12", GOLD, "#FFEBB5"],
     arcoiris: ["#E8566D", "#F5B83D", "#36C897", "#6FB0FF"],
   };
-  // Luvas: preenchimento e o punho.
+  // Luvas: preenchimento, punho e o tipo (arco-íris tem degradê; boxe muda o formato da mão).
   const GLOVES = {
-    branca: ["#FFFFFF", "#ECE8F6"], menta: ["#D9FBEE", "#9FE7C9"], coral: ["#FFE1DA", "#FFB3A3"],
-    preta: ["#3A3A46", "#24242E"], dourada: ["#FFF1BF", "#F5B83D"],
+    branca: ["#FFFFFF", "#ECE8F6"], menta: ["#C9F7E4", "#7EE0B8"], coral: ["#FFD3C9", "#FF8C75"],
+    preta: ["#3A3A46", "#24242E"], dourada: ["#FFE9A6", "#F5B83D"], arcoiris: ["#FFFFFF", "#B995F5", "rainbow"],
+    boxe: ["#E5373F", "#FFFFFF", "boxe"],
   };
   // O que a pessoa escolheu e o contexto do dia; o site atualiza por window.folhaSetLook (veja o fim do arquivo).
   // streak: dias seguidos (medalha no capelo a partir de 7); atRisk: a sequência pode cair hoje; hour: para testes.
-  const SLOTS = ["cover", "ribbon", "hat", "eyes", "neck", "hand", "aura", "gloves"];
-  const LOOK = { cover: "indigo", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", aura: "nenhum", gloves: "branca", streak: 0, atRisk: false, hour: null };
+  const SLOTS = ["cover", "ribbon", "hat", "eyes", "neck", "hand", "aura", "gloves", "pet"];
+  const LOOK = { cover: "indigo", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
   // Escolhas antigas (um "acessório" só) viram a peça equivalente.
   const LEGACY_ACC = { oculos: ["eyes", "leitura"], gravata: ["neck", "borboleta"], estrela: ["neck", "broche"], louros: ["hat", "louros"], lapis: ["hand", "lapis"] };
   function resolveLook(el, over) {
@@ -73,7 +74,7 @@
     const scene = !plain && !(el && el.hasAttribute("noscene"));   // noscene: sem café nem touca (vitrine do armário)
     return {
       cover, coverId: a("cover"), ribbon: RIBBONS[a("ribbon")] || RIBBONS.menta, hat: a("hat"), eyes: a("eyes"), neck: a("neck"), hand: a("hand"),
-      aura: a("aura"), gloves: GLOVES[a("gloves")] || GLOVES.branca, arm: cover.arm,
+      aura: a("aura"), gloves: GLOVES[a("gloves")] || GLOVES.branca, arm: cover.arm, pet: a("pet"),
       streak: plain ? 0 : LOOK.streak, atRisk: !plain && LOOK.atRisk,
       morning: scene && h >= 5 && h < 11, night: scene && (h >= 22 || h < 5),
     };
@@ -237,6 +238,13 @@
       p.hL = [lerp(5, 8, w), lerp(76, 82, w)];
       p.up = lerp(0, 1, w); p.low = lerp(0.5, 0, w); p.browIn = 0.45 * w; p.browY = lerp(-1.2, -0.4, w);
       p.mW = lerp(5.4, 2.3, w); p.mCurve = lerp(4.2, 0, w); p.mOpen = lerp(0.3, 0.45, w); p.cheek = lerp(0.65, 0.55, w);
+    } else if (mood === "present") {
+      // mostrando o que tem nas mãos: a esquerda levanta o item para a frente, a direita abre a luva
+      const b = sin(t * 3);
+      p.hop = -1 + sin(t * 2) * 0.6; p.tilt = -2 + b * 1.2;
+      p.hL = [4, 45 + b * 1.2]; p.shapeL = "fist"; p.rotL = -10; p.bendL = -4;
+      p.hR = [96, 46 - b * 1.2]; p.shapeR = "open"; p.rotR = -20 + b * 12; p.bendR = -4;
+      p.low = 0.4; p.browY = -1.6; p.mW = 5.8; p.mCurve = 4.6; p.mOpen = 0.5; p.cheek = 0.7; p.lookX = -0.5; p.lookY = -0.3;
     } else if (mood === "ecstatic") {
       // em chamas (muitos acertos seguidos): olhos de estrela, pulos altos e socos no ar alternados
       const a = sin(t * 6.2);
@@ -244,6 +252,8 @@
       p.hL = [0, 40 - Math.max(0, a) * 7]; p.hR = [100, 40 - Math.max(0, -a) * 7]; p.shapeL = p.shapeR = "fist"; p.rotL = -24; p.rotR = 24; p.bendL = p.bendR = -6;
       p.pupil = 1.3; p.browY = -3; p.mW = 6.8; p.mCurve = 5.4; p.mOpen = 1.15; p.cheek = 0.85;
     }
+    // segurando um item: a mão esquerda parada sobe um pouco para a frente, fechada, para o item aparecer
+    if (ctx && ctx.holding && p.hL[0] < 10 && p.hL[1] > 73) { p.hL = [11, 71 + (p.hL[1] - 78) * 0.5]; p.rotL = -12; p.bendL = 4; if (p.shapeL === "mitt") p.shapeL = "fist"; }
     return p;
   }
 
@@ -274,6 +284,8 @@
     circle(g, rg, 26, 50, 95);
     g.restore();
 
+    const lookP = s.look || resolveLook(null);
+    drawPet(g, t, lookP.pet, mood, small, s.burst || 0);
     g.save();
     g.translate(0, hop);
     g.translate(50, 88); g.scale(squashX / Math.sqrt(stretch), squashY * stretch); g.translate(-50, -88);
@@ -282,7 +294,9 @@
     const look = s.look || resolveLook(null);
     drawAura(g, t, look.aura, small, s.burst || 0, true);
     // na frente do livro: as duas mãos folheando, no susto ou passando na testa (ufa); só a do lápis no foco
-    const front = mood === "thinking" || mood === "surprised" ? "LR" : mood === "focus" || mood === "relieved" ? "R" : "";
+    let front = mood === "thinking" || mood === "surprised" || mood === "present" ? "LR" : mood === "focus" || mood === "relieved" ? "R" : "";
+    // segurando um item: a mão esquerda fica na frente do livro, para o item aparecer
+    if (look.hand && look.hand !== "nenhum" && !front.includes("L")) front = "L" + front;
     drawArms(g, s, "LR".replace(new RegExp("[" + (front || "_") + "]", "g"), ""));
     drawBook(g, t, mood, small, look);
     drawPageLines(g, t, mood, small);
@@ -612,6 +626,110 @@
     g.fillStyle = vGrad(g, [rgba(dark, 0.55), rgba(dark, 0)], edge, edge + 1.8); g.fillRect(x0 + 0.3, edge, w, 1.8);
   }
 
+  // ---- companheiro: um bichinho (ou plantinha) no chão, ao lado esquerdo do Folha
+  // Fica no chão (não pula junto); comemora junto, cochila junto e pula quando tocam no Folha.
+  function drawPet(g, t, kind, mood, small, burst) {
+    if (!kind || kind === "nenhum" || small) return;   // pequeno demais, só atrapalharia
+    const party = /^(happy|ecstatic|proud|wave|present)$/.test(mood), sleepy = mood === "sleepy";
+    const hop = party ? -abs(sin(t * 5.2 + 0.8)) * 3 : burst > 0 ? -sin(PI * (1 - burst)) * 4 : -abs(sin(t * 1.3)) * 0.4;
+    const blink = sleepy || (t % 3.7) < 0.13;
+    const x = -9, base = 95, k = 1.45;
+    g.save(); g.translate(x, base); g.scale(1, 0.22); circle(g, rgba(INK, 0.2), (7 + hop * 0.3) * k, 0, 0); g.restore();
+    g.save(); g.translate(x, base + hop * k); g.scale(k, k);
+    const eye = (ex, ey, r = 0.75) => {
+      if (blink) { const p = new Path2D(); p.moveTo(ex - r * 1.2, ey); p.quadraticCurveTo(ex, ey + r * 0.9, ex + r * 1.2, ey); stroke(g, p, INK, 0.5); return; }
+      circle(g, INK, r, ex, ey); circle(g, "#FFFFFF", r * 0.4, ex - r * 0.3, ey - r * 0.35);
+    };
+    const smile = (mx, my, w = 1.1) => { const p = new Path2D(); p.moveTo(mx - w, my); p.quadraticCurveTo(mx, my + w * (party ? 1.2 : 0.7), mx + w, my); stroke(g, p, INK, 0.45); };
+    if (kind === "planta") {
+      // vaso de barro com folhas que balançam (e uma flor quando ele comemora)
+      const sway = sin(t * 1.4) * 0.15;
+      for (const [a, len, c] of [[-0.55, 9, "#2E9E72"], [0.05, 11, "#3FBF8F"], [0.6, 8.5, "#2E9E72"]]) {
+        g.save(); g.translate(0, -8); g.rotate(a + sway);
+        line(g, "#2E9E72", 0, 0, 0, -len * 0.7, 0.6);
+        g.beginPath(); g.ellipse(0, -len * 0.62, 2, len * 0.4, 0, 0, 2 * PI); g.fillStyle = c; g.fill();
+        line(g, "rgba(255,255,255,0.35)", 0, -len * 0.3, 0, -len * 0.9, 0.3);
+        g.restore();
+      }
+      if (party) { g.save(); g.translate(sin(t * 1.4) * 1.2, -19); for (let i = 0; i < 5; i++) { const a = i * 2 * PI / 5 + t; circle(g, "#FF8FA3", 1.1, cos(a) * 1.3, sin(a) * 1.3); } circle(g, GOLD, 0.8, 0, 0); g.restore(); }
+      const pot = new Path2D(); pot.moveTo(-5, -7); pot.lineTo(5, -7); pot.lineTo(4, 0); pot.lineTo(-4, 0); pot.closePath();
+      g.fillStyle = hGrad(g, ["#E8895A", "#D9774B", "#B85A33"], -5, 5); g.fill(pot);
+      const rim = new Path2D(); rim.roundRect(-5.8, -8.6, 11.6, 2.2, 0.8); g.fillStyle = "#C4643A"; g.fill(rim);
+      eye(-1.8, -4.2, 0.6); eye(1.8, -4.2, 0.6); smile(0, -2.6, 0.9);
+      circle(g, rgba(CHEEK, 0.6), 0.7, -3, -3); circle(g, rgba(CHEEK, 0.6), 0.7, 3, -3);
+    } else if (kind === "patinho") {
+      // patinho de borracha, balançando como na água
+      g.rotate(sin(t * 2) * 0.06);
+      const body = new Path2D(); body.ellipse(0, -4.4, 6.2, 4.3, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#FFE27A", "#FFD84A", "#F0B400"], -9, 0); g.fill(body);
+      const tail = new Path2D(); tail.moveTo(-5.4, -6); tail.lineTo(-7.6, -9); tail.lineTo(-4.2, -7.6); tail.closePath(); g.fillStyle = "#F0B400"; g.fill(tail);
+      const wing = new Path2D(); wing.moveTo(-2.6, -5.4); wing.quadraticCurveTo(0.6, -3, 2.4, -5); stroke(g, wing, "#E0A000", 0.6);
+      circle(g, "#FFD84A", 3.5, 2.6, -10.2);
+      g.beginPath(); g.ellipse(6, -9.6, 2, 1, 0.1, 0, 2 * PI); g.fillStyle = "#FF8A2B"; g.fill();
+      eye(3.6, -11.1, 0.7); circle(g, rgba(CHEEK, 0.7), 0.8, 2.2, -9.2);
+      g.beginPath(); g.ellipse(1, -12.4, 1.2, 0.6, -0.4, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.6)"; g.fill();
+    } else if (kind === "gatinho") {
+      // gatinho sentado, rabo abanando e bigode
+      const tw = sin(t * 2.2) * 2;
+      const tail = new Path2D(); tail.moveTo(4, -2); tail.quadraticCurveTo(10, -3 + tw * 0.3, 8.5 + tw * 0.4, -10 + tw); stroke(g, tail, "#D9803A", 1.8);
+      const body = new Path2D(); body.ellipse(0, -4.6, 5, 4.8, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#F7B36E", "#E58F45"], -9, 0); g.fill(body);
+      g.beginPath(); g.ellipse(0, -3.6, 2.6, 3, 0, 0, 2 * PI); g.fillStyle = "#FFE7CF"; g.fill();
+      for (const s of [-1, 1]) { const ear = new Path2D(); ear.moveTo(s * 3.8, -14.4); ear.lineTo(s * 2.6, -18.4); ear.lineTo(s * 0.6, -15.4); ear.closePath(); g.fillStyle = "#E58F45"; g.fill(ear);
+        const inner = new Path2D(); inner.moveTo(s * 3, -14.8); inner.lineTo(s * 2.5, -17); inner.lineTo(s * 1.3, -15.3); inner.closePath(); g.fillStyle = "#FFB3C7"; g.fill(inner); }
+      circle(g, "#F7B36E", 4.5, 0, -12);
+      line(g, "rgba(200,110,40,0.6)", -1, -16, -1, -14.6, 0.5); line(g, "rgba(200,110,40,0.6)", 1, -16, 1, -14.6, 0.5);
+      eye(-1.7, -12.4, 0.8); eye(1.7, -12.4, 0.8);
+      const nose = new Path2D(); nose.moveTo(-0.5, -10.9); nose.lineTo(0.5, -10.9); nose.lineTo(0, -10.3); nose.closePath(); g.fillStyle = "#FF8FA3"; g.fill(nose);
+      const m = new Path2D(); m.moveTo(-1, -9.8); m.quadraticCurveTo(-0.5, -9.2, 0, -9.9); m.quadraticCurveTo(0.5, -9.2, 1, -9.8); stroke(g, m, INK, 0.4);
+      for (const s of [-1, 1]) { line(g, "rgba(38,33,92,0.5)", s * 1.6, -10.4, s * 4.8, -10.9, 0.25); line(g, "rgba(38,33,92,0.5)", s * 1.6, -10, s * 4.6, -9.6, 0.25); }
+      circle(g, rgba(CHEEK, 0.6), 0.8, -2.8, -10.6); circle(g, rgba(CHEEK, 0.6), 0.8, 2.8, -10.6);
+      for (const s of [-1, 1]) { g.beginPath(); g.ellipse(s * 2, -0.6, 1.5, 0.9, 0, 0, 2 * PI); g.fillStyle = "#FFF4E6"; g.fill(); }
+    } else if (kind === "coruja") {
+      // corujinha estudiosa, de capelo, piscando devagar e batendo as asas quando comemora
+      const flap = party ? sin(t * 12) * 0.5 : 0;
+      for (const s of [-1, 1]) { g.save(); g.translate(s * 4.6, -8); g.rotate(s * (0.3 + flap)); g.beginPath(); g.ellipse(0, 1.5, 1.8, 4, 0, 0, 2 * PI); g.fillStyle = "#7A5230"; g.fill(); g.restore(); }
+      const body = new Path2D(); body.ellipse(0, -7, 5.4, 7, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#B9834C", "#8C5E33"], -14, 0); g.fill(body);
+      g.beginPath(); g.ellipse(0, -4.6, 3.6, 4.4, 0, 0, 2 * PI); g.fillStyle = "#F1DDB3"; g.fill();
+      for (let i = 0; i < 3; i++) { const p = new Path2D(); p.moveTo(-1.2, -6 + i * 1.6); p.lineTo(0, -5.2 + i * 1.6); p.lineTo(1.2, -6 + i * 1.6); stroke(g, p, "rgba(140,94,51,0.6)", 0.35); }
+      for (const s of [-1, 1]) { const tuft = new Path2D(); tuft.moveTo(s * 4.4, -11.4); tuft.lineTo(s * 4.4, -14.6); tuft.lineTo(s * 2.4, -12.6); tuft.closePath(); g.fillStyle = "#8C5E33"; g.fill(tuft); }
+      for (const s of [-1, 1]) { circle(g, "#FFFFFF", 2.3, s * 2.2, -10); g.strokeStyle = "#C98A4B"; g.lineWidth = 0.4; g.beginPath(); g.arc(s * 2.2, -10, 2.3, 0, 2 * PI); g.stroke(); eye(s * 2.2, -10, 1.1); }
+      const beak = new Path2D(); beak.moveTo(-0.8, -8.6); beak.lineTo(0.8, -8.6); beak.lineTo(0, -7.2); beak.closePath(); g.fillStyle = "#FF8A2B"; g.fill(beak);
+      const cap = new Path2D(); cap.moveTo(0, -17.2); cap.lineTo(5, -15.4); cap.lineTo(0, -13.6); cap.lineTo(-5, -15.4); cap.closePath(); g.fillStyle = CAP; g.fill(cap);
+      line(g, GOLD, 0, -15.4, 4, -15, 0.4); line(g, GOLD, 4, -15, 4.2 + sin(t * 2.6) * 0.4, -12.6, 0.45);
+    } else if (kind === "robo") {
+      // robozinho: antena piscando, rosto de tela e esteiras
+      const tread = new Path2D(); tread.roundRect(-5.2, -2.8, 10.4, 2.8, 1.4); g.fillStyle = "#2D3042"; g.fill(tread);
+      for (let i = -1; i <= 1; i++) circle(g, "#8E92A6", 0.7, i * 3, -1.4);
+      const body = new Path2D(); body.roundRect(-4.2, -9.4, 8.4, 6.8, 1.6); g.fillStyle = vGrad(g, ["#5A4FE6", "#3A2FC4"], -9.4, -2.6); g.fill(body);
+      g.fillStyle = "#FF8FA3"; g.fill(heart(0, -6.2, 1.3));
+      const head = new Path2D(); head.roundRect(-5.2, -17.6, 10.4, 8, 2.2); g.fillStyle = vGrad(g, ["#E3E6F0", "#B7B4D0"], -17.6, -9.6); g.fill(head);
+      const scr = new Path2D(); scr.roundRect(-4, -16.4, 8, 5.6, 1.4); g.fillStyle = "#1E1B2E"; g.fill(scr);
+      for (const s of [-1, 1]) { if (blink) line(g, MINT, s * 1.8 - 0.8, -13.4, s * 1.8 + 0.8, -13.4, 0.5); else { const e = new Path2D(); e.roundRect(s * 1.8 - 0.7, -14.6, 1.4, 2.2, 0.6); g.fillStyle = MINT; g.fill(e); } }
+      const sm = new Path2D(); sm.moveTo(-1, -12); sm.quadraticCurveTo(0, -11.2, 1, -12); stroke(g, sm, MINT, 0.4);
+      line(g, "#8E92A6", 0, -17.6, 0, -20.2, 0.5);
+      circle(g, sin(t * 4) > 0 ? "#FF5C4D" : MINT, 0.9, 0, -20.6);
+      line(g, "rgba(255,255,255,0.6)", -4.4, -16.6, -2.6, -17, 0.4);
+    } else if (kind === "dragao") {
+      // dragãozinho: asas batendo, rabo com espinho e baforada de fogo quando comemora
+      const flap = sin(t * (party ? 10 : 3)) * 0.35;
+      for (const s of [-1, 1]) { g.save(); g.translate(-1 + s * 1.5, -9); g.rotate(-0.6 * s + flap * s); const w = new Path2D(); w.moveTo(0, 0); w.quadraticCurveTo(s * -6, -5, s * -7, 1); w.quadraticCurveTo(s * -4, 0, s * -3.5, 2.4); w.quadraticCurveTo(s * -2, 1, 0, 2); w.closePath(); g.fillStyle = "#9563FF"; g.fill(w); g.restore(); }
+      const tail = new Path2D(); tail.moveTo(-3.5, -2); tail.quadraticCurveTo(-9, -1, -10.5, -5 + sin(t * 2) * 0.8); stroke(g, tail, "#1F9E75", 1.6);
+      const spike = new Path2D(); spike.moveTo(-11.6, -5.6 + sin(t * 2) * 0.8); spike.lineTo(-9.6, -6.4 + sin(t * 2) * 0.8); spike.lineTo(-10.6, -3.8 + sin(t * 2) * 0.8); spike.closePath(); g.fillStyle = "#9563FF"; g.fill(spike);
+      const body = new Path2D(); body.ellipse(0, -5.2, 4.8, 5, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#4FD3A2", "#1F9E75"], -10, 0); g.fill(body);
+      g.beginPath(); g.ellipse(0.6, -4, 2.6, 3.2, 0, 0, 2 * PI); g.fillStyle = "#D9FBEE"; g.fill();
+      circle(g, "#36C897", 4, 2.2, -12);
+      g.beginPath(); g.ellipse(5.4, -11.2, 2.4, 1.7, 0, 0, 2 * PI); g.fillStyle = "#36C897"; g.fill();
+      circle(g, INK, 0.3, 6.6, -11.6); circle(g, INK, 0.3, 6.2, -10.6);
+      for (const hx of [0.4, 2.8]) { const h = new Path2D(); h.moveTo(hx, -15.2); h.lineTo(hx + 0.6, -17.6); h.lineTo(hx + 1.4, -15.2); h.closePath(); g.fillStyle = "#F5B83D"; g.fill(h); }
+      eye(3.2, -13, 0.8); circle(g, rgba(CHEEK, 0.6), 0.8, 1.2, -11);
+      if (party) {
+        const k = 0.6 + 0.4 * abs(sin(t * 8)), f = new Path2D(); f.moveTo(7.6, -11.6); f.quadraticCurveTo(10 + 2 * k, -14, 12 + 2.5 * k, -11.2); f.quadraticCurveTo(10 + 2 * k, -9, 7.6, -10.6); f.closePath();
+        g.fillStyle = hGrad(g, ["#FFE07A", "#FF9F3A", "#F2552C"], 7.6, 13); g.fill(f);
+      }
+    }
+    g.restore();
+    if (sleepy) { g.save(); g.font = "800 4px Nunito, system-ui, sans-serif"; g.fillStyle = rgba(INK, 0.6 + 0.4 * sin(t * 2)); g.fillText("z", x + 8, base - 26 + sin(t * 1.4) * 1.5); g.restore(); }
+  }
+
   // ------------------------------------------------------------------ armário: chapéus, óculos, pescoço, mão e aura
   // Tudo é desenhado dentro do corpo do Folha (pula, inclina, amassa e estica junto); chapéu gira com o capelo,
   // óculos seguem o olhar, o item da mão segue a mão esquerda.
@@ -927,7 +1045,7 @@
   // ---- item na mão esquerda (desenhado antes da mão, que fica por cima segurando)
   function drawHeld(g, kind, h, ang, t, small) {
     const [x, y] = h, tiltA = clamp(ang, -0.6, 0.6) * 0.5;
-    g.save(); g.translate(x, y); g.rotate(tiltA); g.scale(small ? 1.25 : 1.5, small ? 1.25 : 1.5);
+    g.save(); g.translate(x, y); g.rotate(tiltA); g.scale(small ? 1.45 : 1.8, small ? 1.45 : 1.8);
     if (kind === "lapis") drawPencilAt(g, 2.5, 8, -3, -9, small ? 1.4 : 1.1);
     else if (kind === "marcatexto") {
       g.save(); g.rotate(-0.35);
@@ -1171,14 +1289,27 @@
     // o item da mão esquerda vai junto com a mão (some quando a mão abre para pegar a folha ou no susto)
     if (side < 0 && look && look.hand && look.hand !== "nenhum" && (shape === "mitt" || shape === "fist")) drawHeld(g, look.hand, h, ang - PI, t || 0, small);
     g.save(); g.translate(h[0], h[1]); g.rotate(ang); if (side < 0) g.scale(1, -1);
-    const sc = (small ? 1.12 : 1) * (1 + 0.28 * pop); g.scale(sc, sc);
+    const sc = (small ? 1.35 : 1.25) * (1 + 0.28 * pop); g.scale(sc, sc);
     drawHand(g, shape, small, armC, glove);
     g.restore();
   }
   function drawHand(g, shape, small, armC, glove) {
-    const OUT = armC || ARM, ow = small ? 1.0 : 0.6, fill = (glove || GLOVES.branca)[0];
+    glove = glove || GLOVES.branca;
+    const OUT = armC || ARM, ow = small ? 1.0 : 0.6, kind = glove[2];
+    if (kind === "boxe") {   // luva de boxe: a mão vira a luva, em qualquer gesto
+      const cuff = new Path2D(); cuff.roundRect(-2.8, -2.7, 2.6, 5.4, 1); g.fillStyle = "#FFFFFF"; g.fill(cuff); g.strokeStyle = "#8E1A22"; g.lineWidth = ow; g.stroke(cuff);
+      line(g, "#E5373F", -1.5, -2.6, -1.5, 2.6, 0.5, false);
+      const th = new Path2D(); th.ellipse(1.2, -3, 1.7, 1.3, -0.5, 0, 2 * PI);
+      const gl = new Path2D(); gl.ellipse(2.6, 0.1, 4, 3.6, 0, 0, 2 * PI);
+      const fillG = g.createRadialGradient(1.6, -1.4, 0.4, 2.6, 0, 4.4); fillG.addColorStop(0, "#FF7A80"); fillG.addColorStop(1, "#C3212B");
+      for (const p of [gl, th]) { g.fillStyle = fillG; g.fill(p); g.strokeStyle = "#8E1A22"; g.lineWidth = ow; g.stroke(p); }
+      g.beginPath(); g.ellipse(1.6, -1.5, 1.4, 0.8, -0.4, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.55)"; g.fill();
+      return;
+    }
+    let fill = glove[0];
+    if (kind === "rainbow") { const rg = g.createLinearGradient(-1, -3, 5, 3); ["#FF8FA3", "#FFD84A", "#7EE0B8", "#6FB0FF", "#B995F5"].forEach((c, i) => rg.addColorStop(i / 4, c)); fill = rg; }
     // punho da luva e pulseira dourada
-    g.beginPath(); g.ellipse(-1.2, 0, 1.6, 2.5, 0, 0, 2 * PI); g.fillStyle = (glove || GLOVES.branca)[1]; g.fill(); g.strokeStyle = OUT; g.lineWidth = ow; g.stroke();
+    g.beginPath(); g.ellipse(-1.2, 0, 1.6, 2.5, 0, 0, 2 * PI); g.fillStyle = glove[1]; g.fill(); g.strokeStyle = OUT; g.lineWidth = ow; g.stroke();
     line(g, GOLD, -1.2, -2.2, -1.2, 2.2, 0.7, false);
     const outline = (path) => { g.fillStyle = fill; g.fill(path); g.strokeStyle = OUT; g.lineWidth = ow; g.lineJoin = "round"; g.stroke(path); };
     const finger = (x, y, a, len, r) => { const p = new Path2D(); p.moveTo(x, y); p.lineTo(x + cos(a) * len, y + sin(a) * len); g.lineCap = "round"; g.strokeStyle = OUT; g.lineWidth = r * 2 + ow * 2; g.stroke(p); g.strokeStyle = fill; g.lineWidth = r * 2; g.stroke(p); };
@@ -1200,6 +1331,8 @@
       const palm = new Path2D(); palm.ellipse(1.7, 0, 3.1, 3.0, 0, 0, 2 * PI); outline(palm);
       if (!small) { const fl = new Path2D(); fl.moveTo(3.4, -1.2); fl.quadraticCurveTo(4.6, 0, 3.6, 1.4); stroke(g, fl, rgba(OUT, 0.3), 0.4); }
     }
+    // brilho de luva (dá volume e deixa a cor da luva aparecer)
+    if (!small && shape !== "open") { g.beginPath(); g.ellipse(1, -1.1, 1.2, 0.7, -0.4, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.45)"; g.fill(); }
   }
 
   // ------------------------------------------------------------------ animação
@@ -1210,7 +1343,7 @@
   function wake() { if (!rafId && live.size) rafId = requestAnimationFrame(tick); }
 
   const MOODS = { idle: "idle", thinking: "thinking", talking: "talking", happy: "happy", sad: "sad", wave: "wave", point: "point", wink: "idle",
-    surprised: "surprised", proud: "proud", focus: "focus", sleepy: "sleepy", dizzy: "dizzy", relieved: "relieved", ecstatic: "ecstatic" };
+    surprised: "surprised", proud: "proud", focus: "focus", sleepy: "sleepy", dizzy: "dizzy", relieved: "relieved", ecstatic: "ecstatic", present: "present" };
 
   // Onde está o ponteiro e quando a pessoa mexeu pela última vez (para os olhos seguirem e para ele cochilar).
   const POINTER = { x: 0, y: 0, at: -1e9 };
@@ -1429,7 +1562,7 @@
       else { this._look.x = 0.3; this._look.y = -0.2; }
       if (this._wink && now > this._winkUntil) this._wink = false;
       const tm = still ? 9 : (now - this._moodAt) / 1000;
-      this._advance(mood, t, dt, still ? null : this._fidget(now, mood), { tm, worried: look.atRisk });
+      this._advance(mood, t, dt, still ? null : this._fidget(now, mood), { tm, worried: look.atRisk, holding: look.hand && look.hand !== "nenhum" });
       // fala: a boca segue a letra atual do texto (com mola, para não tremer)
       let speech = null;
       if (this._say && mood === "talking") {
@@ -1476,11 +1609,12 @@
     const key = [mood, size, dpr, shelf ? "shelf" : "", ...SLOTS.map((k) => (shelf && o[k]) || LOOK[k]),
       shelf ? 0 : look.streak >= 100 ? 3 : look.streak >= 30 ? 2 : look.streak >= 7 ? 1 : 0, look.night, look.morning].join(":");
     if (STATIC.has(key)) return STATIC.get(key);
-    const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9 });
+    const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9, holding: look.hand && look.hand !== "nenhum" });
     const P = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
     const c = document.createElement("canvas"); c.width = c.height = Math.round(size * dpr);
-    const g = c.getContext("2d"), k = c.width / 100, fit = 0.9;      // cabe a mão para o alto dentro da caixa
-    g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2, c.width * (1 - fit) / 2 + k * 2);
+    const pet = look.pet && look.pet !== "nenhum" && size >= SMALL;
+    const g = c.getContext("2d"), k = c.width / 100, fit = pet ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
+    g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2));
     drawFolha(g, { t: 0.35, mood: mood === "thinking" ? "idle" : mood, small: size < SMALL, P, vy: 0, blink: 0, wink: mood === "wink" ? 1 : 0, popL: 0, popR: 0, squash: 0, gulp: 0, look, tm: 9 });
     const url = c.toDataURL("image/png"); STATIC.set(key, url); return url;
   };

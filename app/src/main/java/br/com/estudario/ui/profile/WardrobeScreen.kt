@@ -106,12 +106,15 @@ private fun RarityTag(r: FolhaRarity) {
 
 /** Movimentos para ver as peças em ação na vitrine. */
 private val TRY_MOODS = listOf(
-    FolhaMood.IDLE to "Parado", FolhaMood.WAVE to "Acenar", FolhaMood.HAPPY to "Comemorar",
+    FolhaMood.IDLE to "Parado", FolhaMood.PRESENT to "Mostrar", FolhaMood.WAVE to "Acenar", FolhaMood.HAPPY to "Comemorar",
     FolhaMood.THINKING to "Estudar", FolhaMood.ECSTATIC to "Em chamas", FolhaMood.SLEEPY to "Cochilar",
 )
 
+/** Na vitrine e nas miniaturas, mãos e itens aparecem melhor com ele mostrando (mãos para a frente). */
+private fun showcaseMood(slot: FolhaSlot) = if (slot == FolhaSlot.MAO || slot == FolhaSlot.LUVAS) FolhaMood.PRESENT else FolhaMood.IDLE
+
 /**
- * O armário do Folha: oito categorias de peças que saem das conquistas. Escolher troca na hora (ele
+ * O armário do Folha: nove categorias de peças que saem das conquistas. Escolher troca na hora (ele
  * comemora); tocar numa peça trancada mostra o Folha experimentando e diz como liberar. A vitrine tem
  * botões de movimento para ver as peças acompanhando o corpo.
  */
@@ -159,7 +162,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                         val t = trying
                         Box(Modifier.padding(top = 22.dp, bottom = 4.dp)) {
                             Folha(
-                                160.dp, mood = testMood ?: if (t != null) FolhaMood.PROUD else mood, onClick = {},
+                                160.dp, mood = testMood ?: if (t != null) (if (showcaseMood(t.slot) == FolhaMood.PRESENT) FolhaMood.PRESENT else FolhaMood.PROUD) else if (mood == FolhaMood.IDLE) showcaseMood(slot) else mood, onClick = {},
                                 style = FolhaStyle(pieces = t?.let { mapOf(it.slot.key to it.id) } ?: emptyMap(), noScene = true),
                             )
                         }
@@ -288,7 +291,7 @@ private fun WardrobeTile(
         // Miniatura parada (um quadro só): uma grade de Folhas vivos pesaria à toa.
         val px = with(LocalDensity.current) { 76.dp.roundToPx() }
         val thumb = remember(item.slot, item.id, px, FolhaLook.pieces()) {
-            br.com.estudario.ui.assistant.folhaBitmap(px, FolhaMood.IDLE, FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true)).asImageBitmap()
+            br.com.estudario.ui.assistant.folhaBitmap(px, showcaseMood(item.slot), FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true)).asImageBitmap()
         }
         androidx.compose.foundation.Image(thumb, null, Modifier.size(76.dp).alpha(if (open) 1f else 0.55f))
         Text(item.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)

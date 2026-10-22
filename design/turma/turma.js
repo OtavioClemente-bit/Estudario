@@ -451,6 +451,26 @@ export const TURMA = {
     face: [40, 54, 0.8, "sleepy"],
     fx: [{ d: "M72 18h10l-10 12h10", s: "#9563FF", w: 3.5 }, { d: "M86 2h7l-7 8h7", s: "#9563FF", w: 3 }],
   }) },
+  Coffee: { anim: "float", about: "Manhã: caneca de café fumegando", draw: () => ({
+    body: [
+      ...inkLine("M70 42c18 0 18 30 0 30", "paper", 7),
+      solid(rr(16, 30, 56, 60, 14), "paper"),
+      flat("M16 46h56v14H16z", "indigo", { w: 4 }),
+      flat(ell(44, 33, 24, 6), "brown", { w: 4 }),
+      shine("M24 70a20 20 0 0 0 4 10"),
+    ],
+    face: [44, 70, 0.7, "smile"],
+    fx: [{ d: "M34 22c-6-6 6-10 0-16", s: "#B7B4D0", w: 4 }, { d: "M50 20c-6-6 6-10 0-16", s: "#B7B4D0", w: 4 }],
+  }) },
+  Hanger: { anim: "sway", about: "Armário do Folha: cabide", draw: () => ({
+    body: [
+      ...inkLine("M50 36v-6a9 9 0 1 1 9-9", "steel", 6),
+      solid("M50 34 92 70a7 7 0 0 1-4.6 12H12.6A7 7 0 0 1 8 70z", "violet"),
+      flat(star(80, 20, 8, 3.2, 4), "sun", { w: 3 }),
+    ],
+    face: [50, 66, 0.7, "happy"],
+    fx: [fxFill(star(14, 22, 6, 2.4, 4), "#FFD84A")],
+  }) },
   Phone: { anim: "ring", about: "Aparelhos: celular", draw: () => ({
     body: [solid(rr(24, 6, 52, 88, 14), "indigo"), flat(rr(31, 16, 38, 62, 7), "sky", { w: 4 }), line("M44 85h12", WHITE, 4, { noHalo: true })],
     face: [50, 44, 0.8, "smile"],

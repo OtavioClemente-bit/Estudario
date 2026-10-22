@@ -82,6 +82,8 @@ enum class FolhaMood {
     RELIEVED,
     /** Em chamas (muitos acertos seguidos): olhos de estrela, pulos altos, labaredas. */
     ECSTATIC,
+    /** Mostrando o que tem nas mãos (vitrine do armário): item para a frente, luva aberta. */
+    PRESENT,
 }
 
 /**
@@ -97,6 +99,7 @@ object FolhaLook {
     var hand by mutableStateOf("nenhum")
     var aura by mutableStateOf("nenhum")
     var gloves by mutableStateOf("branca")
+    var pet by mutableStateOf("nenhum")
     /** Dias seguidos: medalha no capelo a partir de 7 (bronze), 30 (prata) e 100 (ouro). */
     var streak by mutableIntStateOf(0)
     /** A sequência pode cair hoje (fim do dia, meta não batida): parado, ele fica preocupadinho. */
@@ -105,7 +108,7 @@ object FolhaLook {
     var hour by mutableStateOf<Int?>(null)
 
     /** Peça atual de cada lugar, pela chave do desenho ("cover", "hat"...). */
-    fun pieces(): Map<String, String> = mapOf("cover" to cover, "ribbon" to ribbon, "hat" to hat, "eyes" to eyes, "neck" to neck, "hand" to hand, "aura" to aura, "gloves" to gloves)
+    fun pieces(): Map<String, String> = mapOf("cover" to cover, "ribbon" to ribbon, "hat" to hat, "eyes" to eyes, "neck" to neck, "hand" to hand, "aura" to aura, "gloves" to gloves, "pet" to pet)
 
     fun set(key: String, id: String) {
         when (key) {
@@ -117,6 +120,7 @@ object FolhaLook {
             "hand" -> hand = id
             "aura" -> aura = id
             "gloves" -> gloves = id
+            "pet" -> pet = id
         }
     }
 }
@@ -148,15 +152,17 @@ private val COVERS = mapOf(
     "diamante" to CoverStyle(listOf(rgb(0xFFEAF6FF), rgb(0xFFB9DDF7), rgb(0xFF86BCE6)), rgb(0xFF4F7FA6), listOf(rgb(0xFF6FA9D9), rgb(0xFFBFE3FF)), silver = true, pattern = "facets"),
 )
 
-/** Luvas: preenchimento e punho. */
+/** Luvas: preenchimento e punho ("arcoiris" tem degradê; "boxe" muda o formato da mão). */
 private val GLOVES = mapOf(
-    "branca" to listOf(Color.White, rgb(0xFFECE8F6)), "menta" to listOf(rgb(0xFFD9FBEE), rgb(0xFF9FE7C9)), "coral" to listOf(rgb(0xFFFFE1DA), rgb(0xFFFFB3A3)),
-    "preta" to listOf(rgb(0xFF3A3A46), rgb(0xFF24242E)), "dourada" to listOf(rgb(0xFFFFF1BF), rgb(0xFFF5B83D)),
+    "branca" to listOf(Color.White, rgb(0xFFECE8F6)), "menta" to listOf(rgb(0xFFC9F7E4), rgb(0xFF7EE0B8)), "coral" to listOf(rgb(0xFFFFD3C9), rgb(0xFFFF8C75)),
+    "preta" to listOf(rgb(0xFF3A3A46), rgb(0xFF24242E)), "dourada" to listOf(rgb(0xFFFFE9A6), rgb(0xFFF5B83D)),
+    "arcoiris" to listOf(Color.White, rgb(0xFFB995F5)), "boxe" to listOf(rgb(0xFFE5373F), Color.White),
 )
 
 private class Look(
     val cover: CoverStyle, val ribbon: List<Color>, val hat: String, val eyes: String, val neck: String, val hand: String, val aura: String,
     val gloves: List<Color>, val streak: Int, val atRisk: Boolean, val morning: Boolean, val night: Boolean,
+    val gloveKind: String = "branca", val pet: String = "nenhum",
 )
 
 private fun resolveLook(o: FolhaStyle?): Look {
@@ -174,6 +180,7 @@ private fun resolveLook(o: FolhaStyle?): Look {
         atRisk = !plain && FolhaLook.atRisk,
         morning = scene && h in 5..10,
         night = scene && (h >= 22 || h < 5),
+        gloveKind = a("gloves"), pet = a("pet"),
     )
 }
 
@@ -304,10 +311,12 @@ fun folhaBitmap(sizePx: Int, mood: FolhaMood = FolhaMood.HAPPY, style: FolhaStyl
     ) {
         // Um quadro "bonito": olhos abertos, borla no meio do balanço; cabe a mão para o alto.
         val m = if (mood == FolhaMood.THINKING) FolhaMood.IDLE else mood
-        val sim = FolhaSim().apply { small = sizePx < 160; setMood(m); settle(m) }
-        val fit = 0.9f
-        translate(size.width * (1 - fit) / 2f, size.height * (1 - fit) / 2f + size.width * 0.02f) {
-            scale(fit, fit, pivot = Offset.Zero) { drawFolha(sim.snapshot(0f, resolveLook(style))) }
+        val look = resolveLook(style)
+        val sim = FolhaSim().apply { small = sizePx < 160; holding = look.hand != "nenhum"; setMood(m); settle(m) }
+        val pet = look.pet != "nenhum" && sizePx >= 160
+        val fit = when { pet -> 0.76f; m == FolhaMood.PRESENT -> 0.78f; else -> 0.9f }
+        translate(size.width * (1 - fit) / 2f + (if (pet) size.width * 0.07f else 0f), size.height * (1 - fit) / 2f + size.width * (when { pet -> 0.01f; m == FolhaMood.PRESENT -> 0.05f; else -> 0.02f })) {
+            scale(fit, fit, pivot = Offset.Zero) { drawFolha(sim.snapshot(0f, look)) }
         }
     }
     return image.asAndroidBitmap()
@@ -362,7 +371,7 @@ private fun turnState(t: Float): Turn {
 
 /** Pose alvo do humor no instante [t]. */
 /** [tm]: segundos desde que o humor começou (cenas com começo, meio e fim); [worried]: sequência em risco. */
-private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fidget?, fu: Float, tm: Float = 9f, worried: Boolean = false): PoseValues {
+private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fidget?, fu: Float, tm: Float = 9f, worried: Boolean = false, holding: Boolean = false): PoseValues {
     val p = PoseValues()
     p.hop = sin(t * 2.1f) * 1.4f; p.tilt = sin(t * 0.9f) * 1.2f
     p.hL1 = 78f + sin(t * 2.1f) * 1.2f; p.hR1 = 78f - sin(t * 2.1f) * 1.2f
@@ -463,6 +472,14 @@ private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fid
             p.up = w; p.low = lerp(0.5f, 0f, w); p.browIn = 0.45f * w; p.browY = lerp(-1.2f, -0.4f, w)
             p.mW = lerp(5.4f, 2.3f, w); p.mCurve = lerp(4.2f, 0f, w); p.mOpen = lerp(0.3f, 0.45f, w); p.cheek = lerp(0.65f, 0.55f, w)
         }
+        FolhaMood.PRESENT -> {
+            // mostrando o que tem nas mãos: a esquerda levanta o item para a frente, a direita abre a luva
+            val b = sin(t * 3f)
+            p.hop = -1f + sin(t * 2f) * 0.6f; p.tilt = -2f + b * 1.2f
+            p.hL0 = 4f; p.hL1 = 45f + b * 1.2f; p.shapeL = Hand.FIST; p.rotL = -10f; p.bendL = -4f
+            p.hR0 = 96f; p.hR1 = 46f - b * 1.2f; p.shapeR = Hand.OPEN; p.rotR = -20f + b * 12f; p.bendR = -4f
+            p.low = 0.4f; p.browY = -1.6f; p.mW = 5.8f; p.mCurve = 4.6f; p.mOpen = 0.5f; p.cheek = 0.7f; p.lookX = -0.5f; p.lookY = -0.3f
+        }
         FolhaMood.ECSTATIC -> {
             // em chamas: olhos de estrela, pulos altos e socos no ar alternados
             val a = sin(t * 6.2f)
@@ -473,6 +490,8 @@ private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fid
         }
         else -> {}
     }
+    // segurando um item: a mão esquerda parada sobe um pouco para a frente, fechada, para o item aparecer
+    if (holding && p.hL0 < 10f && p.hL1 > 73f) { p.hL0 = 11f; p.hL1 = 71f + (p.hL1 - 78f) * 0.5f; p.rotL = -12f; p.bendL = 4f; if (p.shapeL == Hand.MITT) p.shapeL = Hand.FIST }
     return p
 }
 
@@ -516,6 +535,7 @@ private class FolhaSim {
     private var mouthOpen = 0f; private var mouthRound = 0f; private var speaking = false
     private var moodAt = 0L
     var worried = false
+    var holding = false
     /** Entrada: na primeira pose, começa do alto e cai (a mola e o amasso de aterrissagem fazem o resto). */
     var enterPending = false
     private var leaveAt = -1L
@@ -545,7 +565,7 @@ private class FolhaSim {
     /** Para imagens paradas: pula as molas direto para a pose. */
     fun settle(m: FolhaMood) {
         t = 0.35f; lookX = 0.3f; lookY = -0.2f; moodAt = -9000L
-        val p = pose(m, t, lookX, lookY, null, 0f)
+        val p = pose(m, t, lookX, lookY, null, 0f, holding = holding)
         p.values().copyInto(x); shapeL = p.shapeL; shapeR = p.shapeR; shown = m; inited = true
     }
 
@@ -563,7 +583,7 @@ private class FolhaSim {
         if (wink && now > winkUntil) wink = false
         updateBlink(now); updateLook(now, m)
         val f = fidget(now, m)
-        val p = pose(m, t, lookX, lookY, f, if (f != null) (now - f.start).toFloat() / f.dur else 0f, (now - moodAt) / 1000f, worried)
+        val p = pose(m, t, lookX, lookY, f, if (f != null) (now - f.start).toFloat() / f.dur else 0f, (now - moodAt) / 1000f, worried, holding)
         val target = p.values()
         if (!inited) {
             target.copyInto(x); shapeL = p.shapeL; shapeR = p.shapeR; inited = true
@@ -656,6 +676,7 @@ private class FolhaSim {
     fun snapshot(gulp: Float, look: Look): FolhaFrame {
         val p = PoseValues().also { it.set(x); it.shapeL = shapeL; it.shapeR = shapeR }
         worried = look.atRisk
+        holding = look.hand != "nenhum"
         var fade = 1f; var rise = 0f
         if (leaveAt >= 0) { val u = clamp((nowMs - leaveAt - 480L) / 280f, 0f, 1f); fade = 1f - u; rise = u * u * 0.3f }
         return FolhaFrame(
@@ -718,13 +739,16 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
             drawCircle(Brush.radialGradient(listOf(Ink.copy(alpha = 0.28f), Color.Transparent), center = Offset(50f, 95f), radius = r1), r1, Offset(50f, 95f))
             drawCircle(Brush.radialGradient(listOf(Ink.copy(alpha = 0.30f * clamp(1f - lift / 6f, 0.3f, 1f)), Color.Transparent), center = Offset(50f, 95f), radius = 26f), 26f, Offset(50f, 95f))
         }
+        drawPet(t, f.look.pet, mood, small, f.burst)
         translate(0f, p.hop) {
             scale(squashX / sqrt(stretch), squashY * stretch, pivot = Offset(50f, 88f)) {
                 rotate(p.tilt, pivot = Offset(50f, 80f)) {
                     val look = f.look
                     drawAura(t, look.aura, small, f.burst, behind = true)
                     // na frente do livro: as duas mãos folheando ou no susto; a do lápis no foco; a da testa no "ufa"
-                    val front = when (mood) { FolhaMood.THINKING, FolhaMood.SURPRISED -> "LR"; FolhaMood.FOCUS, FolhaMood.RELIEVED -> "R"; else -> "" }
+                    var front = when (mood) { FolhaMood.THINKING, FolhaMood.SURPRISED, FolhaMood.PRESENT -> "LR"; FolhaMood.FOCUS, FolhaMood.RELIEVED -> "R"; else -> "" }
+                    // segurando um item: a mão esquerda fica na frente do livro, para o item aparecer
+                    if (look.hand != "nenhum" && 'L' !in front) front = "L$front"
                     drawArms(f, "LR".filter { it !in front })
                     drawBook(t, mood, small, look)
                     drawPageLines(t, mood, small)
@@ -1050,6 +1074,132 @@ private fun DrawScope.drawRibbon(t: Float, mood: FolhaMood, colors: List<Color>)
     drawRect(Brush.verticalGradient(listOf(dark.copy(alpha = 0.55f), dark.copy(alpha = 0f)), startY = edge, endY = edge + 1.8f), Offset(x0 + 0.3f, edge), Size(w, 1.8f))
 }
 
+// ---- companheiro: um bichinho (ou plantinha) no chão, ao lado esquerdo do Folha
+// Fica no chão (não pula junto); comemora junto, cochila junto e pula quando tocam no Folha.
+private val PARTY_MOODS = setOf(FolhaMood.HAPPY, FolhaMood.ECSTATIC, FolhaMood.PROUD, FolhaMood.WAVE, FolhaMood.PRESENT)
+
+private fun DrawScope.drawPet(t: Float, kind: String, mood: FolhaMood, small: Boolean, burst: Float) {
+    if (kind == "nenhum" || small) return   // pequeno demais, só atrapalharia
+    val party = mood in PARTY_MOODS; val sleepy = mood == FolhaMood.SLEEPY
+    val hop = when { party -> -abs(sin(t * 5.2f + 0.8f)) * 3f; burst > 0f -> -sin(PIf * (1f - burst)) * 4f; else -> -abs(sin(t * 1.3f)) * 0.4f }
+    val blink = sleepy || (t % 3.7f) < 0.13f
+    val x = -9f; val base = 95f; val k = 1.45f
+    scale(1f, 0.22f, pivot = Offset(x, base)) { drawCircle(Ink.copy(alpha = 0.2f), (7f + hop * 0.3f) * k, Offset(x, base)) }
+    fun DrawScope.eye(ex: Float, ey: Float, r: Float = 0.75f) {
+        if (blink) { drawPath(Path().apply { moveTo(ex - r * 1.2f, ey); quadraticTo(ex, ey + r * 0.9f, ex + r * 1.2f, ey) }, Ink, style = stroke(0.5f)); return }
+        drawCircle(Ink, r, Offset(ex, ey)); drawCircle(Color.White, r * 0.4f, Offset(ex - r * 0.3f, ey - r * 0.35f))
+    }
+    fun DrawScope.smile(mx: Float, my: Float, w: Float = 1.1f) = drawPath(Path().apply { moveTo(mx - w, my); quadraticTo(mx, my + w * (if (party) 1.2f else 0.7f), mx + w, my) }, Ink, style = stroke(0.45f))
+    translate(x, base + hop * k) {
+        scale(k, k, pivot = Offset.Zero) {
+            when (kind) {
+                "planta" -> {
+                    // vaso de barro com folhas que balançam (e uma flor quando ele comemora)
+                    val sway = sin(t * 1.4f) * 0.15f
+                    for ((a, len, c) in listOf(Triple(-0.55f, 9f, Color(0xFF2E9E72)), Triple(0.05f, 11f, MintDark), Triple(0.6f, 8.5f, Color(0xFF2E9E72)))) {
+                        translate(0f, -8f) {
+                            rotate((a + sway) * 180f / PIf, pivot = Offset.Zero) {
+                                line(Color(0xFF2E9E72), 0f, 0f, 0f, -len * 0.7f, 0.6f)
+                                oval(c, -2f, -len * 0.62f - len * 0.4f, 4f, len * 0.8f)
+                                line(Color.White.copy(alpha = 0.35f), 0f, -len * 0.3f, 0f, -len * 0.9f, 0.3f)
+                            }
+                        }
+                    }
+                    if (party) { val fx = sin(t * 1.4f) * 1.2f; for (i in 0 until 5) { val a = i * 2f * PIf / 5f + t; drawCircle(Color(0xFFFF8FA3), 1.1f, Offset(fx + cos(a) * 1.3f, -19f + sin(a) * 1.3f)) }; drawCircle(Gold, 0.8f, Offset(fx, -19f)) }
+                    drawPath(Path().apply { moveTo(-5f, -7f); lineTo(5f, -7f); lineTo(4f, 0f); lineTo(-4f, 0f); close() }, hg(listOf(Color(0xFFE8895A), Color(0xFFD9774B), Color(0xFFB85A33)), -5f, 5f))
+                    drawPath(roundRect(-5.8f, -8.6f, 11.6f, 2.2f, 0.8f), Color(0xFFC4643A))
+                    eye(-1.8f, -4.2f, 0.6f); eye(1.8f, -4.2f, 0.6f); smile(0f, -2.6f, 0.9f)
+                    drawCircle(Cheek.copy(alpha = 0.6f), 0.7f, Offset(-3f, -3f)); drawCircle(Cheek.copy(alpha = 0.6f), 0.7f, Offset(3f, -3f))
+                }
+                "patinho" -> rotate(sin(t * 2f) * 0.06f * 180f / PIf, pivot = Offset.Zero) {
+                    // patinho de borracha, balançando como na água
+                    drawOval(vg(listOf(Color(0xFFFFE27A), Color(0xFFFFD84A), Color(0xFFF0B400)), -9f, 0f), Offset(-6.2f, -8.7f), Size(12.4f, 8.6f))
+                    drawPath(Path().apply { moveTo(-5.4f, -6f); lineTo(-7.6f, -9f); lineTo(-4.2f, -7.6f); close() }, Color(0xFFF0B400))
+                    drawPath(Path().apply { moveTo(-2.6f, -5.4f); quadraticTo(0.6f, -3f, 2.4f, -5f) }, Color(0xFFE0A000), style = stroke(0.6f))
+                    drawCircle(Color(0xFFFFD84A), 3.5f, Offset(2.6f, -10.2f))
+                    oval(Color(0xFFFF8A2B), 4f, -10.6f, 4f, 2f)
+                    eye(3.6f, -11.1f, 0.7f); drawCircle(Cheek.copy(alpha = 0.7f), 0.8f, Offset(2.2f, -9.2f))
+                    oval(Color.White.copy(alpha = 0.6f), -0.2f, -13f, 2.4f, 1.2f)
+                }
+                "gatinho" -> {
+                    // gatinho sentado, rabo abanando e bigode
+                    val tw = sin(t * 2.2f) * 2f
+                    drawPath(Path().apply { moveTo(4f, -2f); quadraticTo(10f, -3f + tw * 0.3f, 8.5f + tw * 0.4f, -10f + tw) }, Color(0xFFD9803A), style = stroke(1.8f))
+                    drawOval(vg(listOf(Color(0xFFF7B36E), Color(0xFFE58F45)), -9f, 0f), Offset(-5f, -9.4f), Size(10f, 9.6f))
+                    oval(Color(0xFFFFE7CF), -2.6f, -6.6f, 5.2f, 6f)
+                    for (s in listOf(-1f, 1f)) {
+                        drawPath(Path().apply { moveTo(s * 3.8f, -14.4f); lineTo(s * 2.6f, -18.4f); lineTo(s * 0.6f, -15.4f); close() }, Color(0xFFE58F45))
+                        drawPath(Path().apply { moveTo(s * 3f, -14.8f); lineTo(s * 2.5f, -17f); lineTo(s * 1.3f, -15.3f); close() }, Color(0xFFFFB3C7))
+                    }
+                    drawCircle(Color(0xFFF7B36E), 4.5f, Offset(0f, -12f))
+                    line(Color(0x99C86E28), -1f, -16f, -1f, -14.6f, 0.5f); line(Color(0x99C86E28), 1f, -16f, 1f, -14.6f, 0.5f)
+                    eye(-1.7f, -12.4f, 0.8f); eye(1.7f, -12.4f, 0.8f)
+                    drawPath(Path().apply { moveTo(-0.5f, -10.9f); lineTo(0.5f, -10.9f); lineTo(0f, -10.3f); close() }, Color(0xFFFF8FA3))
+                    drawPath(Path().apply { moveTo(-1f, -9.8f); quadraticTo(-0.5f, -9.2f, 0f, -9.9f); quadraticTo(0.5f, -9.2f, 1f, -9.8f) }, Ink, style = stroke(0.4f))
+                    for (s in listOf(-1f, 1f)) { line(Color(0x8026215C), s * 1.6f, -10.4f, s * 4.8f, -10.9f, 0.25f); line(Color(0x8026215C), s * 1.6f, -10f, s * 4.6f, -9.6f, 0.25f) }
+                    drawCircle(Cheek.copy(alpha = 0.6f), 0.8f, Offset(-2.8f, -10.6f)); drawCircle(Cheek.copy(alpha = 0.6f), 0.8f, Offset(2.8f, -10.6f))
+                    for (s in listOf(-1f, 1f)) oval(Color(0xFFFFF4E6), s * 2f - 1.5f, -1.5f, 3f, 1.8f)
+                }
+                "coruja" -> {
+                    // corujinha estudiosa, de capelo, batendo as asas quando comemora
+                    val flap = if (party) sin(t * 12f) * 0.5f else 0f
+                    for (s in listOf(-1f, 1f)) translate(s * 4.6f, -8f) { rotate(s * (0.3f + flap) * 180f / PIf, pivot = Offset.Zero) { oval(Color(0xFF7A5230), -1.8f, -2.5f, 3.6f, 8f) } }
+                    drawOval(vg(listOf(Color(0xFFB9834C), Color(0xFF8C5E33)), -14f, 0f), Offset(-5.4f, -14f), Size(10.8f, 14f))
+                    oval(Color(0xFFF1DDB3), -3.6f, -9f, 7.2f, 8.8f)
+                    for (i in 0 until 3) drawPath(Path().apply { moveTo(-1.2f, -6f + i * 1.6f); lineTo(0f, -5.2f + i * 1.6f); lineTo(1.2f, -6f + i * 1.6f) }, Color(0x998C5E33), style = stroke(0.35f))
+                    for (s in listOf(-1f, 1f)) drawPath(Path().apply { moveTo(s * 4.4f, -11.4f); lineTo(s * 4.4f, -14.6f); lineTo(s * 2.4f, -12.6f); close() }, Color(0xFF8C5E33))
+                    for (s in listOf(-1f, 1f)) { drawCircle(Color.White, 2.3f, Offset(s * 2.2f, -10f)); drawCircle(Color(0xFFC98A4B), 2.3f, Offset(s * 2.2f, -10f), style = Stroke(0.4f)); eye(s * 2.2f, -10f, 1.1f) }
+                    drawPath(Path().apply { moveTo(-0.8f, -8.6f); lineTo(0.8f, -8.6f); lineTo(0f, -7.2f); close() }, Color(0xFFFF8A2B))
+                    drawPath(Path().apply { moveTo(0f, -17.2f); lineTo(5f, -15.4f); lineTo(0f, -13.6f); lineTo(-5f, -15.4f); close() }, Cap)
+                    line(Gold, 0f, -15.4f, 4f, -15f, 0.4f); line(Gold, 4f, -15f, 4.2f + sin(t * 2.6f) * 0.4f, -12.6f, 0.45f)
+                }
+                "robo" -> {
+                    // robozinho: antena piscando, rosto de tela e esteiras
+                    drawPath(roundRect(-5.2f, -2.8f, 10.4f, 2.8f, 1.4f), Color(0xFF2D3042))
+                    for (i in -1..1) drawCircle(Color(0xFF8E92A6), 0.7f, Offset(i * 3f, -1.4f))
+                    drawPath(roundRect(-4.2f, -9.4f, 8.4f, 6.8f, 1.6f), vg(listOf(Color(0xFF5A4FE6), Color(0xFF3A2FC4)), -9.4f, -2.6f))
+                    drawPath(heart(0f, -6.2f, 1.3f), Color(0xFFFF8FA3))
+                    drawPath(roundRect(-5.2f, -17.6f, 10.4f, 8f, 2.2f), vg(listOf(Color(0xFFE3E6F0), Color(0xFFB7B4D0)), -17.6f, -9.6f))
+                    drawPath(roundRect(-4f, -16.4f, 8f, 5.6f, 1.4f), Color(0xFF1E1B2E))
+                    for (s in listOf(-1f, 1f)) { if (blink) line(Mint, s * 1.8f - 0.8f, -13.4f, s * 1.8f + 0.8f, -13.4f, 0.5f) else drawPath(roundRect(s * 1.8f - 0.7f, -14.6f, 1.4f, 2.2f, 0.6f), Mint) }
+                    drawPath(Path().apply { moveTo(-1f, -12f); quadraticTo(0f, -11.2f, 1f, -12f) }, Mint, style = stroke(0.4f))
+                    line(Color(0xFF8E92A6), 0f, -17.6f, 0f, -20.2f, 0.5f)
+                    drawCircle(if (sin(t * 4f) > 0f) Color(0xFFFF5C4D) else Mint, 0.9f, Offset(0f, -20.6f))
+                    line(Color.White.copy(alpha = 0.6f), -4.4f, -16.6f, -2.6f, -17f, 0.4f)
+                }
+                "dragao" -> {
+                    // dragãozinho: asas batendo, rabo com espinho e baforada de fogo quando comemora
+                    val flap = sin(t * (if (party) 10f else 3f)) * 0.35f
+                    for (s in listOf(-1f, 1f)) translate(-1f + s * 1.5f, -9f) {
+                        rotate((-0.6f * s + flap * s) * 180f / PIf, pivot = Offset.Zero) {
+                            drawPath(Path().apply { moveTo(0f, 0f); quadraticTo(s * -6f, -5f, s * -7f, 1f); quadraticTo(s * -4f, 0f, s * -3.5f, 2.4f); quadraticTo(s * -2f, 1f, 0f, 2f); close() }, Color(0xFF9563FF))
+                        }
+                    }
+                    val tw = sin(t * 2f) * 0.8f
+                    drawPath(Path().apply { moveTo(-3.5f, -2f); quadraticTo(-9f, -1f, -10.5f, -5f + tw) }, Color(0xFF1F9E75), style = stroke(1.6f))
+                    drawPath(Path().apply { moveTo(-11.6f, -5.6f + tw); lineTo(-9.6f, -6.4f + tw); lineTo(-10.6f, -3.8f + tw); close() }, Color(0xFF9563FF))
+                    drawOval(vg(listOf(Color(0xFF4FD3A2), Color(0xFF1F9E75)), -10f, 0f), Offset(-4.8f, -10.2f), Size(9.6f, 10f))
+                    oval(Color(0xFFD9FBEE), -2f, -7.2f, 5.2f, 6.4f)
+                    drawCircle(Color(0xFF36C897), 4f, Offset(2.2f, -12f))
+                    oval(Color(0xFF36C897), 3f, -12.9f, 4.8f, 3.4f)
+                    drawCircle(Ink, 0.3f, Offset(6.6f, -11.6f)); drawCircle(Ink, 0.3f, Offset(6.2f, -10.6f))
+                    for (hx in listOf(0.4f, 2.8f)) drawPath(Path().apply { moveTo(hx, -15.2f); lineTo(hx + 0.6f, -17.6f); lineTo(hx + 1.4f, -15.2f); close() }, Gold)
+                    eye(3.2f, -13f, 0.8f); drawCircle(Cheek.copy(alpha = 0.6f), 0.8f, Offset(1.2f, -11f))
+                    if (party) {
+                        val kk = 0.6f + 0.4f * abs(sin(t * 8f))
+                        drawPath(Path().apply { moveTo(7.6f, -11.6f); quadraticTo(10f + 2f * kk, -14f, 12f + 2.5f * kk, -11.2f); quadraticTo(10f + 2f * kk, -9f, 7.6f, -10.6f); close() },
+                            hg(listOf(Color(0xFFFFE07A), Color(0xFFFF9F3A), Color(0xFFF2552C)), 7.6f, 13f))
+                    }
+                }
+            }
+        }
+    }
+    if (sleepy) {   // "z" desenhado como traço (sem fonte)
+        val zx = x + 8f; val zy = base - 26f + sin(t * 1.4f) * 1.5f; val s = 1.6f
+        drawPath(Path().apply { moveTo(zx - s, zy - s); lineTo(zx + s, zy - s); lineTo(zx - s, zy + s); lineTo(zx + s, zy + s) }, Ink.copy(alpha = 0.6f + 0.4f * sin(t * 2f)), style = stroke(0.6f))
+    }
+}
+
 // ---- armário: chapéus, óculos, peito, mão e aura (o mesmo desenho do site, folha-live.js)
 // Tudo é desenhado dentro do corpo do Folha (pula, inclina, amassa e estica junto); chapéu gira com o
 // capelo, óculos seguem o olhar, o item da mão segue a mão esquerda.
@@ -1341,7 +1491,7 @@ private fun DrawScope.drawNeckwear(t: Float, small: Boolean, kind: String) {
 
 // ---- item na mão esquerda (desenhado antes da mão, que fica por cima segurando)
 private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float, small: Boolean) {
-    val tiltA = clamp(angRad, -0.6f, 0.6f) * 0.5f; val sc = if (small) 1.25f else 1.5f
+    val tiltA = clamp(angRad, -0.6f, 0.6f) * 0.5f; val sc = if (small) 1.45f else 1.8f
     translate(h.x, h.y) {
         rotate(tiltA * 180f / PIf, pivot = Offset.Zero) {
             scale(sc, sc, pivot = Offset.Zero) {
@@ -1679,16 +1829,29 @@ private fun DrawScope.drawArm(sh: Offset, h: Offset, bend: Float, side: Float, s
     val ang = atan2(h.y - cy, h.x - cx) * 180f / PIf + rot
     // o item da mão esquerda vai junto com a mão (some quando a mão abre para pegar a folha ou no susto)
     if (side < 0 && look.hand != "nenhum" && (shape == Hand.MITT || shape == Hand.FIST)) drawHeld(look.hand, h, ang * PIf / 180f - PIf, t, small)
-    val sc = (if (small) 1.12f else 1f) * (1f + 0.28f * pop)
+    val sc = (if (small) 1.35f else 1.25f) * (1f + 0.28f * pop)
     translate(h.x, h.y) {
         rotate(ang, pivot = Offset.Zero) {
-            scale(sc, if (side < 0) -sc else sc, pivot = Offset.Zero) { drawHand(shape, small, armC, look.gloves) }
+            scale(sc, if (side < 0) -sc else sc, pivot = Offset.Zero) { drawHand(shape, small, armC, look.gloves, look.gloveKind) }
         }
     }
 }
 
-private fun DrawScope.drawHand(shape: Hand, small: Boolean, Arm: Color = br.com.estudario.ui.assistant.ArmDefault, glove: List<Color> = listOf(Color.White, Color(0xFFECE8F6))) {
-    val ow = if (small) 1.0f else 0.6f; val fill = glove[0]
+private fun DrawScope.drawHand(shape: Hand, small: Boolean, Arm: Color = br.com.estudario.ui.assistant.ArmDefault, glove: List<Color> = listOf(Color.White, Color(0xFFECE8F6)), kind: String = "branca") {
+    val ow = if (small) 1.0f else 0.6f
+    if (kind == "boxe") {   // luva de boxe: a mão vira a luva, em qualquer gesto
+        val dark = Color(0xFF8E1A22)
+        drawPath(roundRect(-2.8f, -2.7f, 2.6f, 5.4f, 1f), Color.White); drawPath(roundRect(-2.8f, -2.7f, 2.6f, 5.4f, 1f), dark, style = Stroke(ow))
+        line(Color(0xFFE5373F), -1.5f, -2.6f, -1.5f, 2.6f, 0.5f, false)
+        val red = Brush.radialGradient(listOf(Color(0xFFFF7A80), Color(0xFFC3212B)), center = Offset(1.6f, -1.4f), radius = 4.4f)
+        val th = Path().apply { addOval(Rect(1.2f - 1.7f, -3f - 1.3f, 1.2f + 1.7f, -3f + 1.3f)) }
+        val gl = ellipsePath(2.6f, 0.1f, 4f, 3.6f)
+        for (p in listOf(gl, th)) { drawPath(p, red); drawPath(p, dark, style = Stroke(ow)) }
+        rotate(-0.4f * 180f / PIf, pivot = Offset(1.6f, -1.5f)) { oval(Color.White.copy(alpha = 0.55f), 0.2f, -2.3f, 2.8f, 1.6f) }
+        return
+    }
+    val fill: Brush = if (kind == "arcoiris") Brush.linearGradient(listOf(Color(0xFFFF8FA3), Color(0xFFFFD84A), Color(0xFF7EE0B8), Color(0xFF6FB0FF), Color(0xFFB995F5)), start = Offset(-1f, -3f), end = Offset(5f, 3f))
+        else androidx.compose.ui.graphics.SolidColor(glove[0])
     drawOval(glove[1], Offset(-2.8f, -2.5f), Size(3.2f, 5f)); drawOval(Arm, Offset(-2.8f, -2.5f), Size(3.2f, 5f), style = Stroke(ow))
     line(Gold, -1.2f, -2.2f, -1.2f, 2.2f, 0.7f, false)
     fun outline(path: Path) { drawPath(path, fill); drawPath(path, Arm, style = Stroke(ow, join = StrokeJoin.Round)) }
@@ -1719,4 +1882,6 @@ private fun DrawScope.drawHand(shape: Hand, small: Boolean, Arm: Color = br.com.
             if (!small) drawPath(Path().apply { moveTo(3.4f, -1.2f); quadraticTo(4.6f, 0f, 3.6f, 1.4f) }, Arm.copy(alpha = 0.3f), style = stroke(0.4f))
         }
     }
+    // brilho de luva (dá volume e deixa a cor da luva aparecer)
+    if (!small && shape != Hand.OPEN) rotate(-0.4f * 180f / PIf, pivot = Offset(1f, -1.1f)) { oval(Color.White.copy(alpha = 0.45f), -0.2f, -1.8f, 2.4f, 1.4f) }
 }

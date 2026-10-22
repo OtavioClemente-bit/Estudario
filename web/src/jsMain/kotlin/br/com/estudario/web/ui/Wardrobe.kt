@@ -114,7 +114,10 @@ fun FolhaLookSync() {
 private fun rarityClass(r: FolhaRarity) = "r-${r.name.lowercase()}"
 
 /** Movimentos para ver as peças em ação na vitrine. */
-private val TRY_MOODS = listOf("idle" to "Parado", "wave" to "Acenar", "happy" to "Comemorar", "thinking" to "Estudar", "ecstatic" to "Em chamas", "sleepy" to "Cochilar")
+private val TRY_MOODS = listOf("idle" to "Parado", "present" to "Mostrar", "wave" to "Acenar", "happy" to "Comemorar", "thinking" to "Estudar", "ecstatic" to "Em chamas", "sleepy" to "Cochilar")
+
+/** Na vitrine e nas miniaturas, mãos e itens aparecem melhor com ele mostrando (mãos para a frente). */
+private fun showcaseMood(slot: FolhaSlot) = if (slot == FolhaSlot.MAO || slot == FolhaSlot.LUVAS) "present" else "idle"
 
 // ------------------------------------------------------------------ armário
 
@@ -195,7 +198,7 @@ fun WardrobeScreen() {
                         elementBuilder = ElementBuilder.createBuilder("estudario-folha"),
                         applyAttrs = {
                             classes("folha", "folha-live")
-                            attr("mood", testMood ?: if (t != null) "proud" else mood)
+                            attr("mood", testMood ?: if (t != null) (if (showcaseMood(t.slot) == "present") "present" else "proud") else if (mood == "idle") showcaseMood(slot) else mood)
                             attr("size", "200")
                             attr("clickable", "")
                             attr("noscene", "")
@@ -264,7 +267,7 @@ private fun AutoDetail(icon: String, title: String, text: String) {
 private fun WardrobeTile(item: FolhaItem, open: Boolean, selected: Boolean, trying: Boolean, progress: ProgressEngine.ProgressSummary, onClick: () -> Unit) {
     val v = FolhaLook.version
     val src = remember(item.slot, item.id, v) {
-        runCatching { window.asDynamic().folhaPng(kotlin.js.json("mood" to "idle", "size" to 92, item.slot.key to item.id)) as? String }.getOrNull() ?: "icon.png"
+        runCatching { window.asDynamic().folhaPng(kotlin.js.json("mood" to showcaseMood(item.slot), "size" to 92, item.slot.key to item.id)) as? String }.getOrNull() ?: "icon.png"
     }
     Button({
         type(ButtonType.Button)

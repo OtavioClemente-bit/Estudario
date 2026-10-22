@@ -47,6 +47,8 @@ const NAMES: Record<string, string[]> = {
   Doc: ["description", "upload_file", "file_open", "picture_as_pdf", "summarize", "article_shortcut"],
   Sun: ["light_mode", "wb_sunny"],
   Moon: ["dark_mode", "bedtime", "nights_stay"],
+  Coffee: ["coffee", "local_cafe"],
+  Hanger: ["checkroom"],
   Phone: ["devices", "phone_android", "smartphone", "computer"],
   Gem: ["fiber_new", "diamond"],
   Trap: ["pest_control_rodent"],

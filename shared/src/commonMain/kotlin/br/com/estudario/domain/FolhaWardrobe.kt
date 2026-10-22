@@ -9,10 +9,11 @@ enum class FolhaSlot(val key: String, val label: String, val hint: String) {
     CHAPEU("hat", "Chapéu", "No lugar do capelo de formatura."),
     OCULOS("eyes", "Óculos", "Seguem o olhar do Folha."),
     PESCOCO("neck", "Peito", "Gravatas, medalhas e enfeites no pé das páginas."),
-    MAO("hand", "Na mão", "Um item na mão esquerda, que vai junto em todos os gestos."),
+    MAO("hand", "Na mão", "Um item que ele segura na mão esquerda e leva junto em todos os gestos."),
     AURA("aura", "Aura", "Um efeito em volta dele. Toque no Folha para ver o estouro."),
     FITA("ribbon", "Marcador", "A fita de marcar página."),
-    LUVAS("gloves", "Luvas", "A cor das mãos."),
+    LUVAS("gloves", "Luvas", "As mãos do Folha. Elas aparecem melhor na pose de mostrar."),
+    COMPANHEIRO("pet", "Companheiro", "Um amigo que fica ao lado dele, comemora junto e cochila junto."),
 }
 
 /** Raridade da peça: quanto mais difícil a conquista, mais rara. */
@@ -32,7 +33,7 @@ data class FolhaItem(
 )
 
 /**
- * O armário do Folha: oito categorias de peças que a pessoa libera estudando. Cada peça sai de uma
+ * O armário do Folha: nove categorias de peças que a pessoa libera estudando. Cada peça sai de uma
  * conquista de verdade (todos os emblemas liberam alguma coisa, e os níveis também), então nada é
  * comprado nem ganho por engano, e quem troca de aparelho recupera tudo junto com o histórico.
  */
@@ -129,6 +130,17 @@ object FolhaWardrobe {
         item("coral", FolhaSlot.LUVAS, "Coral", C, level = 12),
         item("preta", FolhaSlot.LUVAS, "Pretas", R, level = 15),
         item("dourada", FolhaSlot.LUVAS, "Douradas", E, level = 20),
+        item("arcoiris", FolhaSlot.LUVAS, "Arco-íris", E, level = 28),
+        item("boxe", FolhaSlot.LUVAS, "Luvas de boxe", L, level = 40),
+
+        // companheiro
+        item("nenhum", FolhaSlot.COMPANHEIRO, "Sozinho"),
+        item("planta", FolhaSlot.COMPANHEIRO, "Plantinha", C, level = 7),
+        item("patinho", FolhaSlot.COMPANHEIRO, "Patinho de borracha", C, level = 9),
+        item("gatinho", FolhaSlot.COMPANHEIRO, "Gatinho", R, level = 14),
+        item("coruja", FolhaSlot.COMPANHEIRO, "Coruja de capelo", R, level = 18),
+        item("robo", FolhaSlot.COMPANHEIRO, "Robozinho", E, level = 24),
+        item("dragao", FolhaSlot.COMPANHEIRO, "Dragãozinho", L, level = 35),
     )
 
     fun of(slot: FolhaSlot): List<FolhaItem> = items.filter { it.slot == slot }
