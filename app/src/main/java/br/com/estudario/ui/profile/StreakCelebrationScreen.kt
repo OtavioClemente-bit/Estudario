@@ -12,9 +12,9 @@ import androidx.compose.ui.unit.dp
 import br.com.estudario.ui.brand.Button
 
 /**
- * A sequência do dia (a mesma cena do site): o varal de lanternas da semana, com os dias feitos
- * acesos; o Folha lança uma faísca, acende a lanterna de hoje e uma chama grande cresce atrás dele
- * com o número (o de ontem sobe e o de hoje entra). Uma vez por dia, ao fechar a meta.
+ * A sequência do dia (a mesma cena do site): uma faísca corre os braseiros da semana acendendo
+ * cada dia estudado, hoje pega fogo, um jato sobe e vira uma fênix que abre as asas com o número no
+ * peito, em fogo. Uma vez por dia, ao fechar a meta.
  */
 @Composable
 fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit) {
@@ -24,7 +24,7 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
         .joinToString(",") { letters[it.date.dayOfWeek.ordinal] + if (it.done) "1" else "0" }
     SceneCelebration(
         scene = listOf("tipo" to "sequencia", "dias" to summary.current.coerceAtLeast(1).toString(), "semana" to week),
-        reveal = 2.7f,
+        reveal = 3.0f,
         onDismiss = onClose,
         text = {
             CelEyebrow(if (summary.current == 1) "1 DIA DE SEQUÊNCIA" else "${summary.current} DIAS DE SEQUÊNCIA")

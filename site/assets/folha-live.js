@@ -2777,132 +2777,193 @@
   }
 
   // ---- cena: sequência
-  function drawLantern(g, lit, flare, t, i, letter) {
-    // presa no varal em (0, 0): argola, tampa, corpo de papel com gomos, tampa de baixo e franja
-    line(g, "rgba(255,255,255,0.5)", 0, 0, 0, 2.2, 0.35);
-    if (lit > 0) glowAt(g, 0, 8.6, 13 + flare * 8, "#FFB13B", (0.45 + 0.1 * sin(t * 7 + i * 1.7)) * lit + flare * 0.4);
-    g.fillStyle = "#2A1A05"; g.fillRect(-2.6, 2, 5.2, 1.6);
-    const body = new Path2D(); body.ellipse(0, 8.6, 4.8, 5.4, 0, 0, 2 * PI);
-    const on = g.createRadialGradient(-0.8, 7.6, 0.4, 0, 8.6, 6); on.addColorStop(0, "#FFFBEA"); on.addColorStop(0.45, "#FFD36B"); on.addColorStop(1, "#F26A2C");
-    g.fillStyle = vGrad(g, ["#4A4472", "#2E2852"], 3.2, 14); g.fill(body);
-    if (lit > 0) { g.save(); g.globalAlpha = lit; g.fillStyle = on; g.fill(body); g.restore(); }
-    g.save(); g.clip(body);
-    for (const x of [-2.6, 0, 2.6]) { const r = new Path2D(); r.ellipse(0, 8.6, Math.abs(x) + 0.01, 5.4, 0, -PI / 2, PI / 2, x < 0); stroke(g, r, lit > 0.5 ? "rgba(180,70,20,0.35)" : "rgba(255,255,255,0.12)", 0.35); }
-    g.restore();
-    g.fillStyle = "#2A1A05"; g.fillRect(-2, 13.6, 4, 1.4);
-    for (let k = -1; k <= 1; k++) line(g, lit > 0.5 ? "#F26A2C" : "#5A5480", k * 0.7, 15, k * 0.9, 18 + (k ? 0 : 0.8), 0.45);
-    g.fillStyle = lit > 0.5 ? "rgba(122,36,8,0.85)" : "rgba(255,255,255,0.55)"; g.font = "900 4.2px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText(letter, 0, 9);
-  }
   // cor do fogo pela idade da labareda: branco-amarelo na base, laranja no meio, vermelho e fumaça no alto
   const FIRE = [[0, [255, 252, 225]], [0.18, [255, 220, 120]], [0.42, [255, 150, 45]], [0.68, [235, 70, 30]], [1, [120, 30, 40]]];
   function fireColor(u) {
     for (let i = 1; i < FIRE.length; i++) if (u <= FIRE[i][0]) { const [a, ca] = FIRE[i - 1], [b, cb] = FIRE[i], k = (u - a) / (b - a); return ca.map((v, j) => Math.round(v + (cb[j] - v) * k)); }
     return FIRE[FIRE.length - 1][1];
   }
-  /**
-   * A chama grande da sequência, como fogo de verdade: dezenas de labaredas que nascem na base, sobem
-   * balançando, encolhem e mudam de cor, somadas com luz (o centro fica quase branco), com um núcleo
-   * quente embaixo, o calor tremendo em volta e fagulhas escapando.
-   */
-  function drawBigFlame(g, x, base, h, t) {
-    if (h <= 0.5) return;
-    const w = h * 0.4;
-    glowAt(g, x, base - h * 0.42, h * 1.05, "#FF6A1A", 0.32);
-    glowAt(g, x, base - h * 0.2, h * 0.55, "#FFB13B", 0.35);
-    g.save(); g.globalCompositeOperation = "lighter";
-    const N = 90;
-    for (let i = 0; i < N; i++) {
-      const seed = (i * 0.6180339887) % 1, seed2 = (i * 0.7548776662) % 1, speed = 0.7 + seed2 * 0.6;
-      const u = (t * speed + seed) % 1;                                   // 0 nasce, 1 some
-      const side = (seed2 - 0.5) * 2;
-      const lean = sin(t * 1.7 + u * 3) * w * 0.12 * u;                    // a chama inteira balança
-      const flick = sin(t * 9 + i * 1.3) * w * 0.05 * u + sin(t * 4.3 + i) * w * 0.08 * u * u;
-      const px = x + side * w * 0.75 * (1 - u) ** 1.4 + lean + flick;
-      const py = base - u * h * (0.75 + seed * 0.35);
-      const r = w * (0.5 + 0.25 * seed) * (1 - u) ** 0.65 + 0.5;
-      const alpha = (u < 0.08 ? u / 0.08 : 1) * (1 - u) ** 1.1 * 0.42;
-      const c = fireColor(u * (0.85 + 0.3 * seed2));
-      const gr = g.createRadialGradient(px, py, 0, px, py, r);
-      gr.addColorStop(0, `rgba(${c},${alpha})`); gr.addColorStop(0.55, `rgba(${c},${alpha * 0.55})`); gr.addColorStop(1, `rgba(${c},0)`);
-      g.fillStyle = gr; g.beginPath(); g.ellipse(px, py, r * 0.8, r, 0, 0, 2 * PI); g.fill();
+  // ---- cena: sequência (a fênix)
+  // 0–0,6 s   escuro com brasas; as marcas da semana aparecem num arco, como braseiros apagados;
+  // 0,6–1,65  uma faísca corre o arco acendendo cada dia estudado (no dia que faltou, engasga e solta fumaça);
+  // 1,65      hoje pega fogo; 1,75–2,15 um jato de fogo sobe até o centro e estoura (clarão, tremor);
+  // 2,25–3    o fogo vira uma fênix que abre as asas; 2,7 o número nasce no peito dela, em fogo branco;
+  // depois    a fênix respira e bate as asas devagar, o número pulsa como coração, brasas sobem.
+  const SEQ = { fuse: 0.6, hit: 1.65, boom: 2.15, wings: 2.25, number: 2.7 };
+  const PX = 50, PY = 30;   // o peito da fênix
+  // traço de fogo: várias passadas somadas com luz (vermelho largo por fora, quase branco no meio)
+  function fireLine(g, p, w, a) {
+    if (a <= 0.01) return;
+    g.save(); g.globalCompositeOperation = "lighter"; g.lineCap = "round"; g.lineJoin = "round";
+    for (const [mul, col, al] of [[3.4, "255,60,20", 0.1], [2.0, "255,130,40", 0.24], [1.0, "255,205,100", 0.55], [0.38, "255,250,230", 0.9]]) {
+      g.strokeStyle = `rgba(${col},${al * a})`; g.lineWidth = w * mul; g.stroke(p);
     }
-    // núcleo quente na base
-    const cy = base - h * 0.14, core = g.createRadialGradient(x, cy, 0, x, cy, w * 0.75);
-    core.addColorStop(0, "rgba(255,255,240,0.85)"); core.addColorStop(0.4, "rgba(255,225,140,0.45)"); core.addColorStop(1, "rgba(255,180,60,0)");
-    g.fillStyle = core; g.beginPath(); g.ellipse(x, cy, w * 0.75, w * 0.55, 0, 0, 2 * PI); g.fill();
     g.restore();
-    // fagulhas escapando para os lados e para cima
-    for (let i = 0; i < 14; i++) {
-      const u = (t * (0.35 + (i % 5) * 0.06) + i * 0.137) % 1, sd = (i * 0.618) % 1 - 0.5;
-      const px = x + sd * w * 1.6 + sin(t * 3 + i) * 3 * u, py = base - h * 0.3 - u * h * 0.9;
-      const a = (1 - u) * 0.9, c = fireColor(0.2 + u * 0.5);
-      glowAt(g, px, py, 1.6, `rgb(${c})`, a * 0.6); circle(g, `rgba(255,240,200,${a})`, 0.35 + 0.3 * (1 - u), px, py);
+  }
+  // a asa direita (ombro em 0,0, a esquerda é o espelho): penas longas em leque, curvas, cada uma um traço de fogo
+  function phoenixWing(g, t, open, flap, a) {
+    const N = 10, tips = [];
+    for (let i = 0; i < N; i++) {
+      const f = i / (N - 1), spread = -62 + f * 78, closed = 62 + f * 18;
+      const ang = (spread * open + closed * (1 - open) + flap * (1 - f * 0.5)) * PI / 180;
+      const len = (20 + 18 * Math.sin(PI * (0.15 + f * 0.75))) * (0.35 + 0.65 * open);
+      tips.push([2 + f * 3 + cos(ang) * len * 0.92, -3 + f * 4 + sin(ang) * len * 0.92]);
     }
+    // a membrana da asa: fogo macio preenchendo entre as penas
+    {
+      const m = new Path2D(); m.moveTo(0, -1);
+      tips.forEach(([x, y], i) => { if (i === 0) m.lineTo(x, y); else { const [px, py] = tips[i - 1]; m.quadraticCurveTo((px + x) / 2 + 2, (py + y) / 2 + 2, x, y); } });
+      m.lineTo(6, 5); m.closePath();
+      g.save(); g.globalCompositeOperation = "lighter";
+      const mg = g.createRadialGradient(2, 0, 1, 2, 0, 40);
+      mg.addColorStop(0, "rgba(255,236,170," + 0.7 * a + ")"); mg.addColorStop(0.45, "rgba(255,150,50," + 0.45 * a + ")"); mg.addColorStop(1, "rgba(220,50,30," + 0.06 * a + ")");
+      g.fillStyle = mg; g.fill(m); g.restore();
+    }
+    for (let i = 0; i < N; i++) {
+      const f = i / (N - 1);
+      // ângulo de cada pena (graus, 0 = para a direita, negativo = para cima): aberta em leque, fechada junto ao corpo
+      const spread = -62 + f * 78, closed = 62 + f * 18;
+      const ang = (spread * open + closed * (1 - open) + flap * (1 - f * 0.5)) * PI / 180;
+      const len = (20 + 18 * Math.sin(PI * (0.15 + f * 0.75))) * (0.35 + 0.65 * open);
+      const ox = 2 + f * 3, oy = -3 + f * 4;                         // nascem ao longo do braço da asa
+      const ex = ox + cos(ang) * len, ey = oy + sin(ang) * len;
+      const bend = 0.22 + f * 0.1, mx = (ox + ex) / 2 - sin(ang) * len * bend, my = (oy + ey) / 2 + cos(ang) * len * bend * -1 + len * 0.12;
+      const p = new Path2D(); p.moveTo(ox, oy); p.quadraticCurveTo(mx, my, ex + sin(t * 7 + i) * 0.6, ey + cos(t * 6 + i) * 0.6);
+      fireLine(g, p, 1.55 - f * 0.5, a * (0.8 + 0.2 * sin(t * 11 + i * 1.7)));
+      if (open > 0.5) glowAt(g, ex, ey, 2.2, "#FF9F3A", 0.45 * a * open);
+    }
+    // o braço da asa (a borda de cima, mais grossa)
+    const armAng = (-48 * open + 50 * (1 - open) + flap * 0.8) * PI / 180;
+    const arm = new Path2D(); arm.moveTo(0, -1); arm.quadraticCurveTo(cos(armAng) * 9 - 2, sin(armAng) * 9 - 4, cos(armAng) * 18, sin(armAng) * 18);
+    fireLine(g, arm, 1.7, a);
+  }
+  function drawPhoenix(g, t, open, flap, a, k) {
+    if (a <= 0.01) return;
+    // calor atrás
+    glowAt(g, PX, PY, 40 * (0.5 + 0.5 * open), "#FF6A1A", 0.35 * a);
+    glowAt(g, PX, PY + 2, 18, "#FFB13B", 0.45 * a);
+    // asas
+    for (const side of [-1, 1]) { g.save(); g.translate(PX + side * 3.5, PY - 5); g.scale(side, 1); phoenixWing(g, t, open, flap, a); g.restore(); }
+    // cauda: três plumas que descem e enrolam
+    for (const [sx, len, curl] of [[-1, 18, -1], [0, 23, 1], [1, 18, 1]]) {
+      const p = new Path2D(); p.moveTo(PX + sx * 1.5, PY + 7);
+      p.bezierCurveTo(PX + sx * 6, PY + 14, PX + sx * 10 + sin(t * 2 + sx) * 2, PY + len * 0.75, PX + sx * 4 + curl * 5, PY + len);
+      p.quadraticCurveTo(PX + sx * 4 + curl * 9, PY + len + 3, PX + sx * 4 + curl * 6, PY + len - 2);
+      fireLine(g, p, 1.0, a * open);
+    }
+    // corpo: gota de fogo
+    g.save(); g.globalCompositeOperation = "lighter";
+    const body = new Path2D(); body.moveTo(PX, PY - 13); body.bezierCurveTo(PX + 6, PY - 7, PX + 7, PY + 5, PX, PY + 10); body.bezierCurveTo(PX - 7, PY + 5, PX - 6, PY - 7, PX, PY - 13); body.closePath();
+    const bg = g.createRadialGradient(PX, PY, 0, PX, PY, 13); bg.addColorStop(0, `rgba(255,250,225,${0.9 * a})`); bg.addColorStop(0.45, `rgba(255,180,70,${0.7 * a})`); bg.addColorStop(1, `rgba(255,70,20,${0.25 * a})`);
+    g.fillStyle = bg; g.fill(body); g.restore();
+    fireLine(g, body, 0.7, a);
+    // cabeça, crista e o bico
+    const hy = PY - 16;
+    g.save(); g.globalCompositeOperation = "lighter"; glowAt(g, PX, hy, 5, "#FFE07A", 0.9 * a); g.restore();
+    for (const [dx, h] of [[-2.2, 7], [0, 9], [2.2, 7]]) { const c = new Path2D(); c.moveTo(PX + dx * 0.4, hy - 1.5); c.quadraticCurveTo(PX + dx * 1.4, hy - h * 0.6, PX + dx * 1.8 + sin(t * 5 + dx) * 0.8, hy - h); fireLine(g, c, 0.55, a); }
+    const beak = new Path2D(); beak.moveTo(PX - 1.2, hy + 1); beak.lineTo(PX, hy + 3.4); beak.lineTo(PX + 1.2, hy + 1); fireLine(g, beak, 0.4, a);
+    circle(g, `rgba(255,255,255,${a})`, 0.55, PX - 1.3, hy - 0.2); circle(g, `rgba(255,255,255,${a})`, 0.55, PX + 1.3, hy - 0.2);
+  }
+  // número em fogo: contorno vermelho escuro, brilho somado com luz e miolo quase branco, pulsando
+  function fireNumber(g, txt, x, y, size, a, beat) {
+    if (a <= 0.01) return;
+    g.save(); g.globalAlpha = a; g.font = `900 ${size}px Nunito, "Segoe UI", system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
+    g.translate(x, y); g.scale(beat, beat);
+    g.globalCompositeOperation = "lighter";
+    for (const [w, col] of [[size * 0.5, "rgba(255,80,20,0.18)"], [size * 0.3, "rgba(255,140,40,0.3)"]]) { g.strokeStyle = col; g.lineWidth = w; g.strokeText(txt, 0, 0); }
+    g.globalCompositeOperation = "source-over";
+    g.strokeStyle = "#7A1A08"; g.lineWidth = size * 0.12; g.strokeText(txt, 0, 0);
+    const gr = g.createLinearGradient(0, -size * 0.5, 0, size * 0.5); gr.addColorStop(0, "#FFFFFF"); gr.addColorStop(0.45, "#FFF1BF"); gr.addColorStop(0.75, "#FFC24A"); gr.addColorStop(1, "#FF7A1A");
+    g.fillStyle = gr; g.fillText(txt, 0, 0);
+    g.restore();
   }
   function cenaSequencia(g, T, t, el) {
-    const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look();
+    const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look(), k = this_k(el);
     let week = (el.getAttribute("semana") || "").split(",").filter(Boolean).map((w) => [w.slice(0, -1) || w, w.slice(-1) === "1"]);
     if (!week.length) week = [["H", true]];
-    const n = week.length, xs = week.map((_, i) => 50 + (i - (n - 1) / 2) * 12.6), stringY = (x) => 5 + 8 * (1 - ((x - 50) / 56) ** 2);
-    const milestone = days % 7 === 0 || days === 3 || days === 30 || days === 50 || days === 100;
-    starDust(g, t, 0.8);
-    // varal
-    // o varal vem de fora do quadro (some suave na borda), num arco único
-    const vp = new Path2D(); for (let x = -40; x <= 140; x += 4) { const y = 5 + 8 * (1 - ((x - 50) / 56) ** 2); x === -40 ? vp.moveTo(x, y) : vp.lineTo(x, y); }
-    stroke(g, vp, "rgba(255,255,255,0.35)", 0.45);
-    // a faísca: sai do punho do Folha num arco até a lanterna de hoje
-    const launch = 1.05, hitT = 1.62, lastX = xs[n - 1], lastY = stringY(lastX) + 8.6;
-    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.5, look, dir: { x: 0.7, y: -1 },
-      script: [[0, "idle"], [0.8, "happy"], [1.75, "surprised"], [2.05, milestone ? "ecstatic" : "happy"], [4.0, "proud"]] };
-    // a chama grande cresce atrás do Folha, com o número
-    const fh = 64 * outBack(segT(T, 2.0, 2.6)) * (1 + 0.03 * sin(t * 5));
-    drawBigFlame(g, 50, 98, fh, t);
-    // o número na chama: o de ontem sobe e some, o de hoje entra de baixo
-    if (fh > 40) {
-      const roll = segT(T, 2.55, 3.1), prevN = String(days - 1), cur = String(days), cy = 98 - fh * 0.74;
-      glowAt(g, 50, cy, 22, "#FF8A2A", 0.35 * clamp(roll * 2, days === 1 ? 1 : 0, 1));
-      g.save();
-      // o de ontem sobe e some; o de hoje entra crescendo, com um tranco (sem recorte nenhum)
-      const num = (txt, y, a, k) => {
-        g.save(); g.globalAlpha = a; g.translate(50, y); g.scale(k, k); g.translate(-50, -y);
-        handNumber(g, txt, 50, y, 17, 1, ["rgba(255,140,40,0.28)"], 8); handNumber(g, txt, 50, y, 17, 1, ["#7A1A08", "#FFF6E0"], 3.8);
-        g.restore();
-      };
-      const out = clamp(roll / 0.4, 0, 1), inn = days === 1 ? 1 : clamp((roll - 0.3) / 0.7, 0, 1);
-      if (days > 1 && out < 1) num(prevN, cy - outC(out) * 16, (1 - out) ** 2, 1 - 0.3 * out);
-      if (inn > 0) num(cur, cy, clamp(inn * 3, 0, 1), 0.5 + 0.5 * outBack(inn));
-      g.restore();
-    }
-    // lanternas
+    const n = week.length;
+    // o arco da semana, logo acima do Folha
+    const ax = (i) => 50 + (i - (n - 1) / 2) * 12, ay = (x) => 66 - 7 * (1 - ((x - 50) / 42) ** 2);
+    const shake = T > SEQ.boom && T < SEQ.boom + 0.5 ? (1 - (T - SEQ.boom) / 0.5) * 1.4 : T > SEQ.wings + 0.3 && T < SEQ.wings + 0.6 ? 0.6 : 0;
+    g.save(); g.translate(sin(t * 93) * shake, cos(t * 71) * shake);
+    // ---- fundo: brilho quente e brasas (somem suave antes da borda)
+    const reach = el._reach(), fire = outC(segT(T, SEQ.boom, SEQ.boom + 0.6));
+    backdrop(g, el, PX, PY + 10, reach, reach * 0.95, (b) => {
+      glowAt(b, PX, PY + 6, 62, fire > 0 ? "#FF6A1A" : "#3A2A80", fire > 0 ? 0.22 + 0.1 * sin(t * 3) : 0.25);
+      glowAt(b, PX, 70, 40, "#FF8A2A", 0.12 + 0.1 * segT(T, SEQ.fuse, SEQ.hit));
+      sceneRays(b, PX, PY, 16, 90, "#FFB13B", fire * (0.5 + 0.15 * sin(t * 2)), t * 0.1, 0.05);
+      shockRing(b, PX, PY, segT(T, SEQ.boom, SEQ.boom + 0.7), "#FFE07A", 52);
+      shockRing(b, PX, PY, segT(T, SEQ.wings + 0.3, SEQ.wings + 1.1), "#FF8A2A", 70);
+      for (let i = 0; i < 26; i++) { const u = (t * (0.08 + (i % 5) * 0.015) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.4, `rgb(${c})`, (1 - u) * (0.35 + 0.4 * fire)); }
+    });
+    // ---- as marcas da semana: braseiros que acendem com a faísca do pavio
+    const fuseU = segT(T, SEQ.fuse, SEQ.hit), fuseX = lerp(ax(0) - 6, ax(n - 1), fuseU);
+    // o pavio: linha de brasa ligando os braseiros, que vai queimando
+    const fuse = new Path2D(); for (let x = ax(0) - 6; x <= ax(n - 1); x += 1) { const y = ay(x) + 4; x === ax(0) - 6 ? fuse.moveTo(x, y) : fuse.lineTo(x, y); }
+    stroke(g, fuse, "rgba(255,255,255,0.12)", 0.5);
+    if (fuseU > 0) { g.save(); const cl = new Path2D(); cl.rect(0, 0, fuseX, 110); g.clip(cl); stroke(g, fuse, "rgba(255,150,60,0.55)", 0.6); g.restore(); }
     week.forEach(([letter, done], i) => {
-      const today = i === n - 1, x = xs[i], y = stringY(x);
-      const ign = today ? segT(T, hitT, hitT + 0.25) : 0, lit = today ? ign : done ? 1 : 0;
-      const wave = sstep(1 - Math.abs(T - (hitT + 0.2 + (n - 1 - i) * 0.09)) / 0.25);
-      const flare = today ? (1 - segT(T, hitT, hitT + 0.9)) * (T > hitT ? 1 : 0) : 0;
-      const kick = today && T > hitT ? 16 * Math.exp(-(T - hitT) * 2.6) * sin((T - hitT) * 9) : 0;
-      g.save(); g.translate(x, y); g.rotate((sin(t * 1.3 + i) * 2.5 + kick) * PI / 180);
-      drawLantern(g, lit, flare + (lit ? wave * 0.5 : 0), t, i, letter);
-      if (today) {
-        // plaquinha "HOJE" pendurada embaixo da lanterna de hoje
-        g.fillStyle = lit > 0.5 ? "#FFB421" : "rgba(255,255,255,0.85)"; const w = 10, y0 = 19.4;
-        g.beginPath(); g.moveTo(-w / 2 + 1, y0); g.lineTo(w / 2 - 1, y0); g.quadraticCurveTo(w / 2, y0, w / 2, y0 + 1); g.lineTo(w / 2, y0 + 3); g.quadraticCurveTo(w / 2, y0 + 4, w / 2 - 1, y0 + 4); g.lineTo(-w / 2 + 1, y0 + 4); g.quadraticCurveTo(-w / 2, y0 + 4, -w / 2, y0 + 3); g.lineTo(-w / 2, y0 + 1); g.quadraticCurveTo(-w / 2, y0, -w / 2 + 1, y0); g.fill();
-        g.fillStyle = "#1D1670"; g.font = "900 2.6px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("HOJE", 0, y0 + 2.1);
+      const today = i === n - 1, x = ax(i), y = ay(x);
+      const reached = T > SEQ.fuse && fuseX >= x - 0.5, at = SEQ.fuse + (x - ax(0) + 6) / (ax(n - 1) - ax(0) + 6) * (SEQ.hit - SEQ.fuse);
+      const lit = today ? segT(T, SEQ.hit, SEQ.hit + 0.2) : done && reached ? outBack(segT(T, at, at + 0.25)) : 0;
+      // braseiro: tigela de pedra
+      g.save(); g.translate(x, y);
+      const bowl = new Path2D(); bowl.moveTo(-4, 1); bowl.quadraticCurveTo(0, 6.5, 4, 1); bowl.closePath();
+      g.fillStyle = vGrad(g, ["#4A4472", "#231F45"], 1, 5); g.fill(bowl); stroke(g, bowl, "rgba(255,255,255,0.25)", 0.3);
+      g.fillStyle = "#2A2550"; g.fillRect(-0.8, 5, 1.6, 2.4); g.fillRect(-2.4, 7, 4.8, 0.9);
+      if (lit > 0) {
+        // a chama do dia (hoje maior)
+        const fh = (today ? 13 : 7) * lit * (1 + 0.06 * sin(t * 9 + i));
+        g.translate(0, 1.2); drawSmallFlame(g, t + i, fh, today ? 3.6 : 2.4);
+      } else if (!done && reached && !today) {
+        // dia que faltou: a faísca engasga e sai fumaça
+        for (let j = 0; j < 3; j++) { const u = (t * 0.6 + j / 3) % 1; circle(g, `rgba(180,175,210,${0.35 * (1 - u)})`, 0.8 + u * 1.6, sin(t + j) * 1.2, -u * 8); }
       }
       g.restore();
+      g.fillStyle = lit > 0 ? "rgba(255,225,170,0.95)" : "rgba(255,255,255,0.45)"; g.font = "900 3px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(today ? "HOJE" : letter, x, y + 10.4);
     });
-    // estouro da faísca na lanterna
-    shockRing(g, lastX, lastY, segT(T, hitT, hitT + 0.6), "#FFE07A", 14);
-    if (T > hitT && T < hitT + 0.8) for (let i = 0; i < 10; i++) { const u = (T - hitT) / 0.8, a = i * PI / 5; circle(g, `rgba(255,214,107,${1 - u})`, 0.7 * (1 - u) + 0.2, lastX + cos(a) * u * 14, lastY + sin(a) * u * 12 + u * u * 6); }
-    floorLight(g, 50, 107, 30, "#FFB13B", 0.25 + 0.2 * segT(T, 2, 2.6));
-    const P = sceneFolha(g, o);
-    if (T > launch && T < hitT) {
-      const u = segT(T, launch, hitT), [hx, hy] = folhaPt(o, P, P.hR[0], P.hR[1]);
-      const sx0 = hx, sy0 = hy, cxp = (sx0 + lastX) / 2 + 14, cyp = Math.min(sy0, lastY) - 26;
-      const at = (q) => { const v = 1 - q; return [v * v * sx0 + 2 * v * q * cxp + q * q * lastX, v * v * sy0 + 2 * v * q * cyp + q * q * lastY]; };
-      for (let k = 8; k >= 0; k--) { const q = Math.max(0, u - k * 0.025), [x, y] = at(q); circle(g, `rgba(255,${160 + k * 10},80,${(1 - k / 9) * 0.8})`, 1.8 * (1 - k / 10), x, y); }
-      const [x, y] = at(u); glowAt(g, x, y, 7, "#FFD36B", 0.8); circle(g, "#FFFFFF", 1.3, x, y);
+    // a faísca correndo o pavio
+    if (fuseU > 0 && fuseU < 1) { const y = ay(fuseX) + 4; glowAt(g, fuseX, y, 5, "#FFE07A", 0.9); circle(g, "#FFFFFF", 0.8, fuseX, y); for (let j = 0; j < 5; j++) { const u = (t * 4 + j / 5) % 1; circle(g, `rgba(255,${180 + j * 12},80,${1 - u})`, 0.35, fuseX - u * 3 + sin(j * 7) * u * 2, y - u * 3 + cos(j * 5) * u * 2); } }
+    // ---- o jato de fogo: de hoje até o peito da fênix, estourando numa bola de fogo
+    const lastX = ax(n - 1), lastY = ay(lastX) - 4, jet = segT(T, SEQ.hit + 0.1, SEQ.boom);
+    if (jet > 0 && T < SEQ.boom + 0.25) {
+      const at = (q) => { const v = 1 - q; return [v * v * lastX + 2 * v * q * (lastX + 6) + q * q * PX, v * v * lastY + 2 * v * q * (PY + 18) + q * q * PY]; };
+      const p = new Path2D(); for (let q = 0; q <= outC(jet); q += 0.04) { const [x, y] = at(q); q === 0 ? p.moveTo(x, y) : p.lineTo(x, y); }
+      fireLine(g, p, 1.4, 1 - segT(T, SEQ.boom, SEQ.boom + 0.25));
+      const [hx, hy] = at(outC(jet)); glowAt(g, hx, hy, 6, "#FFE07A", 0.9); circle(g, "#FFFFFF", 1.2, hx, hy);
     }
+    const ball = segT(T, SEQ.boom, SEQ.boom + 0.35);
+    if (ball > 0 && ball < 1) { glowAt(g, PX, PY, 10 + 30 * ball, "#FFFFFF", 0.9 * (1 - ball)); glowAt(g, PX, PY, 8 + 20 * ball, "#FFB13B", 1 - ball); }
+    // ---- a fênix e o número
+    const born = segT(T, SEQ.boom, SEQ.boom + 0.3), open = outBack(segT(T, SEQ.wings, SEQ.wings + 0.75));
+    const flap = T < SEQ.wings + 0.75 ? 0 : sin((T - SEQ.wings - 0.75) * 2.4) * 10 + (T < SEQ.wings + 1.6 ? sin(PI * segT(T, SEQ.wings + 0.75, SEQ.wings + 1.6)) * -25 : 0);
+    drawPhoenix(g, t, open, flap, born, k);
+    const num = segT(T, SEQ.number, SEQ.number + 0.5), beat = 1 + 0.06 * Math.max(0, sin(t * 4.2)) ** 6 + (num < 1 ? (1 - outBack(num)) * -0.4 : 0);
+    fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, clamp(num * 2, 0, 1), beat);
+    // fagulhas soltas da fênix
+    if (born > 0) for (let i = 0; i < 16; i++) { const u = (t * (0.4 + (i % 4) * 0.08) + i * 0.0625) % 1, sd = ((i * 0.618) % 1 - 0.5) * 2, x = PX + sd * 38 * (0.4 + u), y = PY - 6 - u * 34 + sd * sd * 8; const c = fireColor(0.15 + u * 0.6); circle(g, `rgba(${c},${(1 - u) * open})`, 0.3 + 0.3 * (1 - u), x, y); }
+    g.restore();
+    // ---- o Folha: olha a faísca correndo, leva um susto no estouro e comemora em chamas
+    const o = { T, t, x: 50, y: 110 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.46, look, dir: { x: lerp(-0.8, 0.8, fuseU), y: T < SEQ.hit ? 0.2 : -1 },
+      script: [[0, "idle"], [SEQ.hit, "surprised"], [SEQ.wings, "ecstatic"], [4.2, "happy"], [5.6, "proud"]] };
+    floorLight(g, 50, 109, 30, "#FF8A2A", 0.2 + 0.15 * fire);
+    sceneFolha(g, o);
+    drawConfetti(g, el._conf, T - SEQ.number);
+  }
+  // chama pequena dos braseiros (as mesmas labaredas da chama grande, em miniatura)
+  function drawSmallFlame(g, t, h, w) {
+    if (h <= 0.3) return;
+    glowAt(g, 0, -h * 0.4, h * 0.9, "#FF8A2A", 0.4);
+    g.save(); g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 18; i++) {
+      const seed = (i * 0.618) % 1, u = (t * (0.9 + seed * 0.6) + seed) % 1;
+      const px = (seed - 0.5) * w * (1 - u) + sin(t * 8 + i) * w * 0.12 * u, py = -u * h, r = w * 0.55 * (1 - u) ** 0.7 + 0.3;
+      const c = fireColor(u), al = (u < 0.1 ? u / 0.1 : 1) * (1 - u) * 0.6;
+      const gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(${c},${al})`); gr.addColorStop(1, `rgba(${c},0)`);
+      g.fillStyle = gr; g.beginPath(); g.arc(px, py, r, 0, 2 * PI); g.fill();
+    }
+    g.restore();
   }
 
   // ---- cena: peça nova (o presente)
