@@ -157,7 +157,8 @@ fun LoginScreen() {
     val (mood, speech) = when {
         busy -> "thinking" to "Abrindo o seu caderno…"
         error != null -> "sad" to "Ih, não deu. Tenta de novo?"
-        fleeLine != null -> (if (fleeing) "happy" else "talking") to fleeLine!!
+        // cansou de fugir: "ufa"; fugindo: rindo; parado: falando
+        fleeLine != null -> (if (tired && !fleeing && fleeLine!!.startsWith("Ufa")) "relieved" else if (fleeing) "happy" else "talking") to fleeLine!!
         else -> lines[line]
     }
 
@@ -194,7 +195,7 @@ fun LoginScreen() {
                         addEventListener("pointerdown") { e -> val ev = e.nativeEvent.asDynamic(); flee((ev.clientX as Number).toDouble(), (ev.clientY as Number).toDouble()) }
                     }) {
                         Div({ classes("login-bubble"); attr("aria-live", "polite") }) { Text(speech) }
-                        Folha(mood, 150)
+                        Folha(mood, 150, say = if (mood == "talking") speech else null)
                     }
                     Div({ classes("login-card") }) {
                         H2 { Text("Entrar no Estudário") }

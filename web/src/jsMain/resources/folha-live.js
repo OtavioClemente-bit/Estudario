@@ -962,7 +962,10 @@
       this.style.width = size + "px"; this.style.height = size + "px";
       // O desenho passa da grade 100 x 100 (mãos para o alto, aceno, borla): o canvas sobra MARGIN% para cada
       // lado, fora da caixa do elemento, sem pegar cliques.
-      if (getComputedStyle(this).position === "static") this.style.position = "relative";
+      const cs = getComputedStyle(this);
+      if (cs.position === "static") this.style.position = "relative";
+      // elemento novo nasce "inline" (largura e altura ignoradas): sem CSS da página, vira bloco em linha
+      if (cs.display === "inline") this.style.display = "inline-block";
       const c = this._canvas.style, M = MARGIN;
       c.position = "absolute"; c.left = c.top = -M + "%"; c.width = c.height = 100 + 2 * M + "%"; c.pointerEvents = "none";
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5), full = size * (1 + 2 * M / 100);
