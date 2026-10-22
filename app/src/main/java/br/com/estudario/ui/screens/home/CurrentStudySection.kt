@@ -57,6 +57,8 @@ fun CurrentStudySection(
     onPractice: () -> Unit = {},
     onGenerate: (() -> Unit)? = null,
     generateModifier: Modifier = Modifier,
+    /** O que o Folha tem de pessoal para dizer (saudade, prova chegando, o que você estudou ontem). */
+    memory: br.com.estudario.domain.FolhaMemory.Line? = null,
 ) {
     Column(
         modifier
@@ -76,7 +78,7 @@ fun CurrentStudySection(
                 is CurrentStudyUiState.NoPlan -> NoPlanBody(onPrimaryAction, practiceAvailable, onPractice)
                 is CurrentStudyUiState.NoTaskToday -> NoTaskTodayBody(practiceAvailable, onPractice)
                 is CurrentStudyUiState.DayComplete -> DayCompleteBody(current)
-                is CurrentStudyUiState.Ready -> ReadyBody(current, onPrimaryAction, onGenerate, generateModifier)
+                is CurrentStudyUiState.Ready -> ReadyBody(current, onPrimaryAction, onGenerate, generateModifier, memory)
             }
         }
     }
@@ -92,13 +94,13 @@ private fun Eyebrow(text: String) {
 }
 
 @Composable
-private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onGenerate: (() -> Unit)?, generateModifier: Modifier) {
+private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onGenerate: (() -> Unit)?, generateModifier: Modifier, memory: br.com.estudario.domain.FolhaMemory.Line? = null) {
     val task = state.task
     Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.medium)) {
         // O Folha conversa com a pessoa: ele à esquerda, o balão saindo dele. Tocar nele já começa.
         // Uma frase nova cada vez que o Início abre (a semente fica guardada enquanto a tela vive).
         val seed = androidx.compose.runtime.remember { System.currentTimeMillis() / 1000 }
-        val fala = br.com.estudario.ui.assistant.FolhaLines.forHome(
+        val fala = memory?.takeIf { onGenerate == null }?.text ?: br.com.estudario.ui.assistant.FolhaLines.forHome(
             continuing = state.progressFraction != null,
             needsMaterial = onGenerate != null,
             hour = java.time.LocalTime.now().hour,
@@ -108,7 +110,8 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
         var quip by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
         androidx.compose.runtime.LaunchedEffect(quip) { val q = quip ?: return@LaunchedEffect; kotlinx.coroutines.delay(q.length * 45L + 2600L); quip = null }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            br.com.estudario.ui.assistant.FolhaTalking(88.dp, fala, onClick = onGenerate ?: onStart, onQuip = { quip = it })
+            val rest = when (memory?.takeIf { onGenerate == null }?.mood) { "sad" -> br.com.estudario.ui.assistant.FolhaMood.SAD; "happy" -> br.com.estudario.ui.assistant.FolhaMood.HAPPY; "proud" -> br.com.estudario.ui.assistant.FolhaMood.PROUD; else -> br.com.estudario.ui.assistant.FolhaMood.IDLE }
+            br.com.estudario.ui.assistant.FolhaTalking(88.dp, fala, onClick = onGenerate ?: onStart, onQuip = { quip = it }, rest = rest)
             Spacer(Modifier.width(4.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Eyebrow((if (state.progressFraction != null) "Continuando" else "Agora").uppercase())

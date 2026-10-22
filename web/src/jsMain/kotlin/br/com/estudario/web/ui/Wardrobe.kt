@@ -93,6 +93,10 @@ object FolhaLook {
         val look = kotlin.js.json(
             "streak" to streak.current,
             "atRisk" to (streak.current >= 2 && !streak.todayDone && hour >= 18),
+            // a amizade (gestos e falas novas) e o nome, para ele chamar a pessoa
+            "bond" to br.com.estudario.domain.FolhaBond.level(streak.activeDays).index,
+            "name" to (FolhaFriend.firstName() ?: ""),
+            "bondLines" to br.com.estudario.domain.FolhaMemory.bondTapLines(br.com.estudario.domain.FolhaBond.level(streak.activeDays).index, FolhaFriend.firstName()).toTypedArray(),
         )
         FolhaSlot.entries.forEach { look[it.key] = chosen(it, view.progress).id }
         runCatching { window.asDynamic().folhaSetLook(look) }

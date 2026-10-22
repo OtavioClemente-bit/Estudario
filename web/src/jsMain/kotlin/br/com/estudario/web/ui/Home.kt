@@ -86,7 +86,7 @@ fun HomeScreen() {
 
     Div({ classes("grid", "main-side") }) {
         Div({ classes("stack", "loose") }) {
-            NowPanel(data, plan != null, tasks, hour, seed, onGenerate = { generatingFor = it })
+            NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
             if (plan != null && tasks.isNotEmpty()) DailyMission(tasks) { completing = it }
             AttentionPanel(data, plan?.id)
             HomeSyllabus(data, subjects)
@@ -115,7 +115,7 @@ private fun hasMaterial(data: Snapshot, topicId: Long): Boolean =
 
 /** O "Agora" do app: o Folha conversa com a pessoa e aponta a próxima coisa a fazer. */
 @Composable
-private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, hour: Int, seed: Long, onGenerate: (Long) -> Unit) {
+private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, hour: Int, seed: Long, daysToExam: Long?, onGenerate: (Long) -> Unit) {
     val task = nextUp(tasks)
     Div({ classes("now-panel", "rise") }) {
         when {
@@ -147,10 +147,13 @@ private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, ho
             else -> {
                 val continuing = task.status == "EM_ANDAMENTO"
                 val needsMaterial = task.topicId != null && !hasMaterial(data, task.topicId) && !Store.demo
+                // quando ele tem algo pessoal para dizer (saudade, prova chegando, o que você estudou ontem), fala isso
+                val memory = if (needsMaterial) null else FolhaFriend.homeLine(data, Progress.of(data), daysToExam, hour, seed)
                 FolhaTalking(
-                    FolhaLines.forHome(continuing, needsMaterial, hour, seed),
+                    memory?.text ?: FolhaLines.forHome(continuing, needsMaterial, hour, seed),
                     96,
                     onFolhaClick = { if (needsMaterial) onGenerate(task.topicId!!) else openTask(task) },
+                    restMood = memory?.mood?.takeIf { it == "sad" || it == "happy" || it == "proud" } ?: "idle",
                 )
                 Span({ classes("eyebrow") }) { Text(if (continuing) "CONTINUANDO" else "AGORA") }
                 Div({ classes("now-task") }) {

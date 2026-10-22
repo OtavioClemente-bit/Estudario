@@ -255,7 +255,28 @@ fun HomeScreen(
 
         item {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                // a memória do Folha: saudade, prova chegando, o que você estudou por último, seu nome
+                val memory = remember(streak, attempts.size, profile.name, activePlan?.examEpochDay) {
+                    val s = streak
+                    val last = attempts.maxByOrNull { it.answeredAt }?.let { a ->
+                        val topicId = questions.firstOrNull { it.question.id == a.questionId }?.question?.topicId
+                        val subject = topics.firstOrNull { it.id == topicId }?.let { t -> subjects.firstOrNull { it.id == t.subjectId }?.name }
+                        val start = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        subject?.let { it to if (a.answeredAt >= start) 0 else kotlin.math.ceil((start - a.answeredAt) / 86_400_000.0).toInt() }
+                    }
+                    br.com.estudario.domain.FolhaMemory.home(
+                        br.com.estudario.domain.FolhaMemory.Context(
+                            name = profile.firstName, bond = br.com.estudario.domain.FolhaBond.level(s?.activeDays ?: 0).index, bondUp = null,
+                            daysAway = s?.let { br.com.estudario.domain.FolhaBond.daysAway(it.calendar, br.com.estudario.time.today()) },
+                            todayDone = s?.todayDone == true, streak = s?.current ?: 0,
+                            daysToExam = activePlan?.examEpochDay?.let { (it - LocalDate.now().toEpochDay()).toInt() }?.takeIf { it >= 0 },
+                            lastSubject = last?.first, lastSubjectDaysAgo = last?.second,
+                            hour = java.time.LocalTime.now().hour, seed = System.currentTimeMillis() / 60_000,
+                        ),
+                    )
+                }
                 CurrentStudySection(
+                    memory = memory,
                     state = currentStudy,
                     onPrimaryAction = {
                         when (currentStudy) {

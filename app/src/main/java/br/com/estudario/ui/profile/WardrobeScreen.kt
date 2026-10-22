@@ -89,12 +89,19 @@ fun FolhaLookSync(viewModel: AppViewModel) {
         while (true) { delay(60_000); hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
     }
     val choices by br.com.estudario.data.FolhaLookStore.changes.collectAsState()
-    LaunchedEffect(progress, streak, hour, choices) {
+    val profile by viewModel.profile.collectAsState()
+    LaunchedEffect(progress, streak, hour, choices, profile.name) {
         val summary = progress ?: return@LaunchedEffect
         FolhaSlot.entries.forEach { FolhaLook.set(it.key, FolhaWardrobePrefs.chosen(context, it, summary).id) }
         val s = streak
         FolhaLook.streak = s?.current ?: 0
         FolhaLook.atRisk = s != null && s.current >= 2 && !s.todayDone && hour >= 18
+        // a amizade (gestos e falas novas) e o nome, para ele chamar a pessoa
+        val bond = br.com.estudario.domain.FolhaBond.level(s?.activeDays ?: 0).index
+        val first = profile.name.substringBefore(" ").trim()
+        FolhaLook.bond = bond; FolhaLook.name = first
+        FolhaLook.bondLines = br.com.estudario.domain.FolhaMemory.bondTapLines(bond, first.ifBlank { null })
+        br.com.estudario.ui.widget.FolhaWidget.save(context, s, bond)
     }
 }
 

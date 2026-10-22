@@ -512,13 +512,15 @@ private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long
     // Só depois de responder, ele reage ao contexto: virou depois de errar (ufa), sequência longa (em chamas).
     val relief = right && streak == 1 && results.size >= 2 && !results[results.size - 2]
     val fire = right && streak >= 5
-    val lines = when { fire -> FIRE_LINES; relief -> RELIEF_LINES; right -> RIGHT_LINES; else -> WRONG_LINES }
+    // errou três ou mais seguidas: em vez da frase de erro, ele acolhe
+    val tough = !right && results.size >= 3 && results.takeLast(3).none { it }
+    val lines = when { fire -> FIRE_LINES; relief -> RELIEF_LINES; right -> RIGHT_LINES; tough -> br.com.estudario.domain.FolhaMemory.toughLines; else -> WRONG_LINES }
     val line = lines[((questionId % lines.size + lines.size) % lines.size).toInt()]
-    val mood = when { fire -> "ecstatic"; badge != null -> "proud"; relief -> "relieved"; right -> "happy"; else -> "sad" }
+    val mood = when { fire -> "ecstatic"; badge != null -> "proud"; relief -> "relieved"; right -> "happy"; tough -> "talking"; else -> "sad" }
     Div({ classes("answer-reaction", if (right) "ok" else "bad", "pop-in") }) {
         Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { androidx.compose.runtime.key(questionId) { Folha(mood, 72) } }
         Div({ classes("grow") }) {
-            B({ classes("reaction-title") }) { Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; right -> "Mandou bem!"; else -> "Não foi dessa vez" }) }
+            B({ classes("reaction-title") }) { Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; right -> "Mandou bem!"; tough -> "Tô aqui com você"; else -> "Não foi dessa vez" }) }
             P({ classes("small") }) { Text(line) }
             if (!right) P({ classes("xs", "muted") }) { Text("Resposta certa: ${correctKey ?: "?"}. A questão foi para o caderno de erros.") }
             if (right && streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text("$streak seguidas") }

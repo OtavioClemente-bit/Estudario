@@ -38,6 +38,8 @@ private sealed interface Celebration {
     data class LevelUp(val level: Int, val title: String, val totalXp: Int) : Celebration
     /** Peça nova no armário do Folha (vem de um emblema ou de um nível): o baú abre e ele aparece vestindo. */
     data class NewPiece(val item: br.com.estudario.domain.FolhaItem) : Celebration
+    /** A amizade com o Folha subiu de nível. */
+    data class BondUp(val level: br.com.estudario.domain.FolhaBondLevel) : Celebration
 }
 
 private object CelebrationQueue {
@@ -65,6 +67,7 @@ fun CelebrationHost() {
             CelebrationQueue.items += Celebration.NewBadge(sample)
             CelebrationQueue.items += Celebration.LevelUp(4, "Estudioso", 820)
             br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == "asas" }?.let { CelebrationQueue.items += Celebration.NewPiece(it) }
+            CelebrationQueue.items += Celebration.BondUp(br.com.estudario.domain.FolhaBond.levels[3])
         }
         CelebrationQueue.items.firstOrNull()?.let { CelebrationScreen(it) { CelebrationQueue.items.removeAt(0) } }
         return
@@ -119,6 +122,15 @@ fun CelebrationHost() {
         br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }
             .sortedByDescending { it.rarity.ordinal }.forEach { CelebrationQueue.items += Celebration.NewPiece(it) }
     }
+    // a amizade com o Folha subiu (conta os dias com estudo)
+    val bond = br.com.estudario.domain.FolhaBond.level(view.streak.activeDays)
+    LaunchedEffect(bond.index, ready) {
+        val seen = BondSeen.read()
+        if (seen == null || !ready) { if (seen == null) BondSeen.write(bond.index); return@LaunchedEffect }
+        if (bond.index <= seen) return@LaunchedEffect
+        BondSeen.write(bond.index)
+        CelebrationQueue.items += Celebration.BondUp(bond)
+    }
     LaunchedEffect(level, ready) {
         val seen = runCatching { localStorage.getItem(KEY_LEVEL) }.getOrNull()?.toIntOrNull()
         write(KEY_LEVEL, level.toString())
@@ -156,6 +168,7 @@ private fun revealAt(item: Celebration): Double = when (item) {
     is Celebration.NewBadge -> 2.0
     is Celebration.StreakDay -> 2.7
     is Celebration.NewPiece -> 3.6
+    is Celebration.BondUp -> 2.2
 }
 
 /**
@@ -176,7 +189,7 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
         window.addEventListener("keydown", keys)
         onDispose { window.removeEventListener("keydown", keys) }
     }
-    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece" }
+    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece"; is Celebration.BondUp -> "bond" }
     val r = revealAt(item)
     Div({ classes(*listOfNotNull("celebrate", "cn", kind, if (leaving) "out" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) {
         Div({ classes("cel-in") }) {
@@ -187,6 +200,11 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                     is Celebration.NewBadge -> BadgeText(item.badge, r)
                     is Celebration.LevelUp -> LevelText(item, r)
                     is Celebration.NewPiece -> PieceText(item.item, r)
+                    is Celebration.BondUp -> {
+                        Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("AMIZADE COM O FOLHA") }
+                        H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text("Agora vocês são ${item.level.name}!") }
+                        P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) { Text(item.level.unlock) }
+                    }
                 }
             }
             Div({ classes("cel-actions", "lv-late"); attr("style", "--ld:${r + 0.45}s") }) {
@@ -208,12 +226,14 @@ private fun Scene(item: Celebration) {
         is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier))
         is Celebration.StreakDay -> listOf("tipo" to "sequencia", "dias" to item.days.toString(), "semana" to item.week.joinToString(",") { (l, done) -> l + if (done) "1" else "0" })
         is Celebration.NewPiece -> listOf("tipo" to "peca", "piece-slot" to item.item.slot.key, "piece" to item.item.id, "rarity" to item.item.rarity.name.lowercase())
+        is Celebration.BondUp -> listOf("tipo" to "vinculo", "nivel" to item.level.index.toString(), "de" to br.com.estudario.domain.FolhaBond.levels.size.toString())
     }
     val label = when (item) {
         is Celebration.LevelUp -> "O Folha comemora o nível ${item.level}"
         is Celebration.NewBadge -> "Medalha do emblema ${item.badge.name}"
         is Celebration.StreakDay -> "${item.days} dias de sequência"
         is Celebration.NewPiece -> "O Folha ganha ${item.item.name}"
+        is Celebration.BondUp -> "A amizade com o Folha subiu: ${item.level.name}"
     }
     Div({ classes("cn-stage") }) {
         org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(

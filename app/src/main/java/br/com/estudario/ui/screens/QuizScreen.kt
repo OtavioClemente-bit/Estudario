@@ -350,6 +350,8 @@ fun QuizScreen(
                         val inARow = history.asReversed().takeWhile { it }.size
                         val relief = correct == true && inARow == 1 && history.size >= 2 && !history[history.size - 2]
                         val fire = correct == true && inARow >= 5
+                        // errou três ou mais seguidas: em vez da frase de erro, ele acolhe
+                        val tough = correct != true && history.size >= 3 && history.takeLast(3).none { it }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             androidx.compose.runtime.key(current.question.id) {
                                 br.com.estudario.ui.assistant.Folha(
@@ -358,18 +360,20 @@ fun QuizScreen(
                                         fire -> br.com.estudario.ui.assistant.FolhaMood.ECSTATIC
                                         relief -> br.com.estudario.ui.assistant.FolhaMood.RELIEVED
                                         correct == true -> br.com.estudario.ui.assistant.FolhaMood.HAPPY
+                                        tough -> br.com.estudario.ui.assistant.FolhaMood.TALKING
                                         else -> br.com.estudario.ui.assistant.FolhaMood.SAD
                                     },
                                 )
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; correct == true -> "Mandou bem!"; else -> "Não foi dessa vez" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = tone)
+                                    Text(when { fire -> "Em chamas!"; relief -> "Ufa, virou!"; correct == true -> "Mandou bem!"; tough -> "Tô aqui com você"; else -> "Não foi dessa vez" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = tone)
                                 }
                                 Text(
                                     when {
                                         fire -> br.com.estudario.ui.assistant.FolhaLines.forFire(current.question.id)
                                         relief -> br.com.estudario.ui.assistant.FolhaLines.forRelief(current.question.id)
+                                        tough -> br.com.estudario.domain.FolhaMemory.toughLines[(current.question.id % br.com.estudario.domain.FolhaMemory.toughLines.size).toInt()]
                                         else -> br.com.estudario.ui.assistant.FolhaLines.forAnswer(correct == true, current.question.id)
                                     },
                                     style = MaterialTheme.typography.bodyMedium,

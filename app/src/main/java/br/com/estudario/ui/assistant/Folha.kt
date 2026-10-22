@@ -120,6 +120,12 @@ object FolhaLook {
     var streak by mutableIntStateOf(0)
     /** A sequência pode cair hoje (fim do dia, meta não batida): parado, ele fica preocupadinho. */
     var atRisk by mutableStateOf(false)
+    /** A amizade com o Folha (FolhaBond): libera gestos novos ao toque. */
+    var bond by mutableIntStateOf(0)
+    /** Primeiro nome da pessoa, para ele chamar pelo nome. */
+    var name by mutableStateOf("")
+    /** Falas de amigo (FolhaMemory.bondTapLines), sorteadas junto com as de sempre ao tocar nele. */
+    var bondLines by mutableStateOf<List<String>>(emptyList())
     /** Só para testes: força a hora do dia (manhã tem café, noite tem touca). */
     var hour by mutableStateOf<Int?>(null)
 
@@ -357,11 +363,11 @@ const val FOLHA_LEAVE_MS = 760L
  * ler (mais ou menos) em voz alta.
  */
 @Composable
-fun FolhaTalking(size: Dp, text: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, onQuip: ((String) -> Unit)? = null) {
+fun FolhaTalking(size: Dp, text: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, onQuip: ((String) -> Unit)? = null, rest: FolhaMood = FolhaMood.IDLE) {
     val total = (text.length * 45L).coerceIn(900L, 3200L)
     var talking by remember(text) { mutableStateOf(true) }
     LaunchedEffect(text) { delay(total); talking = false }
-    Folha(size, modifier, if (talking) FolhaMood.TALKING else FolhaMood.IDLE, onClick, say = if (talking) text else null, sayMillis = total, onQuip = onQuip)
+    Folha(size, modifier, if (talking) FolhaMood.TALKING else rest, onClick, say = if (talking) text else null, sayMillis = total, onQuip = onQuip)
 }
 
 /**
@@ -639,7 +645,7 @@ private class FolhaSim {
     private var react: String? = null; private var reactAt = 0L; private var lastReact: String? = null
     private var petUntil = 0L; private var petSide = 1f; private var petW = 0f; private var petAcc = 0f; private var wasPet = false
     private var thought: String? = null; private var thoughtAt = 0L; private var nextThought = 0L; private var lastThought: String? = null
-    private var quipAt = -100_000L; private var quipUntil = 0L; private var lastDt = 0f
+    private var quipAt = -100_000L; private var quipUntil = 0L; private var lastDt = 0f; private var bornAt = 0L
     /** A frase do balão agora (a tela mostra em cima dele); nula sem frase. */
     var quip by androidx.compose.runtime.mutableStateOf<String?>(null)
         private set
@@ -675,8 +681,10 @@ private class FolhaSim {
     /** Toque: amassa e reage de um jeito diferente a cada vez; se for grande, solta uma frase. */
     fun poke() {
         bounceAt = nowMs; idleSince = nowMs
-        var k = REACTIONS.random().first
-        if (k == lastReact) k = REACTIONS[(REACTIONS.indexOfFirst { it.first == k } + 1) % REACTIONS.size].first
+        val all = reactionsNow()
+        // o gesto mais novo da amizade aparece mais
+        var k = if (all.size > REACTIONS.size && Random.nextInt(100) < 35) all.last().first else all.random().first
+        if (k == lastReact) k = all[(all.indexOfFirst { it.first == k } + 1) % all.size].first
         react = k; reactAt = nowMs; lastReact = k
         if (k == "wink") { wink = true; winkUntil = nowMs + 710 }
         say(tapLine())
@@ -709,7 +717,7 @@ private class FolhaSim {
     }
 
     fun step(now: Long, dt: Float) {
-        if (!inited) { nowMs = now; idleSince = now; nextBlink = now + 1800; nextFid = now + 6000 + Random.nextLong(5000) }
+        if (!inited) { nowMs = now; idleSince = now; bornAt = now; nextBlink = now + 1800; nextFid = now + 6000 + Random.nextLong(5000) }
         nowMs = now; t += dt; lastDt = dt
         var m = mood
         if (leaveAt >= 0) m = FolhaMood.WAVE
@@ -825,6 +833,7 @@ private class FolhaSim {
         fun env(u: Float) = sin(PIf * clamp(u, 0f, 1f)).pow(0.6f)
         fun mix(get: () -> Float, set: (Float) -> Unit, v: Float, w: Float) = set(lerp(get(), v, w))
         var turn = 1f; var hatUp = 0f; var hatSpin = 0f; var whistle = 0f; var hearts = 0f; var th: String? = null; var thU = 0f
+        var armsFront = false; var starEyes = false; var sparkle = 0f; var goldHearts = false
         val petting = now < petUntil
         petW += ((if (petting) 1f else 0f) - petW) * minOf(1f, lastDt * (if (petting) 9f else 5f))
         if (!petting) petAcc *= 0.9f
@@ -836,7 +845,7 @@ private class FolhaSim {
             if (petting) wasPet = true else if (wasPet && w < 0.5f) { wasPet = false; say(PET_LINES.random()) }
         }
         react?.let { k ->
-            val dur = REACTIONS.firstOrNull { it.first == k }?.second ?: 900L
+            val dur = reactionsNow().firstOrNull { it.first == k }?.second ?: 900L
             val u = (now - reactAt).toFloat() / dur
             if (u >= 1f) react = null else {
                 val w = env(u)
@@ -848,11 +857,30 @@ private class FolhaSim {
                         p.low = lerp(p.low, 0.6f, w); p.mOpen = lerp(p.mOpen, 1f, w); p.mW = lerp(p.mW, 6.2f, w); p.mCurve = lerp(p.mCurve, 5f, w); p.pupil = lerp(p.pupil, 1.3f, w)
                         p.hL0 = lerp(p.hL0, 2f, w); p.hL1 = lerp(p.hL1, 42f, w); p.hR0 = lerp(p.hR0, 98f, w); p.hR1 = lerp(p.hR1, 42f, w); if (w > 0.4f) { p.shapeL = Hand.FIST; p.shapeR = Hand.FIST }
                     }
+                    "dance" -> {
+                        // dancinha: pulinhos no ritmo, balança de um lado para o outro, braços alternando para o alto
+                        val beat = sin(u * PIf * 6f); val up = beat > 0f
+                        p.hop += -abs(beat) * 5f * w; p.tilt += beat * 7f * w; whistle = w
+                        p.low = lerp(p.low, 0.6f, w); p.mOpen = lerp(p.mOpen, 0.5f, w); p.mW = lerp(p.mW, 5.8f, w); p.mCurve = lerp(p.mCurve, 4.8f, w); p.cheek = lerp(p.cheek, 0.9f, w)
+                        p.hL0 = lerp(p.hL0, if (up) 4f else 10f, w); p.hL1 = lerp(p.hL1, if (up) 40f else 70f, w); p.hR0 = lerp(p.hR0, if (up) 90f else 96f, w); p.hR1 = lerp(p.hR1, if (up) 70f else 40f, w)
+                        if (w > 0.4f) { p.shapeL = if (up) Hand.FIST else Hand.MITT; p.shapeR = if (up) Hand.MITT else Hand.FIST }
+                    }
+                    "hug" -> {
+                        // abraço: os braços cruzam na frente do livro, olhinhos fechados, bochecha vermelha e corações
+                        p.hL0 = lerp(p.hL0, 58f, w); p.hL1 = lerp(p.hL1, 70f, w); p.hR0 = lerp(p.hR0, 42f, w); p.hR1 = lerp(p.hR1, 68f, w)
+                        p.rotL = lerp(p.rotL, -40f, w); p.rotR = lerp(p.rotR, 40f, w); p.bendL = lerp(p.bendL, 8f, w); p.bendR = lerp(p.bendR, 8f, w)
+                        if (w > 0.3f) { p.shapeL = Hand.OPEN; p.shapeR = Hand.OPEN; armsFront = true }
+                        p.low = lerp(p.low, 0.8f, w); p.up = lerp(p.up, 0.1f, w); p.cheek = lerp(p.cheek, 1f, w); p.mW = lerp(p.mW, 5.4f, w); p.mCurve = lerp(p.mCurve, 4.6f, w); p.mOpen = lerp(p.mOpen, 0.15f, w)
+                        p.tilt += sin(u * PIf * 4f) * 2.5f * w; hearts = maxOf(hearts, w)
+                    }
+                    "stars" -> { starEyes = w > 0.25f; sparkle = w; p.hop += -sin(PIf * u) * 8f; p.mOpen = lerp(p.mOpen, 1f, w); p.mW = lerp(p.mW, 6.4f, w); p.mCurve = lerp(p.mCurve, 5.2f, w); p.cheek = lerp(p.cheek, 0.9f, w) }
                     "love" -> { p.low = lerp(p.low, 0.78f, w); p.cheek = lerp(p.cheek, 1f, w); p.mW = lerp(p.mW, 5.4f, w); p.mCurve = lerp(p.mCurve, 4.6f, w); p.mOpen = lerp(p.mOpen, 0.2f, w); hearts = maxOf(hearts, w) }
                     "wink" -> { p.low = lerp(p.low, 0.5f, w); p.mCurve = lerp(p.mCurve, 4.4f, w); p.cheek = lerp(p.cheek, 0.8f, w) }
                 }
             }
         }
+        // Lendários: ao chegar na tela, corações dourados em volta dele
+        if (FolhaLook.bond >= 6 && now - bornAt < 3000) { hearts = maxOf(hearts, sin(PIf * (now - bornAt) / 3000f)); goldHearts = true }
         fid?.let { fd ->
             val u = clamp((now - fd.start).toFloat() / fd.dur, 0f, 1f)
             if (fd.kind == "hatflip") { hatUp = 20f * sin(PIf * u); hatSpin = 360f * u }
@@ -874,7 +902,7 @@ private class FolhaSim {
                 th = k; thU = u
             }
         }
-        return Life(turn, hatUp, hatSpin, whistle, hearts, th, thU)
+        return Life(turn, hatUp, hatSpin, whistle, hearts, th, thU, armsFront, starEyes, sparkle, goldHearts)
     }
 
     fun snapshot(gulp: Float, look: Look): FolhaFrame {
@@ -887,7 +915,7 @@ private class FolhaSim {
         return FolhaFrame(
             look = look, tm = (nowMs - moodAt) / 1000f, fade = fade, rise = rise, prevMood = prevShown,
             burst = if (burstAt < 0) 0f else clamp(1f - (nowMs - burstAt) / 650f, 0f, 1f),
-            t = t, mood = shown, small = small, p = p, vy = v[0], blink = blink,
+            t = t, mood = if (lifeNow?.starEyes == true) FolhaMood.ECSTATIC else shown, small = small, p = p, vy = v[0], blink = blink,
             wink = if (wink || shown == FolhaMood.WINK) 1f else 0f, popL = popL, popR = popR,
             squash = maxOf(bounce(), gulp * 0.45f) + clamp(sq * 0.1f, -0.2f, 0.25f), gulp = gulp,
             speechOpen = if (speaking) mouthOpen else null, speechRound = mouthRound, life = lifeNow,
@@ -909,10 +937,14 @@ private class FolhaFrame(
 private class Life(
     val turn: Float = 1f, val hatUp: Float = 0f, val hatSpin: Float = 0f, val whistle: Float = 0f, val hearts: Float = 0f,
     val thought: String? = null, val thoughtU: Float = 0f,
+    val armsFront: Boolean = false, val starEyes: Boolean = false, val sparkle: Float = 0f, val goldHearts: Boolean = false,
 )
 
 /** Reações ao toque (cada toque, uma diferente) e quanto duram, em ms. */
 private val REACTIONS = listOf("giggle" to 900L, "spin" to 750L, "hop" to 950L, "love" to 1300L, "wink" to 800L)
+/** Gestos que a amizade libera (FolhaBond.kt): dancinha (Parceiros), abraço (Amigos), olhos de estrela (Inseparáveis). */
+private val BOND_REACTIONS = listOf(Triple(2, "dance", 1700L), Triple(3, "hug", 1500L), Triple(5, "stars", 1300L))
+private fun reactionsNow(): List<Pair<String, Long>> = REACTIONS + BOND_REACTIONS.filter { FolhaLook.bond >= it.first }.map { it.second to it.third }
 /** O que ele imagina no balão de pensamento. */
 private val THOUGHTS = listOf("bulb", "heart", "star", "book", "coffee", "note", "question", "trophy", "pizza")
 /** Frases: tocar nele, fazer carinho e voltar para o app. Curtas, no jeito dele (as mesmas do site). */
@@ -928,7 +960,8 @@ private val PET_LINES = listOf("Ahh, que carinho bom!", "Hehe, faz de novo!", "V
 internal val BACK_LINES = listOf("Voltou! Senti sua falta.", "Ei, que bom te ver!", "Bora continuar de onde paramos?", "Eu guardei a página pra você!")
 private fun tapLine(): String {
     val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    val list = if (Random.nextInt(4) == 0) (if (h in 5..10) MORNING_LINES else if (h >= 22 || h < 5) NIGHT_LINES else TAP_LINES) else TAP_LINES
+    val list = if (Random.nextInt(4) == 0) (if (h in 5..10) MORNING_LINES else if (h >= 22 || h < 5) NIGHT_LINES else TAP_LINES)
+        else if (FolhaLook.bondLines.isNotEmpty() && Random.nextInt(100) < 35) FolhaLook.bondLines else TAP_LINES
     return list.random()
 }
 
@@ -990,6 +1023,7 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
                     var front = when (mood) { FolhaMood.THINKING, FolhaMood.SURPRISED, FolhaMood.PRESENT -> "LR"; FolhaMood.FOCUS, FolhaMood.RELIEVED -> "R"; else -> "" }
                     // segurando um item: a mão esquerda fica na frente do livro, para o item aparecer
                     if (look.hand != "nenhum" && 'L' !in front) front = "L$front"
+                    if (f.life?.armsFront == true) front = "LR"
                     drawArms(f, "LR".filter { it !in front })
                     drawBook(t, mood, small, look)
                     drawPageLines(t, mood, small, look.ink)
@@ -1047,7 +1081,11 @@ private fun DrawScope.drawLife(t: Float, l: Life, small: Boolean) {
     if (l.hearts > 0.05f) for (i in 0 until if (small) 2 else 4) {
         val ph = (t * 0.6f + i / 4f) % 1f; val a = sin(PIf * ph) * l.hearts; val side = if (i % 2 == 1) 1f else -1f
         val x = 50f + side * (24f + i * 4f) + sin(t * 2f + i) * 2f; val y = 44f - ph * 34f; val r = 2.4f + ph * 1.4f
-        drawPath(heart(x, y, r), vg(listOf(Color(0xFFFF8FA3).copy(alpha = a), Color(0xFFE0475E).copy(alpha = a)), y - r, y + r))
+        drawPath(heart(x, y, r), vg(if (l.goldHearts) GOLD_STOPS.map { it.copy(alpha = a) } else listOf(Color(0xFFFF8FA3).copy(alpha = a), Color(0xFFE0475E).copy(alpha = a)), y - r, y + r))
+    }
+    if (l.sparkle > 0.05f) for (i in 0 until 8) {
+        val a = i * PIf / 4f + t; val ph = (t * 1.5f + i / 8f) % 1f; val r = 34f + ph * 14f
+        star4(50f + cos(a) * r, 58f + sin(a) * r * 0.75f, 3f * sin(PIf * ph) * l.sparkle, (if (i % 2 == 1) Color.White else Gold).copy(alpha = l.sparkle))
     }
     val th = l.thought ?: return
     val u = l.thoughtU

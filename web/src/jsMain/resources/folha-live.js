@@ -68,7 +68,7 @@
   const INKS = { marinho: INK, azul: "#1F4FD8", vermelha: "#C42F4B", verde: "#0F8A5F", grafite: "#3A3A44", roxa: "#6D3CE0", cafe: "#6B3E1E", ameixa: "#7A1F6A", floresta: "#14523A", dourada: "#A8700A", nanquim: "#0B0B10" };
   const CHEEKS = { rosa: CHEEK, pessego: "#FFB98A", lilas: "#C9A6F4", coral: "#FF8C75", nenhuma: null };
   const SLOTS = ["cover", "pages", "ink", "cheeks", "ribbon", "gloves", "hat", "eyes", "neck", "hand", "back", "aura", "pet"];
-  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", back: "nada", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null };
+  const LOOK = { cover: "indigo", pages: "lisa", ink: "marinho", cheeks: "rosa", ribbon: "menta", hat: "capelo", eyes: "nenhum", neck: "nenhum", hand: "nenhum", back: "nada", aura: "nenhum", gloves: "branca", pet: "nenhum", streak: 0, atRisk: false, hour: null, bond: 0, name: "", bondLines: [] };
   // Escolhas antigas (um "acessório" só) viram a peça equivalente.
   const LEGACY_ACC = { oculos: ["eyes", "leitura"], gravata: ["neck", "borboleta"], estrela: ["neck", "broche"], louros: ["hat", "louros"], lapis: ["hand", "lapis"] };
   function resolveLook(el, over) {
@@ -323,6 +323,7 @@
     let front = mood === "thinking" || mood === "surprised" || mood === "present" ? "LR" : mood === "focus" || mood === "relieved" ? "R" : "";
     // segurando um item: a mão esquerda fica na frente do livro, para o item aparecer
     if (look.hand && look.hand !== "nenhum" && !front.includes("L")) front = "L" + front;
+    if (ex.armsFront) front = "LR";
     drawArms(g, s, "LR".replace(new RegExp("[" + (front || "_") + "]", "g"), ""));
     drawBook(g, t, mood, small, look);
     drawPageLines(g, t, mood, small, look.ink);
@@ -1637,7 +1638,11 @@
     }
     if (ex.hearts > 0.05) for (let i = 0; i < (small ? 2 : 4); i++) {
       const ph = (t * 0.6 + i / 4) % 1, a = sin(PI * ph) * ex.hearts, side = i % 2 ? 1 : -1, x = 50 + side * (24 + i * 4) + sin(t * 2 + i) * 2, y = 44 - ph * 34, r = 2.4 + ph * 1.4;
-      g.save(); g.globalAlpha = a; g.fillStyle = vGrad(g, ["#FF8FA3", "#E0475E"], y - r, y + r); g.fill(heart(x, y, r)); g.restore();
+      g.save(); g.globalAlpha = a; g.fillStyle = vGrad(g, ex.goldHearts ? GOLD3 : ["#FF8FA3", "#E0475E"], y - r, y + r); g.fill(heart(x, y, r)); g.restore();
+    }
+    if (ex.sparkle > 0.05) for (let i = 0; i < 8; i++) {
+      const a = i * PI / 4 + t, ph = (t * 1.5 + i / 8) % 1, r = 34 + ph * 14;
+      star4(g, 50 + cos(a) * r, 58 + sin(a) * r * 0.75, 3 * sin(PI * ph) * ex.sparkle, i % 2 ? `rgba(255,255,255,${ex.sparkle})` : rgba(GOLD, ex.sparkle));
     }
     if (ex.thought && !small) drawThought(g, t, ex.thought);
   }
@@ -1889,7 +1894,10 @@
 
   // Reações ao toque (cada toque, uma diferente) e quanto duram.
   const REACTIONS = ["giggle", "spin", "hop", "love", "wink"];
-  const REACT_MS = { giggle: 900, spin: 750, hop: 950, love: 1300, wink: 800 };
+  // gestos que a amizade libera (FolhaBond.kt): dancinha (Parceiros), abraço (Amigos), olhos de estrela (Inseparáveis)
+  const BOND_REACTIONS = [[2, "dance"], [3, "hug"], [5, "stars"]];
+  const REACT_MS = { giggle: 900, spin: 750, hop: 950, love: 1300, wink: 800, dance: 1700, hug: 1500, stars: 1300 };
+  const reactionsNow = () => REACTIONS.concat(BOND_REACTIONS.filter(([b]) => (LOOK.bond || 0) >= b).map(([, k]) => k));
   // O que ele imagina no balão de pensamento.
   const THOUGHTS = ["bulb", "heart", "star", "book", "coffee", "note", "question", "trophy", "pizza"];
   // Frases: tocar nele, fazer carinho e voltar para a aba. Curtas, no jeito dele.
@@ -1906,6 +1914,7 @@
   function pickLine(list) {
     const h = new Date().getHours();
     if (list === TAP_LINES && Math.random() < 0.25) list = h >= 5 && h < 11 ? MORNING_LINES : h >= 22 || h < 5 ? NIGHT_LINES : list;
+    else if (list === TAP_LINES && LOOK.bondLines && LOOK.bondLines.length && Math.random() < 0.35) list = LOOK.bondLines;
     return list[Math.floor(Math.random() * list.length)];
   }
 
@@ -1990,8 +1999,10 @@
     poke() {
       const now = performance.now();
       this._bounceAt = now;
-      let k = REACTIONS[Math.floor(Math.random() * REACTIONS.length)];
-      if (k === this._lastReact) k = REACTIONS[(REACTIONS.indexOf(k) + 1) % REACTIONS.length];
+      const all = reactionsNow();
+      // o gesto mais novo da amizade aparece mais
+      let k = all.length > REACTIONS.length && Math.random() < 0.35 ? all[all.length - 1] : all[Math.floor(Math.random() * all.length)];
+      if (k === this._lastReact) k = all[(all.indexOf(k) + 1) % all.length];
       this._react = { kind: k, at: now }; this._lastReact = k;
       if (k === "wink") { this._wink = true; this._winkUntil = now + 110 + 600; }
       this._quip(pickLine(TAP_LINES), now);
@@ -2194,10 +2205,27 @@
             P.hop += -sin(PI * u) * 13; ex.hatUp = Math.max(0, sin(PI * clamp((u - 0.08) / 0.92, 0, 1))) * 9;
             mix("low", 0.6, w); mix("mOpen", 1, w); mix("mW", 6.2, w); mix("mCurve", 5, w); mix("pupil", 1.3, w);
             mix("hL0", 2, w); mix("hL1", 42, w); mix("hR0", 98, w); mix("hR1", 42, w); if (w > 0.4) { P.shapeL = "fist"; P.shapeR = "fist"; }
+          } else if (r.kind === "dance") {
+            // dancinha: pulinhos no ritmo, balança de um lado para o outro, braços alternando para o alto
+            const beat = sin(u * PI * 6), side = beat > 0 ? 1 : -1;
+            P.hop += -abs(beat) * 5 * w; P.tilt += beat * 7 * w; ex.whistle = w;
+            mix("low", 0.6, w); mix("mOpen", 0.5, w); mix("mW", 5.8, w); mix("mCurve", 4.8, w); mix("cheek", 0.9, w);
+            mix("hL0", side > 0 ? 4 : 10, w); mix("hL1", side > 0 ? 40 : 70, w); mix("hR0", side > 0 ? 90 : 96, w); mix("hR1", side > 0 ? 70 : 40, w);
+            if (w > 0.4) { P.shapeL = side > 0 ? "fist" : "mitt"; P.shapeR = side > 0 ? "mitt" : "fist"; }
+          } else if (r.kind === "hug") {
+            // abraço: os braços cruzam na frente do livro, olhinhos fechados, bochecha vermelha e corações
+            mix("hL0", 58, w); mix("hL1", 70, w); mix("hR0", 42, w); mix("hR1", 68, w); mix("rotL", -40, w); mix("rotR", 40, w); mix("bendL", 8, w); mix("bendR", 8, w);
+            if (w > 0.3) { P.shapeL = "open"; P.shapeR = "open"; ex.armsFront = true; }
+            mix("low", 0.8, w); mix("up", 0.1, w); mix("cheek", 1, w); mix("mW", 5.4, w); mix("mCurve", 4.6, w); mix("mOpen", 0.15, w);
+            P.tilt += sin(u * PI * 4) * 2.5 * w; ex.hearts = Math.max(ex.hearts || 0, w);
+          } else if (r.kind === "stars") {
+            ex.starEyes = w > 0.25; ex.sparkle = w; P.hop += -sin(PI * u) * 8; mix("mOpen", 1, w); mix("mW", 6.4, w); mix("mCurve", 5.2, w); mix("cheek", 0.9, w);
           } else if (r.kind === "love") { mix("low", 0.78, w); mix("cheek", 1, w); mix("mW", 5.4, w); mix("mCurve", 4.6, w); mix("mOpen", 0.2, w); ex.hearts = Math.max(ex.hearts || 0, w); }
           else if (r.kind === "wink") { mix("low", 0.5, w); mix("mCurve", 4.4, w); mix("cheek", 0.8, w); }
         }
       }
+      // Lendários: ao chegar na tela, corações dourados em volta dele
+      if ((LOOK.bond || 0) >= 6 && now - this._start < 3000 && !this._small) { ex.hearts = Math.max(ex.hearts || 0, sin(PI * (now - this._start) / 3000)); ex.goldHearts = true; }
       // mania de jogar o chapéu: voa girando e volta para a cabeça
       if (this._fid && this._fid.kind === "hatflip") { const u = (now - this._fid.start) / this._fid.dur, k = sin(PI * clamp(u, 0, 1)); ex.hatUp = 20 * k; ex.hatSpin = 360 * clamp(u, 0, 1); }
       if (this._fid && this._fid.kind === "whistle") ex.whistle = env((now - this._fid.start) / this._fid.dur);
@@ -2284,7 +2312,7 @@
       const P = { ...this._st.x, shapeL: this._shape.L, shapeR: this._shape.R };
       const ex = still ? null : this._life(now, t, dt, mood, P);
       drawFolha(g, {
-        t, mood, small: this._small, ex,
+        t, mood: ex && ex.starEyes ? "ecstatic" : mood, small: this._small, ex,
         P,
         vy: this._st.v.hop || 0,
         blink: still ? 0 : this._blink,
@@ -2824,9 +2852,46 @@
     if (worn) for (let i = 0; i < (legendary ? 8 : 5); i++) { const ph = (t * 0.45 + i / 8) % 1; star4(g, 14 + ((i * 29) % 72), 92 - ph * 70, 2.6 * sin(PI * ph), rgba(i % 2 ? "#FFFFFF" : glow[0], sin(PI * ph))); }
   }
 
-  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
+  // ---- cena: a amizade com o Folha subiu (vinculo nivel="3" de="7")
+  // Um coração grande atrás dele enche de baixo para cima, as sete marcas da amizade em arco acendem até
+  // o nível novo (que estoura com brilho) e o Folha dá um abraço apertado em você.
+  function cenaVinculo(g, T, t, el) {
+    const lvl = Math.max(1, parseInt(el.getAttribute("nivel") || "1", 10)), total = parseInt(el.getAttribute("de") || "7", 10), look = el._look();
+    starDust(g, t, 1);
+    const beat = 1 + 0.05 * Math.max(0, sin(t * 5)) * segT(T, 1.6, 2);
+    const grow = outBack(segT(T, 0.1, 0.8)), fill = outC(segT(T, 0.7, 1.7)) * (0.35 + 0.65 * lvl / (total - 1));
+    glowAt(g, 50, 52, 54, "#FF8FA3", 0.25 + 0.25 * segT(T, 1.6, 2.2));
+    sceneRays(g, 50, 52, 12, 64, "#FFB8C8", outC(segT(T, 1.6, 2.3)) * (0.7 + 0.3 * sin(t * 2)), t * 0.2);
+    // coração grande, enchendo de rosa
+    g.save(); g.translate(50, 52); g.scale(grow * beat, grow * beat);
+    const H = heart(0, 0, 30);
+    g.fillStyle = "rgba(255,255,255,0.08)"; g.fill(H); stroke(g, H, "rgba(255,190,210,0.6)", 1.2);
+    g.save(); g.clip(H); const top = 30 - 60 * fill;
+    const wave = new Path2D(); wave.moveTo(-40, 40); wave.lineTo(-40, top); for (let x = -40; x <= 40; x += 4) wave.lineTo(x, top + sin(x * 0.18 + t * 3) * 1.4); wave.lineTo(40, 40); wave.closePath();
+    g.fillStyle = vGrad(g, ["#FF9DB8", "#F0506B", "#C0263D"], top, 30); g.fill(wave);
+    g.restore();
+    g.beginPath(); g.ellipse(-12, -14, 6, 3.4, -0.6, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.35)"; g.fill();
+    g.restore();
+    // as marcas da amizade em arco (o nível novo estoura)
+    for (let i = 1; i < total; i++) {
+      const a = PI + (i - 0.5) / (total - 1) * PI, x = 50 + cos(a) * 42, y = 50 + sin(a) * 36, on = i < lvl || (i === lvl && T > 1.9);
+      const pop = i === lvl ? outBack(segT(T, 1.9, 2.3)) : 1, r = (i === lvl ? 4.4 : 3.4) * (on ? pop : 1);
+      if (on) glowAt(g, x, y, r * 3, "#FF8FA3", 0.5);
+      g.fillStyle = on ? vGrad(g, ["#FFC2D1", "#F0506B"], y - r, y + r) : "rgba(255,255,255,0.14)"; g.fill(heart(x, y, r));
+      if (i === lvl) shockRing(g, x, y, segT(T, 1.9, 2.6), "#FFE0E8", 12);
+    }
+    // coraçõezinhos subindo
+    if (T > 1.6) for (let i = 0; i < 9; i++) { const ph = (t * 0.4 + i / 9) % 1, x = 14 + ((i * 31) % 72) + sin(t + i) * 3, y = 104 - ph * 90; g.save(); g.globalAlpha = sin(PI * ph) * 0.8; g.fillStyle = i % 3 ? "#FF8FA3" : "#FFFFFF"; g.fill(heart(x, y, 1.6 + (i % 3) * 0.6)); g.restore(); }
+    drawConfetti(g, el._conf, T - 1.9);
+    const o = { T, t, x: 50, y: 106 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.5, look, dir: { x: 0, y: -0.4 },
+      script: [[0, "idle"], [0.9, "surprised"], [1.9, "ecstatic"], [3.4, "happy"], [5, "proud"]] };
+    floorLight(g, 50, 105, 30, "#FF8FA3", 0.25);
+    sceneFolha(g, o);
+  }
+
+  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca, vinculo: cenaVinculo };
   class EstudarioCena extends HTMLElement {
-    static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity"]; }
+    static get observedAttributes() { return ["size", "tipo", "nivel", "de", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity"]; }
     connectedCallback() {
       if (!this._canvas) {
         this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.width = this._canvas.style.height = "100%";
@@ -2843,7 +2908,7 @@
     _restart() {
       this._start = performance.now();
       const tipo = this.getAttribute("tipo"), glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum;
-      const cols = tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
+      const cols = tipo === "vinculo" ? ["#FF8FA3", "#FFC2D1", "#FFFFFF", "#F0506B", SPARK] : tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
       this._conf = makeConfetti(7 + (tipo || "").length, tipo === "peca" && this.getAttribute("rarity") === "lendaria" ? 60 : 44, cols);
     }
     // o visual do Folha: o que a pessoa escolheu, em vitrine (sem medalha de sequência nem café da manhã)
