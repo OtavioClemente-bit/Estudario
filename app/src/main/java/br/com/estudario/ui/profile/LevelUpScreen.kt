@@ -18,15 +18,15 @@ import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.brand.Button
 
 /**
- * A subida de nível (a mesma cena do site): o lápis mágico risca o nível antigo no caderno, vira a
- * página e escreve o novo à mão; a página brilha, os raios abrem e o Folha vibra. Depois entram o
+ * A subida de nível (a mesma cena do site): orbes de XP enchem o anel, o emblema antigo racha e
+ * explode, o número novo cai em ouro num brasão que abre asas, e o Folha dá um pulão. Depois entram o
  * título, o selo de título novo e a barra de XP.
  */
 @Composable
 fun LevelUpScreen(event: AppViewModel.LevelUp, onClose: () -> Unit) {
     SceneCelebration(
         scene = listOf("tipo" to "nivel", "nivel" to event.level.toString()),
-        reveal = 3.1f,
+        reveal = 2.5f,
         onDismiss = onClose,
         text = {
             CelEyebrow("SUBIU DE NÍVEL")

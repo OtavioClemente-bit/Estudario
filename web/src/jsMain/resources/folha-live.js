@@ -2515,102 +2515,160 @@
   // um ponto da grade do Folha levado para a cena
   const folhaPt = (o, P, x, y) => [o.x + (x - 50) * o.scale, o.y + (y - 95 + P.hop) * o.scale];
 
-  // ---- cena: nível
+  // ---- cena: nível (a ascensão)
+  // 0–1,2 s  orbes de XP vêm de fora em espiral e enchem o anel de energia em volta do nível antigo;
+  // 1,2–1,6  o anel completo acelera e brilha, o emblema antigo racha;
+  // 1,6      explode em cacos: clarão, coluna de luz, tremor, e o número novo cai em metal dourado no brasão;
+  // 1,9–2,6  as asas douradas abrem pena por pena, o anel de runas gira e a faixa "NÍVEL" sobe;
+  // depois   tudo vivo: brilho correndo no ouro, asas respirando, fagulhas subindo, o Folha comemorando.
+  const LVL = { fillEnd: 1.2, crack: 1.25, boom: 1.6, wings: 1.9, banner: 2.25 };
+  const CX = 50, CY = 35, CR = 15;   // centro e raio do brasão
+  function goldText(g, txt, x, y, size, k, t, shine) {
+    // número em metal: sombra funda, contorno escuro, ouro em degradê, chanfro claro em cima e o brilho correndo
+    g.save(); g.font = `900 ${size}px Nunito, "Segoe UI", system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+    g.lineJoin = "round";
+    g.fillStyle = "rgba(20,8,40,0.55)"; g.fillText(txt, x + size * 0.03, y + size * 0.07);
+    g.strokeStyle = "#5A3803"; g.lineWidth = size * 0.16; g.strokeText(txt, x, y);
+    const gr = g.createLinearGradient(0, y - size * 0.5, 0, y + size * 0.5);
+    gr.addColorStop(0, "#FFF6D0"); gr.addColorStop(0.35, "#FFD66B"); gr.addColorStop(0.55, "#F5B83D"); gr.addColorStop(0.56, "#E09A1E"); gr.addColorStop(1, "#B07510");
+    g.fillStyle = gr; g.fillText(txt, x, y);
+    g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = size * 0.03; g.strokeText(txt, x - size * 0.01, y - size * 0.02);
+    if (shine >= 0 && shine <= 1) {
+      // o brilho: uma faixa clara atravessando, só onde tem ouro
+      const w = g.measureText(txt).width, sx = x - w * 0.8 + shine * w * 1.6;
+      g.globalCompositeOperation = "source-atop";
+      const sg = g.createLinearGradient(sx - size * 0.3, 0, sx + size * 0.3, 0); sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(0.5, "rgba(255,255,255,0.9)"); sg.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = sg; g.save(); g.translate(sx, y); g.rotate(0.35); g.fillRect(-size * 0.3, -size, size * 0.6, size * 2); g.restore();
+    }
+    g.restore();
+  }
+  // uma asa (lado -1 esquerda, 1 direita) com 6 penas que abrem em leque; open 0 fechada, 1 aberta
+  function drawWing(g, side, open, t) {
+    const rootX = CX + side * (CR * 0.82), rootY = CY + 2;
+    const breathe = sin(t * 2.2) * 2.5 * open;
+    for (let i = 5; i >= 0; i--) {
+      const len = 13 + i * 3.2, ang = (-12 - i * 13) * open + (1 - open) * (10 - i * 2) + breathe * (i / 5);
+      g.save(); g.translate(rootX, rootY); g.scale(side, 1); g.rotate(ang * PI / 180);
+      const f = new Path2D(); f.moveTo(0, -2.2); f.bezierCurveTo(len * 0.4, -4.6, len * 0.85, -3.8, len, -0.6); f.bezierCurveTo(len * 0.86, 1.6, len * 0.4, 2.6, 0, 2.2); f.closePath();
+      const gr = g.createLinearGradient(0, 0, len, 0); gr.addColorStop(0, "#C98A12"); gr.addColorStop(0.55, "#FFD66B"); gr.addColorStop(1, "#FFF6D0");
+      g.fillStyle = gr; g.fill(f); g.strokeStyle = "rgba(90,56,3,0.75)"; g.lineWidth = 0.4; g.stroke(f);
+      line(g, "rgba(255,255,255,0.55)", 1.5, -0.6, len * 0.8, -1.2, 0.35);
+      g.restore();
+    }
+  }
+  function drawCrest(g, t, lvl, k, shine) {
+    // brasão: anel dourado serrilhado, disco índigo fundo com estrelinhas, anel interno e o número
+    const rim = new Path2D(); for (let i = 0; i <= 64; i++) { const a = i * PI / 32, r = i % 2 ? CR : CR - 0.8; i ? rim.lineTo(CX + cos(a) * r, CY + sin(a) * r) : rim.moveTo(CX + cos(a) * r, CY + sin(a) * r); }
+    const rg = g.createLinearGradient(CX - CR, CY - CR, CX + CR, CY + CR); rg.addColorStop(0, "#FFF1BF"); rg.addColorStop(0.45, "#F5B83D"); rg.addColorStop(1, "#9A6206");
+    g.fillStyle = rg; g.fill(rim);
+    const disc = g.createRadialGradient(CX - 4, CY - 6, 1, CX, CY, CR * 0.84); disc.addColorStop(0, "#5247E0"); disc.addColorStop(0.7, "#2A209E"); disc.addColorStop(1, "#160F5E");
+    circle(g, disc, CR * 0.84, CX, CY);
+    for (let i = 0; i < 9; i++) { const a = i * 0.7 + t * 0.2, r = CR * (0.3 + (i % 3) * 0.17); circle(g, `rgba(255,255,255,${0.25 + 0.25 * sin(t * 2 + i)})`, 0.35, CX + cos(a) * r, CY + sin(a) * r); }
+    const ir = new Path2D(); ir.arc(CX, CY, CR * 0.74, 0, 2 * PI); stroke(g, ir, "rgba(255,214,107,0.65)", 0.45);
+    const hl = new Path2D(); hl.arc(CX, CY, CR * 0.93, PI * 1.08, PI * 1.5); stroke(g, hl, "rgba(255,255,255,0.75)", 0.8);
+    goldText(g, lvl, CX, CY + 1, lvl.length > 2 ? 12 : lvl.length > 1 ? 15 : 18, k, t, shine);
+  }
   function cenaNivel(g, T, t, el) {
     const lvl = String(Math.max(1, parseInt(el.getAttribute("nivel") || "2", 10))), old = String(Math.max(1, +lvl - 1));
-    const look = el._look();
-    // fundo: luz de palco atrás do caderno
-    starDust(g, t, 1);
-    const pop = segT(T, 3.05, 3.5);
-    const reach = el._reach();
-    backdrop(g, el, 50, 36, reach, reach * 0.92, (b) => {
-      glowAt(b, 50, 34, 60, "#6158F0", 0.4 + 0.25 * pop);
-      bokeh(b, t, 50, 40, "#B9B2FF", 0.35);
-      sceneRays(b, 50, 33, 18, 90, "#FFD66B", outC(segT(T, 3.0, 3.6)) * (0.8 + 0.2 * sin(t * 2)), t * 0.18, 0.07);
-      sceneRays(b, 50, 33, 9, 70, "#FFFFFF", 0.35 * outC(segT(T, 3.1, 3.8)), -t * 0.12, 0.035);
-      glowAt(b, 50, 33, 40, "#FFD66B", 0.45 * outC(segT(T, 3.0, 3.4)) * (1 - 0.4 * segT(T, 3.4, 5)));
-      shockRing(b, 50, 33, segT(T, 3.0, 3.8), "#FFE59A", 58);
-      shockRing(b, 50, 33, segT(T, 3.15, 4.1), "#FFFFFF", 70);
+    const look = el._look(), k = this_k(el);
+    const boom = segT(T, LVL.boom, LVL.boom + 0.6), after = T >= LVL.boom;
+    // tremor de câmera no impacto
+    const shake = T > LVL.boom && T < LVL.boom + 0.45 ? (1 - (T - LVL.boom) / 0.45) * 1.6 : 0;
+    g.save(); g.translate(sin(t * 91) * shake, cos(t * 77) * shake);
+    // ---- fundo: brilho, coluna de luz, raios e anel de runas (tudo some suave antes da borda)
+    const reach = el._reach(), fill = outC(segT(T, 0.15, LVL.fillEnd));
+    backdrop(g, el, CX, CY + 6, reach, reach * 0.95, (b) => {
+      glowAt(b, CX, CY, 58, after ? "#F5B83D" : "#6158F0", after ? 0.3 + 0.15 * sin(t * 2) : 0.25 + 0.3 * fill);
+      bokeh(b, t, CX, CY + 8, after ? "#FFE59A" : "#B9B2FF", 0.35, 12);
+      // coluna de luz do impacto
+      if (after) { const a = (1 - boom) * 0.9 + 0.12; const p = new Path2D(); p.moveTo(CX - 6, -60); p.lineTo(CX + 6, -60); p.lineTo(CX + 14, 120); p.lineTo(CX - 14, 120); p.closePath(); const gr = b.createLinearGradient(CX - 14, 0, CX + 14, 0); gr.addColorStop(0, "rgba(255,240,190,0)"); gr.addColorStop(0.5, `rgba(255,248,220,${a})`); gr.addColorStop(1, "rgba(255,240,190,0)"); b.fillStyle = gr; b.fill(p); }
+      sceneRays(b, CX, CY, 20, 95, "#FFD66B", outC(segT(T, LVL.boom, LVL.boom + 0.5)) * (0.75 + 0.25 * sin(t * 2)), t * 0.16, 0.06);
+      sceneRays(b, CX, CY, 10, 75, "#FFFFFF", 0.35 * outC(segT(T, LVL.boom + 0.1, LVL.boom + 0.8)), -t * 0.12, 0.03);
+      shockRing(b, CX, CY, segT(T, LVL.boom, LVL.boom + 0.7), "#FFFFFF", 50);
+      shockRing(b, CX, CY, segT(T, LVL.boom + 0.12, LVL.boom + 1.1), "#FFD66B", 72);
+      // anel de runas girando atrás do brasão
+      const ru = outC(segT(T, LVL.boom + 0.1, LVL.boom + 0.8));
+      if (ru > 0) {
+        const rr = CR + 9; b.save(); b.globalAlpha = ru * 0.85;
+        const ring = new Path2D(); ring.arc(CX, CY, rr, 0, 2 * PI); stroke(b, ring, "rgba(255,214,107,0.55)", 0.4);
+        const ring2 = new Path2D(); ring2.arc(CX, CY, rr + 3.2, 0, 2 * PI); stroke(b, ring2, "rgba(255,214,107,0.35)", 0.3);
+        const RU = [[0, -1.3, 0, 1.3, -0.9, -0.4, 0.9, 0.4], [-0.9, -1.3, 0.9, -1.3, 0, -1.3, 0, 1.3], [-0.8, 1.3, 0, -1.3, 0, -1.3, 0.8, 1.3], [-0.9, -0.6, 0.9, -0.6, -0.9, 0.6, 0.9, 0.6]];
+        for (let i = 0; i < 18; i++) { const a = i * 2 * PI / 18 + t * 0.25, x = CX + cos(a) * (rr + 1.6), y = CY + sin(a) * (rr + 1.6), r = RU[i % 4];
+          b.save(); b.translate(x, y); b.rotate(a + PI / 2); b.strokeStyle = "rgba(255,236,170,0.9)"; b.lineWidth = 0.35; b.lineCap = "round"; b.beginPath(); b.moveTo(r[0], r[1]); b.lineTo(r[2], r[3]); b.moveTo(r[4], r[5]); b.lineTo(r[6], r[7]); b.stroke(); b.restore(); }
+        b.restore();
+      }
     });
-    // a página: entra girando, vira no meio e brilha no fim
-    const enter = outBack(segT(T, 0.1, 0.75)), flip = segT(T, 1.45, 1.95), sx = cos(PI * flip), fresh = flip > 0.5;
-    const W = 62, H = 46, cx = 50, cy = 33 + sin(t * 1.4) * 0.6 * segT(T, 3.6, 4.2);
-    g.save(); g.globalAlpha = clamp(enter * 1.5, 0, 1);
-    g.translate(cx, cy); g.rotate((-3 + (1 - enter) * -24) * PI / 180); g.scale(Math.max(0.02, Math.abs(sx)) * (0.4 + 0.6 * enter), 0.4 + 0.6 * enter);
-    // sombra e papel
-    const paper = new Path2D(); { const r = 2.2, x0 = -W / 2, y0 = -H / 2; paper.moveTo(x0 + r, y0); paper.lineTo(x0 + W - r, y0); paper.quadraticCurveTo(x0 + W, y0, x0 + W, y0 + r); paper.lineTo(x0 + W, y0 + H - r); paper.quadraticCurveTo(x0 + W, y0 + H, x0 + W - r, y0 + H); paper.lineTo(x0 + r, y0 + H); paper.quadraticCurveTo(x0, y0 + H, x0, y0 + H - r); paper.lineTo(x0, y0 + r); paper.quadraticCurveTo(x0, y0, x0 + r, y0); paper.closePath(); }
-    g.save(); g.shadowColor = "rgba(8,4,40,0.55)"; g.shadowBlur = 10 * this_k(el); g.shadowOffsetY = 1.5 * this_k(el);
-    g.fillStyle = fresh ? vGrad(g, ["#FFFDF6", "#FFF6DD"], -H / 2, H / 2) : vGrad(g, [PAPER, "#F1EDE6"], -H / 2, H / 2);
-    g.fill(paper); g.restore();
-    g.save(); g.clip(paper);
-    // a fibra do papel e um brilho de luz passando por cima
-    for (let i = 0; i < 40; i++) circle(g, "rgba(150,135,110,0.07)", 0.35, -W / 2 + ((i * 37) % W), -H / 2 + ((i * 23) % H));
-    { const sx2 = -W + ((t * 0.18) % 1) * W * 3, lg = g.createLinearGradient(sx2, -H, sx2 + 14, H); lg.addColorStop(0, "rgba(255,255,255,0)"); lg.addColorStop(0.5, "rgba(255,255,255,0.45)"); lg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = lg; g.fillRect(-W / 2, -H / 2, W, H); }
-    if (fresh) { const gl = segT(T, 3.0, 3.3) * (1 - segT(T, 3.3, 4.4)); if (gl > 0) { g.fillStyle = `rgba(255,224,122,${0.5 * gl})`; g.fillRect(-W / 2, -H / 2, W, H); } }
-    for (let y = -H / 2 + 10; y < H / 2; y += 5) line(g, fresh ? "rgba(245,184,61,0.45)" : "rgba(111,176,255,0.45)", -W / 2, y, W / 2, y, 0.3, false);
-    line(g, "rgba(232,86,109,0.6)", -W / 2 + 8, -H / 2, -W / 2 + 8, H / 2, 0.35, false);
-    // espiral do caderno
-    g.restore();
-    for (let i = 0; i < 11; i++) { const x = -W / 2 + 5 + i * 5.2; circle(g, "rgba(38,33,92,0.85)", 0.9, x, -H / 2 + 3); const r = new Path2D(); r.ellipse(x, -H / 2 + 0.6, 1.1, 2.8, 0, PI * 0.95, PI * 2.05); stroke(g, r, "#B7B9C9", 0.7); line(g, "rgba(255,255,255,0.8)", x - 0.4, -H / 2 - 1.6, x - 0.2, -H / 2 - 0.8, 0.25); }
-    if (!fresh) {
-      handNumber(g, old, 3, 4, 22, 1, ["#3A2FC4"], 2.2);
-      // o risco do lápis por cima do número antigo
-      const sq = segT(T, 0.95, 1.38);
-      if (sq > 0) {
-        const p = new Path2D(), n = 9; p.moveTo(-16, -4);
-        for (let i = 1; i <= n * sq; i++) p.lineTo(i % 2 ? 18 : -16, -4 + i * 1.8 + (i % 2 ? -1 : 1));
-        stroke(g, p, "#E8566D", 1.4);
+    // ---- antes do impacto: orbes de XP enchendo o anel, o emblema antigo racha
+    if (!after) {
+      const pulse = segT(T, LVL.fillEnd, LVL.boom), squeeze = 1 - 0.08 * sin(PI * pulse) - 0.06 * pulse;
+      g.save(); g.translate(CX, CY); g.scale(squeeze, squeeze); g.translate(-CX, -CY);
+      // disco antigo, prateado
+      const rim = new Path2D(); rim.arc(CX, CY, CR, 0, 2 * PI);
+      g.fillStyle = vGrad(g, ["#E4E8F0", "#9AA2B5"], CY - CR, CY + CR); g.fill(rim);
+      circle(g, vGrad(g, ["#3A3570", "#221E4E"], CY - CR, CY + CR), CR * 0.84, CX, CY);
+      g.save(); g.font = `900 ${old.length > 1 ? 14 : 17}px Nunito, "Segoe UI", system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "rgba(220,224,240,0.9)"; g.fillText(old, CX, CY + 1); g.restore();
+      // rachaduras
+      const cr = segT(T, LVL.crack, LVL.boom);
+      if (cr > 0) { g.save(); g.globalAlpha = 0.9; const p = new Path2D(); const rays = 7; for (let i = 0; i < rays; i++) { const a = i * 2 * PI / rays + 0.4; let x = CX, y = CY; p.moveTo(x, y); for (let j = 1; j <= 3; j++) { const rr = CR * cr * j / 3, aj = a + (j % 2 ? 0.18 : -0.12); x = CX + cos(aj) * rr; y = CY + sin(aj) * rr; p.lineTo(x, y); } } stroke(g, p, "rgba(255,240,200,0.95)", 0.5); g.restore(); glowAt(g, CX, CY, CR * 1.4, "#FFE59A", 0.5 * cr); }
+      g.restore();
+      // o anel de energia
+      const track = new Path2D(); track.arc(CX, CY, CR + 3.4, 0, 2 * PI); stroke(g, track, "rgba(255,255,255,0.12)", 1.6);
+      if (fill > 0) {
+        const arc = new Path2D(); arc.arc(CX, CY, CR + 3.4, -PI / 2, -PI / 2 + 2 * PI * fill);
+        g.save(); g.shadowColor = "rgba(126,224,184,0.9)"; g.shadowBlur = 6 * k * (0.5 + pulse); stroke(g, arc, pulse > 0 ? "#FFF6D0" : "#7EE0B8", 1.6 + pulse); g.restore();
+        const ex = CX + cos(-PI / 2 + 2 * PI * fill) * (CR + 3.4), ey = CY + sin(-PI / 2 + 2 * PI * fill) * (CR + 3.4);
+        glowAt(g, ex, ey, 4, "#FFFFFF", 0.9); circle(g, "#FFFFFF", 0.9, ex, ey);
+      }
+      // os orbes: saem de fora do quadro em espiral e entram no anel na ponta da carga
+      for (let i = 0; i < 30; i++) {
+        const start = 0.05 + i * 0.033, u = segT(T, start, start + 0.5); if (u <= 0 || u >= 1) continue;
+        const a0 = i * 2.39996, r0 = 75, aT = -PI / 2 + 2 * PI * Math.min(1, (i + 1) / 30), rT = CR + 3.4;
+        const e = u * u, a = lerp(a0, aT + 2 * PI * (a0 > aT ? 1 : 0), e) , r = lerp(r0, rT, e);
+        const x = CX + cos(a) * r, y = CY + sin(a) * r * 0.9;
+        for (let j = 3; j >= 0; j--) { const ue = Math.max(0, u - j * 0.04) ** 2, aa = lerp(a0, aT, ue), rj = lerp(r0, rT, ue); circle(g, `rgba(126,224,184,${0.25 * (1 - j / 4)})`, 0.9 - j * 0.15, CX + cos(aa) * rj, CY + sin(aa) * rj * 0.9); }
+        glowAt(g, x, y, 3.2, "#7EE0B8", 0.8); circle(g, "#E9FFF6", 0.7, x, y);
       }
     }
-    g.restore();
-    // o número novo, à mão, e o lápis mágico
-    const write = segT(T, 2.0, 2.0 + 0.42 * lvl.length + 0.2);
-    let tip = [78, 40];
-    if (fresh) {
-      g.save(); g.translate(cx, cy); g.rotate(-3 * PI / 180); g.scale(Math.abs(sx), 1);
-      const shine = segT(T, 3.0, 3.25) * (1 - segT(T, 3.5, 4.5)) * 0.9 + 0.1 * segT(T, 3.0, 3.2);
-      if (shine > 0) { g.shadowColor = "rgba(255,200,80,0.95)"; g.shadowBlur = 12 * shine; }
-      const ink = g.createLinearGradient(-20, -10, 20, 16); ink.addColorStop(0, "#2A209E"); ink.addColorStop(1, "#8A46E0");
-      const tl = handNumber(g, lvl, 3, 4, 26, write, [ink, "rgba(255,255,255,0.35)"], 3.4);
-      g.shadowBlur = 0;
-      // a folha de ouro: depois de escrito, o número vira dourado de baixo para cima, com um brilho correndo
-      const foil = segT(T, 3.0, 3.6);
-      if (foil > 0) {
-        g.save(); const cl = new Path2D(); cl.rect(-40, 20 - 40 * outC(foil), 80, 60); g.clip(cl);
-        const gold = g.createLinearGradient(-20, -12, 20, 14); gold.addColorStop(0, "#FFE59A"); gold.addColorStop(0.5, "#F5B83D"); gold.addColorStop(1, "#C98A12");
-        handNumber(g, lvl, 3, 4, 26, 1, ["#7A4F05", gold, "rgba(255,255,255,0.55)"], 3.6);
+    // ---- o impacto: cacos voando
+    if (after && boom < 1) {
+      for (let i = 0; i < 16; i++) {
+        const a = i * 2 * PI / 16 + 0.2, sp = 26 + (i % 4) * 9, d = outC(boom) * sp, x = CX + cos(a) * (CR * 0.5 + d), y = CY + sin(a) * (CR * 0.5 + d) + boom * boom * 14;
+        g.save(); g.globalAlpha = 1 - boom; g.translate(x, y); g.rotate(a + boom * (i % 2 ? 6 : -5));
+        const p = new Path2D(); p.moveTo(-2.4, -1.6); p.lineTo(2.6, -0.8); p.lineTo(0.4, 2.2); p.closePath();
+        g.fillStyle = i % 3 ? "#C7CDD9" : "#3A3570"; g.fill(p); g.strokeStyle = "rgba(255,255,255,0.6)"; g.lineWidth = 0.25; g.stroke(p); g.restore();
+      }
+      glowAt(g, CX, CY, 46, "#FFFFFF", 0.95 * (1 - outC(boom)));
+    }
+    // ---- o brasão novo com as asas
+    if (after) {
+      const slam = segT(T, LVL.boom, LVL.boom + 0.45), sc = slam < 1 ? 2.3 - 1.3 * outBack(slam) : 1 + 0.015 * sin(t * 2.4);
+      const wings = outBack(segT(T, LVL.wings, LVL.wings + 0.7));
+      g.save(); g.translate(CX, CY); g.scale(sc, sc); g.rotate((1 - outC(slam)) * -0.25); g.translate(-CX, -CY); g.globalAlpha = clamp(slam * 3, 0, 1);
+      if (wings > 0) { drawWing(g, -1, wings, t); drawWing(g, 1, wings, t); }
+      g.save(); g.shadowColor = "rgba(255,190,60,0.85)"; g.shadowBlur = 14 * k; drawCrest(g, t, lvl, k, T > 2.4 ? ((T - 2.4) * 0.4) % 1.4 : -1); g.restore();
+      // a faixa "NÍVEL" embaixo
+      const ban = outBack(segT(T, LVL.banner, LVL.banner + 0.45));
+      if (ban > 0) {
+        g.save(); g.translate(CX, CY + CR + 5); g.scale(ban, 1);
+        for (const sd of [-1, 1]) { const p = new Path2D(); p.moveTo(sd * 12, -2.6); p.lineTo(sd * 18, -3); p.lineTo(sd * 16, 0.4); p.lineTo(sd * 18, 3.8); p.lineTo(sd * 12, 3.4); p.closePath(); g.fillStyle = "#9A6206"; g.fill(p); }
+        const bp = new Path2D(); bp.moveTo(-14, -3.6); bp.quadraticCurveTo(0, -5, 14, -3.6); bp.lineTo(14, 3.2); bp.quadraticCurveTo(0, 1.8, -14, 3.2); bp.closePath();
+        g.fillStyle = hGrad(g, ["#B07510", "#F5B83D", "#FFE59A", "#F5B83D", "#B07510"], -14, 14); g.fill(bp); stroke(g, bp, "rgba(90,56,3,0.8)", 0.35);
+        g.fillStyle = "#3A2206"; g.font = "900 3.6px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("N Í V E L", 0, -0.4);
         g.restore();
-        const sweep = ((T - 3.2) * 0.45) % 1;
-        if (T > 3.2) { g.save(); const cl2 = new Path2D(); const x = -30 + sweep * 70; cl2.moveTo(x, -16); cl2.lineTo(x + 6, -16); cl2.lineTo(x - 2, 20); cl2.lineTo(x - 8, 20); cl2.closePath(); g.clip(cl2); handNumber(g, lvl, 3, 4, 26, 1, ["#FFFFFF"], 3.6); g.restore(); }
       }
-      // sublinhado de capricho
-      const ul = segT(T, 2.62 + 0.42 * (lvl.length - 1), 2.92 + 0.42 * (lvl.length - 1));
-      if (ul > 0) { const p = new Path2D(); const x0 = -10 - lvl.length * 4, x1 = x0 + (22 + lvl.length * 8) * ul; p.moveTo(x0 + 3, 19); p.quadraticCurveTo((x0 + x1) / 2 + 3, 16.6, x1 + 3, 18.4); stroke(g, p, "#C98A12", 2.2); stroke(g, p, "#FFD66B", 1.3); tip = [cx + x1 + 3, cy + 18.4]; }
-      else { const a = -3 * PI / 180, [x, y] = [tl[0] * Math.abs(sx), tl[1]]; tip = [cx + x * cos(a) - y * sin(a), cy + x * sin(a) + y * cos(a)]; }
       g.restore();
-      // rastro de brilho atrás da ponta
-      if (write > 0 && write < 1) for (let i = 0; i < 5; i++) { const ph = (t * 3 + i / 5) % 1; star4(g, tip[0] + sin(i * 2.1) * 3 * ph, tip[1] + ph * 7, 1.6 * (1 - ph), `rgba(255,224,122,${1 - ph})`); }
+      // estrelinhas em órbita e fagulhas subindo
+      for (let i = 0; i < 6; i++) { const a = t * 0.9 + i * PI / 3, x = CX + cos(a) * (CR + 12), y = CY + sin(a) * (CR + 8), ph = (t * 1.2 + i / 6) % 1; star4(g, x, y, 1.8 * sin(PI * ph) * outC(segT(T, LVL.wings, LVL.wings + 0.6)), "rgba(255,240,190,0.95)"); }
+      for (let i = 0; i < 10; i++) { const u = (t * 0.35 + i * 0.1) % 1, x = CX + sin(i * 2.7 + t * 0.8) * 26, y = 70 - u * 70; circle(g, `rgba(255,214,107,${0.8 * (1 - u) * outC(segT(T, LVL.boom, LVL.boom + 0.6))})`, 0.4 + 0.3 * (1 - u), x, y); }
     }
-    // caminho do lápis: entra, risca, espera a página virar, escreve, sublinha e sai girando
-    const inU = outC(segT(T, 0.7, 0.98)), leave = segT(T, 3.0, 3.6);
-    if (T > 0.7 && leave < 1) {
-      let px, py;
-      if (T < 1.38) { const sq = segT(T, 0.95, 1.38), zig = (sq * 9) % 2, k = zig > 1 ? 2 - zig : zig; px = lerp(116, 50 + lerp(-16, 18, k) * 0.98 + 3, inU); py = lerp(96, 33 - 4 + sq * 16, inU); }
-      else if (!fresh || write <= 0) { const u = segT(T, 1.38, 2.0); px = lerp(68, 74, u) + sin(t * 3) * 1.2; py = lerp(44, 30, u) + cos(t * 2.6) * 1.2; }
-      else { [px, py] = tip; }
-      px += leave * leave * 60; py -= leave * 50;
-      const ang = -1.05 + (T < 1.38 ? sin(t * 22) * 0.06 : 0) + leave * 6;
-      g.save(); g.translate(px, py); g.rotate(ang + 1.05); g.translate(-px, -py);
-      glowAt(g, px, py, 7, "#FFE07A", 0.45);
-      g.save(); g.translate(px, py); g.scale(1.6, 1.6); drawPencilAt(g, 0, 0, cos(-1.05) * 22, sin(-1.05) * 22, 1.8); g.restore();
-      g.restore();
-    }
-    // o Folha embaixo, olhando a página
-    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0, 0.5))) * 30, scale: 0.5, look, dir: { x: 0, y: -0.9 },
-      script: [[0, "surprised"], [0.55, "idle"], [1.4, "thinking"], [1.98, "idle"], [3.0, "ecstatic"], [4.6, "happy"], [5.8, "proud"]] };
-    floorLight(g, 50, 107, 30, "#FFFFFF", 0.22);
+    g.restore();
+    // ---- o Folha: olha a carga, leva um susto no impacto e dá um pulão
+    const jump = segT(T, LVL.boom, LVL.boom + 0.9), jy = jump > 0 && jump < 1 ? -sin(PI * jump) * 16 : 0;
+    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0, 0.5))) * 30 + jy, scale: 0.5, look, dir: { x: 0, y: -1 },
+      script: [[0, "idle"], [LVL.crack, "surprised"], [LVL.boom, "ecstatic"], [3.6, "happy"], [5.2, "proud"]] };
+    floorLight(g, 50, 107, 30, after ? "#FFD66B" : "#FFFFFF", 0.25 - (jy ? 0.1 : 0));
     sceneFolha(g, o);
-    drawConfetti(g, el._conf, T - 3.0);
+    drawConfetti(g, el._conf, T - LVL.boom);
   }
 
   // ---- cena: emblema

@@ -152,7 +152,7 @@ private fun tierName(tier: Int) = when (tier) { 1 -> "Bronze"; 2 -> "Prata"; 3 -
 
 /** Quando a cena chega no momento principal: aí entram os textos (e, logo depois, os botões). */
 private fun revealAt(item: Celebration): Double = when (item) {
-    is Celebration.LevelUp -> 3.1
+    is Celebration.LevelUp -> 2.5
     is Celebration.NewBadge -> 2.0
     is Celebration.StreakDay -> 2.7
     is Celebration.NewPiece -> 3.6
