@@ -2518,7 +2518,7 @@
     if (o.edit) o.edit(P);   // a cena pode ajustar a pose (a mão do martelo, a cara de concentrado)
     g.save(); g.translate(o.x - 50 * o.scale, o.y - 95 * o.scale); g.scale(o.scale, o.scale);
     drawFolha(g, { t: o.t, mood: w < 0.5 ? prev : cur, small: false, P: { ...P, hL0: P.hL[0], hL1: P.hL[1], hR0: P.hR[0], hR1: P.hR[1] }, vy: o.vy || 0,
-      blink: o.blink != null ? o.blink : (o.t % 3.4) < 0.12 ? 1 : 0, wink: 0, popL: 0, popR: 0, squash: o.squash || 0, gulp: 0, look: o.look, tm: ctx.tm, burst: o.burst || 0 });
+      blink: o.blink != null ? o.blink : (o.t % 3.4) < 0.12 ? 1 : 0, wink: 0, popL: 0, popR: 0, squash: o.squash || 0, gulp: 0, look: o.look, tm: ctx.tm, burst: o.burst || 0, ex: o.ex || undefined });
     g.restore();
     return P;
   }
@@ -2917,24 +2917,26 @@
   //        moldura do nível crescendo e a faixa; o Folha pula para o centro erguendo o martelo.
   const FORGE = { drop: 0.55, land: 0.85, hits: [1.25, 1.7, 2.15], cool: [2.2, 2.8], rise: 2.85, arrive: 3.45, deco: 3.6, banner: 3.85 };
   // poses do braço do martelo (mão na grade do Folha e ângulo do martelo)
-  const HP = { rest: [100, 64, 1.2], raised: [92, 14, -2.1], strike: [104, 42.1, 0] };
+  const HP = { rest: [100, 64, 1.2], raised: [92, 14, -2.1], big: [88, 2, -2.45], strike: [104, 42.1, 0] };
+  // depois da última martelada o Folha larga o martelo em pé, encostado na bigorna
+  const HAMMER_DOWN = 2.42, HAMMER_LEAN = [56.5, 104, PI / 2 + 0.25];
   function hammerState(T) {
     const mix = (A, B, u) => [lerp(A[0], B[0], u), lerp(A[1], B[1], u), lerp(A[2], B[2], u)];
     const H = FORGE.hits;
     let s = HP.rest, blur = 0, hot = 0;
     for (let i = 0; i < H.length; i++) {
-      const h = H[i], from = i === 0 ? HP.rest : HP.strike;
-      if (T >= h - 0.42 && T < h - 0.085) { s = mix(from, HP.raised, sstep((T - (h - 0.42)) / 0.335)); return { s, blur, hot }; }
-      if (T >= h - 0.085 && T < h) { const u = (T - (h - 0.085)) / 0.085; s = mix(HP.raised, HP.strike, u * u); return { s, blur: u, hot }; }
+      const h = H[i], from = i === 0 ? HP.rest : HP.strike, up = i === H.length - 1 ? HP.big : HP.raised;
+      if (T >= h - 0.42 && T < h - 0.085) { s = mix(from, up, sstep((T - (h - 0.42)) / 0.335)); return { s, blur, hot, up }; }
+      if (T >= h - 0.085 && T < h) { const u = (T - (h - 0.085)) / 0.085; s = mix(up, HP.strike, u * u); return { s, blur: u, hot, up }; }
       if (T >= h && (i === H.length - 1 || T < H[i + 1] - 0.42)) {
         const d = T - h; hot = 1 - segT(d, 0.05, 0.5);
         // pancada: um repique de leve e fica apoiado; depois do último golpe volta ao descanso
         s = mix(HP.strike, [104, 39, -0.12], sin(PI * segT(d, 0, 0.16)) * 0.6);
-        if (i === H.length - 1) s = mix(s, HP.rest, sstep(segT(d, 0.2, 0.55)));
-        return { s, blur, hot };
+        if (i === H.length - 1) s = mix(s, HP.rest, sstep(segT(d, 0.12, 0.27)));
+        return { s, blur, hot, up: HP.raised };
       }
     }
-    return { s, blur, hot };
+    return { s, blur, hot, up: HP.raised };
   }
   function cenaEmblema(g, T, t, el) {
     const tier = parseInt(el.getAttribute("tier") || "3", 10), cat = el.getAttribute("categoria") || "seq", faixa = (el.getAttribute("faixa") || "").toUpperCase();
@@ -3007,30 +3009,89 @@
         glowAt(g, x, y, 3 + u * 8, "#E8EAF6", 0.32 * sin(PI * u) * (1 - rise));
       }
     }
-    // ---- o Folha com o martelo
-    const { s: hs, blur, hot } = hammerState(T);
+    // ---- o Folha, ferreiro: atua cada martelada
+    // Na preparação ele inclina para trás e põe a língua de fora; no golpe joga o corpo para a frente; na pancada
+    // fecha os olhos, estufa as bochechas, amassa e o corpo todo vibra com o tranco. Depois de cada uma reage:
+    // na 1ª leva um susto com as faíscas, na 2ª sorri satisfeito, na 3ª (a grande) pula, o chapéu voa e ele
+    // larga o martelo encostado na bigorna; passa a mão na testa ("ufa"), segue a medalha subindo de olhos
+    // arregalados e comemora.
+    const { s: hs, blur, hot, up } = hammerState(T);
     const hop = segT(T, FORGE.arrive, FORGE.arrive + 0.6), hopY = hop > 0 && hop < 1 ? -sin(PI * hop) * 14 : 0;
     const fX = lerp(FX0, 50, sstep(hop)), fY = FY + (1 - enter) * 26 + hopY;
-    let flashEyes = since >= 0 && since < 0.12;
-    const o = { T, t, x: fX, y: fY, scale: FS, look, dir: arrived ? { x: 0, y: -1 } : { x: 1, y: 0.5 },
-      script: [[0, "idle"], [FORGE.arrive, "ecstatic"], [5, "happy"], [6.4, "proud"]],
-      blink: flashEyes ? 1 : null,
+    const forging = T < HAMMER_DOWN;
+    let squash = 0, hatUp = 0, hatSpin = 0, drops = -1;
+    const act = (P) => {
+      // rosto de ferreiro concentrado (língua no canto) e olhando a bigorna
+      P.hop = 0; P.tilt = 0; P.up = 0.25; P.browIn = -0.55; P.browY = 0.8; P.mW = 2.8; P.mCurve = 0.4; P.mOpen = 0; P.tongue = 1; P.lookX = 0.7; P.lookY = 0.6;
+      const H = FORGE.hits;
+      for (let i = 0; i < H.length; i++) {
+        const h = H[i], big = i === H.length - 1, d = T - h;
+        if (T >= h - 0.42 && T < h - 0.085) {             // prepara: inclina para trás (e na grande, pula)
+          const w = sstep((T - (h - 0.42)) / 0.335);
+          P.tilt = -7 * w * (big ? 1.3 : 1); P.hop = -(big ? 9 : 2.2) * sin(PI / 2 * w); P.lookY = -0.2 * w; P.up = 0.1;
+          if (big) { P.browY = 1.4; P.tongue = 0; P.mW = 3.6; P.mOpen = 0.35; P.mCurve = -0.4; }
+        } else if (T >= h - 0.085 && T < h) {             // desce o braço jogando o corpo
+          const u = (T - (h - 0.085)) / 0.085;
+          P.tilt = lerp(-7 * (big ? 1.3 : 1), 10, u); P.hop = lerp(big ? -9 : -2.2, 1.5, u * u); P.up = 0.55;
+        } else if (d >= 0 && d < 0.75) {                    // a pancada e o tranco
+          const dec = Math.exp(-d * 6.5);
+          P.tilt = 10 * dec * cos(d * 40); P.hop = 1.5 * dec + (big ? 2 * dec : 0);
+          squash = (big ? 0.6 : 0.35) * Math.max(0, 1 - d / 0.2);
+          if (d < 0.14) { P.up = 1; P.mW = 3; P.mCurve = 0; P.mOpen = 0; P.cheek = 0.95; P.tongue = 0; }
+          else if (i === 0 && d < 0.55) {                  // as faíscas vêm na direção dele: susto rápido
+            P.up = 0; P.eyeScale = 1.2; P.pupil = 1.35; P.browY = -2.6; P.browIn = 0; P.mOpen = 0.45; P.mW = 2.6; P.mCurve = 0; P.tongue = 0; P.lookX = 0.9; P.lookY = -0.6;
+            P.hop += -1.5 * sin(PI * segT(d, 0.14, 0.4));
+          } else if (i === 1 && d < 0.6) {                 // gostou do resultado
+            P.up = 0.35; P.browY = -1; P.browIn = 0; P.mW = 5.4; P.mCurve = 4.2; P.cheek = 0.8; P.tongue = 0;
+            P.hop += -1.2 * sin(PI * segT(d, 0.2, 0.45));
+          } else if (big) {                                 // a grande: arregala de orgulho
+            P.up = 0; P.eyeScale = 1.12; P.browY = -2.2; P.browIn = 0; P.mOpen = 0.75; P.mW = 4.6; P.mCurve = 3; P.cheek = 0.85; P.tongue = 0;
+          }
+          if (big) { const hu = segT(d, 0.02, 0.62); hatUp = sin(PI * hu) * 16; hatSpin = hu * 360; }
+          if (i > 0) drops = d;
+        }
+      }
+    };
+    const o = { T, t, x: fX, y: fY, scale: FS, look,
+      dir: arrived ? { x: 0, y: -1 } : T >= FORGE.rise ? { x: lerp(1, 0.3, rise), y: -1 } : { x: 1, y: 0.5 },
+      script: [[0, "idle"], [HAMMER_DOWN, "relieved"], [FORGE.rise, "surprised"], [FORGE.arrive, "ecstatic"], [5, "happy"], [6.4, "proud"]],
       edit: (P) => {
-        if (arrived) return;
-        P.hop = 0; P.tilt = 0; P.hR = [hs[0], hs[1]]; P.shapeR = "fist"; P.rotR = 0; P.bendR = 3;
-        // concentrado: sobrancelha baixa, boca firme
-        P.browY = 1.2; P.mCurve = 1.2; P.mOpen = 0; P.mW = 4.2;
+        if (!forging) return;
+        act(P);
+        // a mão do martelo fica presa ao mundo (onde o martelo está), por mais que o corpo incline e pule:
+        // leva o ponto do mundo de volta para a grade do Folha já inclinada, amassada e no ar
+        const wx = FX0 + (hs[0] - 50) * FS, wy = FY + (hs[1] - 95) * FS;
+        let gx = 50 + (wx - fX) / FS, gy = 95 + (wy - fY) / FS - P.hop;
+        gx = 50 + (gx - 50) / (1 + 0.10 * squash); gy = 88 + (gy - 88) / (1 - 0.12 * squash);
+        const ta = -P.tilt * PI / 180, rx = gx - 50, ry = gy - 80;
+        P.hR = [50 + rx * cos(ta) - ry * sin(ta), 80 + rx * sin(ta) + ry * cos(ta)]; P.shapeR = "fist"; P.rotR = 0; P.bendR = 3;
       } };
     floorLight(g, fX, 107, 26, reveal > 0 ? C[0] : "#FF8A2A", 0.24);
+    // o amasso e o chapéu voando saem de act(): roda uma vez antes para saber os valores
+    if (forging) act(pose("idle", t, { x: 1, y: 0.5 }, null, { tm: 9 }));
+    o.squash = squash; o.ex = { hatUp, hatSpin };
     const P = sceneFolha(g, o);
-    // o martelo na mão (com rastro de movimento na descida)
-    const [hx, hy] = folhaPt(o, P, P.hR[0], P.hR[1]);
-    const hamAng = arrived ? -PI / 2 + 0.45 + sin(t * 6.2) * 0.18 : hs[2];
-    if (blur > 0) for (let j = 3; j >= 1; j--) {
-      const u = Math.max(0, blur - j * 0.22), A = [lerp(HP.raised[0], HP.strike[0], u * u), lerp(HP.raised[1], HP.strike[1], u * u), lerp(HP.raised[2], HP.strike[2], u * u)];
-      const [gx, gy] = folhaPt(o, P, A[0], A[1]); drawSmithHammer(g, gx, gy, A[2], 0.16 * (1 - j / 4));
+    // gotas de suor voando da testa nas marteladas 2 e 3
+    if (drops >= 0 && drops < 0.6) for (const sd of [-1, 1]) {
+      const u = drops / 0.6, [x0, y0] = folhaPt(o, P, sd < 0 ? 22 : 80, 48), x = x0 + sd * u * 7, y = y0 - sin(PI * u) * 5 + u * 4;
+      const dp = new Path2D(); dp.moveTo(x, y - 1.2); dp.quadraticCurveTo(x + 0.9, y + 0.2, x, y + 0.6); dp.quadraticCurveTo(x - 0.9, y + 0.2, x, y - 1.2);
+      g.fillStyle = `rgba(126,200,255,${1 - u})`; g.fill(dp);
     }
-    drawSmithHammer(g, hx, hy, hamAng, 1, hot * heat);
+    // o martelo: na mão enquanto forja (com rastro na descida), depois em pé encostado na bigorna
+    if (forging) {
+      const wx = FX0 + (hs[0] - 50) * FS, wy = FY + (hs[1] - 95) * FS;
+      if (blur > 0) for (let j = 3; j >= 1; j--) {
+        const u = Math.max(0, blur - j * 0.22) ** 2, A = [lerp(up[0], HP.strike[0], u), lerp(up[1], HP.strike[1], u), lerp(up[2], HP.strike[2], u)];
+        drawSmithHammer(g, FX0 + (A[0] - 50) * FS, FY + (A[1] - 95) * FS, A[2], 0.16 * (1 - j / 4));
+      }
+      drawSmithHammer(g, wx, wy, hs[2], 1, hot * heat);
+    } else if (forgeA > 0) {
+      // larga o martelo: ele escorrega até ficar de pé, cabeça no chão e cabo encostado na bigorna
+      const u = outC(segT(T, HAMMER_DOWN, HAMMER_DOWN + 0.25)), r = HP.rest, rx = FX0 + (r[0] - 50) * FS, ry = FY + (r[1] - 95) * FS;
+      const hx = rx + cos(r[2]) * HAMMER_LEN, hy = ry + sin(r[2]) * HAMMER_LEN;   // onde a cabeça estava
+      const L = HAMMER_LEAN, ang = lerp(r[2], L[2], u), cx = lerp(hx, L[0], u), cy = lerp(hy, L[1], u);
+      g.save(); g.globalAlpha = forgeA; drawSmithHammer(g, cx - cos(ang) * HAMMER_LEN, cy - sin(ang) * HAMMER_LEN, ang); g.restore();
+    }
     // ---- a pancada: clarão, reflexo horizontal, onda na mesa, faíscas
     for (let i = 0; i < FORGE.hits.length; i++) {
       const u = T - FORGE.hits[i]; if (u < 0 || u > 1.1) continue;

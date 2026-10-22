@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.GpsFixed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,8 +24,6 @@ import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.StreakSummary
 import br.com.estudario.domain.StudyInsights
-import br.com.estudario.ui.assistant.Folha
-import br.com.estudario.ui.assistant.FolhaMood
 import br.com.estudario.ui.brand.Button
 
 /** As questões respondidas, com a matéria de cada uma (ponto fraco e resumo da semana). */
@@ -64,12 +63,38 @@ private fun InsightCard(accent: Color, content: @Composable ColumnScope.() -> Un
     }
 }
 
+/**
+ * O anel do acerto na matéria, com a marca verde da meta de 70%. Fica no lugar do Folha na missão: ele já
+ * está no card do "Agora", logo acima.
+ */
+@Composable
+private fun AccuracyRing(accuracy: Int) {
+    val track = Color(0x29F0506B)
+    Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val w = 6.dp.toPx(); val inset = w / 2 + 2.dp.toPx()
+            val arcSize = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2); val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+            drawArc(track, 0f, 360f, false, tl, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+            drawArc(Brush.sweepGradient(listOf(Color(0xFFF0506B), Color(0xFFFFB421), Color(0xFFF0506B))), -90f, 360f * accuracy / 100f, false, tl, arcSize,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+            // a meta: 70% da volta
+            val a = Math.toRadians((-90.0 + 252.0)); val r = arcSize.width / 2; val cx = size.width / 2; val cy = size.height / 2
+            val dx = kotlin.math.cos(a).toFloat(); val dy = kotlin.math.sin(a).toFloat()
+            drawLine(Color(0xFF1FA65C), androidx.compose.ui.geometry.Offset(cx + dx * (r - w), cy + dy * (r - w)), androidx.compose.ui.geometry.Offset(cx + dx * (r + w), cy + dy * (r + w)), 3.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("$accuracy%", fontWeight = FontWeight.Black, fontSize = 16.sp, lineHeight = 16.sp)
+            Text("acerto", fontSize = 10.sp, lineHeight = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 @Composable
 private fun WeakSpot(spot: StudyInsights.WeakSpot, onTrainSubject: (Long) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     InsightCard(Color(0xFFF0506B)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Folha(56.dp, mood = FolhaMood.POINT, enter = false)
+            AccuracyRing(spot.accuracy)
             Column(Modifier.weight(1f)) {
                 Text("MISSÃO DO FOLHA", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, letterSpacing = 1.sp)
                 Text("Reforçar ${spot.subject}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
@@ -78,12 +103,6 @@ private fun WeakSpot(spot: StudyInsights.WeakSpot, onTrainSubject: (Long) -> Uni
                     style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
                 )
             }
-        }
-        // o acerto e a meta de 70%
-        BoxWithConstraints(Modifier.fillMaxWidth().height(10.dp)) {
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(Color(0x24F0506B)))
-            Box(Modifier.fillMaxHeight().fillMaxWidth(spot.accuracy / 100f).clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFFF0506B), Color(0xFFFFB421)))))
-            Box(Modifier.offset(x = maxWidth * 0.7f).width(3.dp).fillMaxHeight().background(Color(0xFF1FA65C)))
         }
         Button(onClick = { onTrainSubject(spot.subjectId) }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.GpsFixed, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Treinar 10 questões de ${spot.subject}", fontWeight = FontWeight.Bold)
@@ -110,7 +129,9 @@ private fun WeekReport(answers: List<StudyInsights.Answer>, streak: StreakSummar
     val scheme = MaterialTheme.colorScheme
     InsightCard(Color(0xFF7EE0B8)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Folha(56.dp, mood = if (week.days >= 4) FolhaMood.PROUD else FolhaMood.WAVE, enter = false)
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x297EE0B8)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.DateRange, null, Modifier.size(28.dp), tint = Color(0xFF3FBF8F))
+            }
             Column(Modifier.weight(1f)) {
                 Text("SUA SEMANA", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, letterSpacing = 1.sp)
                 Text(StudyInsights.weekLine(week), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)

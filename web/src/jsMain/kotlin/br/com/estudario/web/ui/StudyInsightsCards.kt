@@ -32,14 +32,18 @@ fun studyAnswers(data: Snapshot): List<StudyInsights.Answer> {
 
 /**
  * A missão do Folha: a matéria que mais derrubou a pessoa nos últimos 7 dias, com o botão que já abre
- * 10 questões só dela. Não aparece quando nada preocupa.
+ * 10 questões só dela. Não aparece quando nada preocupa. O Folha já está no card do "Agora", logo acima:
+ * aqui no lugar dele fica o anel do acerto na matéria, com a marca da meta de 70%.
  */
 @Composable
 fun WeakSpotCard(data: Snapshot) {
     val spot = remember(data.attempts.size) { studyAnswers(data).let { a -> val now = kotlin.js.Date.now().toLong(); StudyInsights.weakSpot(a, now) ?: StudyInsights.weakSpot(a, now, 14) } } ?: return
     Div({ classes("card", "pad-lg", "insight-card", "weak", "rise") }) {
         Div({ classes("insight-top") }) {
-            Div({ classes("insight-folha") }) { Folha("point", 64, live = false) }
+            Div({ classes("insight-ring"); attr("style", "--p:${spot.accuracy}"); attr("title", "Acerto de ${spot.accuracy}% (meta: 70%)") }) {
+                B { Text("${spot.accuracy}%") }
+                Span { Text("acerto") }
+            }
             Div({ classes("grow") }) {
                 Span({ classes("eyebrow") }) { Text("MISSÃO DO FOLHA") }
                 B({ classes("insight-title") }) { Text("Reforçar ${spot.subject}") }
@@ -47,10 +51,6 @@ fun WeakSpotCard(data: Snapshot) {
                     Text("Você errou ${spot.wrong} de ${spot.total} questões dessa matéria nas últimas semanas (${spot.accuracy}% de acerto). Treinar o ponto fraco é o que mais sobe a nota.")
                 }
             }
-        }
-        Div({ classes("insight-meter") }) {
-            Span({ classes("insight-meter-fill"); attr("style", "width:${spot.accuracy}%") })
-            Span({ classes("insight-meter-goal"); attr("title", "Meta: 70%") })
         }
         Btn("Treinar 10 questões de ${spot.subject}", { Router.go(Route.Quiz("materia-${spot.subjectId}-10")) }, block = true, icon = "gps_fixed")
     }
@@ -75,7 +75,7 @@ fun WeekReportCard(data: Snapshot, view: ProgressView) {
     if (seen || (week.days == 0 && week.prevDays == 0)) return
     Div({ classes("card", "pad-lg", "insight-card", "week", "rise") }) {
         Div({ classes("insight-top") }) {
-            Div({ classes("insight-folha") }) { Folha(if (week.days >= 4) "proud" else "wave", 64, live = false) }
+            Div({ classes("insight-icon") }) { Icon("date_range", filled = true) }
             Div({ classes("grow") }) {
                 Span({ classes("eyebrow") }) { Text("SUA SEMANA") }
                 B({ classes("insight-title") }) { Text(StudyInsights.weekLine(week)) }
