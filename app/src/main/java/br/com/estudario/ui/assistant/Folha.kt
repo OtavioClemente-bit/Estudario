@@ -591,6 +591,8 @@ private fun pose(mood: FolhaMood, t: Float, lookX: Float, lookY: Float, fid: Fid
         else -> {}
     }
     // segurando um item: a mão esquerda parada sobe um pouco para a frente, fechada, para o item aparecer
+    // no susto, segurando um item: a mão do item se encolhe junto ao peito (sem soltar) e só a outra vai ao rosto
+    if (holding && mood == FolhaMood.SURPRISED) { p.hL0 = 10f; p.hL1 = 68f; p.shapeL = Hand.FIST; p.rotL = -20f; p.bendL = 6f }
     if (holding && p.hL0 < 10f && p.hL1 > 73f) { p.hL0 = 11f; p.hL1 = 71f + (p.hL1 - 78f) * 0.5f; p.rotL = -12f; p.bendL = 4f; if (p.shapeL == Hand.MITT) p.shapeL = Hand.FIST }
     return p
 }
@@ -1856,27 +1858,41 @@ private fun DrawScope.hatShadow(w: Float) {
 }
 
 private fun DrawScope.drawBone() {
-    // boné de frente, aba curva para a frente, gomos costurados, botão e o escudo bordado
-    hatShadow(20f)
-    val crown = Path().apply { moveTo(32.5f, 44.5f); cubicTo(31.5f, 28.5f, 40f, 21.5f, 50f, 21.5f); cubicTo(60f, 21.5f, 68.5f, 28.5f, 67.5f, 44.5f); quadraticTo(50f, 41f, 32.5f, 44.5f); close() }
-    drawPath(crown, vg(listOf(Color(0xFF6A5FF0), Color(0xFF4237D6), Color(0xFF2A209E)), 21f, 45f))
+    // boné em três quartos, assentado no alto do livro: copa baixa de seis gomos (o botão puxado para a
+    // direita), aba curta para a frente e à esquerda, fora do rosto, e o escudo bordado no gomo da frente
+    hatShadow(19f)
+    val ink = Color(0xFF120D3F)
+    val crown = Path().apply { moveTo(34.5f, 44.6f); cubicTo(33.6f, 31f, 42f, 24.2f, 52.4f, 24.2f); cubicTo(62f, 24.2f, 67.6f, 31.4f, 66.4f, 44.2f); quadraticTo(50.5f, 46.6f, 34.5f, 44.6f); close() }
+    drawPath(crown, vg(listOf(Color(0xFF6E63F2), Color(0xFF4338D8), Color(0xFF2A209E)), 24f, 46f))
     clipPath(crown) {
-        drawCircle(Brush.radialGradient(listOf(Color(0x59FFFFFF), Color(0x00FFFFFF)), center = Offset(42f, 27f), radius = 13f), 13f, Offset(42f, 27f))
-        for ((x0, cx) in listOf(41f to 38f, 59f to 62f)) drawPath(Path().apply { moveTo(50f, 21.8f); quadraticTo(cx, 30f, x0 - (if (x0 < 50f) 2f else -2f), 43.5f) }, Color(0x59120D3F), style = stroke(0.5f))
-        line(Color(0x59120D3F), 50f, 21.8f, 50f, 28.6f, 0.5f)
+        drawRect(hg(listOf(ink.copy(alpha = 0f), ink.copy(alpha = 0.38f)), 52f, 68f), Offset(50f, 20f), Size(20f, 28f))
+        drawCircle(Brush.radialGradient(listOf(Color(0x52FFFFFF), Color(0x00FFFFFF)), center = Offset(42f, 30f), radius = 12f), 12f, Offset(42f, 30f))
+        for ((cx, cy, x1, y1) in listOf(Quad(40f, 30f, 37.4f, 45f), Quad(49.4f, 34f, 47.6f, 46.4f), Quad(60f, 32f, 59.6f, 45.6f))) {
+            val p = Path().apply { moveTo(54.2f, 24.6f); quadraticTo(cx, cy, x1, y1) }
+            drawPath(p, ink.copy(alpha = 0.32f), style = stroke(0.45f)); drawPath(p, Color.White.copy(alpha = 0.12f), style = stroke(0.2f))
+        }
+        drawPath(Path().apply { moveTo(34.3f, 42.4f); quadraticTo(50.5f, 44.6f, 66.6f, 42f); lineTo(66.4f, 44.2f); quadraticTo(50.5f, 46.6f, 34.5f, 44.6f); close() }, ink.copy(alpha = 0.35f))
     }
-    drawPath(crown, Color(0x80120D3F), style = stroke(0.5f))
-    // escudo bordado: um livrinho aberto
-    drawPath(roundRect(44f, 28.6f, 12f, 8.6f, 2.4f), Paper); drawPath(roundRect(44f, 28.6f, 12f, 8.6f, 2.4f), Color(0x40120D3F), style = stroke(0.35f))
-    drawPath(Path().apply { moveTo(46f, 31.4f); quadraticTo(48f, 30.4f, 50f, 31.6f); quadraticTo(52f, 30.4f, 54f, 31.4f); lineTo(54f, 35.2f); quadraticTo(52f, 34.2f, 50f, 35.4f); quadraticTo(48f, 34.2f, 46f, 35.2f); close() }, Color(0xFF3A2FC4))
-    line(Paper, 50f, 31.8f, 50f, 35f, 0.35f)
-    // aba curva, com costura e borda clara
-    val visor = Path().apply { moveTo(30.5f, 43.2f); quadraticTo(50f, 39.4f, 69.5f, 43.2f); quadraticTo(72.4f, 47.6f, 66.4f, 48.8f); quadraticTo(50f, 45.4f, 33.6f, 48.8f); quadraticTo(27.6f, 47.6f, 30.5f, 43.2f); close() }
-    drawPath(visor, vg(listOf(Color(0xFF3A2FC4), Color(0xFF1A1370)), 40f, 49f))
-    drawPath(Path().apply { moveTo(31.4f, 43.6f); quadraticTo(50f, 40f, 68.6f, 43.6f) }, Color.White.copy(alpha = 0.35f), style = stroke(0.5f))
-    drawPath(Path().apply { moveTo(33.4f, 47.2f); quadraticTo(50f, 44.2f, 66.6f, 47.2f) }, Color.White.copy(alpha = 0.4f),
-        style = Stroke(0.3f, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.9f, 0.7f))))
-    drawCircle(Mint, 1.6f, Offset(50f, 21.8f)); drawCircle(Color.White.copy(alpha = 0.7f), 0.55f, Offset(49.5f, 21.3f))
+    drawPath(crown, ink.copy(alpha = 0.55f), style = stroke(0.45f))
+    // escudo bordado no gomo da frente: o livrinho aberto
+    translate(46.2f, 35.4f) { rotate(-0.06f * 180f / PIf, pivot = Offset.Zero) { scale(0.82f, 0.86f, pivot = Offset.Zero) {
+        drawPath(roundRect(-5.6f, -4f, 11.2f, 8f, 2.2f), Paper); drawPath(roundRect(-5.6f, -4f, 11.2f, 8f, 2.2f), ink.copy(alpha = 0.25f), style = stroke(0.35f))
+        drawPath(Path().apply { moveTo(-3.8f, -1.6f); quadraticTo(-1.9f, -2.6f, 0f, -1.4f); quadraticTo(1.9f, -2.6f, 3.8f, -1.6f); lineTo(3.8f, 2f); quadraticTo(1.9f, 1f, 0f, 2.2f); quadraticTo(-1.9f, 1f, -3.8f, 2f); close() }, Color(0xFF3A2FC4))
+        line(Paper, 0f, -1.2f, 0f, 1.9f, 0.35f)
+    } } }
+    // aba: sai da frente da copa para a esquerda, vista de cima, com a costura e o avesso escuro na ponta
+    translate(0f, -0.9f) {
+        val under = Path().apply { moveTo(56.6f, 45.4f); cubicTo(50f, 50.4f, 38f, 51.4f, 29.6f, 50.2f); cubicTo(25.6f, 49.6f, 24f, 48.4f, 24.4f, 47f); cubicTo(25f, 48.6f, 26.6f, 49.2f, 29.6f, 49.4f); cubicTo(38f, 50.6f, 50f, 49.6f, 56.6f, 45.4f); close() }
+        drawPath(under, Color(0xFF140E52))
+        val visor = Path().apply { moveTo(35f, 42.6f); cubicTo(40f, 45.4f, 49f, 46.4f, 56.6f, 45.4f); cubicTo(50f, 49.6f, 38f, 50.6f, 29.6f, 49.4f); cubicTo(24f, 48.6f, 23.2f, 45.4f, 26.8f, 43.8f); cubicTo(29.4f, 42.8f, 32.4f, 42.4f, 35f, 42.6f); close() }
+        drawPath(visor, Brush.linearGradient(listOf(Color(0xFF4B40DC), Color(0xFF2A209E)), start = Offset(30f, 43f), end = Offset(46f, 50f)))
+        drawPath(visor, ink.copy(alpha = 0.5f), style = stroke(0.35f))
+        drawPath(Path().apply { moveTo(28.4f, 46.2f); cubicTo(36f, 48.6f, 46f, 48.4f, 53.4f, 46.2f) }, Color.White.copy(alpha = 0.45f),
+            style = Stroke(0.28f, cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.8f, 0.6f))))
+        line(Color.White.copy(alpha = 0.35f), 28.6f, 44.4f, 34f, 43.2f, 0.5f)
+    }
+    // botão menta no topo
+    drawCircle(Color(0xFF3FAF86), 1.6f, Offset(54.2f, 24.6f)); drawCircle(Mint, 1.3f, Offset(54f, 24.3f)); drawCircle(Color.White.copy(alpha = 0.75f), 0.45f, Offset(53.6f, 23.9f))
 }
 
 private fun DrawScope.drawBoina() {

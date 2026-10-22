@@ -274,6 +274,8 @@
       p.pupil = 1.3; p.browY = -3; p.mW = 6.8; p.mCurve = 5.4; p.mOpen = 1.15; p.cheek = 0.85;
     }
     // segurando um item: a mão esquerda parada sobe um pouco para a frente, fechada, para o item aparecer
+    // no susto, segurando um item: a mão do item se encolhe junto ao peito (sem soltar) e só a outra vai ao rosto
+    if (ctx && ctx.holding && mood === "surprised") { p.hL = [10, 68]; p.shapeL = "fist"; p.rotL = -20; p.bendL = 6; }
     if (ctx && ctx.holding && p.hL[0] < 10 && p.hL[1] > 73) { p.hL = [11, 71 + (p.hL[1] - 78) * 0.5]; p.rotL = -12; p.bendL = 4; if (p.shapeL === "mitt") p.shapeL = "fist"; }
     return p;
   }
@@ -966,26 +968,41 @@
     g.fillStyle = rg; g.fill(); g.restore();
   }
   function drawBone(g) {
-    // boné de frente, aba curva para a frente, gomos costurados, botão e o escudo bordado
-    hatShadow(g, 20);
-    const crown = new Path2D(); crown.moveTo(32.5, 44.5); crown.bezierCurveTo(31.5, 28.5, 40, 21.5, 50, 21.5); crown.bezierCurveTo(60, 21.5, 68.5, 28.5, 67.5, 44.5); crown.quadraticCurveTo(50, 41, 32.5, 44.5); crown.closePath();
-    g.fillStyle = vGrad(g, ["#6A5FF0", "#4237D6", "#2A209E"], 21, 45); g.fill(crown);
+    // boné em três quartos, assentado no alto do livro: copa baixa de seis gomos (o botão puxado para a
+    // direita), aba curta para a frente e à esquerda, fora do rosto, e o escudo bordado no gomo da frente
+    hatShadow(g, 19);
+    const crown = new Path2D();
+    crown.moveTo(34.5, 44.6); crown.bezierCurveTo(33.6, 31, 42, 24.2, 52.4, 24.2); crown.bezierCurveTo(62, 24.2, 67.6, 31.4, 66.4, 44.2); crown.quadraticCurveTo(50.5, 46.6, 34.5, 44.6); crown.closePath();
+    g.fillStyle = vGrad(g, ["#6E63F2", "#4338D8", "#2A209E"], 24, 46); g.fill(crown);
     g.save(); g.clip(crown);
-    const hl = g.createRadialGradient(42, 27, 1, 42, 27, 13); hl.addColorStop(0, "rgba(255,255,255,0.35)"); hl.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = hl; g.fillRect(28, 18, 44, 30);
-    for (const [x0, cx] of [[41, 38], [59, 62]]) { const s = new Path2D(); s.moveTo(50, 21.8); s.quadraticCurveTo(cx, 30, x0 - (x0 < 50 ? 2 : -2), 43.5); stroke(g, s, "rgba(18,13,63,0.35)", 0.5); }
-    const c = new Path2D(); c.moveTo(50, 21.8); c.lineTo(50, 28.6); stroke(g, c, "rgba(18,13,63,0.35)", 0.5);
+    // lado de trás na sombra, gomos costurados saindo do botão
+    const sh = g.createLinearGradient(52, 0, 68, 0); sh.addColorStop(0, "rgba(14,10,69,0)"); sh.addColorStop(1, "rgba(14,10,69,0.38)"); g.fillStyle = sh; g.fillRect(50, 20, 20, 28);
+    const hl = g.createRadialGradient(42, 30, 1, 42, 30, 12); hl.addColorStop(0, "rgba(255,255,255,0.32)"); hl.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = hl; g.fillRect(30, 20, 30, 28);
+    for (const [cx, cy, x1, y1] of [[40, 30, 37.4, 45], [49.4, 34, 47.6, 46.4], [60, 32, 59.6, 45.6]]) { const p = new Path2D(); p.moveTo(54.2, 24.6); p.quadraticCurveTo(cx, cy, x1, y1); stroke(g, p, "rgba(18,13,63,0.32)", 0.45); stroke(g, p, "rgba(255,255,255,0.12)", 0.2); }
+    // faixa de baixo (o carneira aparecendo um tico)
+    const band = new Path2D(); band.moveTo(34.3, 42.4); band.quadraticCurveTo(50.5, 44.6, 66.6, 42); band.lineTo(66.4, 44.2); band.quadraticCurveTo(50.5, 46.6, 34.5, 44.6); band.closePath();
+    g.fillStyle = "rgba(18,13,63,0.35)"; g.fill(band);
     g.restore();
-    stroke(g, crown, "rgba(18,13,63,0.5)", 0.5);
-    // escudo bordado: um livrinho aberto com o check menta
-    const badge = new Path2D(); badge.roundRect(44, 28.6, 12, 8.6, 2.4); g.fillStyle = "#FFFDF8"; g.fill(badge); stroke(g, badge, "rgba(18,13,63,0.25)", 0.35);
-    const bk = new Path2D(); bk.moveTo(46, 31.4); bk.quadraticCurveTo(48, 30.4, 50, 31.6); bk.quadraticCurveTo(52, 30.4, 54, 31.4); bk.lineTo(54, 35.2); bk.quadraticCurveTo(52, 34.2, 50, 35.4); bk.quadraticCurveTo(48, 34.2, 46, 35.2); bk.closePath();
-    g.fillStyle = "#3A2FC4"; g.fill(bk); line(g, "#FFFDF8", 50, 31.8, 50, 35, 0.35);
-    // aba curva, com costura e borda clara
-    const visor = new Path2D(); visor.moveTo(30.5, 43.2); visor.quadraticCurveTo(50, 39.4, 69.5, 43.2); visor.quadraticCurveTo(72.4, 47.6, 66.4, 48.8); visor.quadraticCurveTo(50, 45.4, 33.6, 48.8); visor.quadraticCurveTo(27.6, 47.6, 30.5, 43.2); visor.closePath();
-    g.fillStyle = vGrad(g, ["#3A2FC4", "#1A1370"], 40, 49); g.fill(visor);
-    const edge = new Path2D(); edge.moveTo(31.4, 43.6); edge.quadraticCurveTo(50, 40, 68.6, 43.6); stroke(g, edge, "rgba(255,255,255,0.35)", 0.5);
-    g.save(); g.setLineDash([0.9, 0.7]); const st = new Path2D(); st.moveTo(33.4, 47.2); st.quadraticCurveTo(50, 44.2, 66.6, 47.2); stroke(g, st, "rgba(255,255,255,0.4)", 0.3); g.restore();
-    circle(g, MINT, 1.6, 50, 21.8); circle(g, "rgba(255,255,255,0.7)", 0.55, 49.5, 21.3);
+    stroke(g, crown, "rgba(18,13,63,0.55)", 0.45);
+    // escudo bordado no gomo da frente: o livrinho aberto
+    g.save(); g.translate(46.2, 35.4); g.rotate(-0.06); g.scale(0.82, 0.86);
+    const badge = new Path2D(); badge.roundRect(-5.6, -4, 11.2, 8, 2.2); g.fillStyle = "#FFFDF8"; g.fill(badge); stroke(g, badge, "rgba(18,13,63,0.25)", 0.35);
+    const bk = new Path2D(); bk.moveTo(-3.8, -1.6); bk.quadraticCurveTo(-1.9, -2.6, 0, -1.4); bk.quadraticCurveTo(1.9, -2.6, 3.8, -1.6); bk.lineTo(3.8, 2); bk.quadraticCurveTo(1.9, 1, 0, 2.2); bk.quadraticCurveTo(-1.9, 1, -3.8, 2); bk.closePath();
+    g.fillStyle = "#3A2FC4"; g.fill(bk); line(g, "#FFFDF8", 0, -1.2, 0, 1.9, 0.35);
+    g.restore();
+    // aba: sai da frente da copa para a esquerda, vista de cima, com a costura e o avesso escuro na ponta
+    g.save(); g.translate(0, -0.9);
+    const visor = new Path2D();
+    visor.moveTo(35, 42.6); visor.bezierCurveTo(40, 45.4, 49, 46.4, 56.6, 45.4); visor.bezierCurveTo(50, 49.6, 38, 50.6, 29.6, 49.4); visor.bezierCurveTo(24, 48.6, 23.2, 45.4, 26.8, 43.8); visor.bezierCurveTo(29.4, 42.8, 32.4, 42.4, 35, 42.6); visor.closePath();
+    const under = new Path2D(); under.moveTo(56.6, 45.4); under.bezierCurveTo(50, 50.4, 38, 51.4, 29.6, 50.2); under.bezierCurveTo(25.6, 49.6, 24, 48.4, 24.4, 47); under.bezierCurveTo(25, 48.6, 26.6, 49.2, 29.6, 49.4); under.bezierCurveTo(38, 50.6, 50, 49.6, 56.6, 45.4); under.closePath();
+    g.fillStyle = "#140E52"; g.fill(under);
+    const vg = g.createLinearGradient(30, 43, 46, 50); vg.addColorStop(0, "#4B40DC"); vg.addColorStop(1, "#2A209E"); g.fillStyle = vg; g.fill(visor);
+    stroke(g, visor, "rgba(18,13,63,0.5)", 0.35);
+    g.save(); g.setLineDash([0.8, 0.6]); const st = new Path2D(); st.moveTo(28.4, 46.2); st.bezierCurveTo(36, 48.6, 46, 48.4, 53.4, 46.2); stroke(g, st, "rgba(255,255,255,0.45)", 0.28); g.restore();
+    line(g, "rgba(255,255,255,0.35)", 28.6, 44.4, 34, 43.2, 0.5);
+    g.restore();
+    // botão menta no topo
+    circle(g, "#3FAF86", 1.6, 54.2, 24.6); circle(g, MINT, 1.3, 54, 24.3); circle(g, "rgba(255,255,255,0.75)", 0.45, 53.6, 23.9);
   }
   function drawBoina(g) {
     // boina de artista, de lado, com a faixa abraçando a cabeça e dobras macias
@@ -2498,9 +2515,10 @@
     const ctx = { tm: o.T - sc[i][0], holding: o.look.hand && o.look.hand !== "nenhum" };
     let P = pose(cur, o.t, o.dir, null, ctx);
     if (w < 1) P = blendPose(P, pose(prev, o.t, o.dir, null, { ...ctx, tm: 9 }), w);
+    if (o.edit) o.edit(P);   // a cena pode ajustar a pose (a mão do martelo, a cara de concentrado)
     g.save(); g.translate(o.x - 50 * o.scale, o.y - 95 * o.scale); g.scale(o.scale, o.scale);
     drawFolha(g, { t: o.t, mood: w < 0.5 ? prev : cur, small: false, P: { ...P, hL0: P.hL[0], hL1: P.hL[1], hR0: P.hR[0], hR1: P.hR[1] }, vy: o.vy || 0,
-      blink: (o.t % 3.4) < 0.12 ? 1 : 0, wink: 0, popL: 0, popR: 0, squash: o.squash || 0, gulp: 0, look: o.look, tm: ctx.tm, burst: o.burst || 0 });
+      blink: o.blink != null ? o.blink : (o.t % 3.4) < 0.12 ? 1 : 0, wink: 0, popL: 0, popR: 0, squash: o.squash || 0, gulp: 0, look: o.look, tm: ctx.tm, burst: o.burst || 0 });
     g.restore();
     return P;
   }
@@ -2761,102 +2779,277 @@
     }
   }
 
-  // o martelo: cabo de madeira e cabeça de aço, girando em volta de um pivô fora da cena
-  function drawHammer(g, ang) {
-    const px = 96, py = 60, len = 46;
-    g.save(); g.translate(px, py); g.rotate(ang);
-    g.fillStyle = hGrad(g, ["#6D3D1F", "#BC7D4E", "#7A4A22"], 0, 0); g.fillStyle = vGrad(g, ["#C08453", "#82491F"], -1.8, 1.8); g.fillRect(0, -1.8, len, 3.6);
-    line(g, "rgba(255,255,255,0.25)", 2, -0.8, len - 2, -0.8, 0.4);
-    g.translate(len, 0);
-    const head = vGrad(g, ["#F2F3F8", "#9AA2B5", "#4A5068"], -4.4, 4.4);
-    g.fillStyle = head; g.fillRect(-6, -11, 12, 22); g.fillStyle = "#3A3F55"; g.fillRect(-6, -11, 12, 2); g.fillRect(-6, 9, 12, 2);
-    line(g, "rgba(255,255,255,0.6)", -4.6, -8.5, -4.6, 8.5, 0.6);
+  // ---- a forja do Folha: bigorna, martelo de ferreiro e faíscas de verdade
+  // O martelo, no referencial da mão: cabo saindo da mão para +x, cabeça de aço atravessada no fim (a face
+  // de bater fica para +y, a pena em cunha para -y). Cabo de madeira com veio, empunhadura de couro.
+  const HAMMER_LEN = 17, HAMMER_HEAD = 1.35;
+  function drawSmithHammer(g, x, y, ang, a = 1, hot = 0) {
+    const L = HAMMER_LEN;
+    g.save(); g.translate(x, y); g.rotate(ang); g.globalAlpha *= a;
+    // cabo, afinando para a cabeça
+    const h = new Path2D(); h.moveTo(-3, -0.85); h.quadraticCurveTo(L * 0.5, -0.72, L - 1.6, -0.62); h.lineTo(L - 1.6, 0.62); h.quadraticCurveTo(L * 0.5, 0.72, -3, 0.85); h.quadraticCurveTo(-3.6, 0, -3, -0.85); h.closePath();
+    g.fillStyle = vGrad(g, ["#E7B07A", "#B87442", "#7A4422"], -0.85, 0.85); g.fill(h);
+    g.save(); g.clip(h);
+    for (const [y0, w] of [[-0.3, 0.12], [0.15, 0.1], [0.45, 0.08]]) { const p = new Path2D(); p.moveTo(-3, y0); p.bezierCurveTo(2, y0 + 0.15, 6, y0 - 0.12, L, y0 + 0.05); stroke(g, p, "rgba(90,45,15,0.35)", w); }
+    line(g, "rgba(255,240,220,0.45)", -2, -0.5, L - 2, -0.42, 0.18);
+    g.restore();
+    // empunhadura de couro com as voltas
+    const grip = new Path2D(); grip.roundRect(-3.2, -1.02, 6.4, 2.04, 0.8); g.fillStyle = vGrad(g, ["#6B4030", "#3E2218", "#24130C"], -1, 1); g.fill(grip);
+    g.save(); g.clip(grip); for (let i = -4; i < 4; i++) line(g, "rgba(255,220,190,0.16)", i * 0.95, -1.1, i * 0.95 + 0.7, 1.1, 0.22); g.restore();
+    // cabeça de aço: corpo, face de bater larga embaixo e a pena em cunha em cima
+    g.translate(L, 0); g.scale(HAMMER_HEAD, HAMMER_HEAD); g.translate(-L, 0);
+    // cabeça: bloco de aço com cintura, face de bater (embaixo) com anel chanfrado e a pena rombuda em cima
+    const hx = L, bw = 2.7;
+    const body = new Path2D();
+    body.moveTo(hx - bw, -3.6); body.lineTo(hx + bw, -3.6); body.quadraticCurveTo(hx + bw * 0.86, 0.4, hx + bw * 1.1, 3.4); body.lineTo(hx + bw * 1.1, 4.8);
+    body.lineTo(hx - bw * 1.1, 4.8); body.lineTo(hx - bw * 1.1, 3.4); body.quadraticCurveTo(hx - bw * 0.86, 0.4, hx - bw, -3.6); body.closePath();
+    const steel = g.createLinearGradient(hx - bw * 1.2, 0, hx + bw * 1.2, 0);
+    steel.addColorStop(0, "#2B2F40"); steel.addColorStop(0.3, "#7E869C"); steel.addColorStop(0.42, "#B8BFD0"); steel.addColorStop(0.6, "#6A7189"); steel.addColorStop(1, "#23263A");
+    g.fillStyle = steel; g.fill(body);
+    const peen = new Path2D(); peen.moveTo(hx - bw, -3.6); peen.lineTo(hx + bw, -3.6); peen.lineTo(hx + bw * 0.5, -5.6); peen.lineTo(hx - bw * 0.5, -5.6); peen.closePath();
+    g.fillStyle = steel; g.fill(peen); g.fillStyle = "rgba(15,16,30,0.35)"; g.fill(peen);
+    stroke(g, body, "rgba(12,13,24,0.8)", 0.24); stroke(g, peen, "rgba(12,13,24,0.8)", 0.24);
+    const ringF = new Path2D(); ringF.rect(hx - bw * 1.1, 3.4, bw * 2.2, 1.4); g.fillStyle = "rgba(255,255,255,0.12)"; g.fill(ringF);
+    line(g, "rgba(12,13,24,0.55)", hx - bw * 1.1, 3.4, hx + bw * 1.1, 3.4, 0.2);
+    line(g, "rgba(230,236,255,0.55)", hx - bw * 0.55, -3.2, hx - bw * 0.48, 3, 0.35);
+    line(g, "rgba(230,236,255,0.3)", hx - bw * 0.9, -5.3, hx + bw * 0.2, -5.3, 0.2);
+    g.beginPath(); g.ellipse(hx, -3.6, 1, 0.38, 0, 0, 2 * PI); g.fillStyle = "#8E5428"; g.fill();
+    // a face esquenta ao bater no metal em brasa
+    if (hot > 0) {
+      const hg = g.createLinearGradient(0, 2.4, 0, 4.8); hg.addColorStop(0, "rgba(255,120,40,0)"); hg.addColorStop(1, `rgba(255,170,70,${0.85 * hot})`);
+      g.fillStyle = hg; g.fill(body);
+    }
+    g.restore();
+  }
+  // a bigorna, de perfil: mesa com a ponta (chifre) para a direita, cintura e pé largo; o topo pega a luz
+  // laranja do metal quente
+  const ANVIL = { x0: 59, x1: 85, top: 89.2, horn: 96, floor: 108 };
+  function drawAnvil(g, glow, t) {
+    const { x0, x1, top, horn, floor } = ANVIL;
+    g.save(); g.translate(72, floor); g.scale(1, 0.16); glowAt(g, 0, 0, 22, "#05030F", 0.6); g.restore();
+    const p = new Path2D();
+    p.moveTo(x0 - 1.4, top); p.lineTo(x1, top);                                     // mesa
+    p.bezierCurveTo(x1 + 4, top, horn - 2, top + 0.6, horn, top + 1.2);               // chifre
+    p.bezierCurveTo(horn - 3, top + 3.2, x1 + 2, top + 4.6, x1 - 1.2, top + 5.4);
+    p.quadraticCurveTo(x1 - 4, top + 7, x1 - 5.4, top + 11.4);                        // cintura
+    p.quadraticCurveTo(x1 - 4.4, floor - 3.4, x1 + 1.6, floor - 1.2); p.lineTo(x1 + 1.6, floor);   // pé
+    p.lineTo(x0 + 0.4, floor); p.lineTo(x0 + 0.4, floor - 1.2);
+    p.quadraticCurveTo(x0 + 6.2, floor - 3.4, x0 + 7.4, top + 11.4);
+    p.quadraticCurveTo(x0 + 6.2, top + 7, x0 + 1.2, top + 5.4);
+    p.lineTo(x0 - 1.4, top + 4.4); p.closePath();
+    const body = g.createLinearGradient(0, top, 0, floor); body.addColorStop(0, "#4B4D66"); body.addColorStop(0.35, "#2D2E44"); body.addColorStop(1, "#15151F");
+    g.fillStyle = body; g.fill(p);
+    g.save(); g.clip(p);
+    // volume: luz fria vindo da esquerda, sombra à direita
+    const side = g.createLinearGradient(x0 - 2, 0, horn, 0); side.addColorStop(0, "rgba(160,170,230,0.22)"); side.addColorStop(0.5, "rgba(0,0,0,0)"); side.addColorStop(1, "rgba(0,0,0,0.35)");
+    g.fillStyle = side; g.fillRect(x0 - 3, top - 1, horn - x0 + 6, floor - top + 2);
+    // a mesa de aço polido e o reflexo quente
+    g.fillStyle = vGrad(g, ["#8E93AE", "#555872"], top, top + 1.6); g.fillRect(x0 - 2, top, x1 - x0 + 3, 1.6);
+    if (glow > 0) { const gg = g.createRadialGradient(71, top, 0, 71, top, 18); gg.addColorStop(0, `rgba(255,160,70,${0.75 * glow})`); gg.addColorStop(1, "rgba(255,120,40,0)"); g.fillStyle = gg; g.fillRect(x0 - 3, top - 2, horn - x0 + 6, 14); }
+    g.restore();
+    stroke(g, p, "rgba(5,5,15,0.6)", 0.3);
+    // a mesa vista um pouco de cima: faixa de aço polido com o chifre afinando, o furo quadrado e o reflexo quente
+    const face = new Path2D(); face.moveTo(x0 - 1.4, top - 3.2); face.lineTo(x1, top - 3.2);
+    face.bezierCurveTo(x1 + 4, top - 3.2, horn - 3, top - 0.6, horn, top + 1.2); face.bezierCurveTo(horn - 2.4, top + 0.5, x1 + 4, top, x1, top); face.lineTo(x0 - 1.4, top); face.closePath();
+    g.fillStyle = vGrad(g, ["#6E7290", "#A3A8C4", "#7B7F9C"], top - 3.2, top); g.fill(face);
+    if (glow > 0) { g.save(); g.clip(face); const gg = g.createRadialGradient(71, top - 1.6, 0, 71, top - 1.6, 16); gg.addColorStop(0, `rgba(255,170,80,${0.9 * glow})`); gg.addColorStop(1, "rgba(255,120,40,0)"); g.fillStyle = gg; g.fillRect(x0 - 2, top - 4, horn - x0 + 4, 6); g.restore(); }
+    stroke(g, face, "rgba(5,5,15,0.55)", 0.25);
+    line(g, "rgba(230,235,255,0.7)", x0 - 1, top - 0.1, x1 + 2, top - 0.1, 0.28);
+    g.fillStyle = "rgba(10,10,20,0.65)"; g.fillRect(x1 - 4.4, top - 2.4, 1.8, 1.2); g.beginPath(); g.ellipse(x1 - 1.4, top - 1.6, 0.6, 0.4, 0, 0, 2 * PI); g.fill();
+  }
+  // a medalha deitada na bigorna (perspectiva: achatada no y), com a espessura da borda aparecendo
+  function drawFlatMedal(g, x, y, R, sy, tier, cat, o) {
+    const C = TIERS[tier] || TIERS[3], heat = o.heat || 0, sq = o.squash || 0;
+    g.save(); g.translate(x, y); g.scale(1 + sq * 0.08, 1 - sq * 0.1);
+    g.save(); g.scale(1, sy);
+    g.beginPath(); g.ellipse(0, 3.4, R * 0.99, R * 0.99, 0, 0, 2 * PI);
+    g.fillStyle = heat > 0.5 ? lerpColor("#7D2A10", "#E0601A", heat) : lerpColor(C[2], "#B8461A", heat * 2); g.fill();
+    drawMedalArt(g, R, tier, cat, { deco: 0, engrave: o.engrave, heat, k: o.k });
+    g.restore(); g.restore();
+  }
+  // faíscas das marteladas: cada uma sai da pancada com velocidade própria, sofre arrasto e gravidade,
+  // quica na mesa da bigorna e muda de cor com a idade (branca, amarela, laranja, vermelha)
+  function sparkSet(seed, n) {
+    const r = seeded(seed);
+    return Array.from({ length: n }, () => {
+      const side = r() < 0.5 ? -1 : 1, a = -PI / 2 + side * (0.25 + r() * 1.25);
+      return { vx: cos(a) * (35 + r() * 75), vy: sin(a) * (35 + r() * 75), life: 0.35 + r() * 0.75, w: 0.25 + r() * 0.4, big: r() < 0.12 };
+    });
+  }
+  function sparkAt(s, u, x0, y0) {
+    const d = 3.2, e = (1 - Math.exp(-d * u)) / d;
+    let x = x0 + s.vx * e, y = y0 + s.vy * e + 70 * u * u;
+    const surf = x > ANVIL.x0 - 1 && x < ANVIL.horn ? ANVIL.top - 1.6 : ANVIL.floor;
+    if (y > surf) y = surf - (y - surf) * 0.28;
+    return [x, y];
+  }
+  function drawSparks(g, list, u, x0, y0, q) {
+    g.save(); g.globalCompositeOperation = "lighter"; g.lineCap = "round";
+    const n = Math.round(list.length * q);
+    for (let i = 0; i < n; i++) {
+      const s = list[i], age = u / s.life; if (age <= 0 || age >= 1) continue;
+      const [x, y] = sparkAt(s, u, x0, y0), [px, py] = sparkAt(s, Math.max(0, u - 0.028), x0, y0), c = fireColor(age * 0.95);
+      g.strokeStyle = `rgba(${c},${1 - age * age})`; g.lineWidth = s.w * (1 - age * 0.6) * (s.big ? 1.6 : 1);
+      g.beginPath(); g.moveTo(px, py); g.lineTo(x, y); g.stroke();
+      if (s.big || age < 0.25) glowAt(g, x, y, s.big ? 2.6 : 1.4, "#FFB860", 0.35 * (1 - age));
+    }
+    g.restore();
+  }
+  // brasas subindo no ar da oficina
+  function embers(g, t, a, q) {
+    if (a <= 0) return;
+    g.save(); g.globalCompositeOperation = "lighter";
+    for (let i = 0, n = Math.round(22 * q); i < n; i++) {
+      const sp = 0.07 + (i % 5) * 0.018, u = (t * sp + i * 0.161) % 1, x = 8 + ((i * 41) % 88) + sin(t * 0.9 + i) * 3 * u, y = 112 - u * 120;
+      const c = fireColor(0.25 + u * 0.6), al = a * sin(PI * u) * (0.45 + 0.4 * sin(t * 5 + i));
+      glowAt(g, x, y, 1.6, "#FF9A40", al * 0.5); circle(g, `rgba(${c},${al})`, 0.28 + (i % 3) * 0.12, x, y);
+    }
     g.restore();
   }
 
-  const FORGE = { pour: 0.45, full: 1.25, hits: [1.5, 1.9, 2.3], quench: 2.5, cool: 3.0, rise: 3.05, deco: 3.25, banner: 3.55 };
+  // Linha do tempo da forja (segundos):
+  // 0–0,6  a oficina acende, a bigorna e o Folha (com o martelo) entram;
+  // 0,55   o disco em brasa cai na bigorna, quica e solta umas fagulhas;
+  // 1,25 / 1,7 / 2,15  três marteladas: o Folha levanta o martelo, desce rápido (rastro de movimento), clarão
+  //        na pancada, chuva de faíscas que quica na bigorna, tremor; o símbolo vai ficando cunhado;
+  // 2,2–2,8  o metal esfria (do laranja à cor do nível) soltando vapor;
+  // 2,85–3,45 a medalha sobe girando até o centro, a câmera abre, e acontece a revelação: raios, fita, a
+  //        moldura do nível crescendo e a faixa; o Folha pula para o centro erguendo o martelo.
+  const FORGE = { drop: 0.55, land: 0.85, hits: [1.25, 1.7, 2.15], cool: [2.2, 2.8], rise: 2.85, arrive: 3.45, deco: 3.6, banner: 3.85 };
+  // poses do braço do martelo (mão na grade do Folha e ângulo do martelo)
+  const HP = { rest: [100, 64, 1.2], raised: [92, 14, -2.1], strike: [104, 42.1, 0] };
+  function hammerState(T) {
+    const mix = (A, B, u) => [lerp(A[0], B[0], u), lerp(A[1], B[1], u), lerp(A[2], B[2], u)];
+    const H = FORGE.hits;
+    let s = HP.rest, blur = 0, hot = 0;
+    for (let i = 0; i < H.length; i++) {
+      const h = H[i], from = i === 0 ? HP.rest : HP.strike;
+      if (T >= h - 0.42 && T < h - 0.085) { s = mix(from, HP.raised, sstep((T - (h - 0.42)) / 0.335)); return { s, blur, hot }; }
+      if (T >= h - 0.085 && T < h) { const u = (T - (h - 0.085)) / 0.085; s = mix(HP.raised, HP.strike, u * u); return { s, blur: u, hot }; }
+      if (T >= h && (i === H.length - 1 || T < H[i + 1] - 0.42)) {
+        const d = T - h; hot = 1 - segT(d, 0.05, 0.5);
+        // pancada: um repique de leve e fica apoiado; depois do último golpe volta ao descanso
+        s = mix(HP.strike, [104, 39, -0.12], sin(PI * segT(d, 0, 0.16)) * 0.6);
+        if (i === H.length - 1) s = mix(s, HP.rest, sstep(segT(d, 0.2, 0.55)));
+        return { s, blur, hot };
+      }
+    }
+    return { s, blur, hot };
+  }
   function cenaEmblema(g, T, t, el) {
     const tier = parseInt(el.getAttribute("tier") || "3", 10), cat = el.getAttribute("categoria") || "seq", faixa = (el.getAttribute("faixa") || "").toUpperCase();
     const C = TIERS[tier] || TIERS[3], look = el._look(), k = this_k(el), q = Q;
-    const MX = 50, MY = 38, R = 15;
-    // golpes do martelo: ângulo do martelo e o instante de cada pancada
-    const raised = -100 * PI / 180, hitA = -140 * PI / 180;
-    let hamAng = null, lastHit = -9, hits = 0;
-    for (let i = 0; i < FORGE.hits.length; i++) {
-      const h = FORGE.hits[i];
-      if (T >= h) { hits = i + 1; lastHit = h; }
-      const u = (T - (h - 0.32)) / 0.32;   // descida do martelo nos 0,32 s antes da pancada
-      if (u >= 0 && u <= 1) hamAng = lerp(raised - 0.25, hitA, u * u);
-    }
-    if (hamAng == null && T > FORGE.hits[0] - 0.6 && T < FORGE.hits[2] + 0.35) hamAng = T > lastHit && T - lastHit < 0.12 ? hitA : lerp(hitA, raised - 0.25, outC(segT(T - lastHit, 0.05, 0.3)));
-    const sinceHit = T - lastHit, shake = sinceHit >= 0 && sinceHit < 0.25 ? (1 - sinceHit / 0.25) * 1.3 : 0;
+    const MX = 50, MY = 38, R = 15, FX0 = 26, FY = 108, FS = 0.52;
+    const sparks = el._sparks || (el._sparks = [sparkSet(31, 70), sparkSet(57, 70), sparkSet(83, 90), sparkSet(19, 18)]);
+    // onde a cabeça do martelo bate: a mão na pose de golpe mais o comprimento do cabo
+    const hitX = FX0 + (HP.strike[0] - 50) * FS + HAMMER_LEN, hitY = ANVIL.top - 1.8;
+    let lastHit = -9, hits = 0;
+    for (let i = 0; i < FORGE.hits.length; i++) if (T >= FORGE.hits[i]) { hits = i + 1; lastHit = FORGE.hits[i]; }
+    const since = T - lastHit, shake = since >= 0 && since < 0.24 ? (1 - since / 0.24) * 1.5 : T >= FORGE.land && T < FORGE.land + 0.15 ? 0.6 : 0;
+    const heat = 1 - sstep(segT(T, FORGE.cool[0], FORGE.cool[1]));
+    const rise = segT(T, FORGE.rise, FORGE.arrive), arrived = T >= FORGE.arrive, reveal = outC(segT(T, FORGE.arrive, FORGE.arrive + 0.5));
+    // câmera: perto da bigorna enquanto forja, abre para o quadro inteiro quando a medalha sobe
+    const cam = sstep(segT(T, FORGE.rise - 0.1, FORGE.arrive)), z = lerp(1.1, 1, cam), fx = 50, fy = lerp(79, 55, cam), sy0 = lerp(58, 55, cam);
     g.save(); g.translate(sin(t * 89) * shake, cos(t * 73) * shake);
-    // ---- fundo
-    const reach = el._reach(), reveal = outC(segT(T, FORGE.rise, FORGE.rise + 0.5));
-    backdrop(g, el, MX, MY + 6, reach, reach * 0.95, (b) => {
-      glowAt(b, MX, MY + 4, 60, reveal > 0 ? C[1] : "#FF6A1A", reveal > 0 ? 0.28 + 0.1 * sin(t * 2) : 0.18 + 0.2 * segT(T, FORGE.pour, FORGE.full));
-      bokeh(b, t, MX, MY + 6, reveal > 0 ? C[0] : "#FFB13B", 0.3 * q, 12);
+    // ---- fundo: o calor da oficina antes, a luz do nível depois
+    const reach = el._reach();
+    backdrop(g, el, MX, MY + 10, reach, reach * 0.95, (b) => {
+      glowAt(b, 62, 92, 70, "#FF6A1A", (0.2 + 0.14 * heat + 0.05 * sin(t * 3)) * (1 - reveal));
+      glowAt(b, MX, MY, 62, C[1], 0.32 * reveal + 0.08 * sin(t * 2) * reveal);
+      bokeh(b, t, MX, MY + 10, reveal > 0.5 ? C[0] : "#FFB13B", 0.28, 12);
       sceneRays(b, MX, MY, 20, 92, C[0], reveal * (0.7 + 0.25 * sin(t * 2.2)), t * 0.2, 0.06);
       if (q > 0.6) sceneRays(b, MX, MY, 10, 74, "#FFFFFF", 0.3 * reveal, -t * 0.15, 0.03);
-      shockRing(b, MX, MY, segT(T, FORGE.rise, FORGE.rise + 0.8), C[0], 56);
-      for (const h of FORGE.hits) shockRing(b, MX, MY, segT(T, h, h + 0.45), "#FFE07A", 30);
+      shockRing(b, MX, MY, segT(T, FORGE.arrive, FORGE.arrive + 0.8), C[0], 58);
+      shockRing(b, MX, MY, segT(T, FORGE.arrive + 0.1, FORGE.arrive + 1.1), "#FFFFFF", 78);
     });
-    // ---- o molde de pedra (some quando a medalha sai)
-    const moldA = 1 - segT(T, FORGE.rise, FORGE.rise + 0.4), moldIn = outBack(segT(T, 0.05, 0.45));
-    if (moldA > 0) {
-      g.save(); g.globalAlpha = moldA; g.translate(MX, MY + 1); g.scale(moldIn, moldIn);
-      const outer = R + 4.2;
-      g.fillStyle = vGrad(g, ["#4A4472", "#2A2550", "#16122F"], -outer, outer); g.beginPath(); g.arc(0, 0, outer, 0, 2 * PI); g.fill();
-      g.fillStyle = "rgba(0,0,0,0.55)"; g.beginPath(); g.arc(0, 0.6, R + 0.6, 0, 2 * PI); g.fill();
-      for (let i = 0; i < 10; i++) circle(g, "rgba(255,255,255,0.06)", 0.6 + (i % 3) * 0.3, cos(i * 2.3) * (R + 2.4), sin(i * 2.3) * (R + 2.4));
+    embers(g, t, 0.9 * (1 - reveal * 0.6), q);
+    // ---- o mundo da forja, dentro da câmera
+    g.save(); g.translate(50, sy0); g.scale(z, z); g.translate(-fx, -fy);
+    const forgeA = 1 - segT(T, FORGE.arrive - 0.1, FORGE.arrive + 0.5), enter = outC(segT(T, 0, 0.55));
+    if (forgeA > 0) {
+      g.save(); g.globalAlpha = forgeA * enter; g.translate(0, (1 - enter) * 14);
+      drawAnvil(g, hits > 0 || T > FORGE.land ? heat * (0.6 + 0.4 * (since < 0.3 ? 1 - since / 0.3 : 0)) : 0, t);
       g.restore();
     }
-    // ---- o metal derretido: jato caindo e o molde enchendo
-    const pourOn = T > FORGE.pour && T < FORGE.full + 0.15, fill = outC(segT(T, FORGE.pour + 0.15, FORGE.full));
-    if (pourOn) {
-      const tail = segT(T, FORGE.full, FORGE.full + 0.15), top = -70 + tail * 90, bottom = MY - R * (fill * 2 - 1) - 1;
-      const p = new Path2D(); for (let y = top; y <= bottom; y += 2) { const x = MX + sin(y * 0.4 + t * 18) * 0.5; y === top ? p.moveTo(x, y) : p.lineTo(x, y); }
-      fireLine(g, p, 1.6, 1);
+    // o disco em brasa: cai, quica, apanha, esfria e depois sobe girando
+    const RF = 10.5, flatY = hitY;
+    if (T >= FORGE.drop && !arrived) {
+      let x = hitX, y = flatY, sy = 0.22, spin = 0, scale = 1;
+      if (T < FORGE.land) { const u = segT(T, FORGE.drop, FORGE.land); y = lerp(30, flatY, u * u); sy = lerp(0.6, 0.22, u); spin = (1 - u) * 2.4; }
+      else if (T < FORGE.land + 0.2) y = flatY - sin(PI * segT(T, FORGE.land, FORGE.land + 0.2)) * 2.2;
+      if (rise > 0) {
+        const e = sstep(rise); x = lerp(hitX, MX, e); y = lerp(flatY, MY, e) - sin(PI * e) * 8; scale = lerp(RF, R, e) / RF; spin = e * 2 * PI; sy = lerp(0.22, 1, e);
+      }
+      const squash = since >= 0 && since < 0.2 && rise === 0 ? 1 - since / 0.2 : 0;
+      const eng = hits === 0 ? 0 : clamp((hits - 1 + outBack(segT(since, 0, 0.25))) / 3, 0, 1);
+      // rastro de luz quando sobe
+      if (rise > 0 && rise < 1) for (let j = 1; j <= 6; j++) { const e = sstep(Math.max(0, rise - j * 0.035)); glowAt(g, lerp(hitX, MX, e), lerp(flatY, MY, e) - sin(PI * e) * 8, 5 - j * 0.5, C[0], 0.22 * (1 - j / 7)); }
+      g.save(); g.translate(x, y); g.scale(scale, scale);
+      if (spin !== 0) {
+        // girando: a largura vira cos do giro; de costas mostra o verso liso; a espessura aparece na virada
+        const cx = Math.cos(spin), th = Math.sin(spin) * RF * 0.12;
+        g.save(); g.scale(Math.max(0.04, Math.abs(cx)), sy);
+        g.beginPath(); g.arc(th / Math.max(0.04, Math.abs(cx)), 0, RF, 0, 2 * PI); g.fillStyle = C[2]; g.fill();
+        drawMedalArt(g, RF, tier, cx > 0 ? cat : "", { deco: 0, engrave: cx > 0 ? eng : 0, heat, k });
+        g.restore();
+      } else drawFlatMedal(g, 0, 0, RF, sy, tier, cat, { engrave: eng, heat, squash, k });
+      g.restore();
+      // calor: brilho somado em volta do disco
+      if (heat > 0 && rise === 0) { g.save(); g.globalCompositeOperation = "lighter"; g.translate(x, y); g.scale(1, 0.45); glowAt(g, 0, 0, RF * 1.9, "#FF7A28", 0.55 * heat); g.restore(); }
     }
-    if (T > FORGE.pour + 0.15 && T < FORGE.rise + 0.05) {
-      g.save(); g.translate(MX, MY);
-      const cl = new Path2D(); cl.rect(-R - 1, R - 2 * R * fill, 2 * R + 2, 2 * R * fill + 1); g.clip(cl);
-      if (hits === 0) {
-        // líquido: dourado-branco no meio, laranja na borda, com bolhas
-        const lq = g.createRadialGradient(0, 0, 0, 0, 0, R); lq.addColorStop(0, "#FFF6D0"); lq.addColorStop(0.55, "#FFB13B"); lq.addColorStop(1, "#E04A1A");
-        g.fillStyle = lq; g.beginPath(); g.arc(0, 0, R, 0, 2 * PI); g.fill();
-        for (let i = 0; i < 7; i++) { const u = (t * 1.3 + i / 7) % 1; circle(g, `rgba(255,255,240,${0.7 * (1 - u)})`, 0.5 + u * 0.8, cos(i * 2.1) * R * 0.6, sin(i * 2.1) * R * 0.6); }
-      } else {
-        // depois do primeiro golpe já é medalha, ainda em brasa, com o símbolo aparecendo a cada pancada
-        drawMedalArt(g, R, tier, cat, { deco: 0, engrave: hits / 3, heat: 1 - segT(T, FORGE.quench, FORGE.cool), k });
+    // pancada da queda: umas fagulhas
+    if (T >= FORGE.land && T < FORGE.land + 0.7) drawSparks(g, sparks[3], T - FORGE.land, hitX, flatY, q);
+    // vapor do metal esfriando: nuvenzinhas macias subindo e se abrindo
+    if (T > FORGE.cool[0] && T < FORGE.cool[1] + 1.2 && rise < 0.6) {
+      for (let i = 0, n = Math.round(14 * q); i < n; i++) {
+        const st = FORGE.cool[0] + i * 0.06, u = segT(T, st, st + 1.2); if (u <= 0 || u >= 1) continue;
+        const x = hitX + (((i * 0.618) % 1) - 0.5) * 16 + sin(t * 1.3 + i) * 2.5 * u, y = flatY - 2 - u * 26;
+        glowAt(g, x, y, 3 + u * 8, "#E8EAF6", 0.32 * sin(PI * u) * (1 - rise));
+      }
+    }
+    // ---- o Folha com o martelo
+    const { s: hs, blur, hot } = hammerState(T);
+    const hop = segT(T, FORGE.arrive, FORGE.arrive + 0.6), hopY = hop > 0 && hop < 1 ? -sin(PI * hop) * 14 : 0;
+    const fX = lerp(FX0, 50, sstep(hop)), fY = FY + (1 - enter) * 26 + hopY;
+    let flashEyes = since >= 0 && since < 0.12;
+    const o = { T, t, x: fX, y: fY, scale: FS, look, dir: arrived ? { x: 0, y: -1 } : { x: 1, y: 0.5 },
+      script: [[0, "idle"], [FORGE.arrive, "ecstatic"], [5, "happy"], [6.4, "proud"]],
+      blink: flashEyes ? 1 : null,
+      edit: (P) => {
+        if (arrived) return;
+        P.hop = 0; P.tilt = 0; P.hR = [hs[0], hs[1]]; P.shapeR = "fist"; P.rotR = 0; P.bendR = 3;
+        // concentrado: sobrancelha baixa, boca firme
+        P.browY = 1.2; P.mCurve = 1.2; P.mOpen = 0; P.mW = 4.2;
+      } };
+    floorLight(g, fX, 107, 26, reveal > 0 ? C[0] : "#FF8A2A", 0.24);
+    const P = sceneFolha(g, o);
+    // o martelo na mão (com rastro de movimento na descida)
+    const [hx, hy] = folhaPt(o, P, P.hR[0], P.hR[1]);
+    const hamAng = arrived ? -PI / 2 + 0.45 + sin(t * 6.2) * 0.18 : hs[2];
+    if (blur > 0) for (let j = 3; j >= 1; j--) {
+      const u = Math.max(0, blur - j * 0.22), A = [lerp(HP.raised[0], HP.strike[0], u * u), lerp(HP.raised[1], HP.strike[1], u * u), lerp(HP.raised[2], HP.strike[2], u * u)];
+      const [gx, gy] = folhaPt(o, P, A[0], A[1]); drawSmithHammer(g, gx, gy, A[2], 0.16 * (1 - j / 4));
+    }
+    drawSmithHammer(g, hx, hy, hamAng, 1, hot * heat);
+    // ---- a pancada: clarão, reflexo horizontal, onda na mesa, faíscas
+    for (let i = 0; i < FORGE.hits.length; i++) {
+      const u = T - FORGE.hits[i]; if (u < 0 || u > 1.1) continue;
+      g.save(); g.globalCompositeOperation = "lighter";
+      const f = 1 - segT(u, 0, 0.2);
+      if (f > 0) {
+        glowAt(g, hitX, flatY - 1, 13, "#FFD27A", 0.8 * f);
+        g.save(); g.translate(hitX, flatY - 1); g.scale(1, 0.07); glowAt(g, 0, 0, 30, "#FFE7B0", 0.6 * f); g.restore();
       }
       g.restore();
-      glowAt(g, MX, MY, R * 1.6, "#FF8A2A", 0.5 * fill * (1 - segT(T, FORGE.quench, FORGE.cool)));
+      shockRing(g, hitX, flatY, segT(u, 0, 0.4), "#FFD27A", 16, 0.28);
+      drawSparks(g, sparks[i], u, hitX, flatY - 1.4, q);
     }
-    // ---- faíscas das marteladas (caem com gravidade)
-    for (const h of FORGE.hits) {
-      const u = T - h; if (u < 0 || u > 0.9) continue;
-      glowAt(g, MX + 5, MY - 9, 14 * (1 - u), "#FFF6D0", 0.9 * (1 - u / 0.3) * (u < 0.3 ? 1 : 0));
-      for (let i = 0; i < Math.round(26 * q); i++) {
-        const a = -PI * (0.05 + (i * 0.618 % 1) * 0.9), v = 30 + (i * 0.7548 % 1) * 40, x = MX + 5 + cos(a) * v * u, y = MY - 9 + sin(a) * v * u + 60 * u * u;
-        const c = fireColor(u * 0.9); line(g, `rgba(${c},${1 - u})`, x, y, x - cos(a) * 2, y - sin(a) * 2 + 1.2 * u, 0.45);
-      }
-    }
-    // ---- vapor da têmpera
-    if (T > FORGE.quench && T < FORGE.cool + 1) {
-      for (let i = 0; i < Math.round(12 * q); i++) {
-        const start = FORGE.quench + i * 0.05, u = segT(T, start, start + 1.1); if (u <= 0 || u >= 1) continue;
-        const x = MX + (((i * 0.618) % 1) - 0.5) * 30 + sin(t + i) * 2, y = MY - u * 30;
-        glowAt(g, x, y, 4 + u * 7, "#E6E9F5", 0.4 * sin(PI * u));
-      }
-    }
-    // ---- o martelo
-    if (hamAng != null) drawHammer(g, hamAng);
-    // ---- a medalha pronta: sai do molde, ganha a fita, as decorações e a faixa
-    if (T >= FORGE.rise) {
-      const rise = outBack(segT(T, FORGE.rise, FORGE.rise + 0.5)), y = MY - 3 * rise + sin(t * 1.6) * 0.6 * rise;
-      // a fita descendo do alto até a argola
-      const rib = outC(segT(T, FORGE.rise + 0.1, FORGE.rise + 0.6)), top = y - R - 1.4;
+    g.restore();   // fim da câmera
+    // ---- a medalha pronta no centro: fita, moldura do nível, faixa e estrelas
+    if (arrived) {
+      const y = MY + sin(t * 1.6) * 0.6 * reveal, pop = outBack(segT(T, FORGE.arrive, FORGE.arrive + 0.35));
+      glowAt(g, MX, MY, 30, "#FFFFFF", 0.85 * (1 - segT(T, FORGE.arrive, FORGE.arrive + 0.35)));
+      const rib = outC(segT(T, FORGE.arrive + 0.05, FORGE.arrive + 0.55)), top = y - R - 1.4;
       if (rib > 0) for (const side of [-1, 1]) {
         const p = new Path2D(), x1 = MX + side * 30, y1 = lerp(top, -60, rib);
         p.moveTo(MX + side * 1.4, top); p.lineTo(x1, y1); p.lineTo(x1 - side * 9, y1); p.lineTo(MX - side * 2.4, top); p.closePath();
@@ -2864,10 +3057,9 @@
         g.save(); g.clip(p); for (const kk of [0.35, 0.65]) { const ln = new Path2D(); ln.moveTo(lerp(x1, x1 - side * 9, kk), y1); ln.lineTo(MX + side * lerp(1.4, -2.4, kk), top); stroke(g, ln, C[1], 1.1); } g.restore();
       }
       circle(g, C[2], 1.9, MX, top); circle(g, C[0], 1.1, MX, top);
-      g.save(); g.translate(MX, y);
-      drawMedalArt(g, R, tier, cat, { deco: outBack(segT(T, FORGE.deco, FORGE.deco + 0.6)), engrave: 1, heat: 0, k, shine: T > 3.9 ? ((T - 3.9) * 0.36) % 1.3 : -1 });
+      g.save(); g.translate(MX, y); const ps = 1.12 - 0.12 * pop; g.scale(ps, ps);
+      drawMedalArt(g, R, tier, cat, { deco: outBack(segT(T, FORGE.deco, FORGE.deco + 0.6)), engrave: 1, heat: 0, k, shine: T > 4.3 ? ((T - 4.3) * 0.36) % 1.3 : -1 });
       g.restore();
-      // faixa com o nome do nível do emblema
       const ban = outBack(segT(T, FORGE.banner, FORGE.banner + 0.45));
       if (ban > 0 && faixa) {
         g.save(); g.translate(MX, y + R + (tier >= 5 ? 9 : 6.5)); g.scale(ban, 1);
@@ -2877,16 +3069,12 @@
         g.fillStyle = tier === 2 || tier === 3 || tier === 6 ? "#2A1A05" : "#FFFFFF"; g.font = "900 3.6px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
         g.fillText(faixa.split("").join(" "), 0, -0.4); g.restore();
       }
-      for (let i = 0; i < 7; i++) { const a = i * 2 * PI / 7 + 0.3 + t * 0.2, ph = (t * 0.7 + i * 0.37) % 1; star4(g, MX + cos(a) * 28, y + sin(a) * 24, 2.4 * sin(PI * ph) * reveal, rgba(i % 2 ? "#FFFFFF" : C[0], sin(PI * ph))); }
+      // estrelinhas em volta, só em cima e dos lados
+      for (let i = 0; i < 7; i++) { const a = i * 2 * PI / 7 + 0.3 + t * 0.2, ph = (t * 0.7 + i * 0.37) % 1; if (sin(a) > 0.45) continue;   // embaixo fica a faixa: nada de estrela por cima do nome
+        star4(g, MX + cos(a) * 28, y + sin(a) * 24, 2.4 * sin(PI * ph) * reveal, rgba(i % 2 ? "#FFFFFF" : C[0], sin(PI * ph))); }
     }
     g.restore();
-    // ---- o Folha: assiste a forja, se encolhe a cada martelada e comemora no fim
-    const flinch = sinceHit >= 0 && sinceHit < 0.3;
-    const o = { T, t, x: 50, y: 108 + (1 - outC(segT(T, 0.2, 0.7))) * 30, scale: 0.5, look, dir: { x: 0.1, y: -1 },
-      script: flinch && T < FORGE.quench ? [[0, "surprised"]] : [[0, "idle"], [FORGE.hits[0] - 0.05, "focus"], [FORGE.rise, "ecstatic"], [4.6, "happy"], [6, "proud"]] };
-    floorLight(g, 50, 107, 30, reveal > 0 ? C[0] : "#FF8A2A", 0.22);
-    sceneFolha(g, o);
-    drawConfetti(g, el._conf, T - FORGE.rise);
+    drawConfetti(g, el._conf, T - FORGE.arrive);
   }
 
   // ---- cena: sequência (a fênix)
