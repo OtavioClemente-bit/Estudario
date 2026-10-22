@@ -25,7 +25,6 @@ fun FocusBar() {
     if (!TopicFocus.active) return
     val hidden = TopicFocus.clockHidden
     fun setHidden(value: Boolean) = TopicFocus.setClockHidden(value)
-    var confirmStop by remember { mutableStateOf(false) }
 
     if (hidden) {
         // Escondido: sem contagem na tela (o tempo distrai); só o selo de que o foco segue ativo.
@@ -48,12 +47,24 @@ fun FocusBar() {
             }
             if (TopicFocus.running) IconButton("pause", "Pausar") { TopicFocus.pause() }
             else IconButton("play_arrow", "Continuar") { TopicFocus.resume() }
-            IconButton("stop", "Encerrar") { confirmStop = true }
+            IconButton("stop", "Encerrar") { FocusModals.confirmStop = true }
             IconButton("visibility_off", "Esconder") { setHidden(true) }
         }
     }
 
-    if (confirmStop) StopFocusModal(onDismiss = { confirmStop = false })
+}
+
+/**
+ * As janelas do foco ficam na raiz da página, não dentro da barra do topo: ali o fundo desfocado da
+ * barra prendia a janela no alto e ela aparecia cortada, grudada no navegador.
+ */
+object FocusModals {
+    var confirmStop by androidx.compose.runtime.mutableStateOf(false)
+}
+
+@Composable
+fun FocusModalsHost() {
+    if (FocusModals.confirmStop && TopicFocus.active) StopFocusModal(onDismiss = { FocusModals.confirmStop = false })
     if (TopicFocus.timeUp) TimeUpModal()
 }
 
