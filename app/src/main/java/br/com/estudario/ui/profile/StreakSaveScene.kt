@@ -12,12 +12,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -31,12 +33,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -46,111 +49,116 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private const val BRAZIER_W = 30
+private const val BRAZIER_GAP = 4
+
 /**
- * O Folha salva a sequência (o marca-página): a fênix dorme quase apagada, com "z" subindo; o Folha
- * chega na ponta dos pés, pede silêncio ("shhh…"), solta uma faísca e acende a chama ele mesmo. Aí a
- * fênix acorda em labaredas e ele sussurra "sequência salva!". Uma vez por dia salvo.
+ * O Folha salva a sequência (o marca-página), na mesma montagem da comemoração da sequência: a fênix em
+ * cima dormindo quase apagada, os braseiros da semana no meio (o último antes de HOJE é o dia que faltou,
+ * soltando fumaça) e o Folha embaixo. Ele pede silêncio ("shhh…"), joga uma bola de fogo nesse
+ * braseiro, que acende roxo e dourado, e o fogo sobe até a fênix, que acorda em labaredas.
  */
 @Composable
 fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<String, Int>> = emptyList(), onClose: () -> Unit) {
+    val days7 = week.ifEmpty { listOf("T" to 1, "Q" to 1, "Q" to 1, "S" to 1, "S" to 1, "D" to 2, "S" to 0) }
+    val savedI = days7.indexOfLast { it.second == 2 }.takeIf { it >= 0 } ?: (days7.size - 2).coerceAtLeast(0)
     var step by remember { mutableIntStateOf(0) }
-    val folhaX = remember { Animatable(260f) }
-    val spark = remember { Animatable(0f) }
-    val flame = remember { Animatable(0f) }
+    val rise = remember { Animatable(80f) }
+    val ball = remember { Animatable(0f) }
+    val jet = remember { Animatable(0f) }
+    val wake = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(900); step = 1
-        folhaX.animateTo(70f, tween(1400, easing = FastOutSlowInEasing))
-        step = 2; delay(900)                 // "shhh…" para a gente
-        step = 3; spark.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
-        step = 4; launch { flame.animateTo(1f, tween(700, easing = FastOutSlowInEasing)) }
-        delay(1100); step = 5
+        delay(500)
+        rise.animateTo(0f, tween(600, easing = FastOutSlowInEasing))
+        step = 1; delay(1500)                         // "shhh…"
+        step = 2; ball.animateTo(1f, tween(650, easing = FastOutSlowInEasing))   // joga a chama
+        step = 3; delay(250)                          // o braseiro pega fogo roxo e dourado
+        jet.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
+        step = 4; launch { wake.animateTo(1f, tween(800, easing = FastOutSlowInEasing)) }
+        delay(1000); step = 5
     }
     val loop = rememberInfiniteTransition(label = "cena")
-    val sway by loop.animateFloat(-3f, 3f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "balanco")
+    val flicker by loop.animateFloat(0.92f, 1.08f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "chama")
     val zz by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(1800)), label = "zz")
-    val hop by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(260), RepeatMode.Reverse), label = "passinho")
+    val woke = wake.value
     Dialog(onDismissRequest = { if (step >= 5) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF241A6E), Color(0xFF07051A)))), contentAlignment = Alignment.Center) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(Modifier.fillMaxWidth().height(300.dp)) {
-                    // a fênix: labaredas em leque, apagada e dormindo até o Folha acender
-                    val lit = flame.value
-                    Box(Modifier.align(Alignment.TopCenter).size(190.dp), contentAlignment = Alignment.Center) {
-                        Canvas(Modifier.size(190.dp).rotate(if (lit > 0.5f) sway else 0f)) {
-                            val w = size.width; val h = size.height; val cx = w / 2; val cy = h * .55f
-                            val open = 0.15f + 0.85f * lit
-                            if (lit > 0f) drawCircle(Brush.radialGradient(listOf(Color(0x66FF8A2A), Color.Transparent), Offset(cx, cy), w * .55f), w * .55f, Offset(cx, cy))
-                            for (side in listOf(-1f, 1f)) for (i in 0 until 7) {
-                                val f = i / 6f
-                                val ang = Math.toRadians((-90 + side * (12 + f * 70) * open).toDouble())
-                                val len = h * (.30f + .16f * (1 - f)) * (0.55f + 0.45f * open)
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(if (woke > 0f) Color(0xFF3A1E5E) else Color(0xFF241A6E), Color(0xFF07051A)))), contentAlignment = Alignment.Center) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.fillMaxWidth().height(340.dp), contentAlignment = Alignment.TopCenter) {
+                    // ---- a fênix (em cima, no meio)
+                    Box(Modifier.size(180.dp), contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.size(180.dp)) {
+                            val w = size.width; val h = size.height; val cx = w / 2; val cy = h * .58f
+                            val open = 0.12f + 0.88f * woke
+                            if (woke > 0f) drawCircle(Brush.radialGradient(listOf(Color(0x77FF8A2A), Color.Transparent), Offset(cx, cy), w * .6f), w * .6f, Offset(cx, cy))
+                            for (side in listOf(-1f, 1f)) for (i in 0 until 8) {
+                                val f = i / 7f
+                                val ang = Math.toRadians((-90 + side * (10 + f * 72) * open).toDouble())
+                                val len = h * (.30f + .17f * (1 - f)) * (0.5f + 0.5f * open) * (if (woke > 0f) flicker else 1f)
                                 val ex = cx + (Math.cos(ang) * len).toFloat(); val ey = cy + (Math.sin(ang) * len).toFloat()
-                                val p = Path().apply { moveTo(cx, cy); quadraticBezierTo(cx + side * len * .5f, cy - len * .1f, ex, ey) }
-                                val color = if (lit > 0f) Color(0xFFFF9A1F).copy(alpha = .35f + .6f * lit) else Color(0xFF8E86C8).copy(alpha = .35f)
-                                drawPath(p, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = (5f - f * 2.5f) * density, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                                if (lit > 0f) drawPath(p, Color(0xFFFFF0B8).copy(alpha = .7f * lit), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.6f * density, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                                val p = Path().apply { moveTo(cx, cy); quadraticBezierTo(cx + side * len * .45f, cy - len * .12f, ex, ey) }
+                                drawPath(p, if (woke > 0f) Color(0xFFFF8A1F).copy(alpha = .35f + .6f * woke) else Color(0xFF8E86C8).copy(alpha = .3f), style = Stroke((5f - f * 2.6f) * density, cap = StrokeCap.Round))
+                                if (woke > 0f) drawPath(p, Color(0xFFFFF0B8).copy(alpha = .75f * woke), style = Stroke(1.5f * density, cap = StrokeCap.Round))
                             }
-                            // o corpo/peito
-                            drawCircle(if (lit > 0f) Color(0xFFFFB13B).copy(alpha = .5f + .5f * lit) else Color(0xFF6E66A8), w * .09f, Offset(cx, cy))
+                            drawCircle(if (woke > 0f) Color(0xFFFFB13B) else Color(0xFF5E5698), w * .085f, Offset(cx, cy))
                         }
-                        Text("$days", Modifier.offset(y = 18.dp).alpha(0.35f + 0.65f * lit).scale(1f + 0.25f * lit), color = Color(0xFFFFE6A0), fontWeight = FontWeight.Black, fontSize = 34.sp)
-                        // dormindo: "z" subindo
-                        if (lit < 0.5f) for (j in 0 until 3) {
+                        Text("$days", Modifier.offset(y = 22.dp).alpha(0.3f + 0.7f * woke).scale(1f + 0.25f * woke), color = Color(0xFFFFE6A0), fontWeight = FontWeight.Black, fontSize = 32.sp)
+                        if (woke < 0.5f) for (j in 0 until 3) {
                             val u = (zz + j / 3f) % 1f
-                            Text("z", Modifier.offset(x = (40 + u * 26).dp, y = (-20 - u * 50).dp).alpha((1 - u) * (1 - lit * 2)), color = Color(0xFFCFC8FF), fontWeight = FontWeight.Black, fontSize = (12 + u * 10).sp)
+                            Text("z", Modifier.offset(x = (34 + u * 24).dp, y = (-18 - u * 46).dp).alpha((1 - u) * (1 - woke * 2)), color = Color(0xFFCFC8FF), fontWeight = FontWeight.Black, fontSize = (11 + u * 9).sp)
                         }
                     }
-                    // os braseiros da semana: feitos com chama baixinha, o dia que faltou soltando fumaça,
-                    // e quando o Folha acende a fênix esse braseiro também pega fogo (roxo e dourado)
-                    if (week.isNotEmpty()) androidx.compose.foundation.layout.Row(
-                        Modifier.align(Alignment.BottomStart).padding(start = 4.dp, bottom = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        week.forEach { (letter, st) ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Canvas(Modifier.size(24.dp, 30.dp)) {
+                    // ---- os braseiros da semana (no meio, em fila)
+                    Row(Modifier.offset(y = 186.dp), horizontalArrangement = Arrangement.spacedBy(BRAZIER_GAP.dp)) {
+                        days7.forEachIndexed { i, (letter, st) ->
+                            val today = i == days7.lastIndex
+                            Column(Modifier.width(BRAZIER_W.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Canvas(Modifier.size(BRAZIER_W.dp, 34.dp)) {
                                     val w = size.width; val h = size.height
-                                    val on = when (st) { 1 -> 0.55f + 0.45f * lit; 2 -> if (step >= 4) lit else 0f; else -> 0f }
+                                    val isSaved = i == savedI
+                                    val on = when { isSaved -> if (step >= 3) 1f else 0f; st == 1 -> 0.5f + 0.5f * woke; else -> 0f }
                                     if (on > 0f) {
-                                        val core = if (st == 2) Color(0xFFFFD25A) else Color(0xFFFFF0B8)
-                                        val body = if (st == 2) Color(0xFF8B7BFF) else Color(0xFFFF9A1F)
-                                        if (st == 2) drawCircle(Brush.radialGradient(listOf(Color(0x998B7BFF), Color.Transparent), Offset(w / 2, h * .45f), w * .7f), w * .7f, Offset(w / 2, h * .45f))
-                                        val fh = h * .62f * on
-                                        val flameP = Path().apply { moveTo(w / 2, h * .7f - fh); quadraticBezierTo(w * .9f, h * .55f, w / 2, h * .72f); quadraticBezierTo(w * .1f, h * .55f, w / 2, h * .7f - fh); close() }
-                                        drawPath(flameP, body)
-                                        drawCircle(core, w * .1f, Offset(w / 2, h * .62f))
-                                    } else if (st == 2 || st == 0) {
-                                        for (j in 0 until 3) { val u = (zz + j / 3f) % 1f; drawCircle(Color(0xFFB4AFD2).copy(alpha = .35f * (1 - u)), (2f + u * 3f) * density / 2, Offset(w / 2 + kotlin.math.sin(j + zz * 6) * 2f, h * .62f - u * h * .5f)) }
+                                        if (isSaved) drawCircle(Brush.radialGradient(listOf(Color(0xAA8B7BFF), Color.Transparent), Offset(w / 2, h * .45f), w * .8f), w * .8f, Offset(w / 2, h * .45f))
+                                        val fh = h * .6f * on * flicker
+                                        val flame = Path().apply { moveTo(w / 2, h * .66f - fh); quadraticBezierTo(w * .92f, h * .52f, w / 2, h * .7f); quadraticBezierTo(w * .08f, h * .52f, w / 2, h * .66f - fh); close() }
+                                        drawPath(flame, Brush.verticalGradient(if (isSaved) listOf(Color(0xFFB9A8FF), Color(0xFF6E5CFF)) else listOf(Color(0xFFFFD84A), Color(0xFFFF6A1F))))
+                                        drawCircle(if (isSaved) Color(0xFFFFD25A) else Color(0xFFFFF0B8), w * .1f, Offset(w / 2, h * .6f))
+                                    } else if (isSaved) {
+                                        for (j in 0 until 3) { val u = (zz + j / 3f) % 1f; drawCircle(Color(0xFFB4AFD2).copy(alpha = .4f * (1 - u)), (2f + u * 3f) * density / 2, Offset(w / 2 + kotlin.math.sin(j + zz * 6) * 2f, h * .6f - u * h * .5f)) }
                                     }
-                                    // a tigela
-                                    val bowl = Path().apply { moveTo(w * .12f, h * .72f); quadraticBezierTo(w / 2, h * 1.02f, w * .88f, h * .72f); close() }
-                                    drawPath(bowl, if (st == 2 && lit > 0f) Color(0xFF5A4AB0) else Color(0xFF3A3466))
+                                    val bowl = Path().apply { moveTo(w * .1f, h * .7f); quadraticBezierTo(w / 2, h * 1.05f, w * .9f, h * .7f); close() }
+                                    drawPath(bowl, if (isSaved && step >= 3) Color(0xFF5A4AB0) else Color(0xFF3A3466))
                                 }
-                                Text(letter, color = if (st == 2 && lit > 0f) Color(0xFFFFD25A) else Color.White.copy(alpha = if (st == 1) .85f else .45f), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                Text(if (today) "HOJE" else letter, color = when { i == savedI && step >= 3 -> Color(0xFFFFD25A); st == 1 -> Color(0xFFFFE1AA); else -> Color.White.copy(alpha = .45f) }, fontSize = if (today) 8.sp else 10.sp, fontWeight = FontWeight.Black)
                             }
                         }
                     }
-                    // a faísca saindo do dedo do Folha até o peito da fênix
-                    if (step == 3 || (step == 4 && lit < 0.3f)) {
-                        val u = spark.value
-                        Box(Modifier.align(Alignment.TopCenter).offset(x = (folhaX.value * (1 - u) - 10).dp, y = (220 - 116 * u - 40 * kotlin.math.sin(Math.PI * u).toFloat()).dp).size(14.dp)
-                            .background(Brush.radialGradient(listOf(Color.White, Color(0xFFFFD25A), Color.Transparent)), RoundedCornerShape(50)))
+                    // a bola de fogo (do Folha até o braseiro) e o jato (do braseiro até a fênix)
+                    val targetX = (savedI - (days7.size - 1) / 2f) * (BRAZIER_W + BRAZIER_GAP)
+                    if (step == 2) {
+                        val u = ball.value
+                        val x = targetX * u; val y = 280f - (280f - 196f) * u - 60f * kotlin.math.sin(Math.PI * u).toFloat()
+                        Box(Modifier.offset(x = x.dp, y = y.dp).size(18.dp).background(Brush.radialGradient(listOf(Color.White, Color(0xFFFFD25A), Color(0xFF8B7BFF), Color.Transparent)), RoundedCornerShape(50)))
                     }
-                    // o Folha, na ponta dos pés
-                    Box(Modifier.align(Alignment.BottomCenter).offset(x = folhaX.value.dp, y = (if (step == 1) -6f * hop else 0f).dp)) {
+                    if (step == 3 || (step == 4 && woke < 0.3f)) {
+                        val u = jet.value
+                        val x = targetX * (1 - u); val y = 190f - 90f * u - 30f * kotlin.math.sin(Math.PI * u).toFloat()
+                        Box(Modifier.offset(x = x.dp, y = y.dp).size(16.dp).background(Brush.radialGradient(listOf(Color.White, Color(0xFFFFB13B), Color.Transparent)), RoundedCornerShape(50)))
+                    }
+                    // ---- o Folha (embaixo, no meio)
+                    Box(Modifier.align(Alignment.BottomCenter).offset(y = rise.value.dp)) {
                         br.com.estudario.ui.assistant.Folha(
-                            104.dp,
+                            100.dp,
                             mood = when {
                                 step >= 4 -> br.com.estudario.ui.assistant.FolhaMood.HAPPY
-                                step == 3 -> br.com.estudario.ui.assistant.FolhaMood.TALKING
+                                step == 2 || step == 3 -> br.com.estudario.ui.assistant.FolhaMood.TALKING
                                 else -> br.com.estudario.ui.assistant.FolhaMood.IDLE
                             },
                         )
-                        // o balão: "shhh…" chegando, "sequência salva!" no fim
-                        val bubble = when { step in 1..2 -> "shhh…"; step >= 5 -> "sequência salva!"; else -> null }
+                        val bubble = when { step == 1 -> "shhh…"; step >= 5 -> "sequência salva!"; else -> null }
                         if (bubble != null) Text(
                             bubble,
-                            Modifier.align(Alignment.TopCenter).offset(y = (-30).dp).background(Color.White, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+                            Modifier.align(Alignment.TopCenter).offset(y = (-26).dp).background(Color.White, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
                             color = Color(0xFF1D1670), fontWeight = FontWeight.Black, fontSize = 14.sp,
                         )
                     }

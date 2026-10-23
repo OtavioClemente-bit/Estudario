@@ -3902,19 +3902,23 @@
 
 
   // ---- cena: o Folha salva a sequência (o marca-página)
-  // 0–1,2 s   escuro: a fênix dorme encolhida, a chama quase apagada, fumacinha e "z" subindo;
-  // 1,2–2,6   o Folha entra na ponta dos pés pela direita, dedo na boca: "shhh, não acorda ela";
-  // 2,6–3,3   ele vira para a gente, ainda pedindo silêncio;
-  // 3,3–4,1   leva a mão até o peito da fênix com uma faísca na ponta do dedo e acende ele mesmo;
-  // 4,1       a chama pega: clarão suave, a fênix abre as asas e o número volta a arder no peito;
-  // depois    a fênix respira acesa e o Folha, orgulhoso, sussurra "sequência salva".
-  const SAV = { walk: 1.2, arrive: 2.6, turn: 2.6, reach: 3.3, light: 4.1 };
+  // A mesma montagem da cena da sequência (a fênix em cima, os braseiros da semana em arco, o Folha
+  // embaixo no meio). O último braseiro antes de HOJE é o dia que faltou (quem não estudou no domingo
+  // e volta na segunda vê o domingo sendo salvo).
+  // 0–1,1 s   escuro: a fênix dorme quase apagada ("z" subindo); os dias feitos com chama baixinha,
+  //           o dia que faltou soltando fumaça;
+  // 1,1–2,7   o Folha sobe e pede silêncio com o dedo na boca: "shhh…";
+  // 2,7–3,2   ele aponta para o braseiro apagado e joga uma bola de fogo nele;
+  // 3,6       o braseiro pega fogo, roxo e dourado (a chama do marca-página);
+  // 3,8–4,25  um jato sobe desse braseiro até o peito da fênix e estoura: ela acorda e abre as asas;
+  // depois    a fênix respira acesa, o número arde e o Folha sussurra "sequência salva!".
+  const SAV = { rise: 0.6, shh: 1.1, aim: 2.7, throwA: 3.0, hit: 3.6, jet: 3.8, boom: 4.25, wings: 4.35, say: 5.2 };
   function bubbleText(g, txt, x, y, a) {
     if (a <= 0.01) return;
     g.save(); g.globalAlpha = a;
     g.font = "900 4.2px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-    const w = g.measureText(txt).width + 7, h = 8;
-    const p = new Path2D(); const r = 3;
+    const w = g.measureText(txt).width + 7, h = 8, r = 3;
+    const p = new Path2D();
     p.moveTo(x - w / 2 + r, y - h / 2); p.lineTo(x + w / 2 - r, y - h / 2); p.quadraticCurveTo(x + w / 2, y - h / 2, x + w / 2, y - h / 2 + r);
     p.lineTo(x + w / 2, y + h / 2 - r); p.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2 - r, y + h / 2);
     p.lineTo(x + 3, y + h / 2); p.lineTo(x + 1, y + h / 2 + 2.6); p.lineTo(x - 1, y + h / 2);
@@ -3924,109 +3928,131 @@
     g.fillStyle = "#1D1670"; g.fillText(txt, x, y + 0.3);
     g.restore();
   }
+  // a chama do marca-página: roxa por fora, dourada no meio
+  function drawSavedFlame(g, t, h, w) {
+    if (h <= 0.3) return;
+    glowAt(g, 0, -h * 0.45, h * 1.2, "#8B7BFF", 0.55);
+    drawSmallFlame(g, t, h, w);
+    g.save(); g.globalCompositeOperation = "source-atop"; g.restore();
+    glowAt(g, 0, -h * 0.35, h * 0.7, "#7B6CFF", 0.5);
+    glowAt(g, 0, -h * 0.3, h * 0.35, "#FFD25A", 0.85);
+  }
   function cenaSalvou(g, T, t, el) {
     const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look(), k = this_k(el);
-    const lit = outC(segT(T, SAV.light, SAV.light + 0.7));
-    const reach = el._reach();
-    // ---- fundo: noite fria que esquenta quando a chama pega
-    backdrop(g, el, PX, PY + 10, reach, reach * 0.95, (b) => {
-      glowAt(b, PX, PY + 6, 60, lit > 0 ? "#FF6A1A" : "#2A2A70", lit > 0 ? 0.12 + 0.18 * lit : 0.22);
-      if (lit > 0) sceneRays(b, PX, PY, 16, 90, "#FFB13B", lit * (0.4 + 0.12 * sin(t * 2)), t * 0.1, 0.05);
-      shockRing(b, PX, PY, segT(T, SAV.light, SAV.light + 0.9), "#FFE07A", 55);
-      for (let i = 0, m = Math.round(18 * Q); i < m; i++) { const u = (t * (0.06 + (i % 5) * 0.012) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.3, `rgb(${c})`, (1 - u) * (0.12 + 0.45 * lit)); }
-    });
-    // ---- a fênix: dormindo (asas fechadas, quase apagada) e depois acesa, de asas abertas
-    const breath = sin(t * 1.6);
-    const open = lit > 0 ? outBack(segT(T, SAV.light + 0.1, SAV.light + 0.9)) : 0.06 + 0.03 * breath;
-    const flap = lit > 0 && T > SAV.light + 0.9 ? sin((T - SAV.light - 0.9) * 2.4) * 9 : 0;
-    const alpha = 0.16 + 0.05 * breath + 0.84 * lit;
-    g.save();
-    if (lit < 1) { g.globalAlpha = 1; }
-    drawPhoenix(g, t, open, flap, alpha, k);
-    g.restore();
-    // dormindo: fumacinha e "z z z" subindo
-    if (lit < 0.6) {
-      const za = 1 - lit / 0.6;
-      for (let j = 0; j < 3; j++) { const u = (t * 0.35 + j / 3) % 1; g.save(); g.globalAlpha = za * (1 - u) * 0.9; g.fillStyle = "#CFC8FF"; g.font = `900 ${3 + u * 3}px Nunito, system-ui, sans-serif`; g.fillText("z", PX + 10 + u * 9 + sin(u * 6 + j) * 1.5, PY - 12 - u * 18); g.restore(); }
-      for (let j = 0; j < 3; j++) { const u = (t * 0.5 + j / 3) % 1; circle(g, `rgba(170,165,210,${0.25 * za * (1 - u)})`, 1 + u * 2.4, PX + sin(t + j) * 2, PY - 4 - u * 12); }
-    }
-    // os braseiros da semana: os dias feitos com a chama baixinha, o dia que faltou soltando fumaça;
-    // quando o Folha acende a fênix, esse braseiro também pega fogo, roxo e dourado (o marca-página)
+    // a semana: letra + estado (1 feito, 2 o dia que o Folha salva, 0 sem estudo); o último é hoje
     let week = (el.getAttribute("semana") || "").split(",").filter(Boolean).map((w) => [w.slice(0, -1) || w, w.slice(-1)]);
-    if (!week.length) week = [["S", "1"], ["T", "1"], ["Q", "2"], ["Q", "1"], ["S", "1"]];
-    const nW = week.length, bx0 = 33, gap = Math.min(7.4, 46 / Math.max(nW - 1, 1));
-    const wx = (i) => bx0 + (i - (nW - 1) / 2) * gap, wy = (x) => 85 - 4 * (1 - ((x - bx0) / 26) ** 2);
+    if (!week.length) week = [["T", "1"], ["Q", "1"], ["Q", "1"], ["S", "1"], ["S", "1"], ["D", "2"], ["S", "0"]];
+    const n = week.length;
+    let savedI = -1; week.forEach(([, st], i) => { if (st === "2") savedI = i; });
+    if (savedI < 0) savedI = Math.max(0, n - 2);
+    const ax = (i) => 50 + (i - (n - 1) / 2) * 12, ay = (x) => 66 - 7 * (1 - ((x - 50) / 42) ** 2);
+    const sx = ax(savedI), sy = ay(sx);
+    const woke = outC(segT(T, SAV.boom, SAV.boom + 0.6));
+    const shake = T > SAV.boom && T < SAV.boom + 0.5 ? (1 - (T - SAV.boom) / 0.5) * 1.2 : 0;
+    g.save(); g.translate(sin(t * 93) * shake, cos(t * 71) * shake);
+    // ---- fundo: noite fria que esquenta quando a fênix acorda
+    const reach = el._reach();
+    backdrop(g, el, PX, PY + 10, reach, reach * 0.95, (b) => {
+      glowAt(b, PX, PY + 6, 62, woke > 0 ? "#FF6A1A" : "#2C2A78", woke > 0 ? 0.14 + 0.16 * woke : 0.24);
+      glowAt(b, sx, sy, 22, "#8B7BFF", 0.25 * segT(T, SAV.hit, SAV.hit + 0.4));
+      if (woke > 0) sceneRays(b, PX, PY, 16, 90, "#FFB13B", woke * (0.5 + 0.15 * sin(t * 2)), t * 0.1, 0.05);
+      shockRing(b, PX, PY, segT(T, SAV.boom, SAV.boom + 0.7), "#FFE07A", 52);
+      shockRing(b, sx, sy, segT(T, SAV.hit, SAV.hit + 0.6), "#B9A8FF", 22);
+      for (let i = 0, m = Math.round(22 * Q); i < m; i++) { const u = (t * (0.07 + (i % 5) * 0.014) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.4, `rgb(${c})`, (1 - u) * (0.12 + 0.5 * woke)); }
+    });
+    // ---- os braseiros da semana (iguais aos da cena da sequência)
+    const fuse = new Path2D(); for (let x = ax(0) - 6; x <= ax(n - 1); x += 1) { const y = ay(x) + 4; x === ax(0) - 6 ? fuse.moveTo(x, y) : fuse.lineTo(x, y); }
+    stroke(g, fuse, "rgba(255,255,255,0.12)", 0.5);
+    const savedOn = outBack(segT(T, SAV.hit, SAV.hit + 0.35));
     week.forEach(([letter, st], i) => {
-      const x = wx(i), y = wy(x), saved = st === "2", done = st === "1";
+      const today = i === n - 1, x = ax(i), y = ay(x);
       g.save(); g.translate(x, y);
-      const bowl = new Path2D(); bowl.moveTo(-3.4, 1); bowl.quadraticCurveTo(0, 5.6, 3.4, 1); bowl.closePath();
-      g.fillStyle = vGrad(g, ["#4A4472", "#231F45"], 1, 5); g.fill(bowl); stroke(g, bowl, saved && lit > 0 ? "rgba(255,210,90,0.8)" : "rgba(255,255,255,0.25)", 0.3);
-      g.fillStyle = "#2A2550"; g.fillRect(-0.7, 4.4, 1.4, 2); g.fillRect(-2, 6.2, 4, 0.8);
-      if (done) { g.translate(0, 1); drawSmallFlame(g, t + i, 5.5 * (0.55 + 0.45 * lit) * (1 + 0.06 * sin(t * 9 + i)), 2.1); }
-      else if (saved) {
-        const on = outBack(segT(T, SAV.light + 0.15, SAV.light + 0.6));
-        if (on > 0) {
-          g.translate(0, 1);
-          glowAt(g, 0, -3, 7, "#8B7BFF", 0.55 * on);
-          drawSmallFlame(g, t + i, 7 * on * (1 + 0.07 * sin(t * 8)), 2.4);
-          glowAt(g, 0, -2.5, 3.5, "#FFD25A", 0.6 * on);
-        } else for (let j = 0; j < 3; j++) { const u = (t * 0.6 + j / 3) % 1; circle(g, `rgba(180,175,210,${0.35 * (1 - u)})`, 0.7 + u * 1.4, sin(t + j) * 1.1, -u * 7); }
+      const bowl = new Path2D(); bowl.moveTo(-4, 1); bowl.quadraticCurveTo(0, 6.5, 4, 1); bowl.closePath();
+      g.fillStyle = vGrad(g, ["#4A4472", "#231F45"], 1, 5); g.fill(bowl);
+      stroke(g, bowl, i === savedI && savedOn > 0 ? "rgba(255,210,90,0.85)" : "rgba(255,255,255,0.25)", 0.3);
+      g.fillStyle = "#2A2550"; g.fillRect(-0.8, 5, 1.6, 2.4); g.fillRect(-2.4, 7, 4.8, 0.9);
+      if (i === savedI) {
+        if (savedOn > 0) { g.translate(0, 1.2); drawSavedFlame(g, t + i, 9 * savedOn * (1 + 0.06 * sin(t * 8)), 3); }
+        else for (let j = 0; j < 3; j++) { const u = (t * 0.6 + j / 3) % 1; circle(g, `rgba(180,175,210,${0.35 * (1 - u)})`, 0.8 + u * 1.6, sin(t + j) * 1.2, -u * 8); }
+      } else if (st === "1") {
+        // dia feito: brasa baixinha enquanto a fênix dorme, chama cheia quando ela acorda
+        g.translate(0, 1.2); drawSmallFlame(g, t + i, (today ? 9 : 6.5) * (0.45 + 0.55 * woke) * (1 + 0.06 * sin(t * 9 + i)), today ? 3.2 : 2.4);
       }
       g.restore();
-      g.fillStyle = saved && lit > 0 ? "rgba(255,215,120,0.95)" : done ? "rgba(255,225,170,0.85)" : "rgba(255,255,255,0.45)";
-      g.font = "900 2.8px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(letter, x, y + 9.2);
+      g.fillStyle = i === savedI && savedOn > 0 ? "rgba(255,215,120,0.95)" : st === "1" ? "rgba(255,225,170,0.9)" : "rgba(255,255,255,0.45)";
+      g.font = "900 3px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(today ? "HOJE" : letter, x, y + 10.4);
     });
-    // o número: apagado enquanto ela dorme, arde de novo quando acende
+    // ---- o jato: do braseiro salvo até o peito da fênix, estourando
+    const jet = segT(T, SAV.jet, SAV.boom);
+    if (jet > 0 && T < SAV.boom + 0.25) {
+      const lx = sx, ly = sy - 4;
+      const at = (q) => { const v = 1 - q; return [v * v * lx + 2 * v * q * (lx + (PX - lx) * 0.2 + 4) + q * q * PX, v * v * ly + 2 * v * q * (PY + 18) + q * q * PY]; };
+      const p = new Path2D(); for (let q = 0; q <= outC(jet); q += 0.04) { const [x, y] = at(q); q === 0 ? p.moveTo(x, y) : p.lineTo(x, y); }
+      fireLine(g, p, 1.4, 1 - segT(T, SAV.boom, SAV.boom + 0.25));
+      const [hx, hy] = at(outC(jet)); glowAt(g, hx, hy, 6, "#FFE07A", 0.9); circle(g, "#FFFFFF", 1.2, hx, hy);
+    }
+    const ball = segT(T, SAV.boom, SAV.boom + 0.35);
+    if (ball > 0 && ball < 1) { glowAt(g, PX, PY, 10 + 30 * ball, "#FFFFFF", 0.9 * (1 - ball)); glowAt(g, PX, PY, 8 + 20 * ball, "#FFB13B", 1 - ball); }
+    // ---- a fênix: dormindo (asas recolhidas, quase apagada) e acordando em labaredas
+    const breath = sin(t * 1.6);
+    const open = woke > 0 ? 0.08 + 0.92 * outBack(segT(T, SAV.wings, SAV.wings + 0.75)) : 0.06 + 0.03 * breath;
+    const flap = T < SAV.wings + 0.75 ? 0 : sin((T - SAV.wings - 0.75) * 2.4) * 10 + (T < SAV.wings + 1.6 ? sin(PI * segT(T, SAV.wings + 0.75, SAV.wings + 1.6)) * -25 : 0);
+    drawPhoenix(g, t, open, flap, 0.16 + 0.05 * breath + 0.84 * woke, k);
+    if (woke < 0.6) {
+      const za = 1 - woke / 0.6;
+      for (let j = 0; j < 3; j++) { const u = (t * 0.35 + j / 3) % 1; g.save(); g.globalAlpha = za * (1 - u) * 0.9; g.fillStyle = "#CFC8FF"; g.font = `900 ${3 + u * 3}px Nunito, system-ui, sans-serif`; g.fillText("z", PX + 10 + u * 9 + sin(u * 6 + j) * 1.5, PY - 12 - u * 18); g.restore(); }
+    }
     const beat = 1 + 0.06 * Math.max(0, sin(t * 4.2)) ** 6;
-    fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, 0.25 + 0.75 * lit, lit > 0.5 ? beat : 1);
-    // ---- o Folha: entra na ponta dos pés pedindo silêncio, acende a chama com o dedo e fica orgulhoso
-    const walk = segT(T, SAV.walk, SAV.arrive);
-    const fx = lerp(124, 78, outC(walk));
-    const tiptoe = walk > 0 && walk < 1 ? -Math.abs(sin(walk * PI * 5)) * 2.2 : 0;
-    const reachU = segT(T, SAV.reach, SAV.light);
-    const shh = T < SAV.reach || T > SAV.light + 1.6 ? (T < SAV.reach ? 1 : 0) : 0;
+    fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, 0.22 + 0.78 * woke, woke > 0.5 ? beat : 1);
+    if (woke > 0) for (let i = 0, m = Math.round(16 * Q); i < m; i++) { const u = (t * (0.4 + (i % 4) * 0.08) + i * 0.0625) % 1, sd = ((i * 0.618) % 1 - 0.5) * 2, x = PX + sd * 38 * (0.4 + u), y = PY - 6 - u * 34 + sd * sd * 8; const c = fireColor(0.15 + u * 0.6); circle(g, `rgba(${c},${(1 - u) * open})`, 0.3 + 0.3 * (1 - u), x, y); }
+    g.restore();
+    // ---- o Folha, embaixo no meio: sobe, pede silêncio, aponta e joga a chama, e comemora baixinho
+    const shh = T >= SAV.shh && T < SAV.aim;
+    const aimU = segT(T, SAV.aim, SAV.throwA), throwU = segT(T, SAV.throwA, SAV.throwA + 0.25);
+    const left = sx < 50;   // o braseiro salvo fica à esquerda ou à direita do Folha
     const o = {
-      T, t, x: fx, y: 106 + tiptoe, scale: 0.44, look,
-      dir: { x: T < SAV.turn ? -0.8 : T < SAV.reach ? 0 : -1, y: T < SAV.reach ? 0 : -0.4 },
-      script: [[0, "idle"], [SAV.light, "happy"], [SAV.light + 1.6, "proud"]],
+      T, t, x: 50, y: 110 + (1 - outC(segT(T, SAV.rise, SAV.shh))) * 30, scale: 0.46, look,
+      dir: { x: shh ? 0 : left ? -0.8 : 0.8, y: shh ? 0 : T < SAV.boom ? -0.3 : -1 },
+      script: [[0, "idle"], [SAV.boom, "ecstatic"], [SAV.boom + 1.4, "happy"], [SAV.say + 1.2, "proud"]],
       edit: (P) => {
-        // dedo na boca: "shhh"
-        if (shh > 0) {
-          P.hR = [96, 82]; P.shapeR = "mitt";   // a mão de verdade some atrás; o dedo na boca é desenhado na frente
-          P.mW = 2.2; P.mCurve = 0.2; P.mOpen = 0.18; P.browY = -0.6; P.browIn = 0.3; P.cheek = 0.55;
-          P.lookX = T < SAV.turn ? -0.8 : 0; P.lookY = 0.1; P.tilt = T < SAV.turn ? -3 : 0;
-        } else if (T < SAV.light + 0.2) {
-          // estica o braço até o peito da fênix, com a faísca no dedo
-          P.hL = [lerp(10, -22, outC(reachU)), lerp(76, 54, outC(reachU))]; P.shapeL = "point"; P.rotL = lerp(0, -30, reachU); P.bendL = -4;
-          P.lookX = -1; P.lookY = -0.5; P.mW = 3; P.mCurve = 1.4; P.mOpen = 0.15; P.browY = -0.8; P.tilt = -3;
+        if (shh) {
+          // boquinha de "shhh" (o dedo é desenhado depois, na frente)
+          P.mW = 2.2; P.mCurve = 0.2; P.mOpen = 0.2; P.browY = -0.5; P.browIn = 0.25; P.cheek = 0.55; P.lookX = 0; P.lookY = 0.05;
+          if (left) { P.hL = [40, 84]; P.shapeL = "fist"; } else { P.hR = [60, 84]; P.shapeR = "fist"; }
+        } else if (T >= SAV.aim && T < SAV.hit + 0.2) {
+          // aponta para o braseiro e arremessa a chama
+          const reachX = left ? lerp(10, -6, aimU) : lerp(90, 106, aimU), reachY = lerp(76, 58, aimU) - throwU * 4;
+          if (left) { P.hL = [reachX, reachY]; P.shapeL = throwU > 0.2 ? "open" : "point"; P.rotL = -10; P.bendL = -4; }
+          else { P.hR = [reachX, reachY]; P.shapeR = throwU > 0.2 ? "open" : "point"; P.rotR = 10; P.bendR = -4; }
+          P.lookX = left ? -1 : 1; P.lookY = -0.6; P.mW = 3.4; P.mCurve = 1.8; P.mOpen = 0.25; P.browY = -0.8;
         }
       },
     };
-    floorLight(g, fx, 105, 26, lit > 0 ? "#FF8A2A" : "#5A50C0", 0.18 + 0.2 * lit);
+    floorLight(g, 50, 109, 30, woke > 0 ? "#FF8A2A" : "#5A50C0", 0.18 + 0.18 * woke);
     const P = sceneFolha(g, o);
-    // "shhh": o braço direito vem pela frente e o dedo fica em pé na frente da boca
-    if (shh > 0 && T > 0.2) {
+    // o dedo na frente da boca: só a mão, como num desenho animado
+    if (shh) {
+      const sp = segT(T, SAV.shh, SAV.shh + 0.25);
       g.save(); g.translate(o.x - 50 * o.scale, o.y + (P.hop - 95) * o.scale); g.scale(o.scale, o.scale);
-      drawArm(g, [88, 66], [51, 79], -5, 1, "point", 90, 0, false, look, t);
+      g.translate(50.5, 84 + (1 - outC(sp)) * 10); g.rotate(-PI / 2); g.scale(1.65, 1.65);
+      const armC = ((look && look.arm) || [ARM, ARM_L])[0], glove = (look && look.gloves) || GLOVES.branca;
+      g.globalAlpha = outC(sp);
+      drawHand(g, "point", false, armC, glove);
       g.restore();
     }
-    // a faísca na ponta do dedo, viajando até o peito da fênix
-    if (T >= SAV.reach && T < SAV.light + 0.15) {
-      const [hx, hy] = folhaPt(o, P, P.hL[0], P.hL[1]);
-      const u = segT(T, SAV.reach + 0.45, SAV.light);
-      const sx = lerp(hx, PX, outC(u)), sy = lerp(hy, PY + 2, outC(u)) - sin(PI * u) * 8;
-      glowAt(g, sx, sy, 5, "#FFE07A", 0.95); circle(g, "#FFFFFF", 0.9, sx, sy);
-      for (let j = 0; j < 4; j++) { const v = (t * 5 + j / 4) % 1; circle(g, `rgba(255,${190 + j * 12},90,${1 - v})`, 0.35, sx + sin(j * 7) * v * 2.5, sy - v * 3); }
+    // a bola de fogo saindo da mão do Folha até o braseiro apagado
+    if (T >= SAV.throwA && T < SAV.hit + 0.05) {
+      const [hx, hy] = folhaPt(o, P, left ? P.hL[0] : P.hR[0], left ? P.hL[1] : P.hR[1]);
+      const u = segT(T, SAV.throwA + 0.1, SAV.hit);
+      const bx = lerp(hx, sx, u), by = lerp(hy, sy - 2, u) - sin(PI * u) * 14;
+      glowAt(g, bx, by, 6, "#8B7BFF", 0.8); glowAt(g, bx, by, 3.5, "#FFD25A", 0.95); circle(g, "#FFFFFF", 0.9, bx, by);
+      for (let j = 0; j < 5; j++) { const v = (t * 5 + j / 5) % 1; circle(g, `rgba(${j % 2 ? "185,168,255" : "255,215,120"},${1 - v})`, 0.45, bx - (sx - hx) * 0.05 * v * 6 + sin(j * 7) * v * 2, by + v * 3); }
     }
-    // o clarão da chama pegando
-    const flash = segT(T, SAV.light, SAV.light + 0.4);
-    if (flash > 0 && flash < 1) { glowAt(g, PX, PY, 10 + 26 * flash, "#FFFFFF", 0.75 * (1 - flash)); glowAt(g, PX, PY, 8 + 18 * flash, "#FFB13B", 0.9 * (1 - flash)); }
-    // as falas, em balão
-    const bx = fx + 2, by = 64 + tiptoe * 0.44;
-    bubbleText(g, "shhh…", bx, by, segT(T, SAV.walk + 0.4, SAV.walk + 0.7) * (1 - segT(T, SAV.reach - 0.1, SAV.reach + 0.1)));
-    bubbleText(g, "sequência salva!", bx - 4, by, segT(T, SAV.light + 0.9, SAV.light + 1.2));
-    drawConfetti(g, el._conf, T - SAV.light - 0.4);
+    // as falas
+    bubbleText(g, "shhh…", 50, 72 - outC(segT(T, SAV.rise, SAV.shh)) * 0 + (1 - outC(segT(T, SAV.rise, SAV.shh))) * 14, segT(T, SAV.shh + 0.2, SAV.shh + 0.5) * (1 - segT(T, SAV.aim - 0.15, SAV.aim)));
+    bubbleText(g, "sequência salva!", 50, 72, segT(T, SAV.say, SAV.say + 0.3));
+    drawConfetti(g, el._conf, T - SAV.boom);
   }
   const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca, salvou: cenaSalvou };
   // ------------------------------------------------------------------ som
