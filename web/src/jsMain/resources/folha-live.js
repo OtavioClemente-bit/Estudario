@@ -3900,7 +3900,108 @@
   // escala do desenho em pixels de tela (sombras e desfoques do canvas são em pixels, não na grade)
   const this_k = (el) => el._k || 1;
 
-  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
+
+  // ---- cena: o Folha salva a sequência (o marca-página)
+  // 0–1,2 s   escuro: a fênix dorme encolhida, a chama quase apagada, fumacinha e "z" subindo;
+  // 1,2–2,6   o Folha entra na ponta dos pés pela direita, dedo na boca: "shhh, não acorda ela";
+  // 2,6–3,3   ele vira para a gente, ainda pedindo silêncio;
+  // 3,3–4,1   leva a mão até o peito da fênix com uma faísca na ponta do dedo e acende ele mesmo;
+  // 4,1       a chama pega: clarão suave, a fênix abre as asas e o número volta a arder no peito;
+  // depois    a fênix respira acesa e o Folha, orgulhoso, sussurra "sequência salva".
+  const SAV = { walk: 1.2, arrive: 2.6, turn: 2.6, reach: 3.3, light: 4.1 };
+  function bubbleText(g, txt, x, y, a) {
+    if (a <= 0.01) return;
+    g.save(); g.globalAlpha = a;
+    g.font = "900 4.2px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    const w = g.measureText(txt).width + 7, h = 8;
+    const p = new Path2D(); const r = 3;
+    p.moveTo(x - w / 2 + r, y - h / 2); p.lineTo(x + w / 2 - r, y - h / 2); p.quadraticCurveTo(x + w / 2, y - h / 2, x + w / 2, y - h / 2 + r);
+    p.lineTo(x + w / 2, y + h / 2 - r); p.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2 - r, y + h / 2);
+    p.lineTo(x + 3, y + h / 2); p.lineTo(x + 1, y + h / 2 + 2.6); p.lineTo(x - 1, y + h / 2);
+    p.lineTo(x - w / 2 + r, y + h / 2); p.quadraticCurveTo(x - w / 2, y + h / 2, x - w / 2, y + h / 2 - r);
+    p.lineTo(x - w / 2, y - h / 2 + r); p.quadraticCurveTo(x - w / 2, y - h / 2, x - w / 2 + r, y - h / 2); p.closePath();
+    g.fillStyle = "#FFFFFF"; g.fill(p);
+    g.fillStyle = "#1D1670"; g.fillText(txt, x, y + 0.3);
+    g.restore();
+  }
+  function cenaSalvou(g, T, t, el) {
+    const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look(), k = this_k(el);
+    const lit = outC(segT(T, SAV.light, SAV.light + 0.7));
+    const reach = el._reach();
+    // ---- fundo: noite fria que esquenta quando a chama pega
+    backdrop(g, el, PX, PY + 10, reach, reach * 0.95, (b) => {
+      glowAt(b, PX, PY + 6, 60, lit > 0 ? "#FF6A1A" : "#2A2A70", lit > 0 ? 0.12 + 0.18 * lit : 0.22);
+      if (lit > 0) sceneRays(b, PX, PY, 16, 90, "#FFB13B", lit * (0.4 + 0.12 * sin(t * 2)), t * 0.1, 0.05);
+      shockRing(b, PX, PY, segT(T, SAV.light, SAV.light + 0.9), "#FFE07A", 55);
+      for (let i = 0, m = Math.round(18 * Q); i < m; i++) { const u = (t * (0.06 + (i % 5) * 0.012) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.3, `rgb(${c})`, (1 - u) * (0.12 + 0.45 * lit)); }
+    });
+    // ---- a fênix: dormindo (asas fechadas, quase apagada) e depois acesa, de asas abertas
+    const breath = sin(t * 1.6);
+    const open = lit > 0 ? outBack(segT(T, SAV.light + 0.1, SAV.light + 0.9)) : 0.06 + 0.03 * breath;
+    const flap = lit > 0 && T > SAV.light + 0.9 ? sin((T - SAV.light - 0.9) * 2.4) * 9 : 0;
+    const alpha = 0.16 + 0.05 * breath + 0.84 * lit;
+    g.save();
+    if (lit < 1) { g.globalAlpha = 1; }
+    drawPhoenix(g, t, open, flap, alpha, k);
+    g.restore();
+    // dormindo: fumacinha e "z z z" subindo
+    if (lit < 0.6) {
+      const za = 1 - lit / 0.6;
+      for (let j = 0; j < 3; j++) { const u = (t * 0.35 + j / 3) % 1; g.save(); g.globalAlpha = za * (1 - u) * 0.9; g.fillStyle = "#CFC8FF"; g.font = `900 ${3 + u * 3}px Nunito, system-ui, sans-serif`; g.fillText("z", PX + 10 + u * 9 + sin(u * 6 + j) * 1.5, PY - 12 - u * 18); g.restore(); }
+      for (let j = 0; j < 3; j++) { const u = (t * 0.5 + j / 3) % 1; circle(g, `rgba(170,165,210,${0.25 * za * (1 - u)})`, 1 + u * 2.4, PX + sin(t + j) * 2, PY - 4 - u * 12); }
+    }
+    // o número: apagado enquanto ela dorme, arde de novo quando acende
+    const beat = 1 + 0.06 * Math.max(0, sin(t * 4.2)) ** 6;
+    fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, 0.25 + 0.75 * lit, lit > 0.5 ? beat : 1);
+    // ---- o Folha: entra na ponta dos pés pedindo silêncio, acende a chama com o dedo e fica orgulhoso
+    const walk = segT(T, SAV.walk, SAV.arrive);
+    const fx = lerp(124, 78, outC(walk));
+    const tiptoe = walk > 0 && walk < 1 ? -Math.abs(sin(walk * PI * 5)) * 2.2 : 0;
+    const reachU = segT(T, SAV.reach, SAV.light);
+    const shh = T < SAV.reach || T > SAV.light + 1.6 ? (T < SAV.reach ? 1 : 0) : 0;
+    const o = {
+      T, t, x: fx, y: 106 + tiptoe, scale: 0.44, look,
+      dir: { x: T < SAV.turn ? -0.8 : T < SAV.reach ? 0 : -1, y: T < SAV.reach ? 0 : -0.4 },
+      script: [[0, "idle"], [SAV.light, "happy"], [SAV.light + 1.6, "proud"]],
+      edit: (P) => {
+        // dedo na boca: "shhh"
+        if (shh > 0) {
+          P.hR = [96, 82]; P.shapeR = "mitt";   // a mão de verdade some atrás; o dedo na boca é desenhado na frente
+          P.mW = 2.2; P.mCurve = 0.2; P.mOpen = 0.18; P.browY = -0.6; P.browIn = 0.3; P.cheek = 0.55;
+          P.lookX = T < SAV.turn ? -0.8 : 0; P.lookY = 0.1; P.tilt = T < SAV.turn ? -3 : 0;
+        } else if (T < SAV.light + 0.2) {
+          // estica o braço até o peito da fênix, com a faísca no dedo
+          P.hL = [lerp(10, -22, outC(reachU)), lerp(76, 54, outC(reachU))]; P.shapeL = "point"; P.rotL = lerp(0, -30, reachU); P.bendL = -4;
+          P.lookX = -1; P.lookY = -0.5; P.mW = 3; P.mCurve = 1.4; P.mOpen = 0.15; P.browY = -0.8; P.tilt = -3;
+        }
+      },
+    };
+    floorLight(g, fx, 105, 26, lit > 0 ? "#FF8A2A" : "#5A50C0", 0.18 + 0.2 * lit);
+    const P = sceneFolha(g, o);
+    // "shhh": o braço direito vem pela frente e o dedo fica em pé na frente da boca
+    if (shh > 0 && T > 0.2) {
+      g.save(); g.translate(o.x - 50 * o.scale, o.y + (P.hop - 95) * o.scale); g.scale(o.scale, o.scale);
+      drawArm(g, [88, 66], [51, 79], -5, 1, "point", 90, 0, false, look, t);
+      g.restore();
+    }
+    // a faísca na ponta do dedo, viajando até o peito da fênix
+    if (T >= SAV.reach && T < SAV.light + 0.15) {
+      const [hx, hy] = folhaPt(o, P, P.hL[0], P.hL[1]);
+      const u = segT(T, SAV.reach + 0.45, SAV.light);
+      const sx = lerp(hx, PX, outC(u)), sy = lerp(hy, PY + 2, outC(u)) - sin(PI * u) * 8;
+      glowAt(g, sx, sy, 5, "#FFE07A", 0.95); circle(g, "#FFFFFF", 0.9, sx, sy);
+      for (let j = 0; j < 4; j++) { const v = (t * 5 + j / 4) % 1; circle(g, `rgba(255,${190 + j * 12},90,${1 - v})`, 0.35, sx + sin(j * 7) * v * 2.5, sy - v * 3); }
+    }
+    // o clarão da chama pegando
+    const flash = segT(T, SAV.light, SAV.light + 0.4);
+    if (flash > 0 && flash < 1) { glowAt(g, PX, PY, 10 + 26 * flash, "#FFFFFF", 0.75 * (1 - flash)); glowAt(g, PX, PY, 8 + 18 * flash, "#FFB13B", 0.9 * (1 - flash)); }
+    // as falas, em balão
+    const bx = fx + 2, by = 64 + tiptoe * 0.44;
+    bubbleText(g, "shhh…", bx, by, segT(T, SAV.walk + 0.4, SAV.walk + 0.7) * (1 - segT(T, SAV.reach - 0.1, SAV.reach + 0.1)));
+    bubbleText(g, "sequência salva!", bx - 4, by, segT(T, SAV.light + 0.9, SAV.light + 1.2));
+    drawConfetti(g, el._conf, T - SAV.light - 0.4);
+  }
+  const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca, salvou: cenaSalvou };
   // ------------------------------------------------------------------ som
   // Os sons do Estudário (scripts/som: gravações reais CC0 afinadas juntas em Ré maior), ao lado deste
   // arquivo em sons/. window.estudarioSom.play("acerto"). Vêm desligados: tocam só com localStorage

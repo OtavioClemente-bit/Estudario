@@ -56,37 +56,23 @@ fun StreakSaveHost() {
 
 @Composable
 private fun StreakSaveScene(days: Int, left: Int, dayLabel: String, onClose: () -> Unit) {
-    // A cena em quatro tempos (CSS): a chama vacila, o Folha entra correndo, o marca-página cai no dia
-    // que faltou e a chama volta com força. O texto aparece no fim.
-    var step by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(150); step = 1
-        kotlinx.coroutines.delay(1100); step = 2
-        kotlinx.coroutines.delay(1000); step = 3
-        kotlinx.coroutines.delay(900); step = 4
-        runCatching { kotlinx.browser.window.asDynamic().estudarioSom?.play("acerto") }
-    }
-    Div({ classes("ss-back"); onClick { if (step >= 4) onClose() } }) {
-        Div({ classes("ss-stage", "s$step"); onClick { it.stopPropagation() } }) {
-            Div({ classes("ss-scene") }) {
-                // a chama da sequência
-                Div({ classes("ss-flame") }) {
-                    Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(SS_FLAME) as String, alt = "")
-                    Span({ classes("ss-count") }) { Text("$days") }
-                    repeat(8) { i -> Span({ classes("ss-spark"); attr("style", "--a:${i * 45}deg") }) }
-                }
-                // o dia que faltou, com o marca-página caindo nele
-                Div({ classes("ss-day") }) {
-                    Span({ classes("ss-day-label") }) { Text(dayLabel.ifBlank { "Dia sem estudo" }) }
-                    Img(src = bookmarkSrc(), alt = "", attrs = { classes("ss-bookmark") })
-                }
-                // o Folha chegando
-                Div({ classes("ss-folha") }) { Folha(if (step >= 3) "happy" else "talking", 130) }
+    // A cena desenhada (folha-live.js, <estudario-cena tipo="salvou">): a fênix dorme quase apagada, o
+    // Folha chega na ponta dos pés pedindo silêncio e acende a chama ele mesmo. O texto entra no fim.
+    var done by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(5600); done = true }
+    Div({ classes("ss-back"); onClick { if (done) onClose() } }) {
+        Div({ classes("ss-stage"); onClick { it.stopPropagation() } }) {
+            Div({ classes("ss-cena") }) {
+                org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
+                    elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-cena"),
+                    applyAttrs = { attr("tipo", "salvou"); attr("dias", days.toString()); attr("bleed", "34"); attr("aria-label", "O Folha acende a chama da fênix e salva a sequência") },
+                    content = null,
+                )
             }
-            Div({ classes("ss-text") }) {
-                Span({ classes("ss-eyebrow") }) { Text("O FOLHA GUARDOU SEU LUGAR") }
-                H2 { Text("Sua sequência de $days ${if (days == 1) "dia" else "dias"} continua!") }
-                P { Text("Num dia sem estudo, o Folha colocou um marca-página e a chama da fênix não apagou. " + if (left > 0) "Ainda sobra $left ${if (left == 1) "marca-página" else "marca-páginas"}." else "Estude 7 dias seguidos para ganhar outro.") }
+            Div({ classes(*listOfNotNull("ss-text", if (done) "on" else null).toTypedArray()) }) {
+                Span({ classes("ss-eyebrow") }) { Text("SEQUÊNCIA SALVA" + if (dayLabel.isNotBlank()) " · $dayLabel" else "") }
+                H2 { Text("Shhh… o Folha reacendeu a sua fênix") }
+                P { Text("Num dia sem estudo ela quase apagou, e o Folha usou um marca-página para acender de novo: são $days ${if (days == 1) "dia" else "dias"} de sequência. " + if (left > 0) "Ainda sobra $left ${if (left == 1) "marca-página" else "marca-páginas"}." else "Estude 7 dias seguidos para ele guardar outro.") }
                 Btn("Bora continuar", onClose, style = "primary", icon = "local_fire_department")
             }
         }
