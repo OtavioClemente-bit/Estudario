@@ -39,6 +39,11 @@ PADRÃO DE QUALIDADE (aula de cursinho caro, não resumo de lei):
   - "section" é o título EXATO de um capítulo.
   - Na múltipla escolha, a certa não pode ser a mais longa em mais de 40% das questões. Varie a letra certa.
   - Não cite letras de alternativa na explicação (o app embaralha as alternativas).
+  - DISTRATORES PLAUSÍVEIS: toda alternativa errada precisa parecer certa para quem não estudou. Troque um prazo, um órgão, um
+    percentual, uma exceção, ou use a regra de uma lei parecida. PROIBIDO alternativa absurda ou caricata ("divulgar sua senha",
+    "custear toda a unidade", "o princípio da eficiência elimina a boa-fé"). Em Certo/Errado, o item errado deve ter UM erro
+    sutil de prova, e não um exagero óbvio.
+  - Use enunciados no estilo da banca do edital (FGV, Cebraspe, FCC, Vunesp...), não só "Fulano fez X. Qual é o dever?".
 - sources: só as fontes que você realmente abriu, com url e accessedAt da data de hoje.
 
 RELATÓRIO FINAL (curto): o arquivo gravado, o tamanho da teoria, a quantidade de questões, as fontes abertas e o que ficou de fora
