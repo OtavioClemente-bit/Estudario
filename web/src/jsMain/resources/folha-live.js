@@ -3570,9 +3570,7 @@
       const lit = today ? segT(T, SEQ.hit, SEQ.hit + 0.2) : done && reached ? outBack(segT(T, at, at + 0.25)) : 0;
       // braseiro: tigela de pedra
       g.save(); g.translate(x, y);
-      const bowl = new Path2D(); bowl.moveTo(-4, 1); bowl.quadraticCurveTo(0, 6.5, 4, 1); bowl.closePath();
-      g.fillStyle = vGrad(g, ["#4A4472", "#231F45"], 1, 5); g.fill(bowl); stroke(g, bowl, "rgba(255,255,255,0.25)", 0.3);
-      g.fillStyle = "#2A2550"; g.fillRect(-0.8, 5, 1.6, 2.4); g.fillRect(-2.4, 7, 4.8, 0.9);
+      drawBrazier(g, lit);
       if (lit > 0) {
         // a chama do dia (hoje maior)
         const fh = (today ? 13 : 7) * lit * (1 + 0.06 * sin(t * 9 + i));
@@ -3614,19 +3612,80 @@
     drawConfetti(g, el._conf, T - SEQ.number);
   }
   // chama pequena dos braseiros (as mesmas labaredas da chama grande, em miniatura)
-  function drawSmallFlame(g, t, h, w) {
+  // As cores da chama: o fogo da fênix e a chama azul do marca-página do Folha (o dia salvo).
+  const FLAME = {
+    fire: { glow: "#FF7A1F", outer: ["#FF2E14", "#FF7A1F"], mid: ["#FF9A1F", "#FFD54A"], core: "#FFF6D8", spark: "255,190,90" },
+    blue: { glow: "#3D9BFF", outer: ["#1238FF", "#2F8BFF"], mid: ["#3FB4FF", "#9FE6FF"], core: "#F2FCFF", spark: "160,220,255" },
+  };
+  // forma de chama: gota com a ponta que balança
+  function flameShape(h, w, wob) {
+    const p = new Path2D();
+    p.moveTo(0, 0.6);
+    p.bezierCurveTo(w * 0.95, 0.4, w * 0.85, -h * 0.42, wob * 0.6, -h * 0.78);
+    p.quadraticCurveTo(wob, -h * 0.9, wob * 1.15, -h);
+    p.quadraticCurveTo(wob * 0.2, -h * 0.82, -w * 0.25 + wob * 0.3, -h * 0.7);
+    p.bezierCurveTo(-w * 0.9, -h * 0.4, -w * 0.95, 0.4, 0, 0.6);
+    p.closePath();
+    return p;
+  }
+  // a chama dos braseiros: três camadas (vermelho por fora, amarelo, miolo quase branco), a ponta dançando,
+  // um brilho em volta e fagulhas subindo. palette = "fire" ou "blue".
+  function drawSmallFlame(g, t, h, w, palette = "fire") {
     if (h <= 0.3) return;
-    glowAt(g, 0, -h * 0.4, h * 0.9, "#FF8A2A", 0.4);
-    g.save(); g.globalCompositeOperation = "lighter";
-    for (let i = 0, n = Math.round(18 * Q); i < n; i++) {
-      const seed = (i * 0.618) % 1, u = (t * (0.9 + seed * 0.6) + seed) % 1;
-      const px = (seed - 0.5) * w * (1 - u) + sin(t * 8 + i) * w * 0.12 * u, py = -u * h, r = w * 0.55 * (1 - u) ** 0.7 + 0.3;
-      const c = fireColor(u), al = (u < 0.1 ? u / 0.1 : 1) * (1 - u) * 0.6;
-      const gr = g.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, `rgba(${c},${al})`); gr.addColorStop(1, `rgba(${c},0)`);
-      g.fillStyle = gr; g.beginPath(); g.arc(px, py, r, 0, 2 * PI); g.fill();
+    const C = FLAME[palette] || FLAME.fire;
+    glowAt(g, 0, -h * 0.35, h * 1.15, C.glow, 0.42);
+    const wob = sin(t * 7.3) * w * 0.35 + sin(t * 12.1) * w * 0.15;
+    const layer = (hh, ww, wb, top, bottom, a) => {
+      const p = flameShape(hh, ww, wb);
+      const gr = g.createLinearGradient(0, 0.6, 0, -hh);
+      gr.addColorStop(0, bottom); gr.addColorStop(1, top);
+      g.globalAlpha = a; g.fillStyle = gr; g.fill(p); g.globalAlpha = 1;
+    };
+    g.save();
+    layer(h * (1 + 0.05 * sin(t * 9)), w, wob, C.outer[1], C.outer[0], 0.95);
+    g.globalCompositeOperation = "lighter";
+    layer(h * 0.72, w * 0.68, wob * 0.7, C.mid[1], C.mid[0], 0.85);
+    layer(h * 0.42, w * 0.38, wob * 0.4, C.core, C.mid[1], 0.95);
+    // fagulhas
+    for (let i = 0, n = Math.round(5 * Q); i < n; i++) {
+      const u = (t * (0.7 + (i % 3) * 0.2) + i * 0.27) % 1;
+      circle(g, `rgba(${C.spark},${(1 - u) * 0.9})`, 0.28 * (1 - u) + 0.08, sin(t * 3 + i * 2.1) * w * 0.6 * u, -h * (0.7 + u * 0.9));
     }
     g.restore();
   }
+  // o braseiro: tigela de metal com borda brilhante, brasas por dentro e o tripé. glow 0..1 acende as brasas.
+  function drawBrazier(g, glow, palette = "fire") {
+    const C = FLAME[palette] || FLAME.fire;
+    // tripé
+    g.strokeStyle = "#1E1A3C"; g.lineWidth = 0.9; g.lineCap = "round";
+    g.beginPath(); g.moveTo(-2.6, 3.6); g.lineTo(-3.6, 8.2); g.moveTo(2.6, 3.6); g.lineTo(3.6, 8.2); g.moveTo(0, 4.8); g.lineTo(0, 8.4); g.stroke();
+    g.strokeStyle = "#4A4478"; g.lineWidth = 0.35;
+    g.beginPath(); g.moveTo(-2.4, 3.8); g.lineTo(-3.3, 7.9); g.moveTo(2.4, 3.8); g.lineTo(3.3, 7.9); g.stroke();
+    // tigela
+    const bowl = new Path2D(); bowl.moveTo(-4.6, 0.6); bowl.bezierCurveTo(-4.2, 4.6, 4.2, 4.6, 4.6, 0.6); bowl.closePath();
+    const bg = g.createLinearGradient(-4.6, 0, 4.6, 0); bg.addColorStop(0, "#2A2550"); bg.addColorStop(0.45, "#5E5792"); bg.addColorStop(1, "#231F45");
+    g.fillStyle = bg; g.fill(bowl);
+    stroke(g, bowl, "rgba(10,8,30,0.6)", 0.35);
+    // brasas por dentro (acesas com a chama)
+    g.save(); g.beginPath(); g.ellipse(0, 0.7, 4.3, 1.05, 0, 0, 2 * PI); g.clip();
+    g.fillStyle = "#15112E"; g.fillRect(-5, -1, 10, 3);
+    if (glow > 0) {
+      const cg = g.createRadialGradient(0, 0.8, 0, 0, 0.8, 4.3);
+      cg.addColorStop(0, palette === "blue" ? `rgba(200,240,255,${glow})` : `rgba(255,230,150,${glow})`);
+      cg.addColorStop(0.5, palette === "blue" ? `rgba(60,150,255,${0.8 * glow})` : `rgba(255,120,30,${0.8 * glow})`);
+      cg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = cg; g.fillRect(-5, -1, 10, 3);
+      for (let i = 0; i < 4; i++) circle(g, palette === "blue" ? `rgba(220,245,255,${0.7 * glow})` : `rgba(255,220,140,${0.7 * glow})`, 0.35, -2.4 + i * 1.6, 0.9 + (i % 2) * 0.3);
+    }
+    g.restore();
+    // borda de metal com brilho
+    g.beginPath(); g.ellipse(0, 0.6, 4.6, 1.15, 0, 0, 2 * PI);
+    g.strokeStyle = "#8C86C0"; g.lineWidth = 0.55; g.stroke();
+    g.beginPath(); g.ellipse(0, 0.6, 4.6, 1.15, 0, PI * 1.05, PI * 1.6);
+    g.strokeStyle = "rgba(255,255,255,0.65)"; g.lineWidth = 0.35; g.stroke();
+    if (glow > 0) glowAt(g, 0, 0.4, 6, C.glow, 0.28 * glow);
+  }
+
 
   // ---- cena: peça nova (o presente)
   // 0–0,45  a caixa cai do alto e quica (poeira no chão); o Folha entra pela direita e leva um susto;
@@ -3928,14 +3987,11 @@
     g.fillStyle = "#1D1670"; g.fillText(txt, x, y + 0.3);
     g.restore();
   }
-  // a chama do marca-página: roxa por fora, dourada no meio
+  // a chama do marca-página: azul (o dia que o Folha salvou)
   function drawSavedFlame(g, t, h, w) {
     if (h <= 0.3) return;
-    glowAt(g, 0, -h * 0.45, h * 1.2, "#8B7BFF", 0.55);
-    drawSmallFlame(g, t, h, w);
-    g.save(); g.globalCompositeOperation = "source-atop"; g.restore();
-    glowAt(g, 0, -h * 0.35, h * 0.7, "#7B6CFF", 0.5);
-    glowAt(g, 0, -h * 0.3, h * 0.35, "#FFD25A", 0.85);
+    glowAt(g, 0, -h * 0.4, h * 1.4, "#3D9BFF", 0.5);
+    drawSmallFlame(g, t, h, w, "blue");
   }
   function cenaSalvou(g, T, t, el) {
     const days = Math.max(1, parseInt(el.getAttribute("dias") || "1", 10)), look = el._look(), k = this_k(el);
@@ -3954,10 +4010,10 @@
     const reach = el._reach();
     backdrop(g, el, PX, PY + 10, reach, reach * 0.95, (b) => {
       glowAt(b, PX, PY + 6, 62, woke > 0 ? "#FF6A1A" : "#2C2A78", woke > 0 ? 0.14 + 0.16 * woke : 0.24);
-      glowAt(b, sx, sy, 22, "#8B7BFF", 0.25 * segT(T, SAV.hit, SAV.hit + 0.4));
+      glowAt(b, sx, sy, 22, "#3D9BFF", 0.3 * segT(T, SAV.hit, SAV.hit + 0.4));
       if (woke > 0) sceneRays(b, PX, PY, 16, 90, "#FFB13B", woke * (0.5 + 0.15 * sin(t * 2)), t * 0.1, 0.05);
       shockRing(b, PX, PY, segT(T, SAV.boom, SAV.boom + 0.7), "#FFE07A", 52);
-      shockRing(b, sx, sy, segT(T, SAV.hit, SAV.hit + 0.6), "#B9A8FF", 22);
+      shockRing(b, sx, sy, segT(T, SAV.hit, SAV.hit + 0.6), "#9FE6FF", 22);
       for (let i = 0, m = Math.round(22 * Q); i < m; i++) { const u = (t * (0.07 + (i % 5) * 0.014) + i * 0.137) % 1, x = ((i * 37) % 130) - 15 + sin(t * 0.7 + i) * 4, y = 115 - u * 135, c = fireColor(0.3 + (i % 3) * 0.15); glowAt(b, x, y, 1.4, `rgb(${c})`, (1 - u) * (0.12 + 0.5 * woke)); }
     });
     // ---- os braseiros da semana (iguais aos da cena da sequência)
@@ -3967,10 +4023,7 @@
     week.forEach(([letter, st], i) => {
       const today = i === n - 1, x = ax(i), y = ay(x);
       g.save(); g.translate(x, y);
-      const bowl = new Path2D(); bowl.moveTo(-4, 1); bowl.quadraticCurveTo(0, 6.5, 4, 1); bowl.closePath();
-      g.fillStyle = vGrad(g, ["#4A4472", "#231F45"], 1, 5); g.fill(bowl);
-      stroke(g, bowl, i === savedI && savedOn > 0 ? "rgba(255,210,90,0.85)" : "rgba(255,255,255,0.25)", 0.3);
-      g.fillStyle = "#2A2550"; g.fillRect(-0.8, 5, 1.6, 2.4); g.fillRect(-2.4, 7, 4.8, 0.9);
+      drawBrazier(g, i === savedI ? savedOn : st === "1" ? 0.45 + 0.55 * woke : 0, i === savedI ? "blue" : "fire");
       if (i === savedI) {
         if (savedOn > 0) { g.translate(0, 1.2); drawSavedFlame(g, t + i, 9 * savedOn * (1 + 0.06 * sin(t * 8)), 3); }
         else for (let j = 0; j < 3; j++) { const u = (t * 0.6 + j / 3) % 1; circle(g, `rgba(180,175,210,${0.35 * (1 - u)})`, 0.8 + u * 1.6, sin(t + j) * 1.2, -u * 8); }
@@ -3979,7 +4032,7 @@
         g.translate(0, 1.2); drawSmallFlame(g, t + i, (today ? 9 : 6.5) * (0.45 + 0.55 * woke) * (1 + 0.06 * sin(t * 9 + i)), today ? 3.2 : 2.4);
       }
       g.restore();
-      g.fillStyle = i === savedI && savedOn > 0 ? "rgba(255,215,120,0.95)" : st === "1" ? "rgba(255,225,170,0.9)" : "rgba(255,255,255,0.45)";
+      g.fillStyle = i === savedI && savedOn > 0 ? "rgba(160,225,255,0.98)" : st === "1" ? "rgba(255,225,170,0.9)" : "rgba(255,255,255,0.45)";
       g.font = "900 3px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
       g.fillText(today ? "HOJE" : letter, x, y + 10.4);
     });
@@ -4014,12 +4067,15 @@
     const o = {
       T, t, x: 50, y: 110 + (1 - outC(segT(T, SAV.rise, SAV.shh))) * 30, scale: 0.46, look,
       dir: { x: shh ? 0 : left ? -0.8 : 0.8, y: shh ? 0 : T < SAV.boom ? -0.3 : -1 },
+      ex: shh ? { armsFront: true } : undefined,
       script: [[0, "idle"], [SAV.boom, "ecstatic"], [SAV.boom + 1.4, "happy"], [SAV.say + 1.2, "proud"]],
       edit: (P) => {
         if (shh) {
           // boquinha de "shhh" (o dedo é desenhado depois, na frente)
           P.mW = 2.2; P.mCurve = 0.2; P.mOpen = 0.2; P.browY = -0.5; P.browIn = 0.25; P.cheek = 0.55; P.lookX = 0; P.lookY = 0.05;
-          if (left) { P.hL = [40, 84]; P.shapeL = "fist"; } else { P.hR = [60, 84]; P.shapeR = "fist"; }
+          // o braço direito vem pela frente do livro e o dedo fica em pé na frente da boca
+          const sp = outC(segT(T, SAV.shh, SAV.shh + 0.3));
+          P.hR = [lerp(96, 50, sp), lerp(78, 80, sp)]; P.shapeR = "point"; P.rotR = lerp(0, 96, sp); P.bendR = lerp(2, 9, sp);
         } else if (T >= SAV.aim && T < SAV.hit + 0.2) {
           // aponta para o braseiro e arremessa a chama
           const reachX = left ? lerp(10, -6, aimU) : lerp(90, 106, aimU), reachY = lerp(76, 58, aimU) - throwU * 4;
@@ -4031,23 +4087,13 @@
     };
     floorLight(g, 50, 109, 30, woke > 0 ? "#FF8A2A" : "#5A50C0", 0.18 + 0.18 * woke);
     const P = sceneFolha(g, o);
-    // o dedo na frente da boca: só a mão, como num desenho animado
-    if (shh) {
-      const sp = segT(T, SAV.shh, SAV.shh + 0.25);
-      g.save(); g.translate(o.x - 50 * o.scale, o.y + (P.hop - 95) * o.scale); g.scale(o.scale, o.scale);
-      g.translate(50.5, 84 + (1 - outC(sp)) * 10); g.rotate(-PI / 2); g.scale(1.65, 1.65);
-      const armC = ((look && look.arm) || [ARM, ARM_L])[0], glove = (look && look.gloves) || GLOVES.branca;
-      g.globalAlpha = outC(sp);
-      drawHand(g, "point", false, armC, glove);
-      g.restore();
-    }
     // a bola de fogo saindo da mão do Folha até o braseiro apagado
     if (T >= SAV.throwA && T < SAV.hit + 0.05) {
       const [hx, hy] = folhaPt(o, P, left ? P.hL[0] : P.hR[0], left ? P.hL[1] : P.hR[1]);
       const u = segT(T, SAV.throwA + 0.1, SAV.hit);
       const bx = lerp(hx, sx, u), by = lerp(hy, sy - 2, u) - sin(PI * u) * 14;
-      glowAt(g, bx, by, 6, "#8B7BFF", 0.8); glowAt(g, bx, by, 3.5, "#FFD25A", 0.95); circle(g, "#FFFFFF", 0.9, bx, by);
-      for (let j = 0; j < 5; j++) { const v = (t * 5 + j / 5) % 1; circle(g, `rgba(${j % 2 ? "185,168,255" : "255,215,120"},${1 - v})`, 0.45, bx - (sx - hx) * 0.05 * v * 6 + sin(j * 7) * v * 2, by + v * 3); }
+      glowAt(g, bx, by, 6, "#3D9BFF", 0.85); glowAt(g, bx, by, 3.5, "#BFE8FF", 0.95); circle(g, "#FFFFFF", 0.9, bx, by);
+      for (let j = 0; j < 5; j++) { const v = (t * 5 + j / 5) % 1; circle(g, `rgba(${j % 2 ? "120,200,255" : "220,245,255"},${1 - v})`, 0.45, bx - (sx - hx) * 0.05 * v * 6 + sin(j * 7) * v * 2, by + v * 3); }
     }
     // as falas
     bubbleText(g, "shhh…", 50, 72 - outC(segT(T, SAV.rise, SAV.shh)) * 0 + (1 - outC(segT(T, SAV.rise, SAV.shh))) * 14, segT(T, SAV.shh + 0.2, SAV.shh + 0.5) * (1 - segT(T, SAV.aim - 0.15, SAV.aim)));
@@ -4109,7 +4155,7 @@
       clearTimeout(this._somT);
       if (!this.hasAttribute("at") && this.getAttribute("som") !== "0") this._somT = setTimeout(() => {
         if (!this.isConnected || !SOM.enabled) return;
-        const name = "cena_" + this.getAttribute("tipo");
+        const name = "cena_" + (this.getAttribute("tipo") === "salvou" ? "sequencia" : this.getAttribute("tipo"));
         // espera o som carregar e, se a cena mal começou, recomeça junto para a batida cair no quadro certo
         SOM.load(name).then(() => { if (!this.isConnected) return; if (performance.now() - this._start < 450) this._start = performance.now(); SOM.play(name); }).catch(() => {});
       }, 30);

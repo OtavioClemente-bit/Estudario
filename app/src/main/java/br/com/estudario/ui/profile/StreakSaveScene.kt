@@ -67,7 +67,10 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
     val ball = remember { Animatable(0f) }
     val jet = remember { Animatable(0f) }
     val wake = remember { Animatable(0f) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
+        // o mesmo som da comemoração da sequência
+        br.com.estudario.ui.brand.EstudarioSom.play(ctx, "cena_sequencia")
         delay(500)
         rise.animateTo(0f, tween(600, easing = FastOutSlowInEasing))
         step = 1; delay(1500)                         // "shhh…"
@@ -118,18 +121,25 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
                                     val isSaved = i == savedI
                                     val on = when { isSaved -> if (step >= 3) 1f else 0f; st == 1 -> 0.5f + 0.5f * woke; else -> 0f }
                                     if (on > 0f) {
-                                        if (isSaved) drawCircle(Brush.radialGradient(listOf(Color(0xAA8B7BFF), Color.Transparent), Offset(w / 2, h * .45f), w * .8f), w * .8f, Offset(w / 2, h * .45f))
+                                        drawCircle(Brush.radialGradient(listOf(if (isSaved) Color(0xAA3D9BFF) else Color(0x66FF7A1F), Color.Transparent), Offset(w / 2, h * .45f), w * .8f), w * .8f, Offset(w / 2, h * .45f))
                                         val fh = h * .6f * on * flicker
                                         val flame = Path().apply { moveTo(w / 2, h * .66f - fh); quadraticBezierTo(w * .92f, h * .52f, w / 2, h * .7f); quadraticBezierTo(w * .08f, h * .52f, w / 2, h * .66f - fh); close() }
-                                        drawPath(flame, Brush.verticalGradient(if (isSaved) listOf(Color(0xFFB9A8FF), Color(0xFF6E5CFF)) else listOf(Color(0xFFFFD84A), Color(0xFFFF6A1F))))
-                                        drawCircle(if (isSaved) Color(0xFFFFD25A) else Color(0xFFFFF0B8), w * .1f, Offset(w / 2, h * .6f))
+                                        drawPath(flame, Brush.verticalGradient(if (isSaved) listOf(Color(0xFF9FE6FF), Color(0xFF2F8BFF), Color(0xFF1238FF)) else listOf(Color(0xFFFFD54A), Color(0xFFFF7A1F), Color(0xFFFF2E14))))
+                                        // o miolo da chama, mais claro
+                                        val core = Path().apply { moveTo(w / 2, h * .66f - fh * .55f); quadraticBezierTo(w * .68f, h * .6f, w / 2, h * .69f); quadraticBezierTo(w * .32f, h * .6f, w / 2, h * .66f - fh * .55f); close() }
+                                        drawPath(core, if (isSaved) Color(0xFFF2FCFF) else Color(0xFFFFF6D8))
                                     } else if (isSaved) {
                                         for (j in 0 until 3) { val u = (zz + j / 3f) % 1f; drawCircle(Color(0xFFB4AFD2).copy(alpha = .4f * (1 - u)), (2f + u * 3f) * density / 2, Offset(w / 2 + kotlin.math.sin(j + zz * 6) * 2f, h * .6f - u * h * .5f)) }
                                     }
-                                    val bowl = Path().apply { moveTo(w * .1f, h * .7f); quadraticBezierTo(w / 2, h * 1.05f, w * .9f, h * .7f); close() }
-                                    drawPath(bowl, if (isSaved && step >= 3) Color(0xFF5A4AB0) else Color(0xFF3A3466))
+                                    // o braseiro: tripé, tigela de metal, brasas e borda com brilho
+                                    drawLine(Color(0xFF1E1A3C), Offset(w * .3f, h * .8f), Offset(w * .2f, h), 1.6f * density, StrokeCap.Round)
+                                    drawLine(Color(0xFF1E1A3C), Offset(w * .7f, h * .8f), Offset(w * .8f, h), 1.6f * density, StrokeCap.Round)
+                                    val bowl = Path().apply { moveTo(w * .08f, h * .7f); cubicTo(w * .12f, h * .92f, w * .88f, h * .92f, w * .92f, h * .7f); close() }
+                                    drawPath(bowl, Brush.horizontalGradient(listOf(Color(0xFF2A2550), Color(0xFF5E5792), Color(0xFF231F45))))
+                                    drawOval(if (on > 0f) (if (isSaved) Color(0xFF7CC8FF) else Color(0xFFFFA040)).copy(alpha = .5f + .4f * on) else Color(0xFF15112E), Offset(w * .1f, h * .66f), androidx.compose.ui.geometry.Size(w * .8f, h * .09f))
+                                    drawOval(Color(0xFF8C86C0), Offset(w * .08f, h * .655f), androidx.compose.ui.geometry.Size(w * .84f, h * .1f), style = Stroke(1.1f * density))
                                 }
-                                Text(if (today) "HOJE" else letter, color = when { i == savedI && step >= 3 -> Color(0xFFFFD25A); st == 1 -> Color(0xFFFFE1AA); else -> Color.White.copy(alpha = .45f) }, fontSize = if (today) 8.sp else 10.sp, fontWeight = FontWeight.Black)
+                                Text(if (today) "HOJE" else letter, color = when { i == savedI && step >= 3 -> Color(0xFF9FE6FF); st == 1 -> Color(0xFFFFE1AA); else -> Color.White.copy(alpha = .45f) }, fontSize = if (today) 8.sp else 10.sp, fontWeight = FontWeight.Black)
                             }
                         }
                     }
@@ -138,7 +148,7 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
                     if (step == 2) {
                         val u = ball.value
                         val x = targetX * u; val y = 280f - (280f - 196f) * u - 60f * kotlin.math.sin(Math.PI * u).toFloat()
-                        Box(Modifier.offset(x = x.dp, y = y.dp).size(18.dp).background(Brush.radialGradient(listOf(Color.White, Color(0xFFFFD25A), Color(0xFF8B7BFF), Color.Transparent)), RoundedCornerShape(50)))
+                        Box(Modifier.offset(x = x.dp, y = y.dp).size(18.dp).background(Brush.radialGradient(listOf(Color.White, Color(0xFF9FE6FF), Color(0xFF2F8BFF), Color.Transparent)), RoundedCornerShape(50)))
                     }
                     if (step == 3 || (step == 4 && woke < 0.3f)) {
                         val u = jet.value
