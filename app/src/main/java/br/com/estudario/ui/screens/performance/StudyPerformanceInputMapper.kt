@@ -67,6 +67,8 @@ object StudyPerformanceInputMapper {
             executions = executions.map {
                 PerformanceExecution(it.planId, Instant.fromEpochMilliseconds(it.completedAt), it.actualMinutes)
             },
+            studySpans = focusSessions.mapNotNull { br.com.estudario.domain.StudyTime.focus(it.completedAt, it.durationSeconds) } +
+                questionSessions.mapNotNull { br.com.estudario.domain.StudyTime.questions(it.startedAt, it.completedAt, it.questionCount) },
         )
     }
 }

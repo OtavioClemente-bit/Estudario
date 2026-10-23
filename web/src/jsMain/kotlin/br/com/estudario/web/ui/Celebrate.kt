@@ -43,6 +43,22 @@ private sealed interface Celebration {
     data class NewPiece(val items: List<br.com.estudario.domain.FolhaItem>) : Celebration
 }
 
+/**
+ * Uma rodada de estudo em andamento (bateria de questões, revisão, flashcards, simulado) ou o modo foco
+ * contando: as comemorações (sequência, emblema, nível, peça nova) esperam o fim dela, para não
+ * interromper o estudo no meio. Quem está numa rodada chama [HoldCelebrations].
+ */
+object StudyFlow {
+    var holds by mutableStateOf(0)
+    val busy: Boolean get() = holds > 0 || TopicFocus.running
+}
+
+/** Segura as comemorações enquanto este pedaço da tela estiver aberto. */
+@Composable
+fun HoldCelebrations() {
+    DisposableEffect(Unit) { StudyFlow.holds++; onDispose { StudyFlow.holds-- } }
+}
+
 private object CelebrationQueue {
     val items = mutableStateListOf<Celebration>()
 }
@@ -147,7 +163,8 @@ fun CelebrationHost() {
         if (wait > 0) { calm = false; kotlinx.coroutines.delay(wait.toLong()) }
         calm = true
     }
-    if (!visible || !calm) return
+    // no meio de uma rodada de estudo, espera ela acabar (na tela do resultado elas aparecem)
+    if (!visible || !calm || StudyFlow.busy) return
     val current = CelebrationQueue.items.firstOrNull() ?: return
     CelebrationScreen(current) { CelebrationQueue.items.removeAt(0) }
 }

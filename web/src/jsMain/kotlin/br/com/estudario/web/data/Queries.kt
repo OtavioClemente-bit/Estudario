@@ -68,17 +68,22 @@ object Queries {
         val firstSessionIds = data.sessions.filter { it.topicId != 0L }.groupBy { it.topicId }.mapTo(hashSetOf()) { (_, rows) -> rows.minBy { it.completedAt }.id }
         data.sessions.forEach { session ->
             merge(dateOf(session.completedAt)) {
-                it.copy(studySessions = it.studySessions + if (session.id in firstSessionIds) 1 else 0, minutes = it.minutes + (session.durationSeconds / 60).toInt())
+                it.copy(studySessions = it.studySessions + if (session.id in firstSessionIds) 1 else 0)
             }
         }
         data.focusSessions.groupBy { dateOf(it.completedAt) }.forEach { (date, rowsForDay) ->
             val totalMinutes = (rowsForDay.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L).toInt()
             val freeMinutes = (rowsForDay.filter { it.origin == "LIVRE" }.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L).toInt()
             merge(date) {
-                it.copy(focusSessions = it.focusSessions + rowsForDay.size, focusMinutes = it.focusMinutes + totalMinutes, freeFocusMinutes = it.freeFocusMinutes + freeMinutes, minutes = it.minutes + totalMinutes)
+                it.copy(focusSessions = it.focusSessions + rowsForDay.size, focusMinutes = it.focusMinutes + totalMinutes, freeFocusMinutes = it.freeFocusMinutes + freeMinutes)
             }
         }
-        data.executions.forEach { execution -> merge(dateOf(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1, minutes = it.minutes + execution.minutes) } }
+        data.executions.forEach { execution -> merge(dateOf(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1) } }
+        // O tempo do dia: foco + baterias de questões, contando uma vez só o que se sobrepõe (StudyTime).
+        val questionSpans = data.questionSessions.mapNotNull { br.com.estudario.domain.StudyTime.questions(it.startedAt, it.completedAt, it.questionCount) }
+        val spans = data.focusSessions.mapNotNull { br.com.estudario.domain.StudyTime.focus(it.completedAt, it.durationSeconds) } + questionSpans
+        br.com.estudario.domain.StudyTime.minutesByDay(spans, zone).forEach { (date, m) -> merge(date) { it.copy(minutes = m) } }
+        br.com.estudario.domain.StudyTime.minutesByDay(questionSpans, zone).forEach { (date, m) -> merge(date) { it.copy(questionMinutes = m) } }
         return rows.values.toList()
     }
 

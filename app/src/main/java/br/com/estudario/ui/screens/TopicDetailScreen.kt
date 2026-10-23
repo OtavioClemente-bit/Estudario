@@ -410,6 +410,34 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         confirmButton = { TextButton(onClick = { focusStopAsk = false; scope.launch { viewModel.stopFocus() } }) { Text("Encerrar e salvar") } },
         dismissButton = { TextButton(onClick = { focusStopAsk = false }) { Text("Continuar") } },
     )
+    // Começar a ler sem o foco ligado: pergunta se quer ligar (o tempo de estudo do desempenho é o do foco).
+    val focusAskPrefs = remember { context.getSharedPreferences("leitura_foco", android.content.Context.MODE_PRIVATE) }
+    var readFocusAsk by remember { mutableStateOf<(() -> Unit)?>(null) }
+    fun withFocusAsk(go: () -> Unit): () -> Unit = { if (focusSession.active || focusAskPrefs.getBoolean("nunca", false)) go() else readFocusAsk = go }
+    readFocusAsk?.let { go ->
+        var never by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { readFocusAsk = null },
+            icon = { Icon(Icons.Outlined.Timer, null) },
+            title = { Text("Ligar o modo foco?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("O tempo de estudo do seu desempenho é o do modo foco (mais o das questões). Com ele ligado, esta leitura entra no seu dia.")
+                    Row(Modifier.clickable { never = !never }, verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = never, onCheckedChange = { never = it }); Text("Não perguntar de novo", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (never) focusAskPrefs.edit().putBoolean("nunca", true).apply()
+                    readFocusAsk = null
+                    viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); go()
+                }) { Text("Ligar o foco e ler") }
+            },
+            dismissButton = { TextButton(onClick = { if (never) focusAskPrefs.edit().putBoolean("nunca", true).apply(); readFocusAsk = null; go() }) { Text("Só ler") } },
+        )
+    }
     if (focusSwitchAsk) AlertDialog(
         onDismissRequest = { focusSwitchAsk = false },
         icon = { Icon(Icons.Outlined.Timer, null) },
@@ -535,8 +563,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val (label, icon, action) = when {
                     childTopics.isNotEmpty() -> Triple("Ver os ${childTopics.size} subtópicos", Icons.Outlined.AccountTree, { selectedTab = 0 })
-                    resumeTheory != null && resumeTheory.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent ?: 0}%", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
-                    resumeTheory != null -> Triple("Começar a teoria", Icons.Outlined.MenuBook, { onTheory(resumeTheory.id) })
+                    resumeTheory != null && resumeTheory.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent ?: 0}%", Icons.Outlined.MenuBook, withFocusAsk { onTheory(resumeTheory.id) })
+                    resumeTheory != null -> Triple("Começar a teoria", Icons.Outlined.MenuBook, withFocusAsk { onTheory(resumeTheory.id) })
                     topicQuestions.isNotEmpty() -> Triple("Treinar questões (${topicQuestions.size} salvas)", Icons.Outlined.Quiz, { quizPicker = true })
                     else -> Triple("Gerar material com o Estudário", Icons.Outlined.AutoAwesome, { showContentPrompt = true })
                 }

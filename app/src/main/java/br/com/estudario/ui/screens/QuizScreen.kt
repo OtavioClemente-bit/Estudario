@@ -185,6 +185,8 @@ fun QuizScreen(
         return
     }
 
+    // no meio da bateria as comemorações esperam; aparecem no resultado
+    br.com.estudario.ui.HoldCelebrations()
     val current = sessionQuestions[index.coerceAtMost(sessionQuestions.lastIndex)]
     val selected = selections[current.question.id]
     // A questão nova entra deslizando da direita.

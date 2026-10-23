@@ -1,6 +1,7 @@
 package br.com.estudario.ui
 
 import kotlinx.datetime.toKotlinLocalDate
+import kotlinx.datetime.toJavaLocalDate
 import kotlinx.datetime.toKotlinTimeZone
 import android.app.Application
 import android.graphics.Bitmap
@@ -295,9 +296,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ActivitySources(answers, history, sessions, executions, goal)
         },
         focusSessions,
-    ) { sources, focus ->
+        repository.questionSessions,
+    ) { sources, focus, quizzes ->
         ActivityBundle(
-            days = dailyActivity(sources.answers, sources.history, sources.sessions, focus, sources.executions),
+            days = dailyActivity(sources.answers, sources.history, sources.sessions, focus, sources.executions, quizzes),
             goal = sources.goal,
             executions = sources.executions,
             totalQuestions = sources.answers.size,
@@ -595,6 +597,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sessions: List<StudySessionEntity>,
         focusSessions: List<FocusSessionEntity>,
         executions: List<StudyTaskExecutionEntity>,
+        questionSessions: List<QuestionSessionEntity> = emptyList(),
     ): List<DailyActivity> {
         val zone = ZoneId.systemDefault()
         fun day(epochMillis: Long): LocalDate = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDate()
@@ -605,15 +608,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         answers.forEach { attempt -> merge(day(attempt.answeredAt)) { it.copy(questions = it.questions + 1, correct = it.correct + if (attempt.correct) 1 else 0) } }
         history.forEach { review -> merge(day(review.reviewedAt)) { it.copy(reviews = it.reviews + 1) } }
         // "Tópico estudado" vale uma vez por tópico, no dia da primeira sessão dele. Antes cada
-        // sessão do modo foco num tópico contava como tópico novo (+25 XP a cada uma). O tempo de
-        // todas as sessões continua entrando nos minutos do dia.
+        // sessão do modo foco num tópico contava como tópico novo (+25 XP a cada uma).
         val firstSessionIds = sessions.filter { it.topicId != 0L }.groupBy { it.topicId }
             .mapTo(hashSetOf()) { (_, rows) -> rows.minBy { it.completedAt }.id }
         sessions.forEach { session ->
             merge(day(session.completedAt)) {
                 it.copy(
                     studySessions = it.studySessions + if (session.id in firstSessionIds) 1 else 0,
-                    minutes = it.minutes + (session.durationSeconds / 60).toInt(),
                 )
             }
         }
@@ -628,11 +629,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     focusSessions = it.focusSessions + rowsForDay.size,
                     focusMinutes = it.focusMinutes + totalMinutes,
                     freeFocusMinutes = it.freeFocusMinutes + freeMinutes,
-                    minutes = it.minutes + totalMinutes,
                 )
             }
         }
-        executions.forEach { execution -> merge(day(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1, minutes = it.minutes + execution.actualMinutes) } }
+        executions.forEach { execution -> merge(day(execution.completedAt)) { it.copy(planTasks = it.planTasks + 1) } }
+        // O tempo do dia: foco + baterias de questões, contando uma vez só o que se sobrepõe (StudyTime, igual no site).
+        val tz = kotlinx.datetime.TimeZone.currentSystemDefault()
+        val questionSpans = questionSessions.mapNotNull { br.com.estudario.domain.StudyTime.questions(it.startedAt, it.completedAt, it.questionCount) }
+        val spans = focusSessions.mapNotNull { br.com.estudario.domain.StudyTime.focus(it.completedAt, it.durationSeconds) } + questionSpans
+        br.com.estudario.domain.StudyTime.minutesByDay(spans, tz).forEach { (date, m) -> merge(date.toJavaLocalDate()) { it.copy(minutes = m) } }
+        br.com.estudario.domain.StudyTime.minutesByDay(questionSpans, tz).forEach { (date, m) -> merge(date.toJavaLocalDate()) { it.copy(questionMinutes = m) } }
         return rows.values.toList()
     }
 

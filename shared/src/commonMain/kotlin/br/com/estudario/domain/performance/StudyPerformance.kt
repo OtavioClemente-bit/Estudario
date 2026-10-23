@@ -40,6 +40,8 @@ data class StudyPerformanceInput(
     val activePlanIds: Set<String> = emptySet(),
     val tasks: List<PerformancePlannedTask> = emptyList(),
     val executions: List<PerformanceExecution> = emptyList(),
+    /** O tempo estudado de verdade (foco + baterias de questões), em trechos: StudyTime. */
+    val studySpans: List<br.com.estudario.domain.StudyTime.Span> = emptyList(),
 )
 
 data class WindowMetrics(
@@ -174,15 +176,9 @@ object StudyPerformanceEvaluator {
             dayAttempts[day] = (dayAttempts[day] ?: 0) + 1
             if (attempt.correct) dayCorrect[day] = (dayCorrect[day] ?: 0) + 1
         }
-        // Mesmo cálculo do site (Queries.dailyActivity): o tempo da bateria de questões não entra,
-        // porque já volta como execução da tarefa do plano e conta o tempo com o app parado.
-        input.studySessions.forEach { session ->
-            val day = dayOf(session.completedAt) ?: return@forEach
-            dayMinutes[day] = (dayMinutes[day] ?: 0) + session.durationSeconds / 60
-        }
-        input.executions.forEach { execution ->
-            val day = dayOf(execution.completedAt) ?: return@forEach
-            dayMinutes[day] = (dayMinutes[day] ?: 0) + execution.actualMinutes
+        // Mesmo cálculo do site (Queries.dailyActivity): foco + baterias de questões, sem contar duas vezes.
+        br.com.estudario.domain.StudyTime.minutesByDay(input.studySpans, zone).forEach { (day, m) ->
+            if (!day.isBefore(activityStart) && !day.isAfter(activityEndDate)) dayMinutes[day] = m.toLong()
         }
         input.reviews.forEach { record(it.reviewedAt) }
         input.studySessions.forEach { record(it.completedAt) }
@@ -242,7 +238,7 @@ object StudyPerformanceEvaluator {
             accuracyPercent = attempts.size.takeIf { it > 0 }?.let { correct * 100 / it },
             taskCompletionPercent = tasks.size.takeIf { it > 0 }?.let { completed * 100 / it },
             plannedMinutes = tasks.fold(0L) { total, task -> saturatingAdd(total, task.plannedMinutes.coerceAtLeast(0).toLong()) },
-            studyMinutes = sessionMinutes(studySessions),
+            studyMinutes = br.com.estudario.domain.StudyTime.minutesBetween(input.studySpans, window.start?.toEpochMilliseconds() ?: Long.MIN_VALUE, window.end.toEpochMilliseconds()),
             questionMinutes = sessionMinutes(questionSessions),
             planExecutionMinutes = executions.fold(0L) { total, execution ->
                 saturatingAdd(total, execution.actualMinutes.coerceAtLeast(0).toLong())

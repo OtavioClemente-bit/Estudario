@@ -71,6 +71,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Long) -> Unit) {
+    br.com.estudario.ui.HoldCelebrations()
     val service = (LocalContext.current.applicationContext as EstudarioApplication).simulationService
     val simulation by service.simulation(simulationId).collectAsState(initial = null)
     val questions by service.questions(simulationId).collectAsState(initial = emptyList())

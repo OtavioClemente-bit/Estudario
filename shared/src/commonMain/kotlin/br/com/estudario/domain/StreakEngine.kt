@@ -11,7 +11,10 @@ data class DailyActivity(
     val reviews: Int = 0,
     val planTasks: Int = 0,
     val studySessions: Int = 0,
+    /** Minutos estudados de verdade (foco + baterias de questões, sem contar duas vezes): StudyTime. */
     val minutes: Int = 0,
+    /** Desses, o tempo nas baterias de questões. */
+    val questionMinutes: Int = 0,
     val focusSessions: Int = 0,
     val focusMinutes: Int = 0,
     val freeFocusMinutes: Int = 0,

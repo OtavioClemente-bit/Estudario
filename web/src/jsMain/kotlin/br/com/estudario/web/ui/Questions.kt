@@ -330,6 +330,7 @@ fun QuizScreen(scope: String) {
         return
     }
 
+    HoldCelebrations()
     val question = Store.data.questions.firstOrNull { it.id == initial[index].id } ?: initial[index]
     val topic = Store.data.topics.firstOrNull { it.id == question.topicId }
     val answered = selected != null

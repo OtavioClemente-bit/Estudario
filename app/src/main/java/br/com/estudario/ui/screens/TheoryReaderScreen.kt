@@ -109,6 +109,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             createdAt = existing?.createdAt,
             onDismiss = { editing = null },
             onSave = { text, _ ->
+                // trecho novo por cima de grifos antigos do parágrafo: ele substitui os que encostam nele
+                if (existing == null) marks.filter { it.blockIndex == index && br.com.estudario.text.MarkOverlap.overlaps(blocks.getOrElse(index) { quote }, it.quote, quote) }.forEach { viewModel.deleteTheoryMark(it) }
                 viewModel.saveTheoryMark(existing?.copy(note = text) ?: TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = text))
                 editing = null
                 scope.launch { snackbar.showSnackbar("Nota salva. Está no Caderno de estudo, em Anotações.") }
@@ -271,8 +273,12 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                     selected = null
                                     if (withNote) editing = index to quote
                                     else if (blockMarks.none { it.quote == quote }) {
-                                        viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = ""))
-                                        scope.launch { snackbar.showSnackbar("Trecho grifado. Fica no Caderno de estudo, no tópico desta teoria.") }
+                                        // grifar de novo por cima de um grifo (faltou uma letra, trecho maior ou menor)
+                                        // troca o antigo pelo novo, e a nota que ele tinha vem junto
+                                        val old = blockMarks.filter { br.com.estudario.text.MarkOverlap.overlaps(block, it.quote, quote) }
+                                        old.forEach { viewModel.deleteTheoryMark(it) }
+                                        viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty()))
+                                        scope.launch { snackbar.showSnackbar(if (old.isNotEmpty()) "Grifo atualizado no Caderno de estudo." else "Trecho grifado. Fica no Caderno de estudo, no tópico desta teoria.") }
                                     }
                                 },
                             )

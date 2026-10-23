@@ -119,7 +119,18 @@ object Demo {
                 "notes" to "", "sourcePackageId" to null,
             )
         }
-        data = data.appendAll(mapOf(Keys.ATTEMPTS to attempts, Keys.SESSIONS to sessions))
+        // O tempo de estudo do desempenho é o do foco mais o das baterias de questões (StudyTime): os mesmos dias.
+        val focusSessions = sessions.mapIndexed { i, row ->
+            val begin = (row["startedAt"] as kotlinx.serialization.json.JsonPrimitive).content.toLong(); val end = (row["completedAt"] as kotlinx.serialization.json.JsonPrimitive).content.toLong()
+            jsonOf("id" to "demo-f-$i", "title" to "Leitura", "startedAt" to begin, "completedAt" to end, "durationSeconds" to (end - begin) / 1000, "origin" to "TOPICO", "topicId" to row["topicId"], "taskId" to null)
+        }
+        val quizzes = attempts.groupBy { Queries.dateOf((it["answeredAt"] as kotlinx.serialization.json.JsonPrimitive).content.toLong()) }.values.mapIndexed { i, rows ->
+            val first = rows.minOf { (it["answeredAt"] as kotlinx.serialization.json.JsonPrimitive).content.toLong() }
+            val begin = first - 60_000L; val end = first + rows.size * 2 * 60_000L
+            jsonOf("id" to "demo-q-$i", "type" to "QUICK", "startedAt" to begin, "completedAt" to end, "durationSeconds" to (end - begin) / 1000, "questionCount" to rows.size,
+                "correctCount" to rows.count { (it["correct"] as kotlinx.serialization.json.JsonPrimitive).content == "true" }, "subjectIds" to "", "topicIds" to "")
+        }
+        data = data.appendAll(mapOf(Keys.ATTEMPTS to attempts, Keys.SESSIONS to sessions, Keys.FOCUS_SESSIONS to focusSessions, Keys.QUESTION_SESSIONS to quizzes))
         var reviewId = data.nextId(Keys.REVIEWS)
         val reviews = topics.filter { it.status == "ESTUDADO" }.take(5).mapIndexed { index, topic ->
             jsonOf("id" to reviewId++, "topicId" to topic.id, "stage" to 1 + index % 2, "dueAt" to at(todayEpoch - (index % 3), 0), "completedAt" to null, "ignoredAt" to null, "perceivedDifficulty" to null, "questionCorrect" to 0, "questionTotal" to 0)

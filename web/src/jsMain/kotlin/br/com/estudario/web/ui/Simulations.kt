@@ -333,6 +333,7 @@ private fun ReadyView(simulation: Simulation) {
 
 @Composable
 private fun ExamView(simulation: Simulation) {
+    HoldCelebrations()
     val questions = Store.data.questions.filter { it.simulationId == simulation.id }.sortedBy { it.id }
     val row = Simulations.row(Store.data, simulation.id)
     var answers by remember(simulation.id) { mutableStateOf(Simulations.answersOf(row)) }

@@ -634,16 +634,19 @@ private fun MainNavigation(viewModel: AppViewModel) {
         TransferDialog(viewModel)
         // Comemoração da sequência: só na primeira atividade que fecha a meta do dia, e nunca por
         // cima de um guia em andamento.
+        // No meio de uma rodada de estudo (questões, revisão, simulado) ou com o foco contando, as
+        // comemorações esperam: aparecem quando a rodada acaba, sem interromper o estudo.
+        val studying = StudyFlow.busy || (focusSession.active && !focusSession.paused)
         val celebration by viewModel.celebration.collectAsState()
-        celebration?.let { current -> if (tourStep == null) StreakCelebrationScreen(current, viewModel::consumeCelebration) }
+        celebration?.let { current -> if (tourStep == null && !studying) StreakCelebrationScreen(current, viewModel::consumeCelebration) }
         // Emblema novo entra depois da comemoração do dia, para as duas não brigarem pela tela.
         val badgeUnlock by viewModel.badgeUnlock.collectAsState()
-        if (celebration == null && tourStep == null) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock)
+        if (celebration == null && tourStep == null && !studying) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock)
         // Subida de nível: depois da sequência e dos emblemas, uma tela de cada vez.
         val levelUp by viewModel.levelUp.collectAsState()
-        levelUp?.let { event -> if (celebration == null && badgeUnlock.isEmpty() && tourStep == null) br.com.estudario.ui.profile.LevelUpScreen(event, viewModel::consumeLevelUp) }
+        levelUp?.let { event -> if (celebration == null && badgeUnlock.isEmpty() && tourStep == null && !studying) br.com.estudario.ui.profile.LevelUpScreen(event, viewModel::consumeLevelUp) }
         // Peça nova no armário: o baú abre depois das outras comemorações.
-        br.com.estudario.ui.profile.FolhaGiftHost(viewModel, enabled = celebration == null && badgeUnlock.isEmpty() && levelUp == null && tourStep == null)
+        br.com.estudario.ui.profile.FolhaGiftHost(viewModel, enabled = celebration == null && badgeUnlock.isEmpty() && levelUp == null && tourStep == null && !studying)
         val xpGain by viewModel.xpGain.collectAsState()
         br.com.estudario.ui.profile.XpGainToast(xpGain)
         if (showPlansFromMenu) br.com.estudario.ui.plans.PlansDialog(onDismiss = { showPlansFromMenu = false }, onSignIn = { showPlansFromMenu = false; navController.navigate("profile") })

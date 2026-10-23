@@ -87,6 +87,7 @@ fun ReviewSessionScreen(
         return
     }
     if (review == null) { EmptyState("Revisão não encontrada", "Ela pode já ter sido removida.", "Voltar", onBack); return }
+    br.com.estudario.ui.HoldCelebrations()
     val topic = topics.firstOrNull { it.id == review.topicId }
     // Revisão espaçada vale no dia dela: antes, ainda é cedo (revisar antes enfraquece o efeito).
     val zoneHere = ZoneId.systemDefault()

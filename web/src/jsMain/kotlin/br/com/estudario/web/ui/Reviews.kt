@@ -154,6 +154,7 @@ fun ReviewSessionScreen(reviewId: Long) {
         Card { Empty("task_alt", "Revisão concluída", "Ela já foi feita ou não existe mais.", action = { Btn("Voltar às revisões", { Router.go(Route.Reviews) }) }) }
         return
     }
+    HoldCelebrations()
     val topic = data.topics.firstOrNull { it.id == review.topicId }
     val subject = data.subjects.firstOrNull { it.id == topic?.subjectId }
     // Revisão espaçada vale no dia dela: antes disso, ainda é cedo (revisar antes enfraquece o efeito).

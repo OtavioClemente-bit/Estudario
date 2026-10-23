@@ -75,6 +75,7 @@ fun FlashcardsScreen(topicId: Long?) {
         return
     }
 
+    HoldCelebrations()
     val card = deck[index]
     fun answer(remembered: Boolean) {
         som(if (remembered) "lembrei" else "nao_lembrei")

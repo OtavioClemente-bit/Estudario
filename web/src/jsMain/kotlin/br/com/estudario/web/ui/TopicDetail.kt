@@ -185,6 +185,7 @@ fun TopicScreen(topicId: Long) {
     var quizPicker by remember(topicId) { mutableStateOf(false) }
     var menuOpen by remember(topicId) { mutableStateOf(false) }
     var finishAsk by remember(topicId) { mutableStateOf(false) }
+    var focusAsk by remember(topicId) { mutableStateOf<(() -> Unit)?>(null) }
     var deletingMaterial by remember(topicId) { mutableStateOf(false) }
     val hasMaterial = theories.isNotEmpty() || summaries.isNotEmpty() || snippets.isNotEmpty()
     val focusHere = TopicFocus.topicId == topicId
@@ -241,10 +242,14 @@ fun TopicScreen(topicId: Long) {
         TopicStat(accuracy?.let { "$it%" } ?: "-", if (attempts.isEmpty()) "Acerto" else "Acerto · ${attempts.size}")
     }
     val resume = theories.firstOrNull { it.lastReadBlock >= 0 && it.lastReadBlock < studyBlocks(it.markdown).lastIndex } ?: theories.firstOrNull { it.lastReadBlock < 0 }
+    // Começar a ler sem o foco ligado: pergunta se quer ligar (o tempo de estudo só conta com o foco).
+    fun withFocusAsk(go: () -> Unit): () -> Unit = {
+        if (TopicFocus.active || Store.demo || FocusAsk.never) go() else focusAsk = go
+    }
     val (label, icon, action) = when {
         children.isNotEmpty() -> Triple("Ver os ${children.size} subtópicos", "account_tree") { tab = 0 }
-        resume != null && resume.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent(resume)}%", "menu_book") { tab = 0; scrollToBlock(resume.id, resume.lastReadBlock) }
-        resume != null -> Triple("Começar a teoria", "menu_book") { tab = 0; scrollToBlock(resume.id, 0) }
+        resume != null && resume.lastReadBlock >= 0 -> Triple("Continuar leitura · ${readPercent(resume)}%", "menu_book", withFocusAsk { tab = 0; scrollToBlock(resume.id, resume.lastReadBlock) })
+        resume != null -> Triple("Começar a teoria", "menu_book", withFocusAsk { tab = 0; scrollToBlock(resume.id, 0) })
         questions.isNotEmpty() -> Triple("Treinar questões (${questions.size} salvas)", "quiz") { quizPicker = true }
         else -> Triple("Gerar material com o Estudário", "auto_awesome") { if (!Store.demo) generating = true }
     }
@@ -273,6 +278,26 @@ fun TopicScreen(topicId: Long) {
         }, style = "outline", icon = "check", block = true)
         else if (studied) Btn("Concluído", {}, style = "outline", icon = "check", block = true, enabled = false)
         else Btn("Concluir estudo", { finishAsk = true }, style = "outline", icon = "check", block = true)
+    }
+    focusAsk?.let { go ->
+        var never by remember { mutableStateOf(false) }
+        Modal(onDismiss = { focusAsk = null }) {
+            H2 { Text("Ligar o modo foco?") }
+            P({ classes("muted") }) { Text("O tempo de estudo do seu desempenho é o do modo foco (mais o das questões). Com ele ligado, esta leitura entra no seu dia.") }
+            org.jetbrains.compose.web.dom.Label(attrs = { classes("row", "small"); attr("style", "gap:8px;align-items:center;cursor:pointer") }) {
+                org.jetbrains.compose.web.dom.CheckboxInput(never) { onInput { never = it.value } }
+                Text("Não perguntar de novo")
+            }
+            Div({ classes("row"); attr("style", "justify-content:flex-end") }) {
+                Btn("Só ler", { if (never) FocusAsk.never = true; focusAsk = null; go() }, style = "ghost")
+                Btn("Ligar o foco e ler", {
+                    if (never) FocusAsk.never = true
+                    TopicFocus.start(topicId, topic.title)
+                    Toast.show("Foco ligado. O tempo conta enquanto você estuda aqui.")
+                    focusAsk = null; go()
+                }, style = "primary", icon = "timer")
+            }
+        }
     }
     if (finishAsk) Modal(onDismiss = { finishAsk = false }) {
         H2 { Text("Estudo concluído hoje") }
@@ -579,10 +604,26 @@ private fun TheoryReader(theory: Theory) {
         else {
             // Seleção de vários parágrafos: um grifo em cada um (a nota vai no primeiro).
             val parts = p.parts.ifEmpty { listOf(p.block to p.quote) }
+            // Grifar de novo por cima de um grifo (faltou uma letra, trecho maior ou menor) troca o antigo
+            // pelo novo, e a nota que ele tinha vem junto.
+            var replaced = 0
             Store.update { snapshot ->
-                parts.foldIndexed(snapshot) { i, acc, (block, quote) -> Actions.addTheoryMark(acc, theory.id, block, quote, if (i == 0) note else "") }
+                parts.foldIndexed(snapshot) { i, acc, (block, quote) ->
+                    val text = blocks.getOrNull(block).orEmpty()
+                    val old = acc.theoryMarks.filter { m -> m.theoryId == theory.id && TheoryJump.blockOf(blocks, m.quote, m.blockIndex) == block && br.com.estudario.text.MarkOverlap.overlaps(text, m.quote, quote) }
+                    replaced += old.size
+                    val keptNote = (if (i == 0) note else "").ifBlank { old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty() }
+                    val cleared = old.fold(acc) { a, m -> Actions.deleteTheoryMark(a, m.id) }
+                    Actions.addTheoryMark(cleared, theory.id, block, quote, keptNote)
+                }
             }
-            Toast.show(if (parts.size > 1) "${parts.size} trechos grifados e salvos no Caderno de estudo" else "Grifo salvo no Caderno de estudo")
+            Toast.show(
+                when {
+                    replaced > 0 -> "Grifo atualizado no Caderno de estudo"
+                    parts.size > 1 -> "${parts.size} trechos grifados e salvos no Caderno de estudo"
+                    else -> "Grifo salvo no Caderno de estudo"
+                },
+            )
         }
         window.asDynamic().getSelection()?.removeAllRanges()
         picked = null
@@ -1085,3 +1126,10 @@ private fun ReaderSettingsPop(onClose: () -> Unit) {
 
 /** Quanto da teoria aberta já passou pela tela (-1 quando não há teoria na tela). */
 object ReadProgress { var fraction by mutableStateOf(-1.0) }
+
+/** "Não perguntar de novo" do aviso do modo foco ao começar a leitura (fica neste navegador). */
+object FocusAsk {
+    var never: Boolean
+        get() = runCatching { kotlinx.browser.window.localStorage.getItem("estudario.focus.ask") == "never" }.getOrDefault(false)
+        set(value) { runCatching { if (value) kotlinx.browser.window.localStorage.setItem("estudario.focus.ask", "never") else kotlinx.browser.window.localStorage.removeItem("estudario.focus.ask") } }
+}

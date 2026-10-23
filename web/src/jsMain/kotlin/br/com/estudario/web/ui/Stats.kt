@@ -225,7 +225,16 @@ fun StatsScreen() {
                 val value = day?.minutes ?: 0
                 val active = day?.hasAnything == true
                 val acc = day?.takeIf { it.questions > 0 }?.let { percent(it.correct, it.questions) }
-                Div({ classes(*listOfNotNull("rcol", if (date == today) "today" else null).toTypedArray()); attr("title", "${Queries.shortDate(date)}: ${Queries.minutesLabel(value)}${acc?.let { " · $it% de acerto" } ?: ""}") }) {
+                // Passar o mouse: o dia inteiro, o tempo (foco e questões) e o que foi feito.
+                val tip = buildList {
+                    add("${Queries.shortDate(date)}: ${if (value > 0) Queries.minutesLabel(value) + " de estudo" else "sem tempo cronometrado"}")
+                    if (day != null && day.focusMinutes > 0) add("foco ${Queries.minutesLabel(day.focusMinutes)}")
+                    if (day != null && day.questionMinutes > 0) add("questões ${Queries.minutesLabel(day.questionMinutes)}")
+                    if (day != null && day.questions > 0) add("${day.questions} ${if (day.questions == 1) "questão" else "questões"}${acc?.let { ", $it% de acerto" } ?: ""}")
+                    if (day != null && day.reviews > 0) add("${day.reviews} ${if (day.reviews == 1) "revisão" else "revisões"}")
+                    if (day != null && day.planTasks > 0) add("${day.planTasks} ${if (day.planTasks == 1) "tarefa" else "tarefas"} do plano")
+                }.joinToString(" · ")
+                Div({ classes(*listOfNotNull("rcol", if (date == today) "today" else null).toTypedArray()); attr("title", tip) }) {
                     if (acc != null) I({ classes("rdot"); attr("style", "background:${accuracyColor(acc)}") })
                     I({ classes(*listOfNotNull("rbar", if (!active) "idle" else null).toTypedArray()); attr("style", "height:${if (value > 0) (value * 100 / max).coerceAtLeast(5) else if (active) 5 else 3}%") })
                 }
@@ -236,6 +245,8 @@ fun StatsScreen() {
         Div({ classes("row", "wrap", "xs", "muted"); attr("style", "gap:14px;margin-top:8px") }) {
             Span({ classes("legend") }) { Span({ classes("sw"); attr("style", "background:var(--primary)") }); Text("minutos de estudo") }
             Span({ classes("legend") }) { Span({ classes("sw", "round"); attr("style", "background:#2FA36B") }); Text("acerto do dia") }
+            val focus = shown.sumOf { activity[it]?.focusMinutes ?: 0 }; val quiz = shown.sumOf { activity[it]?.questionMinutes ?: 0 }
+            if (focus + quiz > 0) Span { Text("Tempo = modo foco (${Queries.minutesLabel(focus)}) + questões (${Queries.minutesLabel(quiz)}), sem contar duas vezes") }
         }
     }
 
