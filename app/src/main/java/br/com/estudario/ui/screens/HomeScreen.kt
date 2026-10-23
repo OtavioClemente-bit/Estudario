@@ -138,6 +138,21 @@ fun HomeScreen(
     val reviews by viewModel.reviews.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val streak by viewModel.streak.collectAsState()
+    // O Folha salvou a sequência num dia sem estudo: a cena aparece uma vez por dia salvo.
+    val savePrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    val savedRecently = streak?.protectedDays.orEmpty().filter { java.time.LocalDate.now().toEpochDay() - it.toEpochDays() <= 7 }.map { it.toString() }
+    var savedSeen by remember { mutableStateOf(savePrefs.getStringSet("streak_saved_seen", emptySet()).orEmpty()) }
+    val savedPending = savedRecently.filter { it !in savedSeen }
+    if (savedPending.isNotEmpty() && streak != null) {
+        val d = java.time.LocalDate.parse(savedPending.max())
+        br.com.estudario.ui.profile.StreakSaveScene(
+            streak!!.current, streak!!.freezes,
+            d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale("pt", "BR")).replace(".", "").replaceFirstChar { it.uppercase() } + ", " + d.dayOfMonth + "/" + d.monthValue,
+        ) {
+            savedSeen = savedSeen + savedPending
+            savePrefs.edit().putStringSet("streak_saved_seen", savedSeen).apply()
+        }
+    }
     val progress by viewModel.progress.collectAsState()
     val planState by planViewModel.state.collectAsState()
     val queue by viewModel.queue.collectAsState()

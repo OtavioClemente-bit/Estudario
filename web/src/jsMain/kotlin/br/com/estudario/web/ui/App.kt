@@ -135,6 +135,7 @@ fun App() {
     // O giro de boas-vindas, na primeira visita (ou pelos Ajustes), sempre a partir do Início.
     if (Store.load == LoadState.Ready && Router.current == Route.Home) WelcomeTour()
     TheoryPinWindows()
+    StreakSaveHost()
     FocusModalsHost()
     ToastHost()
 }

@@ -164,6 +164,33 @@ fun TheoryPinWindows() {
                     Button({ classes("pin-btn"); attr("title", "Fechar"); onClick { TheoryPins.remove(pin.id) } }) { Icon("close") }
                 }
                 if (!pin.collapsed) Div({ classes("pin-body") }) { Markdown(pin.markdown, compact = true) }
+                // Alças para mudar o tamanho: o canto de baixo, a borda da direita e a de baixo.
+                if (!pin.collapsed) listOf("se", "e", "s").forEach { edge ->
+                    Span({
+                        classes("pin-resize", edge)
+                        addEventListener("pointerdown") { ev ->
+                            val e = ev.nativeEvent.asDynamic()
+                            e.preventDefault(); e.stopPropagation()
+                            val sx = (e.clientX as Number).toInt(); val sy = (e.clientY as Number).toInt()
+                            val ow = pin.w; val oh = pin.h
+                            lateinit var move: (org.w3c.dom.events.Event) -> Unit
+                            lateinit var up: (org.w3c.dom.events.Event) -> Unit
+                            move = { m ->
+                                val me = m.asDynamic()
+                                val dw = if (edge != "s") (me.clientX as Number).toInt() - sx else 0
+                                val dh = if (edge != "e") (me.clientY as Number).toInt() - sy else 0
+                                TheoryPins.change(pin.id, persist = false) { it.copy(w = (ow + dw).coerceIn(240, (vw * 0.92).toInt()), h = (oh + dh).coerceIn(120, (vh * 0.86).toInt())) }
+                            }
+                            up = { _ ->
+                                kotlinx.browser.window.removeEventListener("pointermove", move)
+                                kotlinx.browser.window.removeEventListener("pointerup", up)
+                                TheoryPins.persist()
+                            }
+                            kotlinx.browser.window.addEventListener("pointermove", move)
+                            kotlinx.browser.window.addEventListener("pointerup", up)
+                        }
+                    })
+                }
             }
         }
     }

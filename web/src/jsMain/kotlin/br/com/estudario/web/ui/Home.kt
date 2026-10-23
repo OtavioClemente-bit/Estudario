@@ -363,8 +363,8 @@ private fun levelSealSvg(level: Int): String {
 }
 
 /**
- * A semana da sequência: cada dia feito é uma chama (a fênix), o dia salvo pela folga é um cristal de
- * gelo. Embaixo, o estoque de folgas (até 2 cristais) e quanto falta para ganhar a próxima.
+ * A semana da sequência: cada dia feito é uma chama (a fênix), o dia salvo é o marca-página do Folha.
+ * Embaixo, os marca-páginas guardados (até 2) e quanto falta para ganhar o próximo.
  */
 @Composable
 private fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
@@ -388,43 +388,42 @@ private fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
                     day.future -> "future"
                     else -> "miss"
                 }
-                Div({ classes("sw-day", state); attr("title", when (state) { "fire" -> "Dia cumprido"; "ice" -> "A folga salvou este dia"; "partial" -> "Estudou, mas não fechou a meta"; "today" -> "Hoje: ainda dá tempo"; "future" -> ""; else -> "Sem estudo" }) }) {
+                Div({ classes("sw-day", state); attr("title", when (state) { "fire" -> "Dia cumprido"; "ice" -> "O Folha guardou este dia com um marca-página"; "partial" -> "Estudou, mas não fechou a meta"; "today" -> "Hoje: ainda dá tempo"; "future" -> ""; else -> "Sem estudo" }) }) {
                     Span({ classes("sw-letter") }) { Text(Queries.weekdayShort[i].take(1).uppercase()) }
                     Div({ classes("sw-token") }) {
                         when (state) {
                             "fire" -> org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(FLAME_SVG) as String, alt = "")
-                            "ice" -> org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(ICE_SVG) as String, alt = "")
+                            "ice" -> org.jetbrains.compose.web.dom.Img(src = bookmarkSrc(), alt = "")
                             else -> Unit
                         }
                     }
                 }
             }
         }
-        // O estoque de gelo: até 2 cristais guardados e quanto falta para o próximo.
-        Div({ classes("sw-ice"); attr("title", "A cada 7 dias seguidos você ganha 1 dia de folga (guarda até 2). Num dia sem estudo ele derrete no lugar da sequência.") }) {
+        // Os marca-páginas do Folha: até 2 guardados e quanto falta para o próximo.
+        Div({ classes("sw-ice"); attr("title", "A cada 7 dias seguidos o Folha guarda um marca-página (até 2). Num dia sem estudo, ele marca aquele dia e a sequência não apaga.") }) {
             Div({ classes("sw-ice-slots") }) {
                 repeat(br.com.estudario.domain.StreakEngine.MAX_FREEZES) { k ->
                     Span({ classes(*listOfNotNull("sw-slot", if (k < streak.freezes) "full" else null).toTypedArray()) }) {
-                        org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(ICE_SVG) as String, alt = "")
+                        org.jetbrains.compose.web.dom.Img(src = bookmarkSrc(), alt = "")
                     }
                 }
             }
             Div({ classes("grow") }) {
-                B { Text(if (streak.freezes > 0) "${streak.freezes} ${if (streak.freezes == 1) "folga de gelo guardada" else "folgas de gelo guardadas"}" else "Nenhuma folga guardada") }
+                B { Text(if (streak.freezes > 0) "${streak.freezes} ${if (streak.freezes == 1) "marca-página do Folha" else "marca-páginas do Folha"}" else "Nenhum marca-página guardado") }
                 val next = streak.daysToNextFreeze
                 if (next > 0) {
                     val done = (br.com.estudario.domain.StreakEngine.DAYS_PER_FREEZE - next).coerceAtLeast(0)
                     Div({ classes("sw-ice-bar") }) { Span({ attr("style", "width:${done * 100 / br.com.estudario.domain.StreakEngine.DAYS_PER_FREEZE}%") }) }
-                    Div({ classes("sw-sub") }) { Text("Mais $next ${if (next == 1) "dia seguido" else "dias seguidos"} e ganha outra") }
-                } else Div({ classes("sw-sub") }) { Text("Estoque cheio: protege 2 dias ruins") }
+                    Div({ classes("sw-sub") }) { Text("Mais $next ${if (next == 1) "dia seguido" else "dias seguidos"} e o Folha guarda outro") }
+                } else Div({ classes("sw-sub") }) { Text("Cheio: o Folha protege 2 dias ruins") }
             }
         }
-        if (streak.week.any { it.protected }) Div({ classes("sw-saved") }) { Text("Uma folga de gelo salvou sua sequência esta semana.") }
+        if (streak.week.any { it.protected }) Div({ classes("sw-saved") }) { Text("O Folha guardou seu lugar num dia desta semana.") }
     }
 }
 
 private const val FLAME_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="f" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FF4D2E"/><stop offset=".55" stop-color="#FF9A1F"/><stop offset="1" stop-color="#FFD84A"/></linearGradient><linearGradient id="i" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFB13B"/><stop offset="1" stop-color="#FFF4B8"/></linearGradient></defs><path d="M33 4c3 10 15 16 15 31a16 16 0 0 1-32 0c0-8 4-12 7-16 1 5 3 8 6 9-2-9 0-17 4-24z" fill="url(#f)"/><path d="M32 30c2 5 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 2 5 3 5-1-5 0-9 1-12z" fill="url(#i)"/></svg>"""
-private const val ICE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9FBFF"/><stop offset=".5" stop-color="#8ED8FF"/><stop offset="1" stop-color="#3D8BFF"/></linearGradient></defs><path d="M32 4 L52 18 L52 46 L32 60 L12 46 L12 18 Z" fill="url(#c)" stroke="#2F6FD6" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 4 L32 60 M12 18 L52 46 M52 18 L12 46" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="2"/><path d="M20 20 L28 14" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/><circle cx="44" cy="40" r="2.2" fill="#FFFFFF"/></svg>"""
 
 
 /** Pedindo atenção: revisões, erros, tarefas atrasadas e o tópico mais fraco. Só o que existe. */

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -542,19 +543,19 @@ private fun StreakBand(summary: StreakSummary) {
             summary.week.forEach { day -> WeekDot(if (day.protected) day.copy(done = true) else day, colors.completed) }
         }
         Spacer(Modifier.height(EstudarioSpacing.tight))
-        // Proteção da sequência: uma folga a cada 7 dias seguidos salva um dia ruim (guarda até 2).
+        // Marca-página do Folha: a cada 7 dias seguidos ele guarda um (até 2) e salva um dia sem estudo.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-            Icon(androidx.compose.material.icons.Icons.Outlined.VerifiedUser, null, Modifier.size(18.dp), tint = androidx.compose.ui.graphics.Color(0xFF5E9BFF))
+            Icon(Icons.Outlined.BookmarkBorder, null, Modifier.size(18.dp), tint = androidx.compose.ui.graphics.Color(0xFF8B7BFF))
             Text(
                 when {
-                    summary.freezes > 0 -> "${summary.freezes} ${if (summary.freezes == 1) "dia de folga guardado" else "dias de folga guardados"}" + (if (summary.daysToNextFreeze > 0) " · outro em ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia" else "dias"}" else "")
-                    else -> "Folga da sequência em ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia seguido" else "dias seguidos"}: num dia sem estudo, ela salva a sequência."
+                    summary.freezes > 0 -> "${summary.freezes} ${if (summary.freezes == 1) "marca-página do Folha" else "marca-páginas do Folha"}" + (if (summary.daysToNextFreeze > 0) " · outro em ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia" else "dias"}" else "")
+                    else -> "Mais ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia seguido" else "dias seguidos"} e o Folha guarda um marca-página: num dia sem estudo, ele salva a sequência."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (summary.week.any { it.protected }) Text("Uma folga salvou sua sequência esta semana.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (summary.week.any { it.protected }) Text("O Folha guardou seu lugar num dia desta semana.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(EstudarioSpacing.comfortable))
         if (summary.todayDone) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
