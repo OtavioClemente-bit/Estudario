@@ -81,7 +81,7 @@ private val TIER_COLOR = mapOf(1 to "#C27E45", 2 to "#9AA2B5", 3 to "#F5B83D", 4
  * Bronze à Esmeralda), onde dá para tocar nas outras.
  */
 @Composable
-private fun MedalDetail(item: br.com.estudario.domain.BadgeProgress, all: List<br.com.estudario.domain.BadgeProgress>, onPick: (String) -> Unit, onClose: () -> Unit) {
+internal fun MedalDetail(item: br.com.estudario.domain.BadgeProgress, all: List<br.com.estudario.domain.BadgeProgress>, onPick: (String) -> Unit, onClose: () -> Unit) {
     androidx.compose.runtime.DisposableEffect(Unit) {
         val esc: (org.w3c.dom.events.Event) -> Unit = { e -> if ((e as org.w3c.dom.events.KeyboardEvent).key == "Escape") onClose() }
         kotlinx.browser.window.addEventListener("keydown", esc)

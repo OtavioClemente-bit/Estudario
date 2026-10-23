@@ -113,49 +113,82 @@ fun ProfileScreen() {
     val todayRow = activity[today]
     val goal = Prefs.dailyGoal
     val doneToday = todayRow?.questions ?: 0
-
-    // Cabeçalho colorido com avatar, nível e barra de XP.
-    Div({ classes("profile-hero") }) {
-        Span({ classes("hero-avatar") }) {
-            val photo = session?.avatarUrl
-            if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
-        }
-        Div({ classes("grow"); attr("style", "min-width:0") }) {
-            H2 { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
-            P({ classes("small", "clamp-2"); attr("style", "opacity:.85") }) { Text(session?.email ?: "Dados de exemplo") }
-            Div({ classes("row", "wrap"); attr("style", "margin-top:10px;gap:8px") }) {
-                Span({ classes("hero-pill") }) { Icon("military_tech", filled = true); Text("Nível ${progress.level} · ${progress.levelTitle}") }
-                Span({ classes("hero-pill") }) { Icon("local_fire_department", filled = true); Text("${streak.current} dias seguidos") }
-            }
-        }
-    }
     val seed = rememberSeed()
-    Div({ classes("profile-talk") }) {
-        FolhaTalking(FolhaLines.forProfile(progress.level, streak.current, progress.xpToday, seed), 96, onFolhaClick = {})
+    // tocar numa medalha (vitrine ou "quase lá") abre a medalha em destaque, como nas Conquistas
+    var openMedal by remember { mutableStateOf<String?>(null) }
+    openMedal?.let { id -> progress.badges.firstOrNull { it.badge.id == id }?.let { MedalDetail(it, progress.badges, onPick = { openMedal = it }, onClose = { openMedal = null }) } }
+
+    // ---- o cabeçalho: avatar no anel do nível, nome, progresso e o Folha comentando
+    Div({ classes("pf-hero", "rise") }) {
+        Div({ classes("pf-id") }) {
+            Div({ classes("pf-avatar"); attr("style", "--p:${(progress.levelProgress * 100).toInt()}"); attr("title", "${(progress.levelProgress * 100).toInt()}% do nível ${progress.level}") }) {
+                Span({ classes("pf-photo") }) {
+                    val photo = session?.avatarUrl
+                    if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
+                }
+                Span({ classes("pf-level") }) { Text("${progress.level}") }
+            }
+            Div({ classes("grow"); attr("style", "min-width:0") }) {
+                Span({ classes("pf-title") }) { Text("NÍVEL ${progress.level} · ${progress.levelTitle.uppercase()}") }
+                H2({ classes("pf-name") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
+                P({ classes("pf-mail", "clamp-1") }) { Text(session?.email ?: "Dados de exemplo") }
+                Div({ classes("pf-xpbar") }) { Span({ attr("style", "width:${(progress.levelProgress * 100).toInt()}%") }) }
+                P({ classes("pf-xpline") }) { Text("${progress.xpIntoLevel} de ${progress.xpForNextLevel} XP neste nível · faltam ${progress.xpForNextLevel - progress.xpIntoLevel} para o nível ${progress.level + 1}") }
+            }
+        }
+        Div({ classes("pf-folha") }) {
+            FolhaTalking(FolhaLines.forProfile(progress.level, streak.current, progress.xpToday, seed), 104, onFolhaClick = { Router.go(Route.Wardrobe) })
+        }
     }
 
-    Div({ classes("grid", "main-side") }) {
-        Div({ classes("stack", "loose") }) {
-            Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("NÍVEL") }
-                Div({ classes("row", "between"); attr("style", "margin-top:4px") }) {
-                    B({ attr("style", "font-size:28px") }) { Text("${progress.totalXp} XP") }
-                    Chip("+${progress.xpToday} hoje", tone = "green")
-                }
-                Div({ attr("style", "margin-top:12px") }) { ProgressBar(progress.levelProgress.toDouble()) }
-                P({ classes("small", "muted"); attr("style", "margin-top:8px") }) { Text("Faltam ${progress.xpForNextLevel - progress.xpIntoLevel} XP para o nível ${progress.level + 1} · ${progress.xpThisWeek} XP esta semana") }
+    // ---- os números do caminho
+    Div({ classes("pf-kpis") }) {
+        Kpi("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia seguido" else "dias seguidos", "Recorde: ${streak.best}")
+        Kpi("bolt", "#8B7CFF", "${progress.totalXp}", "XP no total", if (progress.xpToday > 0) "+${progress.xpToday} hoje" else "${progress.xpThisWeek} XP esta semana", good = progress.xpToday > 0)
+        Kpi("military_tech", "#F5B83D", "${progress.earnedBadges.size}", "de ${progress.badges.size} emblemas", progress.nextBadges.firstOrNull()?.let { "Próximo: ${it.badge.name}" } ?: "Coleção completa")
+        A(href = "#/${Route.Stats.path}", { classes("pf-kpi", "goal") }) {
+            Div({ classes("pf-goal-ring"); attr("style", "--p:${(doneToday * 100 / goal.coerceAtLeast(1)).coerceAtMost(100)}") }) { B { Text("$doneToday") } }
+            Div({ classes("grow"); attr("style", "min-width:0") }) {
+                B({ classes("pf-kpi-label") }) { Text(if (doneToday >= goal) "Meta do dia batida!" else "Meta do dia") }
+                Span({ classes("pf-kpi-sub") }) { Text(if (doneToday >= goal) "$doneToday questões hoje" else "$doneToday de $goal questões") }
             }
-            Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("DE ONDE VEIO SEU XP") }
-                val sources = progress.sources.filter { it.xp > 0 }
-                val total = sources.sumOf { it.xp }.coerceAtLeast(1)
-                if (sources.isEmpty()) P({ classes("small", "muted") }) { Text("Estude, resolva questões e revise para ganhar XP.") }
-                Div({ classes("stack"); attr("style", "margin-top:10px") }) {
-                    sources.forEach { source ->
-                        val pct = source.xp * 100 / total
-                        Div({ classes("stack", "tight") }) {
-                            Div({ classes("row", "between") }) { Span({ classes("small") }) { Text(source.label) }; B({ classes("small") }) { Text("$pct% · ${source.xp} XP") } }
-                            ProgressBar(pct / 100.0)
+        }
+    }
+
+    Div({ classes("grid", "main-side"); attr("style", "margin-top:16px") }) {
+        Div({ classes("stack", "loose") }) {
+            // ---- a vitrine: as medalhas conquistadas, desenhadas
+            Card(extra = "pad-lg pf-showcase") {
+                Div({ classes("row", "between") }) {
+                    Div {
+                        Div({ classes("eyebrow") }) { Text("SUA VITRINE") }
+                        B({ classes("pf-card-title") }) { Text(if (progress.earnedBadges.isEmpty()) "Sua primeira medalha está perto" else "${progress.earnedBadges.size} medalhas conquistadas") }
+                    }
+                    A(href = "#/${Route.Achievements.path}", { classes("btn", "ghost", "small") }) { Text("Ver todas"); Icon("chevron_right") }
+                }
+                val shelf = progress.earnedBadges.sortedWith(compareByDescending<br.com.estudario.domain.BadgeProgress> { it.badge.tier }).take(8)
+                if (shelf.isEmpty()) P({ classes("small", "muted"); attr("style", "margin:10px 0 0") }) { Text("Estude, resolva questões e mantenha a sequência: cada emblema vira uma medalha aqui na vitrine.") }
+                else Div({ classes("pf-shelf") }) {
+                    shelf.forEach { item -> key(item.badge.id) { MedalButton(item, 76) { openMedal = item.badge.id } } }
+                }
+            }
+            // ---- quase lá: as medalhas mais perto, com o quanto falta
+            if (progress.nextBadges.isNotEmpty()) Card(extra = "pad-lg") {
+                Div({ classes("eyebrow") }) { Text("QUASE LÁ") }
+                Div({ classes("pf-next") }) {
+                    progress.nextBadges.take(3).forEach { item ->
+                        key(item.badge.id) {
+                            Button({ classes("pf-next-row"); onClick { openMedal = item.badge.id } }) {
+                                MedalImg(item.badge, earned = false, size = 56)
+                                Div({ classes("grow"); attr("style", "min-width:0") }) {
+                                    Div({ classes("row", "between") }) {
+                                        B { Text(item.badge.name) }
+                                        Span({ classes("pf-next-pct") }) { Text("${(item.percent * 100).toInt()}%") }
+                                    }
+                                    ProgressBar(item.percent.toDouble())
+                                    Span({ classes("xs", "muted") }) { Text("Faltam ${item.remaining} ${item.badge.unit} · ${item.badge.requirement}") }
+                                }
+                            }
                         }
                     }
                 }
@@ -176,38 +209,22 @@ fun ProfileScreen() {
             }
         }
         Div({ classes("stack", "loose") }) {
+            WardrobeCard(progress)
             Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("META DO DIA") }
-                Div({ classes("row"); attr("style", "margin-top:8px") }) {
-                    Ring((doneToday.toDouble() / goal).coerceIn(0.0, 1.0)) { B { Text("$doneToday") } }
-                    Div({ classes("grow") }) {
-                        B { Text(if (doneToday >= goal) "Meta batida!" else "$doneToday de $goal questões") }
-                        P({ classes("small", "muted") }) { Text("Uma tarefa do plano ou uma revisão também fecham o dia.") }
-                    }
-                }
-            }
-            Card(extra = "pad-lg") {
-                Div({ classes("row", "between") }) {
-                    Div({ classes("eyebrow") }) { Text("EMBLEMAS · QUASE LÁ") }
-                    A(href = "#/perfil/conquistas", { classes("small") }) { Text("Ver todos") }
-                }
+                Div({ classes("eyebrow") }) { Text("DE ONDE VEIO SEU XP") }
+                val sources = progress.sources.filter { it.xp > 0 }
+                val total = sources.sumOf { it.xp }.coerceAtLeast(1)
+                if (sources.isEmpty()) P({ classes("small", "muted") }) { Text("Estude, resolva questões e revise para ganhar XP.") }
                 Div({ classes("stack"); attr("style", "margin-top:10px") }) {
-                    progress.nextBadges.take(3).forEach { item ->
-                        key(item.badge.id) {
-                            Div({ classes("row") }) {
-                                Span({ classes("mini-medal") }) { Icon("military_tech") }
-                                Div({ classes("grow") }) {
-                                    B({ classes("small") }) { Text(item.badge.name) }
-                                    ProgressBar(item.percent.toDouble())
-                                    Span({ classes("xs", "muted") }) { Text("${item.current} / ${item.target} ${item.badge.unit}") }
-                                }
-                            }
+                    sources.forEach { source ->
+                        val pct = source.xp * 100 / total
+                        Div({ classes("stack", "tight") }) {
+                            Div({ classes("row", "between") }) { Span({ classes("small") }) { Text(source.label) }; B({ classes("small") }) { Text("$pct% · ${source.xp} XP") } }
+                            ProgressBar(pct / 100.0)
                         }
                     }
-                    P({ classes("xs", "muted") }) { Text("${progress.earnedBadges.size} de ${progress.badges.size} emblemas conquistados") }
                 }
             }
-            WardrobeCard(progress)
             Card {
                 ProfileLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} emblemas", Route.Achievements)
                 ProfileLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
@@ -215,7 +232,7 @@ fun ProfileScreen() {
                 ProfileLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
                 ProfileLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
                 ProfileLink("workspace_premium", "Planos e uso", "Limites de IA do seu plano", Route.PlanLimits)
-                ProfileLink("tune", "Ajustes", "Aparência, questões por dia e sincronização", Route.Settings)
+                ProfileLink("tune", "Ajustes", "Aparência, sons, questões por dia e sincronização", Route.Settings)
             }
             Card(extra = "pad-lg") {
                 Div({ classes("eyebrow") }) { Text("SUA CONTA") }
@@ -223,6 +240,36 @@ fun ProfileScreen() {
                 Btn(if (Store.demo) "Sair da demonstração" else "Sair da conta", { Store.signOut() }, style = "outline", icon = "logout", block = true)
             }
         }
+    }
+}
+
+/** Um número do perfil com o ícone colorido e uma linha de contexto. */
+@Composable
+private fun Kpi(icon: String, color: String, value: String, label: String, sub: String, good: Boolean = false) {
+    Div({ classes("pf-kpi"); attr("style", "--k:$color") }) {
+        Span({ classes("pf-kpi-ic") }) { Icon(icon, filled = true) }
+        Div({ classes("grow"); attr("style", "min-width:0") }) {
+            Div({ classes("pf-kpi-value") }) { B { Text(value) }; Span { Text(label) } }
+            Span({ classes(*listOfNotNull("pf-kpi-sub", if (good) "good" else null).toTypedArray()) }) { Text(sub) }
+        }
+    }
+}
+
+/** A medalha desenhada do emblema (folha-live.js, folhaMedal), em imagem; trancada sai em cinza. */
+@Composable
+fun MedalImg(badge: br.com.estudario.domain.Badge, earned: Boolean, size: Int) {
+    val src = remember(badge.id, earned, size) {
+        runCatching { window.asDynamic().folhaMedal(kotlin.js.json("tier" to badge.tier, "cat" to badge.id.substringBefore("-"), "earned" to earned, "size" to size)) as? String }.getOrNull()
+    }
+    if (src != null) Img(src = src, alt = "", attrs = { classes("medal-img"); attr("style", "width:${size}px;height:${size}px"); attr("aria-hidden", "true") })
+    else Icon("military_tech", filled = earned)
+}
+
+@Composable
+private fun MedalButton(item: br.com.estudario.domain.BadgeProgress, size: Int, onOpen: () -> Unit) {
+    Button({ classes("pf-medal"); attr("title", item.badge.name); attr("aria-label", "Medalha ${item.badge.name}"); onClick { onOpen() } }) {
+        MedalImg(item.badge, earned = true, size = size)
+        Span({ classes("clamp-2") }) { Text(item.badge.name) }
     }
 }
 
