@@ -193,6 +193,13 @@ class AppPreferences(private val context: Context) {
         }
     }
 
+    /** Desconta do foco um tempo parado (a pessoa disse que não estava estudando). */
+    suspend fun discountFocusSession(millis: Long) {
+        context.dataStore.edit { prefs ->
+            if ((prefs[focusStartedAtKey] ?: 0L) > 0L && millis > 0L) prefs[focusPausedTotalKey] = (prefs[focusPausedTotalKey] ?: 0L) + millis
+        }
+    }
+
     /** Retoma: o intervalo pausado entra no total descontado do tempo estudado. */
     suspend fun resumeFocusSession(at: Long) {
         context.dataStore.edit { prefs ->

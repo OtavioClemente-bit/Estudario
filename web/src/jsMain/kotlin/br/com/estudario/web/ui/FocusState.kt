@@ -39,6 +39,28 @@ object TopicFocus {
     var timeUpSeen by mutableStateOf(false)
     private var ticker: Int? = null
 
+    // ---------------------------------------------------------------- tempo parado
+    // Esqueceu o foco ligado: sem mexer na página por 20 minutos, na volta ele pergunta se a pessoa
+    // estava estudando e, se não, desconta o tempo parado. O tempo continua honesto.
+    private const val IDLE_MS = 20 * 60_000L
+    private var lastActive = Date.now().toLong()
+    /** Tempo parado esperando resposta (ms), ou null. */
+    var idleGap by mutableStateOf<Long?>(null)
+
+    /** Chamado a cada movimento, tecla, toque ou rolagem. */
+    fun activity() {
+        val t = Date.now().toLong()
+        if (running && idleGap == null && t - lastActive >= IDLE_MS) idleGap = t - lastActive
+        lastActive = t
+    }
+
+    /** Desconta o tempo parado como pausa. */
+    fun discountIdle() {
+        val gap = idleGap ?: return
+        if (active) { pausedTotal += gap.coerceAtMost(elapsedMs); persist() }
+        idleGap = null
+    }
+
     // ---------------------------------------------------------------- sobreviver ao F5
     // O foco fica guardado neste navegador a cada segundo. Recarregar ou fechar a aba sem querer
     // não perde a sessão: ela volta pausada no ponto em que estava (o tempo com a aba fechada não

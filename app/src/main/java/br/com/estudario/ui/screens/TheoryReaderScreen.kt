@@ -53,6 +53,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     var editing by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // Nota aberta para ler (tocando no trecho grifado ou no balão da nota).
     var viewingId by remember { mutableStateOf<Long?>(null) }
+    // Grifo tocado sem nota: cor, anotar ou tirar.
+    var markActionsId by remember { mutableStateOf<Long?>(null) }
     var selected by remember(theoryId) { mutableStateOf<Int?>(null) }
     var reportIndex by remember { mutableStateOf<Int?>(null) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -86,6 +88,17 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
 
     reportIndex?.let { index ->
         br.com.estudario.ui.components.ReportErrorDialog(br.com.estudario.data.remote.ReportKind.THEORY, blocks.getOrElse(index) { "" }, theory.title, null, onDismiss = { reportIndex = null })
+    }
+    markActionsId?.let { id ->
+        val m = marks.firstOrNull { it.id == id }
+        if (m == null) markActionsId = null
+        else MarkActionsSheet(
+            m,
+            onColor = { c -> viewModel.saveTheoryMark(m.copy(color = c)); markActionsId = null },
+            onNote = { markActionsId = null; editing = m.blockIndex to m.quote },
+            onRemove = { viewModel.deleteTheoryMark(m); markActionsId = null; scope.launch { snackbar.showSnackbar("Grifo tirado.") } },
+            onDismiss = { markActionsId = null },
+        )
     }
     viewingId?.let { id ->
         val m = marks.firstOrNull { it.id == id }
@@ -274,9 +287,19 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                 notedHighlights = blockMarks.filter { it.note.isNotBlank() }.mapTo(hashSetOf()) { it.quote },
                                 onHighlightTap = { q ->
                                     val m = blockMarks.firstOrNull { it.quote == q }
-                                    if (m != null) { if (m.note.isNotBlank()) viewingId = m.id else editing = index to q }
+                                    if (m != null) { if (m.note.isNotBlank()) viewingId = m.id else markActionsId = m.id }
                                 },
                                 highlightColor = highlighter.copy(alpha = .45f),
+                                highlightColors = blockMarks.filter { it.color != 0 }.associate { it.quote to br.com.estudario.ui.components.MarkColors.of(it.color).color.copy(alpha = .38f).let { c -> android.graphics.Color.argb((c.alpha * 255).toInt(), (c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt()) } },
+                                onSelectColor = { quote, color ->
+                                    markHintSeen = true
+                                    readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply()
+                                    selected = null
+                                    val old = blockMarks.filter { it.quote == quote || br.com.estudario.text.MarkOverlap.overlaps(block, it.quote, quote) }
+                                    old.forEach { viewModel.deleteTheoryMark(it) }
+                                    viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = quote, note = old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty(), color = color))
+                                    scope.launch { snackbar.showSnackbar("Grifado: ${br.com.estudario.ui.components.MarkColors.of(color).label}. Fica no Caderno de estudo.") }
+                                },
                                 onSelectText = { quote, withNote ->
                                     markHintSeen = true
                                     readerPrefs.edit().putBoolean(MARK_HINT_SEEN, true).apply()
@@ -413,6 +436,41 @@ private fun ReaderSettingsSheet(scale: Float, book: Boolean, onScale: (Float) ->
                         Box(contentAlignment = Alignment.Center) { Text(label, fontWeight = FontWeight.Bold, fontFamily = if (value) androidx.compose.ui.text.font.FontFamily.Serif else null) }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Tocar num grifo sem nota: trocar a cor (cai muito, entendi, revisar), anotar ou tirar o grifo. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MarkActionsSheet(mark: TheoryMarkEntity, onColor: (Int) -> Unit, onNote: () -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Seu grifo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("“" + plainPreview(mark.quote).take(220) + "”", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4)
+            Text("COR", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                br.com.estudario.ui.components.MarkColors.all.forEach { tone ->
+                    val on = tone.id == mark.color
+                    Surface(
+                        onClick = { onColor(tone.id) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = tone.color.copy(alpha = if (on) .30f else .12f),
+                        border = androidx.compose.foundation.BorderStroke(2.dp, if (on) tone.color else androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(12.dp).background(tone.color, RoundedCornerShape(50)))
+                            Spacer(Modifier.width(6.dp))
+                            Text(tone.label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onNote, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.EditNote, null); Spacer(Modifier.width(6.dp)); Text("Anotar") }
+                OutlinedButton(onClick = onRemove, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.FormatColorReset, null); Spacer(Modifier.width(6.dp)); Text("Tirar grifo") }
             }
         }
     }

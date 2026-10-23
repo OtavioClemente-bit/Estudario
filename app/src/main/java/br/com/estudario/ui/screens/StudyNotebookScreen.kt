@@ -132,7 +132,11 @@ fun StudyNotebookScreen(
     onTrainFavorites: () -> Unit,
     onTrainTopicFavorites: (Long) -> Unit = { onTrainFavorites() },
 ) {
-    val marks by viewModel.theoryMarks.collectAsState()
+    val marksAll by viewModel.theoryMarks.collectAsState()
+    // Filtro de cor dos grifos (null = todas): cai muito, entendi, revisar.
+    var colorFilter by rememberSaveable { mutableStateOf<Int?>(null) }
+    val marks = marksAll.filter { colorFilter == null || it.color == colorFilter }
+    var markCards by remember { mutableStateOf<List<br.com.estudario.data.local.TheoryMarkEntity>?>(null) }
     val theories by viewModel.theories.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -197,6 +201,9 @@ fun StudyNotebookScreen(
     val orderedBags = bags.entries.sortedBy { order(it.key) }
 
     reviewing?.let { (title, cards) -> NotebookReview(title, cards) { reviewing = null } }
+    markCards?.let { list ->
+        MarkCardsReview(list, { m -> place(markTopic(m)).title }, onColor = { m, c -> viewModel.saveTheoryMark(m.copy(color = c)) }) { markCards = null }
+    }
     deckFor?.let { deck -> SummaryFlashcardDeck(viewModel, deck, topicById[deck.topicId]?.title ?: deck.title, onDismiss = { deckFor = null }) }
     cardsFor?.let { (title, list) ->
         FlashcardDeckDialog(
@@ -270,13 +277,15 @@ fun StudyNotebookScreen(
                         onOpenContent = here.topic?.let { t -> { onOpenTopic(t.id) } },
                     )
                 }
+                val topicMarksAll = marksAll.filter { (markTopic(it) ?: -1L) == opened }
+                if (topicMarksAll.isNotEmpty()) item(key = "colors") { ColorFilterChips(topicMarksAll, colorFilter) { colorFilter = it } }
                 if (bag.marks.isNotEmpty()) {
                     item(key = "s-marks") { BagSection(Icons.Outlined.BorderColor, "Grifos", bag.marks.size) }
                     bag.marks.forEach { mark ->
                         item(key = "m-${mark.id}") {
                             ElevatedCard(onClick = { if (mark.note.isNotBlank()) viewing = mark else onOpenTheory(mark.theoryId, mark.blockIndex) }, modifier = Modifier.fillMaxWidth()) {
                                 Row(Modifier.height(IntrinsicSize.Min)) {
-                                    Box(Modifier.width(5.dp).fillMaxHeight().background(Color(0xFFF2A900)))
+                                    Box(Modifier.width(5.dp).fillMaxHeight().background(br.com.estudario.ui.components.MarkColors.of(mark.color).color))
                                     Column(Modifier.padding(start = 14.dp, top = 12.dp, bottom = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(plainPreview(mark.quote), maxLines = 6, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                                         if (mark.note.isNotBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(10.dp)) {
@@ -398,6 +407,7 @@ fun StudyNotebookScreen(
                     listOfNotNull(
                         Triple(Icons.Outlined.PlayArrow, "Tudo, um por um", (allMarks.size + allNotes.size + allTips.size)).takeIf { it.third > 0 }?.let { it to { reviewing = "Revisão completa" to orderedBags.flatMap { e -> bagCards(e.value) } } },
                         Triple(Icons.Outlined.BorderColor, "Grifos", allMarks.size).takeIf { it.third > 0 }?.let { it to { reviewing = "Todos os grifos" to allMarks.map { m -> markCard(m) } } },
+                        br.com.estudario.ui.components.MarkColors.dueToday(marksAll).let { due -> Triple(Icons.Outlined.Style, "Grifos de hoje, em cartão", due.size).takeIf { it.third > 0 }?.let { it to { markCards = due } } },
                         Triple(Icons.Outlined.EditNote, "Anotações", allNotes.size + allMarks.count { it.note.isNotBlank() }).takeIf { it.third > 0 }?.let { it to { reviewing = "Todas as anotações" to (allNotes.map(::noteCard) + allMarks.filter { m -> m.note.isNotBlank() }.map { m -> markCard(m, "NOTA NUM TRECHO") }) } },
                         Triple(Icons.Outlined.Lightbulb, "Dicas", allTips.size).takeIf { it.third > 0 }?.let { it to { reviewing = "Todas as dicas" to allTips.map(::tipCard) } },
                         Triple(Icons.Outlined.Style, "Flashcards", allCards.size).takeIf { it.third > 0 }?.let { it to { cardsFor = "Todos os flashcards" to allCards } },
@@ -405,6 +415,7 @@ fun StudyNotebookScreen(
                     ),
                 )
             }
+            if (marksAll.isNotEmpty()) item(key = "colors") { ColorFilterChips(marksAll, colorFilter) { colorFilter = it } }
             item(key = "search") {
                 OutlinedTextField(
                     query, { query = it }, Modifier.fillMaxWidth(),
@@ -744,4 +755,97 @@ internal fun NoteEditor(note: UserNoteEntity, topics: List<TopicEntity>, onDismi
         topics = topics,
         initialTopicId = note.topicId,
     )
+}
+
+/** Filtrar os grifos por cor: todas, cai muito, entendi, revisar (com a contagem de cada uma). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ColorFilterChips(marks: List<br.com.estudario.data.local.TheoryMarkEntity>, selected: Int?, onPick: (Int?) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("GRIFOS POR COR", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ColorChip("Todas", null, marks.size, selected == null) { onPick(null) }
+            br.com.estudario.ui.components.MarkColors.all.forEach { tone ->
+                ColorChip(tone.label, tone.color, marks.count { it.color == tone.id }, selected == tone.id) { onPick(if (selected == tone.id) null else tone.id) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorChip(label: String, color: Color?, count: Int, on: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(onClick = onClick, shape = RoundedCornerShape(50), color = if (on) scheme.primaryContainer else scheme.surface, border = androidx.compose.foundation.BorderStroke(1.dp, if (on) scheme.primary else scheme.outlineVariant)) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (color != null) Box(Modifier.size(11.dp).background(color, RoundedCornerShape(50)))
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Text("$count", style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * Os grifos voltando como cartão, igual aos flashcards: aparece o tópico, o trecho fica escondido até
+ * a pessoa tentar lembrar; "Lembrei" pinta de verde (entendi) quando estava rosa, e "Não lembrei" pinta
+ * de rosa (revisar), que volta todo dia até virar verde.
+ */
+@Composable
+private fun MarkCardsReview(
+    cards: List<br.com.estudario.data.local.TheoryMarkEntity>,
+    topicOf: (br.com.estudario.data.local.TheoryMarkEntity) -> String,
+    onColor: (br.com.estudario.data.local.TheoryMarkEntity, Int) -> Unit,
+    onClose: () -> Unit,
+) {
+    var index by remember(cards) { mutableStateOf(0) }
+    var shown by remember(cards) { mutableStateOf(false) }
+    var remembered by remember(cards) { mutableStateOf(0) }
+    val scheme = MaterialTheme.colorScheme
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = scheme.surface) {
+            val card = cards.getOrNull(index)
+            if (card == null) {
+                Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    br.com.estudario.ui.assistant.Folha(130.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Grifos de hoje revisados!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                    Text("Você lembrou de $remembered de ${cards.size}. Os que ficaram em rosa voltam amanhã.", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = onClose) { Text("Fechar") }
+                }
+                return@Surface
+            }
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, "Fechar") }
+                    Column(Modifier.weight(1f)) {
+                        Text("Grifos de hoje", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("${index + 1} de ${cards.size}", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+                    }
+                }
+                androidx.compose.material3.LinearProgressIndicator(progress = { (index + 1f) / cards.size }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(6.dp), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Surface(shape = RoundedCornerShape(50), color = scheme.primaryContainer) {
+                        Text("GRIFO", Modifier.padding(horizontal = 10.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
+                    }
+                    Text(topicOf(card), style = MaterialTheme.typography.titleMedium, color = scheme.primary, fontWeight = FontWeight.Bold)
+                    if (!shown) {
+                        Text("Você grifou um trecho deste tópico. Lembra o que ele dizia? Pense um pouco antes de ver.", style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
+                        Surface(onClick = { shown = true }, shape = RoundedCornerShape(16.dp), color = scheme.surfaceVariant, modifier = Modifier.fillMaxWidth().height(140.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Text("Toque para ver o trecho", fontWeight = FontWeight.Bold, color = scheme.primary) }
+                        }
+                    } else {
+                        Row(Modifier.fillMaxWidth().background(br.com.estudario.ui.components.MarkColors.of(card.color).color.copy(alpha = .16f), RoundedCornerShape(12.dp)).height(IntrinsicSize.Min)) {
+                            Box(Modifier.width(5.dp).fillMaxHeight().background(br.com.estudario.ui.components.MarkColors.of(card.color).color))
+                            Text(plainPreview(card.quote), Modifier.padding(14.dp), style = MaterialTheme.typography.bodyLarge)
+                        }
+                        if (card.note.isNotBlank()) Text("Sua nota: " + br.com.estudario.ui.components.NoteTags.split(card.note).second, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                    }
+                }
+                if (shown) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    androidx.compose.material3.OutlinedButton(onClick = { onColor(card, 2); shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Não lembrei") }
+                    Button(onClick = { if (card.color == 2) onColor(card, 1); remembered++; shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Lembrei") }
+                } else Button(onClick = { shown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Mostrar o trecho") }
+            }
+        }
+    }
 }

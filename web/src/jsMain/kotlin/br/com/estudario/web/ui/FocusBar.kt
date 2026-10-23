@@ -64,6 +64,24 @@ object FocusModals {
 
 @Composable
 fun FocusModalsHost() {
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val listener: (org.w3c.dom.events.Event) -> Unit = { TopicFocus.activity() }
+        val events = listOf("mousemove", "keydown", "pointerdown", "scroll", "touchstart", "wheel")
+        events.forEach { kotlinx.browser.window.addEventListener(it, listener, js("({ passive: true })")) }
+        onDispose { events.forEach { kotlinx.browser.window.removeEventListener(it, listener) } }
+    }
+    TopicFocus.idleGap?.let { gap ->
+        if (!TopicFocus.active) TopicFocus.idleGap = null
+        else Modal(onDismiss = { TopicFocus.idleGap = null }) {
+            FolhaSays("thinking", 72) { H2 { Text("Você estava estudando?") } }
+            val minutes = (gap / 60_000L).toInt()
+            P({ classes("muted") }) { Text("O foco ficou ligado e a página ficou parada por ${br.com.estudario.web.data.Queries.minutesLabel(minutes)}. Se você estava lendo um livro ou fazendo exercício no papel, pode contar tudo.") }
+            Div({ classes("stack", "tight") }) {
+                Btn("Sim, contar esse tempo", { TopicFocus.idleGap = null }, style = "primary", icon = "check", block = true)
+                Btn("Não, descontar ${br.com.estudario.web.data.Queries.minutesLabel(minutes)}", { TopicFocus.discountIdle(); Toast.show("Tempo parado descontado do foco") }, style = "outline", icon = "remove", block = true)
+            }
+        }
+    }
     if (FocusModals.confirmStop && TopicFocus.active) StopFocusModal(onDismiss = { FocusModals.confirmStop = false })
     if (TopicFocus.timeUp) TimeUpModal()
 }

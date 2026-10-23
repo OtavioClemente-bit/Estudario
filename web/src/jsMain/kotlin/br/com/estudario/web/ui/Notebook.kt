@@ -44,7 +44,20 @@ private fun nbSummary(bags: List<NbBag>): String = listOf(
 ).filter { it.first > 0 }.joinToString(" · ") { (n, w) -> "$n ${if (n == 1) w.first else w.second}" }
 
 /** O tópico aberto no Caderno (sobrevive a ir e voltar da teoria). -1 = itens sem tópico. */
-private object NotebookNav { var topic by androidx.compose.runtime.mutableStateOf<Long?>(null) }
+private object NotebookNav {
+    var topic by androidx.compose.runtime.mutableStateOf<Long?>(null)
+    /** Filtro de cor dos grifos (null = todas). */
+    var color by androidx.compose.runtime.mutableStateOf<Int?>(null)
+}
+
+/** Os dias, contados do grifo, em que ele volta como cartão (como uma revisão espaçada). */
+private val MARK_REVIEW_DAYS = setOf(1, 3, 7, 15, 30, 60, 90, 180)
+
+/** Grifos para revisar hoje: os marcados como "revisar" e os que fazem 1, 3, 7, 15, 30... dias. */
+fun marksDueToday(marks: List<br.com.estudario.web.data.TheoryMark>): List<br.com.estudario.web.data.TheoryMark> {
+    val now = kotlin.js.Date.now()
+    return marks.filter { m -> m.color == 2 || ((now - m.createdAt) / 86_400_000.0).toInt() in MARK_REVIEW_DAYS }
+}
 
 /**
  * Caderno de estudo, organizado como a pessoa estuda: escolhe a matéria, depois o tópico (Java,
@@ -60,7 +73,10 @@ fun NotebookScreen() {
     val topics = data.topics.filter { it.id in scope }.associateBy { it.id }
     val subjects = data.subjects.associateBy { it.id }
     val theories = data.theories.filter { it.topicId in scope }.associateBy { it.id }
-    val marks = data.theoryMarks.filter { it.theoryId in theories }
+    val allMarksRaw = data.theoryMarks.filter { it.theoryId in theories }
+    val marks = allMarksRaw.filter { NotebookNav.color == null || it.color == NotebookNav.color }
+    var markCards by remember { mutableStateOf<List<br.com.estudario.web.data.TheoryMark>?>(null) }
+    markCards?.let { list -> MarkCardsReview(list, { m -> theories[m.theoryId]?.topicId?.let { t -> topics[t]?.title } ?: "Teoria" }) { markCards = null } }
     val favQuestions = data.questions.filter { it.favorite && !it.hidden && it.topicId in scope }
     val recallCards = data.snippets.filter { it.kind == "RECUPERACAO" && it.favorite && it.topicId in scope }
     val favDecks = data.summaries.filter { it.kind == "RAPIDO" && it.favorite && it.topicId in scope }
@@ -160,11 +176,12 @@ fun NotebookScreen() {
                 Btn("Anotar", { creatingFor = opened.takeIf { it >= 0 }; creating = true }, style = "ghost", icon = "edit_note")
             }
         }
+        if (allMarksRaw.any { m -> (theories[m.theoryId]?.topicId ?: -1L) == opened }) ColorFilterRow(allMarksRaw.filter { m -> (theories[m.theoryId]?.topicId ?: -1L) == opened })
         if (bag.marks.isNotEmpty()) NbSection("format_ink_highlighter", "Grifos", bag.marks.size) {
             bag.marks.forEach { mark ->
                 key("m${mark.id}") {
                     val topicId = markTopic(mark)
-                    Div({ classes("saved-item", "mark-item") }) {
+                    Div({ classes("saved-item", "mark-item"); attr("style", "border-left:5px solid ${MarkColors.of(mark.color).hex}") }) {
                         Div({
                             classes("mark-body", "grow")
                             attr("role", "link"); attr("tabindex", "0")
@@ -239,6 +256,8 @@ fun NotebookScreen() {
                 val everything = bags.flatMap { bagCards(it.second) }
                 if (everything.isNotEmpty()) NbChip("play_arrow", "Tudo, um por um", everything.size, primary = true) { reviewing = "Revisão completa" to everything }
                 if (allMarks.isNotEmpty()) NbChip("format_ink_highlighter", "Grifos", allMarks.size) { reviewing = "Todos os grifos" to allMarks.map { markCard(it) } }
+                val due = marksDueToday(allMarksRaw)
+                if (due.isNotEmpty()) NbChip("style", "Grifos de hoje, em cartão", due.size) { markCards = due }
                 if (allNotes.size + markNotes.size > 0) NbChip("edit_note", "Anotações", allNotes.size + markNotes.size) { reviewing = "Todas as anotações" to (allNotes.map(::noteCard) + markNotes.map { markCard(it, "NOTA NUM TRECHO") }) }
                 if (allTips.isNotEmpty()) NbChip("lightbulb", "Dicas", allTips.size) { reviewing = "Todas as dicas" to allTips.map(::tipCard) }
                 val cardCount = recallCards.size + favDecks.size
@@ -248,6 +267,7 @@ fun NotebookScreen() {
         }
     }
     var query by remember { mutableStateOf("") }
+    if (allMarksRaw.isNotEmpty()) ColorFilterRow(allMarksRaw)
     if (total > 0) Div({ classes("catalog-search"); attr("style", "margin:14px 0") }) {
         Icon("search", plain = true)
         org.jetbrains.compose.web.dom.Input(InputType.Search) { classes("input"); attr("placeholder", "Buscar matéria, tópico ou o que você guardou"); value(query); onInput { query = it.value } }
@@ -559,6 +579,74 @@ private fun NotebookReview(title: String, cards: List<NbCard>, onClose: () -> Un
         Div({ classes("row", "between") }) {
             Btn("Anterior", { index-- }, style = "outline", icon = "chevron_left", enabled = index > 0)
             Btn(if (index < cards.lastIndex) "Próximo" else "Concluir", { if (index < cards.lastIndex) index++ else onClose() }, style = "primary", icon = if (index < cards.lastIndex) "chevron_right" else "check")
+        }
+    }
+}
+
+/** Filtrar os grifos por cor: todas, cai muito, entendi, revisar (com a contagem de cada uma). */
+@Composable
+private fun ColorFilterRow(marks: List<br.com.estudario.web.data.TheoryMark>) {
+    Div({ classes("nb-colors") }) {
+        Span({ classes("xs", "muted", "strong") }) { Text("GRIFOS POR COR") }
+        Button({ classes(*listOfNotNull("nb-color", if (NotebookNav.color == null) "on" else null).toTypedArray()); onClick { NotebookNav.color = null } }) { Text("Todas"); Span({ classes("n") }) { Text("${marks.size}") } }
+        MarkColors.all.forEach { tone ->
+            val n = marks.count { it.color == tone.id }
+            Button({ classes(*listOfNotNull("nb-color", if (NotebookNav.color == tone.id) "on" else null).toTypedArray()); onClick { NotebookNav.color = if (NotebookNav.color == tone.id) null else tone.id } }) {
+                Span({ classes("tone-dot"); attr("style", "background:${tone.hex}") }); Text(tone.label); Span({ classes("n") }) { Text("$n") }
+            }
+        }
+    }
+}
+
+/**
+ * Os grifos voltando como cartão, igual aos flashcards: aparece o tópico, o trecho fica escondido até
+ * a pessoa tentar lembrar; "Lembrei" pinta de verde (entendi) e "Não lembrei" de rosa (revisar), e o
+ * rosa volta todo dia até virar verde.
+ */
+@Composable
+private fun MarkCardsReview(cards: List<br.com.estudario.web.data.TheoryMark>, topicOf: (br.com.estudario.web.data.TheoryMark) -> String, onClose: () -> Unit) {
+    var index by remember(cards) { mutableStateOf(0) }
+    var shown by remember(cards) { mutableStateOf(false) }
+    var remembered by remember(cards) { mutableStateOf(0) }
+    Modal(onDismiss = onClose, extraClass = "nb-review") {
+        val card = cards.getOrNull(index)
+        if (card == null) {
+            Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:12px 0") }) {
+                Folha("happy", 90)
+                org.jetbrains.compose.web.dom.H2 { Text("Grifos de hoje revisados!") }
+                P({ classes("muted") }) { Text("Você lembrou de $remembered de ${cards.size}. Os que ficaram em rosa voltam amanhã.") }
+                Btn("Fechar", onClose, style = "primary", icon = "check")
+            }
+            return@Modal
+        }
+        Div({ classes("row", "between") }) {
+            Div { B { Text("Grifos de hoje") }; Div({ classes("xs", "muted") }) { Text("${index + 1} de ${cards.size}") } }
+            IconButton("close", "Fechar") { onClose() }
+        }
+        Div({ classes("nb-review-bar") }) { Div({ attr("style", "width:${(index + 1) * 100 / cards.size}%") }) }
+        Div({ classes("nb-review-card", "mark-card") }) {
+            Div({ classes("row"); attr("style", "gap:8px;flex-wrap:wrap") }) {
+                Span({ classes("nb-kicker") }) { Text("GRIFO") }
+                Span({ classes("small", "primary-ink", "strong") }) { Text(topicOf(card)) }
+            }
+            if (!shown) {
+                P({ classes("muted") }) { Text("Você grifou um trecho deste tópico. Lembra o que ele dizia? Pense um pouco antes de ver.") }
+                Div({ classes("mark-card-blur") }) { Markdown(card.quote, compact = true) }
+                Btn("Mostrar o trecho", { shown = true }, style = "primary", icon = "visibility")
+            } else {
+                Div({ classes("nb-review-quote"); attr("style", "border-left-color:${MarkColors.of(card.color).hex}") }) { Markdown(card.quote, compact = true) }
+                if (card.note.isNotBlank()) Div({ classes("small", "muted") }) { Text("Sua nota: " + NoteTags.split(card.note).second) }
+                Div({ classes("row", "wrap"); attr("style", "gap:8px") }) {
+                    Btn("Não lembrei", {
+                        if (!Store.demo) Store.update { br.com.estudario.web.data.Actions.setTheoryMarkColor(it, card.id, 2) }
+                        shown = false; index++
+                    }, style = "outline", icon = "replay")
+                    Btn("Lembrei", {
+                        if (!Store.demo && card.color == 2) Store.update { br.com.estudario.web.data.Actions.setTheoryMarkColor(it, card.id, 1) }
+                        remembered++; shown = false; index++
+                    }, style = "primary", icon = "check")
+                }
+            }
         }
     }
 }

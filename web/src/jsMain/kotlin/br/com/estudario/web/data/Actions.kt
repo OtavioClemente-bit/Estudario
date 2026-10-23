@@ -353,8 +353,12 @@ object Actions {
     fun deleteTheoryMark(data: Snapshot, id: Long): Snapshot = data.edit("theoryMarks") { if (it.idIs(id)) null else it }
 
     /** Grifo de um trecho da teoria (o mesmo registro do app): vai para o Caderno de estudo. */
-    fun addTheoryMark(data: Snapshot, theoryId: Long, blockIndex: Int, quote: String, note: String = ""): Snapshot =
-        data.append("theoryMarks", jsonOf("id" to data.nextId("theoryMarks"), "theoryId" to theoryId, "blockIndex" to blockIndex, "quote" to quote.trim().take(6000), "note" to note.trim().take(1000), "color" to 0, "createdAt" to now()))
+    fun addTheoryMark(data: Snapshot, theoryId: Long, blockIndex: Int, quote: String, note: String = "", color: Int = 0): Snapshot =
+        data.append("theoryMarks", jsonOf("id" to data.nextId("theoryMarks"), "theoryId" to theoryId, "blockIndex" to blockIndex, "quote" to quote.trim().take(6000), "note" to note.trim().take(1000), "color" to color, "createdAt" to now()))
+
+    /** A cor do grifo (0 cai muito, 1 entendi, 2 revisar), a mesma do app. */
+    fun setTheoryMarkColor(data: Snapshot, id: Long, color: Int): Snapshot =
+        data.edit("theoryMarks") { if (it.idIs(id)) it.with("color" to JsonPrimitive(color)) else it }
 
     /** Até onde a teoria foi lida (lastReadBlock do app): só avança, e vai junto para o celular. */
     fun setLastReadBlock(data: Snapshot, theoryId: Long, block: Int): Snapshot =

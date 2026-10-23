@@ -531,6 +531,7 @@ private fun TheoryReader(theory: Theory) {
             o.quote = m.quote
             o.id = m.id.toDouble()
             o.note = m.note.isNotBlank()
+            o.color = m.color
             o
         }.toTypedArray()
         // Em dynamic, "?.invoke()" vira chamada ao método invoke (inexistente) e derruba a tela: chamar direto.
@@ -599,7 +600,7 @@ private fun TheoryReader(theory: Theory) {
             window.removeEventListener("scroll", hide)
         }
     }
-    fun saveMark(p: TextPick, note: String) {
+    fun saveMark(p: TextPick, note: String, color: Int = 0) {
         if (Store.demo) Toast.show("Entre com sua conta para grifar e guardar no Caderno.")
         else {
             // Seleção de vários parágrafos: um grifo em cada um (a nota vai no primeiro).
@@ -614,7 +615,7 @@ private fun TheoryReader(theory: Theory) {
                     replaced += old.size
                     val keptNote = (if (i == 0) note else "").ifBlank { old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty() }
                     val cleared = old.fold(acc) { a, m -> Actions.deleteTheoryMark(a, m.id) }
-                    Actions.addTheoryMark(cleared, theory.id, block, quote, keptNote)
+                    Actions.addTheoryMark(cleared, theory.id, block, quote, keptNote, color)
                 }
             }
             Toast.show(
@@ -790,6 +791,12 @@ private fun TheoryReader(theory: Theory) {
                 }
             }) { Icon("ink_eraser"); Text("Tirar grifo") }
             Button({ classes("grifo-btn"); onClick { editMarkNote = mark; clickedMark = null } }) { Icon("edit_note"); Text(if (mark.note.isBlank()) "Anotar" else "Ver nota") }
+            // Trocar a cor do grifo.
+            MarkColors.all.filter { it.id != mark.color }.forEach { tone ->
+                Button({ classes("grifo-btn", "tone"); attr("title", "Mudar para: ${tone.label}"); onClick { if (!Store.demo) Store.update { Actions.setTheoryMarkColor(it, markId, tone.id) }; clickedMark = null } }) {
+                    Span({ classes("tone-dot"); attr("style", "background:${tone.hex}") }); Text(tone.label)
+                }
+            }
             if (mark.note.isNotBlank()) Span({ classes("grifo-note") }) { Text(mark.note.take(80)) }
         }
     }
@@ -800,7 +807,12 @@ private fun TheoryReader(theory: Theory) {
             // Clicar na barra não pode desfazer a seleção antes de salvar.
             addEventListener("mousedown") { it.preventDefault() }
         }) {
-            Button({ classes("grifo-btn"); onClick { saveMark(p, "") } }) { Icon("format_ink_highlighter"); Text("Grifar") }
+            // Uma cor para cada intenção: o que cai muito, o que já entendeu, o que precisa revisar.
+            MarkColors.all.forEach { tone ->
+                Button({ classes("grifo-btn", "tone"); attr("title", "Grifar: ${tone.label}"); onClick { saveMark(p, "", tone.id) } }) {
+                    Span({ classes("tone-dot"); attr("style", "background:${tone.hex}") }); Text(tone.label)
+                }
+            }
             Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null } }) { Icon("edit_note"); Text("Grifar com nota") }
         }
     }

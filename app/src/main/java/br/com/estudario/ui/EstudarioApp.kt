@@ -184,6 +184,40 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val focusDnd by viewModel.focusDoNotDisturb.collectAsState()
     val focusKeepOn by viewModel.focusKeepScreenOn.collectAsState()
     val focusScope = rememberCoroutineScope()
+    // Esqueceu o foco ligado: o app ficou 20 minutos ou mais fora da tela com o foco contando. Na volta
+    // ele pergunta se a pessoa estava estudando (lendo no papel conta) e, se não, desconta o tempo parado.
+    val focusLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val focusContext = androidx.compose.ui.platform.LocalContext.current
+    var focusLeftAt by remember { mutableStateOf(0L) }
+    var focusIdleGap by remember { mutableStateOf<Long?>(null) }
+    val focusNowState = androidx.compose.runtime.rememberUpdatedState(focusSession)
+    androidx.compose.runtime.DisposableEffect(focusLifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> focusLeftAt = System.currentTimeMillis()
+                androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                    val s = focusNowState.value
+                    val gap = if (focusLeftAt > 0L) System.currentTimeMillis() - focusLeftAt else 0L
+                    if (s.active && !s.paused && gap >= 20 * 60_000L) focusIdleGap = gap.coerceAtMost(s.elapsedMillis())
+                    focusLeftAt = 0L
+                }
+                else -> Unit
+            }
+        }
+        focusLifecycle.lifecycle.addObserver(observer)
+        onDispose { focusLifecycle.lifecycle.removeObserver(observer) }
+    }
+    focusIdleGap?.let { gap ->
+        val minutes = (gap / 60_000L).toInt()
+        val label = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
+        br.com.estudario.ui.components.AlertDialog(
+            onDismissRequest = { focusIdleGap = null },
+            title = { androidx.compose.material3.Text("Você estava estudando?") },
+            text = { androidx.compose.material3.Text("O foco ficou ligado e o app ficou fechado por $label. Se você estava lendo no livro ou fazendo exercício no papel, pode contar tudo.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { focusIdleGap = null }) { androidx.compose.material3.Text("Sim, contar") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { focusIdleGap = null; focusScope.launch { br.com.estudario.focus.FocusSessionManager.discount(focusContext, gap) } }) { androidx.compose.material3.Text("Não, descontar $label") } },
+        )
+    }
     val focusHidden by viewModel.focusClockHidden.collectAsState()
     val focusActions = FocusTimerActions(
         onOpen = { focusSheetOpen = true },

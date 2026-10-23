@@ -67,12 +67,14 @@
   window.estudarioHighlight = function (theoryId, marks) {
     if (!window.CSS || !CSS.highlights || typeof Highlight === "undefined") return false;
     const ranges = [];
+    const green = [];
+    const pink = [];
     const noted = [];
     const byId = [];
     for (const m of marks || []) {
       const el = document.getElementById(`tb-${theoryId}-${m.block}`);
       const r = el && rangeFor(el, m.quote);
-      if (r) { ranges.push(r); if (m.note) noted.push(r); if (m.id != null) byId.push({ id: m.id, range: r }); }
+      if (r) { (m.color === 1 ? green : m.color === 2 ? pink : ranges).push(r); if (m.note) noted.push(r); if (m.id != null) byId.push({ id: m.id, range: r }); }
     }
     marksOf[theoryId] = byId;
     const key = `${NAME}-${theoryId}`;
@@ -80,8 +82,16 @@
     else CSS.highlights.delete(key);
     // Um nome só para o CSS: junta todos os leitores abertos.
     const all = [];
-    for (const [k, h] of CSS.highlights) if (k.startsWith(NAME + "-") && !k.startsWith(NAME + "-nota")) for (const r of h) all.push(r);
+    for (const [k, h] of CSS.highlights) if (k.startsWith(NAME + "-") && !k.startsWith(NAME + "-nota") && !k.startsWith(NAME + "-verde") && !k.startsWith(NAME + "-rosa")) for (const r of h) all.push(r);
     if (all.length) CSS.highlights.set(NAME, new Highlight(...all)); else CSS.highlights.delete(NAME);
+    // As outras cores do grifo (entendi = verde, revisar = rosa), cada uma na sua camada.
+    for (const [suffix, list] of [["verde", green], ["rosa", pink]]) {
+      const k = NAME + "-" + suffix + "-" + theoryId;
+      if (list.length) CSS.highlights.set(k, new Highlight(...list)); else CSS.highlights.delete(k);
+      const merged = [];
+      for (const [kk, h] of CSS.highlights) if (kk.startsWith(NAME + "-" + suffix + "-")) for (const r of h) merged.push(r);
+      if (merged.length) CSS.highlights.set(NAME + "-" + suffix, new Highlight(...merged)); else CSS.highlights.delete(NAME + "-" + suffix);
+    }
     // Trechos com nota ganham um sublinhado pontilhado: dá para ver onde há nota antes de passar o mouse.
     const notedKey = NAME + "-nota-" + theoryId;
     if (noted.length) CSS.highlights.set(notedKey, new Highlight(...noted)); else CSS.highlights.delete(notedKey);

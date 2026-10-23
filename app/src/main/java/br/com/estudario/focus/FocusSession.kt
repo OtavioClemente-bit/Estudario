@@ -112,6 +112,13 @@ object FocusSessionManager {
         showFor(context, app.preferences.focusSession.first())
     }
 
+    /** Desconta um tempo parado do foco e atualiza a notificação. */
+    suspend fun discount(context: Context, millis: Long) {
+        val app = context.applicationContext as EstudarioApplication
+        app.preferences.discountFocusSession(millis)
+        showFor(context, app.preferences.focusSession.first())
+    }
+
     suspend fun resume(context: Context) {
         val app = context.applicationContext as EstudarioApplication
         app.preferences.resumeFocusSession(System.currentTimeMillis())
