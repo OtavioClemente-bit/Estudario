@@ -255,14 +255,13 @@ private fun Kpi(icon: String, color: String, value: String, label: String, sub: 
     }
 }
 
-/** A medalha desenhada do emblema (folha-live.js, folhaMedal), em imagem; trancada sai em cinza. */
+/** A arte do emblema (a cena ilustrada de cada conquista, em WebP leve); trancado sai apagado. */
 @Composable
 fun MedalImg(badge: br.com.estudario.domain.Badge, earned: Boolean, size: Int) {
-    val src = remember(badge.id, earned, size) {
-        runCatching { window.asDynamic().folhaMedal(kotlin.js.json("tier" to badge.tier, "cat" to badge.id.substringBefore("-"), "earned" to earned, "size" to size)) as? String }.getOrNull()
-    }
-    if (src != null) Img(src = src, alt = "", attrs = { classes("medal-img"); attr("style", "width:${size}px;height:${size}px"); attr("aria-hidden", "true") })
-    else Icon("military_tech", filled = earned)
+    Img(src = "emblemas/${badge.id}.webp", alt = "", attrs = {
+        classes(*listOfNotNull("medal-img", if (earned) null else "locked").toTypedArray())
+        attr("style", "width:${size}px;height:${size}px"); attr("aria-hidden", "true"); attr("loading", "lazy"); attr("decoding", "async")
+    })
 }
 
 @Composable

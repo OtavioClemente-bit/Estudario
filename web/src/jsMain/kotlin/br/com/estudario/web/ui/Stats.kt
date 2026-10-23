@@ -51,10 +51,7 @@ fun AchievementsScreen() {
                 }) {
                     // a medalha do emblema (folha-live.js, folhaMedal): metal do nível, símbolo cunhado e moldura que cresce com o nível
                     Div({ classes("medal") }) {
-                        val src = androidx.compose.runtime.remember(item.badge.id, item.earned) {
-                            runCatching { kotlinx.browser.window.asDynamic().folhaMedal(kotlin.js.json("tier" to item.badge.tier, "cat" to item.badge.id.substringBefore("-"), "earned" to item.earned, "size" to 84)) as? String }.getOrNull()
-                        }
-                        if (src != null) org.jetbrains.compose.web.dom.Img(src = src, alt = "", attrs = { classes("medal-art"); attr("aria-hidden", "true") }) else Icon(if (item.earned) "military_tech" else "lock", filled = item.earned)
+                        MedalImg(item.badge, item.earned, 96)
                         if (!item.earned) Span({ classes("medal-lock") }) { Icon("lock", filled = true) }
                     }
                     Span({ classes("name") }) { Text(item.badge.name) }
@@ -94,12 +91,12 @@ internal fun MedalDetail(item: br.com.estudario.domain.BadgeProgress, all: List<
     Div({ classes("medal-modal"); onClick { onClose() } }) {
         Div({ classes("medal-sheet", "rise"); attr("role", "dialog"); attr("aria-label", b.name); onClick { it.stopPropagation() } }) {
             Button({ classes("medal-close"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            // a arte grande do emblema, entrando com brilho
             androidx.compose.runtime.key(b.id) {
-                org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
-                    elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-medalha"),
-                    applyAttrs = { attr("tier", b.tier.toString()); attr("cat", cat); attr("earned", item.earned.toString()); attr("size", "230"); attr("aria-label", "Medalha ${b.name}") },
-                    content = null,
-                )
+                Div({ classes(*listOfNotNull("medal-hero", if (item.earned) "earned" else "locked").toTypedArray()) }) {
+                    Img(src = "emblemas/g/${b.id}.webp", alt = "Emblema ${b.name}", attrs = { attr("decoding", "async") })
+                    if (item.earned) Span({ classes("medal-shine") })
+                }
             }
             Span({ classes("medal-tier"); attr("style", "--tc:$color") }) { Text("${tierName(b.tier).uppercase()} · ${b.category.label.uppercase()}") }
             H2({ classes("medal-name") }) { Text(b.name) }
@@ -116,14 +113,12 @@ internal fun MedalDetail(item: br.com.estudario.domain.BadgeProgress, all: List<
                 Span({ classes("eyebrow"); attr("style", "margin-top:6px") }) { Text("A ESCADA DE ${b.category.label.uppercase()}") }
                 Div({ classes("medal-ladder") }) {
                     ladder.forEach { step ->
-                        val src = remember(step.badge.id, step.earned) {
-                            runCatching { kotlinx.browser.window.asDynamic().folhaMedal(kotlin.js.json("tier" to step.badge.tier, "cat" to cat, "earned" to step.earned, "size" to 52)) as? String }.getOrNull()
-                        }
+
                         Button({
                             classes(*listOfNotNull("medal-step", if (step.badge.id == b.id) "on" else null, if (step.earned) "earned" else null).toTypedArray())
                             attr("aria-label", "${step.badge.name}${if (step.earned) ", conquistado" else ""}"); onClick { onPick(step.badge.id) }
                         }) {
-                            if (src != null) Img(src = src, alt = "")
+                            MedalImg(step.badge, step.earned, 56)
                             // a meta de cada degrau (algumas categorias têm mais degraus que metais)
                             Span { Text("${step.badge.target} ${step.badge.unit}") }
                         }

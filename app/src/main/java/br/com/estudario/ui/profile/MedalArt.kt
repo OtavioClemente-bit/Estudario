@@ -137,6 +137,17 @@ private data class Quad4(val a: Float, val b: Float, val c: Float, val d: Color)
 /** A medalha de um emblema, desenhada; trancada sai em cinza. */
 @Composable
 fun MedalArt(badge: Badge, earned: Boolean, size: Dp, modifier: Modifier = Modifier) {
+    // a arte ilustrada do emblema (drawable-nodpi/emblema_<id>); sem arte, a medalha desenhada
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val res = androidx.compose.runtime.remember(badge.id) { ctx.resources.getIdentifier("emblema_" + badge.id.replace('-', '_'), "drawable", ctx.packageName) }
+    if (res != 0) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(res), contentDescription = null, modifier = modifier.size(size),
+            alpha = if (earned) 1f else 0.5f,
+            colorFilter = if (earned) null else ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }),
+        )
+        return
+    }
     val tier = badge.tier.coerceIn(1, 6)
     val cat = badge.id.substringBefore("-")
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
