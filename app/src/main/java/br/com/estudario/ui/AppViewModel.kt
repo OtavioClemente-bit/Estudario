@@ -719,7 +719,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun removeQueue(value: StudyQueueEntity) = launchCatching { repository.removeQueue(value) }
     fun completeQueue(value: StudyQueueEntity) = launchCatching { repository.completeQueue(value) }
     fun completeStudy(topicId: Long, startedAt: Long, notes: String = "") = launchCatching { repository.completeStudy(topicId, startedAt, notes); br.com.estudario.ui.brand.EstudarioSom.play(app, "concluir") }
-    suspend fun completeStudyNow(topicId: Long, startedAt: Long, notes: String = "") = repository.completeStudy(topicId, startedAt, notes)
+    suspend fun completeStudyNow(topicId: Long, startedAt: Long, notes: String = "") = repository.completeStudy(topicId, startedAt, notes).also { br.com.estudario.ui.brand.EstudarioSom.play(app, "concluir") }
     fun postponeQueue(value: StudyQueueEntity, reason: String) = launchCatching { repository.postponeQueue(value, reason) }
     fun deleteError(id: Long) = launchCatching { repository.deleteError(id) }
     fun updateError(value: ErrorNotebookEntryEntity) = launchCatching { repository.updateError(value) }

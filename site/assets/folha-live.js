@@ -3510,8 +3510,9 @@
         // coluna de luz e fonte de faíscas saindo da boca
         const a = clamp(u * 4, 0, 1) * (1 - gone), mx = BX + GIFT.DX / 2, my = by - GIFT.H + GIFT.DY / 2;
         g.save(); g.globalCompositeOperation = "lighter";
-        const col = new Path2D(); col.moveTo(mx - 14, my); col.lineTo(mx + 14, my); col.lineTo(mx + 30, -40); col.lineTo(mx - 30, -40); col.closePath();
-        const cg = g.createLinearGradient(0, my, 0, -40); cg.addColorStop(0, rgba(glow[0], 0.55 * a)); cg.addColorStop(1, rgba(glow[0], 0)); g.fillStyle = cg; g.fill(col);
+        // a coluna de luz some antes da borda de cima (senão a borda corta a luz numa linha reta)
+        const col = new Path2D(); col.moveTo(mx - 14, my); col.lineTo(mx + 14, my); col.lineTo(mx + 26, 8); col.lineTo(mx - 26, 8); col.closePath();
+        const cg = g.createLinearGradient(0, my, 0, 8); cg.addColorStop(0, rgba(glow[0], 0.55 * a)); cg.addColorStop(0.55, rgba(glow[0], 0.18 * a)); cg.addColorStop(1, rgba(glow[0], 0)); g.fillStyle = cg; g.fill(col);
         for (let i = 0, n = Math.round(26 * q); i < n; i++) {
           const life = 0.9 + (i % 5) * 0.12, uu = ((u + i * 0.067) % life) / life, sx = (((i * 0.618) % 1) - 0.5) * 2;
           const x = mx + sx * 6 + sx * 22 * uu, y = my - uu * 46 + uu * uu * 30;
@@ -3650,12 +3651,16 @@
       if (!g || !draw || !this._k) return;
       // at="2.5": quadro parado naquele instante do roteiro (para conferir o desenho)
       const at = this.getAttribute("at"), still = reduceMotion.matches || at != null, T = at != null ? +at : still ? 9 : (now - this._start) / 1000, t = at != null ? +at : still ? 0.35 : now / 1000;
-      // proteção de desempenho: depois de 1,5 s, se a média ficar acima de 25 ms por quadro (menos de 40 por
-      // segundo), a cena passa para o modo leve até o fim (menos partículas, menos luz, resolução menor)
+      // proteção de desempenho: depois de 1,5 s, se a mediana dos últimos 40 quadros passar de 25 ms (menos de
+      // 40 por segundo), a cena passa para o modo leve até o fim (menos partículas, menos luz, resolução menor).
+      // Mediana, não média: um quadro lento isolado (a explosão) não derruba a qualidade de um celular bom.
       if (!still) {
-        if (this._lastNow) { const dt = Math.min(200, now - this._lastNow); this._ema = this._ema ? this._ema * 0.92 + dt * 0.08 : dt; }
+        if (this._lastNow) { const w = this._win || (this._win = []); w.push(Math.min(200, now - this._lastNow)); if (w.length > 40) w.shift(); }
         this._lastNow = now;
-        if (!this._lite && now - this._start > 1500 && this._ema > 25) { this._lite = true; this._size(); }
+        if (!this._lite && now - this._start > 1500 && this._win && this._win.length >= 40) {
+          const med = [...this._win].sort((a, b) => a - b)[20];
+          if (med > 25) { this._lite = true; this._size(); }
+        }
       }
       Q = this._lite ? 0.5 : 1;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this._canvas.width, this._canvas.height);

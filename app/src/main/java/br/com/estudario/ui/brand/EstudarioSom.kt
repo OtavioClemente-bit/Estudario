@@ -21,12 +21,19 @@ object EstudarioSom {
     private var pool: SoundPool? = null
     private val ids = mutableMapOf<String, Int>()
     private val ready = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
+    /** Pedidos feitos antes do som terminar de carregar (id -> quando pediu): toca assim que ficar pronto, se ainda fizer sentido. */
+    private val pending = java.util.concurrent.ConcurrentHashMap<Int, Pair<Long, Float>>()
 
     fun init(context: Context) {
         if (pool != null) return
         val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         val p = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(attrs).build()
-        p.setOnLoadCompleteListener { _, id, status -> if (status == 0) ready += id }
+        p.setOnLoadCompleteListener { pool, id, status ->
+            if (status != 0) return@setOnLoadCompleteListener
+            ready += id
+            // pedido de antes de carregar (a cena abriu primeiro): toca se foi há menos de 1,5 s
+            pending.remove(id)?.let { (at, vol) -> if (System.currentTimeMillis() - at < 1500) pool.play(id, vol, vol, 1, 0, 1f) }
+        }
         FILES.forEach { (name, res) -> ids[name] = p.load(context.applicationContext, res, 1) }
         pool = p
     }
@@ -46,6 +53,6 @@ object EstudarioSom {
         init(context)
         if (!canPlay(context)) return
         val id = ids[name] ?: return
-        if (id in ready) pool?.play(id, volume, volume, 1, 0, 1f)
+        if (id in ready) pool?.play(id, volume, volume, 1, 0, 1f) else pending[id] = System.currentTimeMillis() to volume
     }
 }
