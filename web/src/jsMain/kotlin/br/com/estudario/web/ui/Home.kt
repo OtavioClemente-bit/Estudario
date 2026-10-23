@@ -86,6 +86,7 @@ fun HomeScreen() {
 
     Div({ classes("grid", "main-side") }) {
         Div({ classes("stack", "loose") }) {
+            if (plan != null && data.attempts.size < 5) FirstSteps(data.attempts.size)
             NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
             WeekReportCard(data, view)
             WeakSpotCard(data)
@@ -649,4 +650,42 @@ private fun planQuiz(task: PlanTask, scope: String) {
     PlanQuiz.taskId = task.id
     PlanQuiz.scope = scope
     Router.go(Route.Quiz(scope))
+}
+
+/**
+ * Os primeiros 3 minutos: o concurso já escolhido, ver o plano montado e responder 5 questões com o
+ * Folha comemorando no fim. Some sozinho depois das 5 questões (ou quando a pessoa fecha).
+ */
+@Composable
+private fun FirstSteps(answered: Int) {
+    fun read(k: String) = runCatching { kotlinx.browser.window.localStorage.getItem(k) == "1" }.getOrDefault(false)
+    fun write(k: String) { runCatching { kotlinx.browser.window.localStorage.setItem(k, "1") } }
+    var hidden by remember { mutableStateOf(read("estudario.first.hidden")) }
+    var planSeen by remember { mutableStateOf(read("estudario.first.plan")) }
+    if (hidden) return
+    val left = listOf(true, planSeen, answered >= 5).count { !it }
+    Div({ classes("first-steps") }) {
+        Div({ classes("row"); attr("style", "gap:12px;align-items:center") }) {
+            Folha("talking", 56)
+            Div({ classes("grow") }) {
+                B { Text("Seus primeiros 3 minutos") }
+                Div({ classes("small", "muted") }) { Text("Eu te mostro o caminho. Faltam $left ${if (left == 1) "passo" else "passos"}.") }
+            }
+            Btn("Fechar", { hidden = true; write("estudario.first.hidden") }, style = "ghost", small = true)
+        }
+        Div({ classes("first-list") }) {
+            FirstStepRow(1, "Escolher o concurso", true, null) {}
+            FirstStepRow(2, "Ver o seu plano montado", planSeen, "Ver plano") { planSeen = true; write("estudario.first.plan"); Router.go(Route.Plan) }
+            FirstStepRow(3, if (answered > 0) "Responder 5 questões ($answered de 5)" else "Responder 5 questões", answered >= 5, "Começar") { Router.go(Route.Quiz("rapido-5")) }
+        }
+    }
+}
+
+@Composable
+private fun FirstStepRow(n: Int, label: String, done: Boolean, action: String?, onClick: () -> Unit) {
+    Div({ classes(*listOfNotNull("first-step", if (done) "done" else null).toTypedArray()) }) {
+        Span({ classes("first-n") }) { Text(if (done) "✓" else "$n") }
+        Span({ classes("grow", "strong") }) { Text(label) }
+        if (!done && action != null) Btn(action, onClick, style = "primary", small = true)
+    }
 }

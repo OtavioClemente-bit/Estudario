@@ -255,6 +255,13 @@ fun HomeScreen(
 
         item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
 
+        // Primeiros passos: escolher o concurso (feito), ver o plano e responder 5 questões com o Folha.
+        if (activePlan != null && attempts.size < 5) item(key = "first-steps") {
+            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter).padding(bottom = EstudarioSpacing.medium)) {
+                FirstStepsCard(answered = attempts.size, onPlan = onPlan, onQuiz = { onQuiz(5, "random") })
+            }
+        }
+
         item {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
                 // a memória do Folha: saudade, prova chegando, o que você estudou por último, seu nome
@@ -604,3 +611,44 @@ private fun standingUi(streak: StreakSummary?, progress: ProgressEngine.Progress
     xpIntoLevel = progress?.xpIntoLevel ?: 0,
     xpForNextLevel = progress?.xpForNextLevel ?: 100,
 )
+
+/**
+ * Os primeiros 3 minutos: o concurso já escolhido, ver o plano montado e responder 5 questões com o
+ * Folha comemorando no fim. Some sozinho depois das 5 questões (ou quando a pessoa fecha).
+ */
+@Composable
+private fun FirstStepsCard(answered: Int, onPlan: () -> Unit, onQuiz: () -> Unit) {
+    val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
+    var hidden by remember { mutableStateOf(prefs.getBoolean("first_steps_hidden", false)) }
+    var planSeen by remember { mutableStateOf(prefs.getBoolean("first_steps_plan", false)) }
+    if (hidden) return
+    val scheme = MaterialTheme.colorScheme
+    br.com.estudario.ui.brand.Surface(shape = RoundedCornerShape(22.dp), color = scheme.primaryContainer.copy(alpha = .55f), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                br.com.estudario.ui.assistant.Folha(52.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text("Seus primeiros 3 minutos", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
+                    val left = listOf(true, planSeen, answered >= 5).count { !it }
+                    Text("Eu te mostro o caminho. Faltam $left ${if (left == 1) "passo" else "passos"}.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                }
+                androidx.compose.material3.TextButton(onClick = { hidden = true; prefs.edit().putBoolean("first_steps_hidden", true).apply() }) { Text("Fechar") }
+            }
+            FirstStep(1, "Escolher o concurso", true, null) {}
+            FirstStep(2, "Ver o seu plano montado", planSeen, "Ver plano") { planSeen = true; prefs.edit().putBoolean("first_steps_plan", true).apply(); onPlan() }
+            FirstStep(3, if (answered > 0) "Responder 5 questões ($answered de 5)" else "Responder 5 questões", answered >= 5, "Começar") { onQuiz() }
+        }
+    }
+}
+
+@Composable
+private fun FirstStep(n: Int, label: String, done: Boolean, action: String?, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(28.dp).background(if (done) androidx.compose.ui.graphics.Color(0xFF22A06B) else scheme.surface, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+            Text(if (done) "✓" else "$n", fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = if (done) androidx.compose.ui.graphics.Color.White else scheme.primary)
+        }
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (done) scheme.onSurfaceVariant else scheme.onSurface)
+        if (!done && action != null) androidx.compose.material3.FilledTonalButton(onClick = onClick) { Text(action) }
+    }
+}

@@ -1,5 +1,6 @@
 package br.com.estudario.web.data
 
+import kotlinx.coroutines.await
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -84,6 +85,26 @@ object Store {
     }
 
     private const val REFRESH_EVERY_MS = 15_000L
+
+    // ---------------------------------------------------------------- cópia sem internet
+    // A última foto da conta fica guardada neste navegador (IndexedDB, offline.js). Sem rede, o site abre
+    // com ela; o que for feito sem rede fica marcado como "a enviar" e sobe quando a conexão volta.
+    /** O site abriu com a cópia deste aparelho (sem internet). */
+    var offlineCopy by mutableStateOf(false)
+        private set
+
+    private suspend fun cacheGet(): dynamic {
+        val userId = Auth.session?.userId ?: return null
+        val api = window.asDynamic().estudarioCache ?: return null
+        return runCatching { (api.get(userId) as kotlin.js.Promise<dynamic>).await() }.getOrNull()
+    }
+
+    private fun cacheSet(text: String, revision: Long, dirty: Boolean) {
+        if (demo) return
+        val userId = Auth.session?.userId ?: return
+        val api = window.asDynamic().estudarioCache ?: return
+        runCatching { api.set(kotlin.js.json("userId" to userId, "text" to text, "revision" to revision.toDouble(), "dirty" to dirty, "savedAt" to kotlin.js.Date.now())) }
+    }
     private var refreshing = false
 
     /**
@@ -98,10 +119,13 @@ object Store {
             val head = Cloud.head()
             if (head.revision == baseRevision || head.objectPath == null) return
             if (save != SaveState.Saved) return // alguém editou enquanto a cabeça era lida
-            val fresh = Snapshot.parse(Cloud.download(head))
+            val text = Cloud.download(head)
+            val fresh = Snapshot.parse(text)
             if (save != SaveState.Saved) return
             data = fresh
             baseRevision = head.revision
+            offlineCopy = false
+            cacheSet(text, head.revision, dirty = false)
         } catch (_: SignedOutException) {
             load = LoadState.SignedOut
         } catch (_: Throwable) {
@@ -124,23 +148,49 @@ object Store {
         session = Auth.session
         if (Auth.accessToken() == null) { session = null; load = LoadState.SignedOut; return }
         load = LoadState.Loading
+        val cached = cacheGet()
         try {
             val head = Cloud.head()
             baseRevision = head.revision
-            if (head.revision == 0L || head.objectPath == null) {
+            conflict = null
+            pending.clear()
+            save = SaveState.Saved
+            offlineCopy = false
+            val dirty = cached != null && cached.dirty == true
+            if (dirty) {
+                // Ficou coisa feita sem internet: sobe agora. Se a conta mudou em outro aparelho nesse
+                // meio-tempo, pergunta qual versão manter (a outra fica no histórico da conta).
+                data = Snapshot.parse(cached.text as String)
+                load = LoadState.Ready
+                val cachedRevision = (cached.revision as Number).toLong()
+                if (cachedRevision == head.revision) {
+                    baseRevision = Cloud.upload(cached.text as String, head.revision)
+                    cacheSet(cached.text as String, baseRevision, dirty = false)
+                } else {
+                    baseRevision = cachedRevision
+                    conflict = head
+                }
+            } else if (head.revision == 0L || head.objectPath == null) {
                 data = Snapshot.empty()
                 load = LoadState.NoData
             } else {
-                data = Snapshot.parse(Cloud.download(head))
+                val text = Cloud.download(head)
+                data = Snapshot.parse(text)
                 load = LoadState.Ready
+                cacheSet(text, head.revision, dirty = false)
             }
-            save = SaveState.Saved
-            conflict = null
-            pending.clear()
         } catch (_: SignedOutException) {
             load = LoadState.SignedOut
         } catch (error: Throwable) {
-            load = LoadState.Failed(error.message ?: "Não deu para carregar seus dados.")
+            // Sem internet: abre com a cópia deste aparelho, se houver.
+            if (cached != null && cached.text != null) {
+                data = Snapshot.parse(cached.text as String)
+                baseRevision = (cached.revision as Number).toLong()
+                load = LoadState.Ready
+                offlineCopy = true
+                save = if (cached.dirty == true) SaveState.Offline else SaveState.Saved
+                lastError = "Sem internet: usando a cópia guardada neste aparelho."
+            } else load = LoadState.Failed(error.message ?: "Não deu para carregar seus dados.")
         }
     }
 
@@ -165,6 +215,7 @@ object Store {
 
     fun signOut() {
         if (demo) { leaveDemo(); return }
+        runCatching { window.asDynamic().estudarioCache?.clear() }
         scope.launch {
             Auth.signOut()
             session = null
@@ -202,7 +253,10 @@ object Store {
         val sent = pending.size
         try {
             val expected = if (force) Cloud.head().revision else baseRevision
-            baseRevision = Cloud.upload(data.encode(), expected)
+            val text = data.encode()
+            baseRevision = Cloud.upload(text, expected)
+            cacheSet(text, baseRevision, dirty = false)
+            offlineCopy = false
             // Só saem da fila as edições que foram nesta foto; as feitas durante o envio vão na próxima.
             repeat(sent.coerceAtMost(pending.size)) { pending.removeAt(0) }
             save = if (pending.isEmpty()) SaveState.Saved else SaveState.Pending
@@ -229,6 +283,8 @@ object Store {
         } catch (error: Throwable) {
             lastError = describe(error)
             save = SaveState.Offline
+            // Guarda o que foi feito sem internet, para não perder se a aba for fechada.
+            runCatching { cacheSet(data.encode(), baseRevision, dirty = true) }
         }
     }
 
