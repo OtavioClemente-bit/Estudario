@@ -156,6 +156,8 @@ fun FlashcardDeckDialog(
     isCardSaved: (Flashcard) -> Boolean = { false },
     onToggleCard: ((Flashcard) -> Unit)? = null,
 ) {
+    // Durante o baralho as comemorações (sequência, emblema, nível) esperam: aparecem ao fechar.
+    br.com.estudario.ui.HoldCelebrations()
     val pager = rememberPagerState { cards.size }
     val flipped = remember { mutableStateMapOf<Int, Boolean>() }
     val scope = rememberCoroutineScope()

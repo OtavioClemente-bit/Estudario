@@ -600,6 +600,7 @@ internal data class ReviewCard(val kicker: String, val place: String, val quote:
  */
 @Composable
 private fun NotebookReview(title: String, cards: List<ReviewCard>, onClose: () -> Unit) {
+    br.com.estudario.ui.HoldCelebrations()
     var index by remember(cards) { mutableStateOf(0) }
     val card = cards.getOrNull(index) ?: return
     val scheme = MaterialTheme.colorScheme
@@ -799,6 +800,7 @@ private fun MarkCardsReview(
     var index by remember(cards) { mutableStateOf(0) }
     var shown by remember(cards) { mutableStateOf(false) }
     var remembered by remember(cards) { mutableStateOf(0) }
+    br.com.estudario.ui.HoldCelebrations()
     val scheme = MaterialTheme.colorScheme
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = scheme.surface) {

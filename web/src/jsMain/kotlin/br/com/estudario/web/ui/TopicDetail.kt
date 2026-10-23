@@ -1,5 +1,6 @@
 package br.com.estudario.web.ui
 
+import br.com.estudario.text.MarkOverlap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -544,6 +545,33 @@ private fun TheoryReader(theory: Theory) {
     var clickedMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
     var noteFor by remember(theory.id) { mutableStateOf<TextPick?>(null) }
     var editMarkNote by remember(theory.id) { mutableStateOf<br.com.estudario.web.data.TheoryMark?>(null) }
+    // Botão direito na teoria: o menu do Estudário (grifar nas cores, nota, fixar na tela, copiar...).
+    var ctxMenu by remember(theory.id) { mutableStateOf<Pair<TheoryContext, TextPick?>?>(null) }
+    DisposableEffect(theory.id) {
+        val onContext: (org.w3c.dom.events.Event) -> Unit = { e ->
+            val m = e as org.w3c.dom.events.MouseEvent
+            val target = m.target.asDynamic()
+            val inText = target?.closest?.invoke(".theory-text") != null
+            if (inText) {
+                m.preventDefault()
+                val blockEl = target.closest("[id^='tb-" + theory.id + "-']")
+                val block = (blockEl?.id as? String)?.substringAfterLast('-')?.toIntOrNull()
+                val selection = window.asDynamic().estudarioSelection
+                val s = if (selection != null && selection != undefined) selection() else null
+                val pick = if (s == null || s == undefined || (s.theoryId as Number).toLong() != theory.id) null else TextPick(
+                    (s.block as Number).toInt(), s.quote as String, m.clientX.toDouble(), m.clientY.toDouble(),
+                    (s.parts as? Array<dynamic>)?.map { ((it.block as Number).toInt()) to (it.quote as String) } ?: emptyList(),
+                    overlapIdsNow(theory.id),
+                )
+                val markAt = window.asDynamic().estudarioMarkAt
+                val markId = if (pick != null || markAt == null || markAt == undefined) null else (markAt(theory.id, m.clientX, m.clientY) as? Number)?.toLong()
+                picked = null; clickedMark = null
+                ctxMenu = TheoryContext(m.clientX.toDouble(), m.clientY.toDouble(), pick?.quote, pick?.block, block, markId) to pick
+            }
+        }
+        document.addEventListener("contextmenu", onContext)
+        onDispose { document.removeEventListener("contextmenu", onContext) }
+    }
     // Passar o mouse num trecho com nota mostra a nota (só leitura); clicar fixa o cartão com as ações.
     var hoverMark by remember(theory.id) { mutableStateOf<Triple<Long, Double, Double>?>(null) }
     DisposableEffect(theory.id) {
@@ -576,6 +604,7 @@ private fun TheoryReader(theory: Theory) {
                 else TextPick(
                     (s.block as Number).toInt(), s.quote as String, (s.x as Number).toDouble(), (s.y as Number).toDouble(),
                     (s.parts as? Array<dynamic>)?.map { ((it.block as Number).toInt()) to (it.quote as String) } ?: emptyList(),
+                    overlapIdsNow(theory.id),
                 )
             }, 0)
         }
@@ -610,8 +639,10 @@ private fun TheoryReader(theory: Theory) {
             var replaced = 0
             Store.update { snapshot ->
                 parts.foldIndexed(snapshot) { i, acc, (block, quote) ->
-                    val text = blocks.getOrNull(block).orEmpty()
-                    val old = acc.theoryMarks.filter { m -> m.theoryId == theory.id && TheoryJump.blockOf(blocks, m.quote, m.blockIndex) == block && br.com.estudario.text.MarkOverlap.overlaps(text, m.quote, quote) }
+
+                    // Só os grifos que a seleção cobre de verdade na página (antes uma comparação de texto às
+                    // vezes achava "encostado" um grifo de outra parte do parágrafo e apagava ele).
+                    val old = acc.theoryMarks.filter { m -> m.theoryId == theory.id && TheoryJump.blockOf(blocks, m.quote, m.blockIndex) == block && (m.id in p.overlapIds || MarkOverlap.plain(m.quote) == MarkOverlap.plain(quote)) }
                     replaced += old.size
                     val keptNote = (if (i == 0) note else "").ifBlank { old.firstOrNull { it.note.isNotBlank() }?.note.orEmpty() }
                     val cleared = old.fold(acc) { a, m -> Actions.deleteTheoryMark(a, m.id) }
@@ -711,6 +742,7 @@ private fun TheoryReader(theory: Theory) {
         classes(*listOfNotNull("theory-text", if (ReaderPrefs.serif) "reader-book" else null).toTypedArray())
         attr("style", "--reader-size:${ReaderPrefs.sizes[ReaderPrefs.size]}px")
     }) {
+        TheoryPinDock(theory.id)
         extracted.map { it.first }.forEachIndexed { i, block ->
             val trap = calloutTrap(block)
             Div({
@@ -817,6 +849,30 @@ private fun TheoryReader(theory: Theory) {
         }
     }
     // Grifar com nota abre a folha de caderno; a nota vai para Anotações no Caderno de estudo.
+    ctxMenu?.let { (ctx, pick) ->
+        val mark = ctx.markId?.let { id -> theoryMarks.firstOrNull { it.id == id } }
+        TheoryContextMenu(
+            ctx = ctx,
+            blockText = ctx.block?.let { blocks.getOrNull(it) },
+            markHasNote = mark?.note?.isNotBlank() == true,
+            onColor = { color -> if (pick != null) saveMark(pick, "", color) },
+            onNote = { if (pick != null) noteFor = pick },
+            onPinSelection = {
+                // Trecho dentro de uma tabela fixa a tabela inteira (o texto solto perderia as colunas).
+                val b = pick?.block?.let { blocks.getOrNull(it) }
+                val md = if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) b else pick?.quote.orEmpty()
+                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 fixados. Solte um para fixar outro.") else { Toast.show("Fixado no alto da leitura"); window.asDynamic().getSelection()?.removeAllRanges() }
+            },
+            onPinBlock = {
+                val md = ctx.block?.let { blocks.getOrNull(it) }.orEmpty()
+                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 fixados. Solte um para fixar outro.") else Toast.show("Fixado no alto da leitura")
+            },
+            onMarkColor = { c -> if (mark != null && !Store.demo) Store.update { Actions.setTheoryMarkColor(it, mark.id, c) } },
+            onMarkNote = { if (mark != null) editMarkNote = mark },
+            onMarkRemove = { if (mark != null) { if (Store.demo) Toast.show("Entre com sua conta para mexer nos grifos.") else { Store.update { Actions.deleteTheoryMark(it, mark.id) }; Toast.show("Grifo tirado") } } },
+            onClose = { ctxMenu = null },
+        )
+    }
     noteFor?.let { p ->
         NotePaperEditor(
             initialText = "", isNew = true, createdAt = null,
@@ -887,7 +943,7 @@ private fun NotePop(
 }
 
 /** Trecho selecionado na teoria: bloco, texto e onde a barrinha "Grifar" aparece (coordenadas da tela). */
-private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double, val parts: List<Pair<Int, String>> = emptyList())
+private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double, val parts: List<Pair<Int, String>> = emptyList(), val overlapIds: Set<Long> = emptySet())
 
 @Composable
 private fun TopicSources(topicId: Long) {
@@ -1144,4 +1200,12 @@ object FocusAsk {
     var never: Boolean
         get() = runCatching { kotlinx.browser.window.localStorage.getItem("estudario.focus.ask") == "never" }.getOrDefault(false)
         set(value) { runCatching { if (value) kotlinx.browser.window.localStorage.setItem("estudario.focus.ask", "never") else kotlinx.browser.window.localStorage.removeItem("estudario.focus.ask") } }
+}
+
+/** Os grifos que a seleção atual cobre na página (posições reais, highlight.js). */
+private fun overlapIdsNow(theoryId: Long): Set<Long> {
+    val f = window.asDynamic().estudarioOverlapIds
+    if (f == null || f == undefined) return emptySet()
+    val arr = f(theoryId) as? Array<dynamic> ?: return emptySet()
+    return arr.mapNotNull { (it as? Number)?.toLong() }.toSet()
 }

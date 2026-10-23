@@ -138,7 +138,10 @@ private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, ho
             task == null -> {
                 val minutes = tasks.sumOf { it.minutes }
                 Div({ classes("now-done") }) {
-                    Folha("happy", 120)
+                    // Comemora ao chegar na página; depois volta ao normal (pisca, olha, pensa, reage ao toque).
+                    var doneMood by remember { mutableStateOf("happy") }
+                    androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(4500); doneMood = "idle" }
+                    Folha(doneMood, 120)
                     Div({ classes("grow") }) {
                         Span({ classes("eyebrow") }) { Text("DIA CONCLUÍDO") }
                         H2({ classes("now-title") }) { Text("Missão cumprida por hoje") }

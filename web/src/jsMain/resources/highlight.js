@@ -63,6 +63,21 @@
     return null;
   };
 
+  // Os grifos que a seleção atual cobre de verdade (sobreposição de posições na página, não de texto).
+  window.estudarioOverlapIds = function (theoryId) {
+    const sel = window.getSelection && window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return [];
+    const r = sel.getRangeAt(0);
+    const out = [];
+    for (const m of marksOf[theoryId] || []) {
+      try {
+        // r começa antes do fim do grifo e termina depois do começo dele.
+        if (r.compareBoundaryPoints(Range.END_TO_START, m.range) < 0 && r.compareBoundaryPoints(Range.START_TO_END, m.range) > 0) out.push(m.id);
+      } catch (e) { /* grifo fora do documento */ }
+    }
+    return out;
+  };
+
   // marks: [{ id, block: número do bloco, quote: texto }]; os blocos têm id "tb-<theoryId>-<bloco>".
   window.estudarioHighlight = function (theoryId, marks) {
     if (!window.CSS || !CSS.highlights || typeof Highlight === "undefined") return false;
