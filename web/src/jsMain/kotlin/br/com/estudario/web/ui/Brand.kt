@@ -69,6 +69,9 @@ fun FolhaTalking(original: String, size: Int = 88, onFolhaClick: (() -> Unit)? =
     }
 }
 
+/** Toca um som do Estudário (folha-live.js, estudarioSom). Desligado por padrão: só toca se a pessoa ligou em Ajustes. */
+fun som(name: String) { runCatching { kotlinx.browser.window.asDynamic().estudarioSom?.play(name) } }
+
 /** O que o Folha fala: o mesmo banco do app (FolhaFalas, no módulo compartilhado), com a mesma escolha por semente. */
 object FolhaLines {
     private val F = br.com.estudario.domain.FolhaFalas

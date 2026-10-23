@@ -220,7 +220,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         }
         return available.coerceAtMost(task.plannedQuestions.coerceAtLeast(1))
     }
-    fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") { executions.complete(taskId, input); service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED) }
+    fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") { br.com.estudario.ui.brand.EstudarioSom.play(getApplication(), "concluir"); executions.complete(taskId, input); service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED) }
     suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null): PlannerTaskUi? {
         val current = state.first { !it.loading }
         val planId = current.activePlan?.id ?: return null

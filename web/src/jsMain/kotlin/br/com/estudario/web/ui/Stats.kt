@@ -425,7 +425,7 @@ fun SettingsScreen() {
                     }) { Text(label) }
                 }
             }
-            P({ classes("xs", "muted"); attr("style", "margin:8px 0 0") }) { Text("Acerto, erro, toque no Folha e as comemorações. Os sons foram criados para o Estudário.") }
+            P({ classes("xs", "muted"); attr("style", "margin:8px 0 0") }) { Text("Acerto, erro, toque no Folha, tarefas concluídas, flashcards e as comemorações. Vêm desligados: ligue se quiser.") }
         }
         Card {
             CardHead("Questões por dia")

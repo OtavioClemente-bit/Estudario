@@ -77,6 +77,7 @@ fun FlashcardsScreen(topicId: Long?) {
 
     val card = deck[index]
     fun answer(remembered: Boolean) {
+        som(if (remembered) "lembrei" else "nao_lembrei")
         if (remembered) knew++ else again = again + card
         flipped = false
         index++

@@ -50,6 +50,7 @@ fun RecallCard(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     var showBack by rememberSaveable(revealKey) { mutableStateOf(false) }
+    val somCtx = androidx.compose.ui.platform.LocalContext.current
     // 0 = ainda não respondeu, 1 = lembrou, 2 = não lembrou.
     var verdict by rememberSaveable(revealKey) { mutableIntStateOf(0) }
     // A virada: a carta "afina" até sumir de lado, troca de face e volta. Um lado por vez na tela,
@@ -104,8 +105,8 @@ fun RecallCard(
                 if (verdict == 0 && onVerdict != null) Text("Você lembrou antes de ver a resposta?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 when (verdict) {
                     0 -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = { if (onVerdict != null) onVerdict(false) else verdict = 2 }, modifier = Modifier.weight(1f)) { Text("Não lembrei") }
-                        Button(onClick = { if (onVerdict != null) onVerdict(true) else verdict = 1 }, modifier = Modifier.weight(1f)) { Text("Lembrei") }
+                        OutlinedButton(onClick = { br.com.estudario.ui.brand.EstudarioSom.play(somCtx, "nao_lembrei"); if (onVerdict != null) onVerdict(false) else verdict = 2 }, modifier = Modifier.weight(1f)) { Text("Não lembrei") }
+                        Button(onClick = { br.com.estudario.ui.brand.EstudarioSom.play(somCtx, "lembrei"); if (onVerdict != null) onVerdict(true) else verdict = 1 }, modifier = Modifier.weight(1f)) { Text("Lembrei") }
                     }
                     1 -> Text("Boa! Essa já está na cabeça.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                     else -> Text("Sem problema. Leia de novo com calma e tente mais tarde.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

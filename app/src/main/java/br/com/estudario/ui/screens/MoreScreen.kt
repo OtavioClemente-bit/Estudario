@@ -121,7 +121,7 @@ fun MoreScreen(
             val ctx = androidx.compose.ui.platform.LocalContext.current
             var som by remember { mutableStateOf(br.com.estudario.ui.brand.EstudarioSom.isOn(ctx)) }
             Group("Sons") {
-                ToggleRow(Icons.AutoMirrored.Outlined.VolumeUp, "Sons do Estudário", "Acerto, erro, toque no Folha e as comemorações. Não tocam com o celular no silencioso.", som) {
+                ToggleRow(Icons.AutoMirrored.Outlined.VolumeUp, "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas concluídas, flashcards e as comemorações. Vêm desligados; não tocam no silencioso.", som) {
                     som = it; br.com.estudario.ui.brand.EstudarioSom.setOn(ctx, it); if (it) br.com.estudario.ui.brand.EstudarioSom.play(ctx, "acerto")
                 }
             }

@@ -531,6 +531,7 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
                     // Como no app: concluir reorganiza o plano.
                     runCatching { Planning.replan(done, task.planId, ReplanReason.TASK_COMPLETED) }.getOrDefault(done)
                 }
+                if (minutes >= task.minutes) som("concluir")
                 Toast.show(if (minutes >= task.minutes) "Tarefa concluída! +${Progress.taskXp(task)} XP" else "Progresso registrado")
                 onClose()
             }, icon = "check")

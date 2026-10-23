@@ -1,0 +1,126 @@
+<!doctype html><meta charset=utf-8><body><script src="onset.js"></script><script>
+// Mixagem dos sons do Estudário a partir de gravações reais CC0 (Freesound), afinadas em Ré maior.
+// Cada receita: camadas { f: arquivo, at: s, g: ganho, st: semitons, from: s (corte no arquivo), len: s, lp/hp: filtros, fi/fo: fade }.
+const ONSET = window.ONSET || {};
+const R = 44100;
+const K = { G: "kalimba_691805", C: "kalimba_536550" };
+// notas do kalimba em Ré maior a partir das duas gravações mais limpas (G5 e C5)
+const kal = (note) => ({ D5: [K.C, 2], E5: [K.C, 4], "F#5": [K.G, -1], G5: [K.G, 0], A5: [K.G, 2], B5: [K.G, 4], D6: [K.G, 7], A4: [K.C, -3], "F#4": [K.C, -6] })[note];
+function K_(note, at, g = 0.7, extra = {}) { const [f, st] = kal(note); return { f, at, g, st, from: ONSET[f] || 0, len: 1.6, fo: 0.4, ...extra }; }
+const RECIPES = {
+  // --- interface
+  toque_A: { dur: 0.45, peak: -10, wet: 0.08, layers: [
+    { f: "papel_537872", at: 0, g: 0.55, from: (ONSET.papel_537872 || 0), len: 0.16, fo: 0.08, hp: 900 },
+    { f: "pop_683587", at: 0.025, g: 0.75, st: 0.2, from: ONSET.pop_683587 || 0, len: 0.3, fo: 0.1 } ] },
+  toque_B: { dur: 0.45, peak: -10, wet: 0.08, layers: [
+    { f: "pop_411462", at: 0, g: 0.8, st: -4, from: ONSET.pop_411462 || 0, len: 0.25, fo: 0.08 },
+    { f: "madeira_742279", at: 0.012, g: 0.25, st: 2, from: 0, len: 0.15, fo: 0.08 } ] },
+  acerto_A: { dur: 1.2, peak: -7, wet: 0.14, layers: [ K_("D5", 0, 0.75), K_("A5", 0.085, 0.8), { f: "glock_352493", at: 0.09, g: 0.12, st: -1, from: 0, len: 0.9, fo: 0.4 } ] },
+  acerto_B: { dur: 1.2, peak: -7, wet: 0.14, layers: [ K_("F#5", 0, 0.75), K_("A5", 0.07, 0.75), K_("D6", 0.14, 0.6) ] },
+  erro_A: { dur: 1.0, peak: -11, wet: 0.12, layers: [
+    { f: "marimba_130524", at: 0, g: 0.7, st: 0.6, from: 0, len: 0.7, fo: 0.3, lp: 2200 },
+    { f: "marimba_130524", at: 0.13, g: 0.7, st: -3.4, from: 0, len: 0.8, fo: 0.35, lp: 1800 } ] },
+  erro_B: { dur: 1.0, peak: -11, wet: 0.12, layers: [ K_("A4", 0, 0.7, { lp: 2500 }), K_("F#4", 0.12, 0.7, { lp: 2000 }) ] },
+  combo: { dur: 1.6, peak: -6, wet: 0.16, layers: [ K_("D5", 0, 0.6), K_("F#5", 0.06, 0.6), K_("A5", 0.12, 0.65), K_("D6", 0.18, 0.55), { f: "glock_352493", at: 0.2, g: 0.18, st: -1, from: 0, len: 1.2, fo: 0.5 } ] },
+  concluir: { dur: 1.3, peak: -7, wet: 0.14, layers: [
+    { f: "madeira_742279", at: 0, g: 0.55, st: 2, from: 0, len: 0.25, fo: 0.12 },
+    { f: "papel_677857", at: 0.02, g: 0.25, from: ONSET.papel_677857 || 0, len: 0.4, fo: 0.2, hp: 600 },
+    K_("D5", 0.06, 0.6), K_("F#5", 0.06, 0.45), K_("A5", 0.06, 0.5) ] },
+  lembrei: { dur: 0.9, peak: -10, wet: 0.12, layers: [ K_("A5", 0, 0.7) ] },
+  nao_lembrei: { dur: 0.7, peak: -13, wet: 0.1, layers: [ { f: "madeira_630492", at: 0, g: 0.6, st: -2, from: 0, len: 0.3, fo: 0.15, lp: 1800 } ] },
+  resultado: { dur: 2.6, peak: -6, wet: 0.18, layers: [ K_("A4", 0, 0.6), K_("D5", 0.1, 0.65), K_("F#5", 0.2, 0.65), K_("A5", 0.3, 0.7, { len: 2 }), { f: "glock_352493", at: 0.32, g: 0.16, st: -1, from: 0, len: 1.5, fo: 0.6 } ] },
+  missao: { dur: 2.8, peak: -6, wet: 0.2, layers: [ K_("A4", 0, 0.6), K_("D5", 0.09, 0.6), K_("F#5", 0.18, 0.6), K_("A5", 0.27, 0.65), K_("D6", 0.36, 0.55, { len: 2 }), { f: "sino_333695", at: 0.38, g: 0.3, st: 1.9, from: 0, len: 1.5, fo: 0.6 }, { f: "glock_352493", at: 0.45, g: 0.14, st: -1, from: 0, len: 1.5, fo: 0.6 } ] },
+};
+// --- cenas (o tempo de cada camada acompanha a animação em folha-live.js)
+const reveal = (t, g = 1) => [K_("A4", t, 0.55 * g), K_("D5", t + 0.07, 0.6 * g), K_("F#5", t + 0.14, 0.6 * g), K_("A5", t + 0.21, 0.65 * g, { len: 2.4 }), K_("D6", t + 0.28, 0.5 * g, { len: 2.4 }),
+  { f: "glock_352493", at: t + 0.3, g: 0.16 * g, st: -1, from: 0, len: 1.8, fo: 0.8 }, { f: "sino_333695", at: t + 0.25, g: 0.22 * g, st: 1.9, from: 0, len: 1.6, fo: 0.7 }];
+RECIPES.cena_emblema = { dur: 5.6, peak: -3, wet: 0.16, layers: [
+  { f: "martelo_475416", at: 0.85, g: 0.25, st: 7, from: ONSET.martelo_475416 || 0, len: 0.5, fo: 0.3 },
+  { f: "martelo_270589", at: 1.25, g: 0.75, from: ONSET.martelo_270589 || 0, len: 1.2, fo: 0.6 }, { f: "fogo_422851", at: 1.26, g: 0.2, from: ONSET.fogo_422851 || 0, len: 0.5, fo: 0.3 },
+  { f: "martelo_270589", at: 1.7, g: 0.8, st: -0.6, from: ONSET.martelo_270589 || 0, len: 1.2, fo: 0.6 }, { f: "fogo_422851", at: 1.71, g: 0.22, from: ONSET.fogo_422851 || 0, len: 0.5, fo: 0.3 },
+  { f: "martelo_554012", at: 2.15, g: 1.6, st: -1, from: ONSET.martelo_554012 || 0, len: 0.85, fo: 0.5 }, { f: "fogo_422851", at: 2.16, g: 0.3, from: ONSET.fogo_422851 || 0, len: 0.6, fo: 0.3 },
+  { f: "vapor_234782", at: 2.3, g: 0.16, from: ONSET.vapor_234782 || 0, len: 1.3, fi: 0.05, fo: 0.6, lp: 6000 },
+  { f: "fogo_178886", at: 2.85, g: 0.08, st: 3, from: ONSET.fogo_178886 || 0, len: 0.8, fi: 0.15, fo: 0.4, lp: 3000 },
+  ...reveal(3.42) ] };
+RECIPES.cena_sequencia = { dur: 5.0, peak: -3, wet: 0.14, layers: [
+  { f: "fogo_565304", at: 0.55, g: 0.45, from: 2, len: 1.2, fi: 0.2, fo: 0.3 },
+  { f: "fogo_431174", at: 1.65, g: 0.35, from: ONSET.fogo_431174 || 0, len: 0.5, fo: 0.3, lp: 2500 },
+  { f: "fogo_346917", at: 1.72, g: 0.7, from: ONSET.fogo_346917 || 0, len: 1.2, fo: 0.5 },
+  { f: "fogo_431174", at: 2.12, g: 0.9, from: ONSET.fogo_431174 || 0, len: 1.0, fo: 0.5 },
+  { f: "fogo_178886", at: 2.15, g: 0.5, from: ONSET.fogo_178886 || 0, len: 1.6, fo: 0.8, lp: 5000 },
+  { f: "asas_561364", at: 2.3, g: 0.45, from: ONSET.asas_561364 || 0, len: 0.9, fo: 0.4 },
+  { f: "asas_389634", at: 2.75, g: 0.35, from: ONSET.asas_389634 || 0, len: 0.7, fo: 0.3 },
+  { f: "fogo_565304", at: 2.4, g: 0.12, from: 5, len: 2.4, fi: 0.4, fo: 1.0 },
+  ...reveal(2.66, 0.9) ] };
+RECIPES.cena_nivel = { dur: 4.6, peak: -3, wet: 0.16, layers: [
+  ...["D5", "E5", "F#5", "G5", "A5", "B5", "D6"].map((n, i) => K_(n, 0.15 + i * 0.15, 0.22 + i * 0.03, { len: 0.6, fo: 0.3 })),
+  { f: "madeira_219162", at: 1.25, g: 0.3, st: 4, from: 0, len: 0.2, fo: 0.1 },
+  { f: "fogo_431174", at: 1.58, g: 0.32, st: -3, from: ONSET.fogo_431174 || 0, len: 1.0, fo: 0.5, lp: 1800 },
+  { f: "asas_389634", at: 1.9, g: 0.4, from: ONSET.asas_389634 || 0, len: 0.7, fo: 0.3 },
+  { f: "asas_389634", at: 2.15, g: 0.3, st: 1, from: ONSET.asas_389634 || 0, len: 0.7, fo: 0.3 },
+  ...reveal(1.6) ] };
+RECIPES.cena_peca = { dur: 5.6, peak: -3, wet: 0.14, layers: [
+  { f: "caixa_346169", at: 0.45, g: 0.85, from: ONSET.caixa_346169 || 0, len: 0.9, fo: 0.4 },
+  ...[1.0, 1.38, 1.74].map((t) => ({ f: "madeira_630492", at: t, g: 0.3, st: -5, from: 0, len: 0.2, fo: 0.1, lp: 1500 })),
+  ...[1.06, 1.44, 1.8].map((t) => ({ f: "caixa_346169", at: t, g: 0.1, st: 4, from: (ONSET.caixa_346169 || 0) + 0.05, len: 0.25, fo: 0.15 })),
+  { f: "fita_342541", at: 2.1, g: 0.35, from: ONSET.fita_342541 || 0, len: 0.5, fo: 0.25, lp: 7000 },
+  { f: "pop_411462", at: 2.45, g: 0.8, st: -5, from: ONSET.pop_411462 || 0, len: 0.4, fo: 0.15 },
+  { f: "glock_352493", at: 2.5, g: 0.22, st: -1, from: 0, len: 1.4, fo: 0.6 },
+  { f: "papel_144110", at: 2.55, g: 0.3, from: ONSET.papel_144110 || 0, len: 0.7, fo: 0.3, hp: 500 },
+  { f: "papel_677857", at: 3.4, g: 0.3, from: ONSET.papel_677857 || 0, len: 0.4, fo: 0.2, hp: 600 },
+  ...reveal(3.62) ] };
+
+const bufs = {};
+async function load(ctx, f) { if (!bufs[f]) bufs[f] = await ctx.decodeAudioData(await (await fetch(f + ".mp3")).arrayBuffer()); return bufs[f]; }
+// sala pequena e macia: ruído decaindo, filtrado
+function impulse(ctx, sec = 1.3) {
+  const n = Math.round(R * sec), b = ctx.createBuffer(2, n, R);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); let lp = 0; for (let i = 0; i < n; i++) { const w = Math.random() * 2 - 1; lp = lp * 0.55 + w * 0.45; d[i] = lp * Math.pow(1 - i / n, 3.2) * (i < R * 0.008 ? i / (R * 0.008) : 1); } }
+  return b;
+}
+async function render(name, rec) {
+  const dec = new OfflineAudioContext(1, 1, R);
+  for (const L of rec.layers) await load(dec, L.f);
+  const ctx = new OfflineAudioContext(2, Math.round(rec.dur * R), R);
+  const dry = ctx.createGain(), wet = ctx.createGain(), conv = ctx.createConvolver(); conv.buffer = impulse(ctx);
+  dry.gain.value = 1 - rec.wet; wet.gain.value = rec.wet * 2.2;
+  const bus = ctx.createGain(); bus.connect(dry).connect(ctx.destination); bus.connect(conv).connect(wet).connect(ctx.destination);
+  for (const L of rec.layers) {
+    const src = ctx.createBufferSource(); src.buffer = bufs[L.f]; src.playbackRate.value = Math.pow(2, (L.st || 0) / 12);
+    let node = src;
+    if (L.lp) { const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = L.lp; f.Q.value = 0.6; node.connect(f); node = f; }
+    if (L.hp) { const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = L.hp; f.Q.value = 0.6; node.connect(f); node = f; }
+    const g = ctx.createGain(); node.connect(g); g.connect(bus);
+    const len = L.len || 1, fi = L.fi || 0.004, fo = Math.min(L.fo || 0.05, len * 0.9);
+    g.gain.setValueAtTime(0, L.at); g.gain.linearRampToValueAtTime(L.g, L.at + fi);
+    g.gain.setValueAtTime(L.g, L.at + len - fo); g.gain.linearRampToValueAtTime(0, L.at + len);
+    src.start(L.at, Math.max(0, (L.from || 0) - 0.004), len + 0.02);
+  }
+  const out = await ctx.startRendering();
+  // mono, pico no alvo, fim suave
+  const a = out.getChannelData(0), b = out.getChannelData(1), m = new Float32Array(a.length); let pk = 0;
+  for (let i = 0; i < m.length; i++) { m[i] = (a[i] + b[i]) / 2; pk = Math.max(pk, Math.abs(m[i])); }
+  const gain = Math.pow(10, rec.peak / 20) / (pk || 1), T = Math.round(0.08 * R);
+  for (let i = 0; i < m.length; i++) { m[i] *= gain; const k = m.length - i; if (k < T) m[i] *= k / T; }
+  // corta o silêncio do fim
+  let end = m.length; while (end > R * 0.2 && Math.abs(m[end - 1]) < 0.0008) end--;
+  return m.subarray(0, Math.min(m.length, end + Math.round(0.05 * R)));
+}
+function wav(x) {
+  const n = x.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  s(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); s(8, "WAVE"); s(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, R, true); v.setUint32(28, R * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); s(36, "data"); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-32767, Math.min(32767, Math.round(x[i] * 32767))), true);
+  return new Uint8Array(buf);
+}
+(async () => {
+  const result = {};
+  for (const [name, rec] of Object.entries(RECIPES)) {
+    const x = await render(name, rec); const bytes = wav(x);
+    let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    result[name] = btoa(bin);
+  }
+  window.RESULT = result; document.title = "pronto";
+})();
+</script>

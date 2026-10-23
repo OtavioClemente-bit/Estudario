@@ -7,14 +7,15 @@ import android.media.SoundPool
 import br.com.estudario.R
 
 /**
- * Os sons do Estudário (scripts/som/gerar-sons.mjs: sintetizados do zero para o app, os mesmos do site),
- * tocados pelo SoundPool. Ficam carregados desde a abertura do app, então tocam na hora. Não tocam com
- * o celular no silencioso ou na vibração, nem com a opção desligada em Ajustes.
+ * Os sons do Estudário (scripts/som: gravações reais CC0 afinadas juntas em Ré maior, os mesmos do site),
+ * tocados pelo SoundPool. Ficam carregados desde a abertura do app, então tocam na hora. Vêm desligados:
+ * só tocam depois que a pessoa liga em Ajustes, e nunca com o celular no silencioso ou na vibração.
  */
 object EstudarioSom {
     private val FILES = mapOf(
         "toque" to R.raw.som_toque, "acerto" to R.raw.som_acerto, "erro" to R.raw.som_erro, "combo" to R.raw.som_combo,
         "resultado" to R.raw.som_resultado, "missao" to R.raw.som_missao,
+        "concluir" to R.raw.som_concluir, "lembrei" to R.raw.som_lembrei, "nao_lembrei" to R.raw.som_nao_lembrei,
         "cena_nivel" to R.raw.som_cena_nivel, "cena_emblema" to R.raw.som_cena_emblema, "cena_sequencia" to R.raw.som_cena_sequencia, "cena_peca" to R.raw.som_cena_peca,
     )
     private var pool: SoundPool? = null
@@ -31,7 +32,7 @@ object EstudarioSom {
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences("estudario_som", Context.MODE_PRIVATE)
-    fun isOn(context: Context): Boolean = prefs(context).getBoolean("on", true)
+    fun isOn(context: Context): Boolean = prefs(context).getBoolean("on", false)
     fun setOn(context: Context, on: Boolean) = prefs(context).edit().putBoolean("on", on).apply()
 
     /** Liga e, com o celular no som normal, pode tocar agora. */

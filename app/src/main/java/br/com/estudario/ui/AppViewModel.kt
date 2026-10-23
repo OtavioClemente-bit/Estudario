@@ -697,7 +697,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setTopicPriorityOverride(id: Long, override: PriorityLevel?) = launchCatching { repository.setTopicPriorityOverride(id, override) }
     fun deleteTopic(value: TopicEntity) = launchCatching { repository.deleteTopic(value) }
     fun deleteTopicMaterial(topicId: Long, includeQuestions: Boolean) = launchCatching { repository.deleteTopicMaterial(topicId, includeQuestions) }
-    fun markStudied(value: TopicEntity) = launchCatching { repository.markStudied(value, reviewIntervals.value) }
+    fun markStudied(value: TopicEntity) = launchCatching { repository.markStudied(value, reviewIntervals.value); br.com.estudario.ui.brand.EstudarioSom.play(app, "concluir") }
     fun unmarkStudied(value: TopicEntity) = launchCatching { repository.unmarkStudied(value) }
     fun addSummary(topicId: Long, title: String, markdown: String) = launchCatching { if (title.isNotBlank() && markdown.isNotBlank()) repository.addSummary(topicId, title, markdown) }
     fun updateSummary(value: SummaryEntity) = launchCatching { repository.updateSummary(value) }
@@ -718,7 +718,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateQueue(value: StudyQueueEntity) = launchCatching { repository.updateQueue(value) }
     fun removeQueue(value: StudyQueueEntity) = launchCatching { repository.removeQueue(value) }
     fun completeQueue(value: StudyQueueEntity) = launchCatching { repository.completeQueue(value) }
-    fun completeStudy(topicId: Long, startedAt: Long, notes: String = "") = launchCatching { repository.completeStudy(topicId, startedAt, notes) }
+    fun completeStudy(topicId: Long, startedAt: Long, notes: String = "") = launchCatching { repository.completeStudy(topicId, startedAt, notes); br.com.estudario.ui.brand.EstudarioSom.play(app, "concluir") }
     suspend fun completeStudyNow(topicId: Long, startedAt: Long, notes: String = "") = repository.completeStudy(topicId, startedAt, notes)
     fun postponeQueue(value: StudyQueueEntity, reason: String) = launchCatching { repository.postponeQueue(value, reason) }
     fun deleteError(id: Long) = launchCatching { repository.deleteError(id) }

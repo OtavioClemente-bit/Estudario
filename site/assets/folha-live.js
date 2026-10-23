@@ -3572,14 +3572,15 @@
 
   const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
   // ------------------------------------------------------------------ som
-  // Os sons do Estudário (scripts/som/gerar-sons.mjs: sintetizados do zero, sem amostra pronta), ao lado
-  // deste arquivo em sons/. window.estudarioSom.play("acerto"). Desligável: localStorage "estudario.som" = "off"
-  // (o site) ou o atributo som="0" na cena (o app manda conforme a configuração e o modo silencioso).
+  // Os sons do Estudário (scripts/som: gravações reais CC0 afinadas juntas em Ré maior), ao lado deste
+  // arquivo em sons/. window.estudarioSom.play("acerto"). Vêm desligados: tocam só com localStorage
+  // "estudario.som" = "on" (o site, em Ajustes); a cena do app recebe som="0" e toca pelo próprio app.
   const SOM = (() => {
     const here = document.currentScript && document.currentScript.src;
     const base = here ? new URL("sons/", here).href : "sons/";
     let ctx = null; const cache = {};
-    const on = () => { try { return localStorage.getItem("estudario.som") !== "off"; } catch (e) { return true; } };
+    // desligado por padrão: só toca depois que a pessoa liga em Ajustes
+    const on = () => { try { return localStorage.getItem("estudario.som") === "on"; } catch (e) { return false; } };
     const audio = () => { if (!ctx) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; ctx = new A(); } if (ctx.state === "suspended") ctx.resume().catch(() => {}); return ctx; };
     // o navegador só libera o áudio depois de um toque: o primeiro toque já deixa pronto
     const unlock = () => { audio(); window.removeEventListener("pointerdown", unlock, true); };

@@ -282,6 +282,7 @@ fun TopicScreen(topicId: Long) {
             Btn("Confirmar", {
                 if (focusHere) TopicFocus.stop()
                 Store.update { Actions.completeStudyWithPlan(it, topicId) }
+                som("concluir")
                 finishAsk = false
                 Toast.show("Estudo registrado. Revisões D+1, D+7 e D+30 na agenda.")
             }, style = "primary", icon = "check")

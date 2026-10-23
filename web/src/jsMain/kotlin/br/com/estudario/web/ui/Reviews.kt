@@ -230,8 +230,8 @@ fun ReviewSessionScreen(reviewId: Long) {
                 }
                 if (flipped) P({ classes("rv-hint"); attr("style", "margin-bottom:-4px") }) { B { Text("Você lembrou antes de virar o cartão?") } }
                 if (flipped) Div({ classes("rv-choice") }) {
-                    Button({ classes("rv-btn", "no"); onClick { forgotten++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("close"); Text("Não lembrei") }
-                    Button({ classes("rv-btn", "yes"); onClick { recalled++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("check"); Text("Lembrei") }
+                    Button({ classes("rv-btn", "no"); onClick { som("nao_lembrei"); forgotten++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("close"); Text("Não lembrei") }
+                    Button({ classes("rv-btn", "yes"); onClick { som("lembrei"); recalled++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("check"); Text("Lembrei") }
                 } else Div({ classes("rv-choice") }) { Btn("Virar o cartão", { flipped = true }, style = "primary", icon = "flip") }
             }
             "summary" -> {
