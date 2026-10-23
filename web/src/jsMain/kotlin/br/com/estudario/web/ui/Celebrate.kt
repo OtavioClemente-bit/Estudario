@@ -36,8 +36,11 @@ private sealed interface Celebration {
     data class StreakDay(val days: Int, val best: Int, val week: List<Pair<String, Boolean>>, val xpToday: Int) : Celebration
     data class NewBadge(val badge: Badge) : Celebration
     data class LevelUp(val level: Int, val title: String, val totalXp: Int) : Celebration
-    /** Peça nova no armário do Folha (vem de um emblema ou de um nível): o baú abre e ele aparece vestindo. */
-    data class NewPiece(val item: br.com.estudario.domain.FolhaItem) : Celebration
+    /**
+     * Peças novas no armário do Folha (de um emblema, de um nível ou de uma coleção completa): a caixa abre,
+     * todas as cartas saem juntas e ele aparece vestindo. Peças que chegam juntas vêm numa caixa só.
+     */
+    data class NewPiece(val items: List<br.com.estudario.domain.FolhaItem>) : Celebration
 }
 
 private object CelebrationQueue {
@@ -64,7 +67,9 @@ fun CelebrationHost() {
             CelebrationQueue.items += Celebration.StreakDay(5, 7, listOf("S" to true, "T" to true, "Q" to false, "Q" to true, "S" to true, "S" to true, "D" to true), 86)
             CelebrationQueue.items += Celebration.NewBadge(sample)
             CelebrationQueue.items += Celebration.LevelUp(4, "Estudioso", 820)
-            br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == "asas" }?.let { CelebrationQueue.items += Celebration.NewPiece(it) }
+            br.com.estudario.domain.FolhaWardrobe.collection("militar")?.let { c ->
+                CelebrationQueue.items += Celebration.NewPiece(br.com.estudario.domain.FolhaWardrobe.piecesOf(c).takeLast(2) + listOfNotNull(br.com.estudario.domain.FolhaWardrobe.rewardOf(c)))
+            }
         }
         CelebrationQueue.items.firstOrNull()?.let { CelebrationScreen(it) { CelebrationQueue.items.removeAt(0) } }
         return
@@ -116,8 +121,8 @@ fun CelebrationHost() {
         val fresh = owned - known
         if (fresh.isEmpty()) return@LaunchedEffect
         write(KEY_PIECES, (known + fresh).sorted().joinToString(","))
-        br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }
-            .sortedByDescending { it.rarity.ordinal }.forEach { CelebrationQueue.items += Celebration.NewPiece(it) }
+        val pieces = br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }.sortedByDescending { it.rarity.ordinal }
+        if (pieces.isNotEmpty()) CelebrationQueue.items += Celebration.NewPiece(pieces)
     }
     LaunchedEffect(level, ready) {
         val seen = runCatching { localStorage.getItem(KEY_LEVEL) }.getOrNull()?.toIntOrNull()
@@ -153,9 +158,9 @@ internal fun tierName(tier: Int) = when (tier) { 1 -> "Bronze"; 2 -> "Prata"; 3 
 /** Quando a cena chega no momento principal: aí entram os textos (e, logo depois, os botões). */
 private fun revealAt(item: Celebration): Double = when (item) {
     is Celebration.LevelUp -> 2.5
-    is Celebration.NewBadge -> 3.7
+    is Celebration.NewBadge -> 4.35
     is Celebration.StreakDay -> 3.0
-    is Celebration.NewPiece -> 3.9
+    is Celebration.NewPiece -> br.com.estudario.domain.FolhaWardrobe.giftFlashAt(item.items.size) + 0.2
 }
 
 /**
@@ -186,14 +191,18 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                     is Celebration.StreakDay -> StreakText(item, r)
                     is Celebration.NewBadge -> BadgeText(item.badge, r)
                     is Celebration.LevelUp -> LevelText(item, r)
-                    is Celebration.NewPiece -> PieceText(item.item, r)
+                    is Celebration.NewPiece -> PieceText(item.items, r)
                 }
             }
             Div({ classes("cel-actions", "lv-late"); attr("style", "--ld:${r + 0.45}s") }) {
                 if (item is Celebration.NewBadge) Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
                 if (item is Celebration.NewPiece) {
                     Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Wardrobe) } }) { Text("Abrir o armário") }
-                    Button({ classes("cel-cta"); onClick { FolhaLook.choose(item.item); Toast.show("O Folha está usando: ${item.item.name}"); onClose() } }) { Text("Usar agora") }
+                    Button({ classes("cel-cta"); onClick {
+                        item.items.forEach { FolhaLook.choose(it) }
+                        Toast.show(if (item.items.size == 1) "O Folha está usando: ${item.items[0].name}" else "O Folha vestiu as peças novas")
+                        onClose()
+                    } }) { Text(if (item.items.size == 1) "Usar agora" else "Vestir tudo") }
                 } else Button({ classes("cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
             }
         }
@@ -207,13 +216,13 @@ private fun Scene(item: Celebration) {
         is Celebration.LevelUp -> listOf("tipo" to "nivel", "nivel" to item.level.toString())
         is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier))
         is Celebration.StreakDay -> listOf("tipo" to "sequencia", "dias" to item.days.toString(), "semana" to item.week.joinToString(",") { (l, done) -> l + if (done) "1" else "0" })
-        is Celebration.NewPiece -> listOf("tipo" to "peca", "piece-slot" to item.item.slot.key, "piece" to item.item.id, "rarity" to item.item.rarity.name.lowercase(), "piece-name" to item.item.name)
+        is Celebration.NewPiece -> listOf("tipo" to "peca", "pieces" to piecesJson(item.items), "rarity" to item.items.maxOf { it.rarity }.name.lowercase())
     }
     val label = when (item) {
         is Celebration.LevelUp -> "O Folha comemora o nível ${item.level}"
         is Celebration.NewBadge -> "Medalha do emblema ${item.badge.name}"
         is Celebration.StreakDay -> "${item.days} dias de sequência"
-        is Celebration.NewPiece -> "O Folha ganha ${item.item.name}"
+        is Celebration.NewPiece -> if (item.items.size == 1) "O Folha ganha ${item.items[0].name}" else "O Folha ganha ${item.items.size} peças novas"
     }
     Div({ classes("cn-stage") }) {
         org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
@@ -269,10 +278,26 @@ private fun LevelText(item: Celebration.LevelUp, r: Double) {
     }
 }
 
+/** As peças para a cena do presente (atributo pieces de <estudario-cena>), em JSON. */
+private fun piecesJson(items: List<br.com.estudario.domain.FolhaItem>): String = items.joinToString(",", "[", "]") { item ->
+    fun q(v: String) = "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+    "{\"slot\":${q(item.slot.key)},\"piece\":${q(item.id)},\"rarity\":${q(item.rarity.name.lowercase())},\"name\":${q(item.name)}}"
+}
+
+/** "A", "A e B", "A, B e C". */
+internal fun joinNames(names: List<String>): String = if (names.size <= 1) names.firstOrNull().orEmpty() else names.dropLast(1).joinToString(", ") + " e " + names.last()
+
 @Composable
-private fun PieceText(item: br.com.estudario.domain.FolhaItem, r: Double) {
-    val rarity = item.rarity.name.lowercase()
-    Span({ classes("cel-eyebrow", "lv-late", "pc-rar", "r-$rarity"); attr("style", "--ld:${r}s") }) { Text("NOVA PEÇA · ${item.rarity.label.uppercase()}") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text(item.name) }
-    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) { Text("${item.slot.label} · ${br.com.estudario.domain.FolhaWardrobe.requirement(item)}") }
+private fun PieceText(items: List<br.com.estudario.domain.FolhaItem>, r: Double) {
+    val best = items.maxOf { it.rarity }
+    val rarity = best.name.lowercase()
+    val one = items.size == 1
+    Span({ classes("cel-eyebrow", "lv-late", "pc-rar", "r-$rarity"); attr("style", "--ld:${r}s") }) {
+        Text(if (one) "NOVA PEÇA · ${best.label.uppercase()}" else "${items.size} PEÇAS NOVAS · ATÉ ${best.label.uppercase()}")
+    }
+    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text(if (one) items[0].name else joinNames(items.map { it.name })) }
+    val reqs = items.map { br.com.estudario.domain.FolhaWardrobe.requirement(it) }.distinct()
+    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) {
+        Text(if (one) "${items[0].slot.label} · ${reqs[0]}" else if (reqs.size == 1) reqs[0] else joinNames(items.map { it.slot.label }.distinct()))
+    }
 }

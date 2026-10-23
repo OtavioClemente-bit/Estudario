@@ -71,7 +71,11 @@ fun CelebrationShowcase(kind: String, tier: Int, item: String?) = EstudarioTheme
         when (kind) {
             "nivel" -> br.com.estudario.ui.profile.LevelUpScreen(br.com.estudario.ui.AppViewModel.LevelUp(7, "Concurseiro", newTitle = true, totalXp = 2_150), onClose = again)
             "sequencia" -> br.com.estudario.ui.profile.StreakCelebrationScreen(br.com.estudario.ui.profile.StreakCelebration(br.com.estudario.domain.StreakSummary(current = 10, best = 10, todayDone = true, week = (6 downTo 0).map { br.com.estudario.domain.StreakDay(br.com.estudario.time.today().minusDays(it.toLong()), done = true, partial = false, future = false) }), "meta"), onClose = again)
-            "peca" -> br.com.estudario.ui.profile.FolhaGiftDialog(br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == item } ?: br.com.estudario.domain.FolhaWardrobe.items.last(), onUse = again, onClose = again)
+            "peca" -> br.com.estudario.ui.profile.FolhaGiftDialog(
+                br.com.estudario.domain.FolhaWardrobe.collection(item)?.let { c -> br.com.estudario.domain.FolhaWardrobe.piecesOf(c).takeLast(2) + listOfNotNull(br.com.estudario.domain.FolhaWardrobe.rewardOf(c)) }
+                    ?: listOf(br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == item } ?: br.com.estudario.domain.FolhaWardrobe.items.last()),
+                onUse = again, onClose = again,
+            )
             else -> br.com.estudario.ui.profile.BadgeCelebrationScreen(listOf(BadgeCatalog.all.first { it.tier == tier.coerceIn(1, 6) } ), onClose = again)
         }
     }

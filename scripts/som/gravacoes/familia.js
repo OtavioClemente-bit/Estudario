@@ -38,11 +38,12 @@ const FAMILIA = {
   tonto: { nome: "Folha tonto", onde: "Quatro toques rápidos no Folha", vol: 0.45, layers: [x("passarinhos", 0, 0.8, 1.0), x("passarinhos", 0.75, 0.65, 1.0, { st: 2 })] },
   cena_emblema: { nome: "Cena: a forja", onde: "Emblema novo", vol: 0.9, cena: true, layers: [
     x("clink", 0.85, 0.22, 0.5, { st: 7 }),
-    x("martelo", 1.25, 0.7, 1.2), x("faisca", 1.26, 0.18, 0.5),
-    x("martelo", 1.7, 0.75, 1.2, { st: -0.6 }), x("faisca", 1.71, 0.2, 0.5),
-    x("marreta", 2.15, 1.4, 0.85, { st: -1 }), x("faisca", 2.16, 0.26, 0.6),
-    x("vapor", 2.3, 0.15, 1.3, { fi: 0.05 }), x("sopro", 2.85, 0.07, 0.8, { st: 3, lp: 3000, fi: 0.15 }),
-    { sub: "conquista", at: 3.45 - 0.62 }] },
+    // as marteladas seguem a cena (folha-live.js, FORGE): 1,35 / 2,05 / 2,8; esfria em 2,85; chega em 4,1
+    x("martelo", 1.35, 0.7, 1.2), x("faisca", 1.36, 0.18, 0.5),
+    x("martelo", 2.05, 0.75, 1.2, { st: -0.6 }), x("faisca", 2.06, 0.2, 0.5),
+    x("marreta", 2.8, 1.4, 0.85, { st: -1 }), x("faisca", 2.81, 0.26, 0.6),
+    x("vapor", 2.95, 0.15, 1.3, { fi: 0.05 }), x("sopro", 3.5, 0.07, 0.8, { st: 3, lp: 3000, fi: 0.15 }),
+    { sub: "conquista", at: 4.1 - 0.62 }] },
   cena_sequencia: { nome: "Cena: a fênix", onde: "Sequência do dia", vol: 0.9, cena: true, layers: [
     x("crepitar", 0.55, 0.42, 1.2, { from: 2, fi: 0.2 }),
     x("bola", 1.65, 0.32, 0.5, { lp: 2500 }), x("jato", 1.72, 0.62, 1.2),
@@ -60,8 +61,8 @@ const FAMILIA = {
     ...[1.0, 1.38, 1.74].map((t) => x("madeira", t, 0.26, 0.2, { st: -5, lp: 1500 })),
     x("fita", 2.1, 0.32, 0.5),
     x("pop", 2.45, 0.7, 0.4, { st: -5 }),
-    x("folhaPapel", 2.55, 0.28, 0.7),
-    { sub: "conquista", at: 3.65 - 0.62 }] },
+    x("folhaPapel", 2.55, 0.28, 0.7)] },
+  // (no presente, o "achou!" (conquista) toca à parte: a hora depende de quantas cartas saem da caixa)
 };
 // Monta e toca um som da família num contexto de áudio (ao vivo ou fora do tempo real, para gerar o WAV).
 async function tocar(ctx, nome, buffers, t0 = ctx.currentTime + 0.03, saida = ctx.destination) {

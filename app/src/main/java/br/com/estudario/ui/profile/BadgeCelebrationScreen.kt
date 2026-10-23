@@ -33,7 +33,7 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
     val badge = badges.getOrNull(index) ?: return
     SceneCelebration(
         scene = listOf("tipo" to "emblema", "tier" to badge.tier.toString(), "categoria" to badge.id.substringBefore("-"), "faixa" to faixaLabel(badge.tier)),
-        reveal = 3.7f,
+        reveal = 4.35f,
         onDismiss = onClose,
         sceneKey = index,
         text = {

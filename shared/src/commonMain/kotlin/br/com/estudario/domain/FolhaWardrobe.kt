@@ -18,7 +18,7 @@ enum class FolhaSlot(val key: String, val label: String, val hint: String, val g
     OCULOS("eyes", "Óculos", "Seguem o olhar do Folha.", FolhaGroup.ACESSORIOS),
     PESCOCO("neck", "Peito", "Gravatas, medalhas e enfeites no pé das páginas.", FolhaGroup.ACESSORIOS),
     MAO("hand", "Na mão", "Um item que ele segura na mão esquerda e leva junto em todos os gestos.", FolhaGroup.ACESSORIOS),
-    COSTAS("back", "Costas", "Atrás do livro: asas, capa ou mochila-foguete. Só saem de coleções completas.", FolhaGroup.EFEITOS),
+    COSTAS("back", "Costas", "Atrás do livro: asas, manto, toga, mochila-foguete ou paraquedas. Só saem de coleções completas.", FolhaGroup.EFEITOS),
     AURA("aura", "Aura", "Um efeito em volta dele. Toque no Folha para ver o estouro.", FolhaGroup.EFEITOS),
     COMPANHEIRO("pet", "Companheiro", "Um amigo que fica ao lado dele, comemora junto e cochila junto.", FolhaGroup.EFEITOS),
 }
@@ -108,6 +108,24 @@ object FolhaWardrobe {
         item("foguete", FolhaSlot.COSTAS, "Mochila-foguete", L, collection = "executivo"),
         item("runas", FolhaSlot.AURA, "Círculo mágico", L, collection = "mago"),
         item("capa-real", FolhaSlot.COSTAS, "Manto real", L, collection = "realeza"),
+        item("paraquedas", FolhaSlot.COSTAS, "Paraquedas verde e amarelo", L, collection = "militar"),
+        item("batimentos", FolhaSlot.AURA, "Batimentos", L, collection = "saude"),
+        item("toga", FolhaSlot.COSTAS, "Toga de magistrado", L, collection = "juridico"),
+
+        // coleções de carreira: peças de quem estuda para a área militar, a saúde e os tribunais
+        item("oliva", FolhaSlot.CAPA, "Verde-oliva", R, level = 11),
+        item("boina-militar", FolhaSlot.CHAPEU, "Boina militar", R, badge = "seq-14"),
+        item("aviador", FolhaSlot.OCULOS, "Óculos de aviador", R, level = 13),
+        item("medalha-militar", FolhaSlot.PESCOCO, "Medalha de honra", E, badge = "meta-100"),
+        item("bandeira", FolhaSlot.MAO, "Bandeira do Brasil", R, badge = "plano-200"),
+        item("jaleco", FolhaSlot.CAPA, "Jaleco branco", R, level = 16),
+        item("touca", FolhaSlot.CHAPEU, "Touca de plantão", R, level = 17),
+        item("estetoscopio", FolhaSlot.PESCOCO, "Estetoscópio", R, badge = "acerto-80"),
+        item("prancheta", FolhaSlot.MAO, "Prancheta de plantão", E, badge = "maratona-360"),
+        item("vademecum", FolhaSlot.CAPA, "Vade Mecum", R, level = 18),
+        item("meia-lua", FolhaSlot.OCULOS, "Óculos meia-lua", R, level = 19),
+        item("balanca", FolhaSlot.PESCOCO, "Broche da balança", E, badge = "edital-75"),
+        item("martelo", FolhaSlot.MAO, "Martelo de juiz", E, badge = "simulado-20"),
 
         // peças que eram de coleção e agora saem por nível
         item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, level = 22),
@@ -221,6 +239,12 @@ object FolhaWardrobe {
             listOf(FolhaSlot.CHAPEU to "bone", FolhaSlot.OCULOS to "escuros", FolhaSlot.PESCOCO to "medalha", FolhaSlot.MAO to "trofeu"), FolhaSlot.AURA to "fogos"),
         FolhaCollection("executivo", "Executivo", "Cartola, monóculo, gravata e capa grafite. Ganha uma mochila-foguete que liga quando ele pula.",
             listOf(FolhaSlot.CAPA to "grafite", FolhaSlot.CHAPEU to "cartola", FolhaSlot.OCULOS to "monoculo", FolhaSlot.PESCOCO to "gravata"), FolhaSlot.COSTAS to "foguete"),
+        FolhaCollection("saude", "Saúde", "Jaleco, touca, estetoscópio e a prancheta do plantão. Ganha os batimentos do monitor em volta dele.",
+            listOf(FolhaSlot.CAPA to "jaleco", FolhaSlot.CHAPEU to "touca", FolhaSlot.PESCOCO to "estetoscopio", FolhaSlot.MAO to "prancheta"), FolhaSlot.AURA to "batimentos"),
+        FolhaCollection("militar", "Militar", "Verde-oliva, boina, óculos de aviador, medalha de honra e a bandeira. Ganha um paraquedas verde e amarelo.",
+            listOf(FolhaSlot.CAPA to "oliva", FolhaSlot.CHAPEU to "boina-militar", FolhaSlot.OCULOS to "aviador", FolhaSlot.PESCOCO to "medalha-militar", FolhaSlot.MAO to "bandeira"), FolhaSlot.COSTAS to "paraquedas"),
+        FolhaCollection("juridico", "Tribunais", "Vade Mecum, óculos meia-lua, a balança da Justiça e o martelo. Ganha a toga de magistrado.",
+            listOf(FolhaSlot.CAPA to "vademecum", FolhaSlot.OCULOS to "meia-lua", FolhaSlot.PESCOCO to "balanca", FolhaSlot.MAO to "martelo"), FolhaSlot.COSTAS to "toga"),
         FolhaCollection("mago", "Mago", "Chapéu, varinha, óculos de estrela e o dragãozinho. Ganha um círculo mágico no chão.",
             listOf(FolhaSlot.CHAPEU to "mago", FolhaSlot.OCULOS to "estrela", FolhaSlot.MAO to "varinha", FolhaSlot.COMPANHEIRO to "dragao"), FolhaSlot.AURA to "runas"),
         FolhaCollection("realeza", "Realeza", "Coroa, roseta, luvas e marcador de ouro. Ganha um manto real esvoaçante.",
@@ -274,6 +298,18 @@ object FolhaWardrobe {
 
     /** Peças que o nível libera. */
     fun unlockedAtLevel(level: Int): List<FolhaItem> = items.filter { it.level == level }
+
+    /**
+     * Na cena do presente (folha-live.js, cenaPeca), em quantos segundos o Folha aparece vestido, para [count]
+     * peças saindo da mesma caixa: as cartas sobem uma atrás da outra e ficam paradas um tempo para a pessoa
+     * ver (mais tempo quando são várias). Os textos e o "achou!" do som entram nessa hora.
+     */
+    fun giftFlashAt(count: Int): Double {
+        val n = count.coerceAtLeast(1)
+        val riseEnd = 3.3 + 0.12 * (n - 1)
+        val hold = if (n > 1) 1.55 + 0.12 * minOf(n, 6) else 1.25
+        return riseEnd + hold + 0.32
+    }
 
     /** Um visual sorteado entre as peças liberadas (o botão "Surpreenda-me"). */
     fun random(summary: ProgressEngine.ProgressSummary, random: kotlin.random.Random = kotlin.random.Random.Default): Map<FolhaSlot, FolhaItem> =

@@ -34,6 +34,15 @@ fun FolhaShowcase() {
                 }
             }
         }
+        Text("Coleções de carreira", fontSize = 12.sp, color = Color(0xFF26215C))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (look in listOf(
+                mapOf("cover" to "oliva", "hat" to "boina-militar", "eyes" to "aviador", "neck" to "medalha-militar", "hand" to "bandeira", "back" to "paraquedas"),
+                mapOf("cover" to "jaleco", "hat" to "touca", "neck" to "estetoscopio", "hand" to "prancheta", "aura" to "batimentos"),
+                mapOf("cover" to "vademecum", "eyes" to "meia-lua", "neck" to "balanca", "hand" to "martelo", "back" to "toga"),
+            )) Folha(118.dp, mood = FolhaMood.IDLE, style = FolhaStyle(look, plain = true))
+        }
+        Folha(150.dp, mood = FolhaMood.IDLE, style = FolhaStyle(mapOf("neck" to "medalha"), plain = true))
         Text("Pequenos (loader, banner)", fontSize = 12.sp, color = Color(0xFF26215C))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Folha(36.dp, mood = FolhaMood.THINKING)

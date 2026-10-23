@@ -73,7 +73,16 @@ fun FolhaScene(attrs: List<Pair<String, String>>, modifier: Modifier = Modifier,
                 // a trilha da cena toca pelo app (SoundPool), começando junto com a página
                 val tipo = attrs.firstOrNull { it.first == "tipo" }?.second
                 webViewClient = object : android.webkit.WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) { if (tipo != null) br.com.estudario.ui.brand.EstudarioSom.play(ctx, "cena_" + tipo, 0.9f) }
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        if (tipo == null) return
+                        br.com.estudario.ui.brand.EstudarioSom.play(ctx, "cena_" + tipo, 0.9f)
+                        // no presente, o "achou!" do Folha entra quando ele aparece vestido (depende de quantas cartas)
+                        if (tipo == "peca") {
+                            val count = attrs.firstOrNull { it.first == "pieces" }?.second?.let { runCatching { org.json.JSONArray(it).length() }.getOrNull() } ?: 1
+                            val at = ((FolhaWardrobe.giftFlashAt(count) - 0.62) * 1000).toLong()
+                            view?.postDelayed({ if (view.isAttachedToWindow) br.com.estudario.ui.brand.EstudarioSom.play(ctx, "conquista", 0.9f) }, at)
+                        }
+                    }
                 }
                 loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
             }

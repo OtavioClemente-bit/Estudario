@@ -28,14 +28,15 @@ private object FolhaGiftSeen {
 private fun FolhaItem.key() = slot.name + ":" + id
 
 /**
- * Quando uma conquista libera peça nova no armário, abre o presente depois das outras comemorações. Na
- * primeira vez no aparelho (ou depois de restaurar um backup), o que já estava liberado entra sem festa.
+ * Quando uma conquista libera peça nova no armário, abre o presente depois das outras comemorações; as peças
+ * que chegam juntas saem da mesma caixa. Na primeira vez no aparelho (ou depois de restaurar um backup), o
+ * que já estava liberado entra sem festa.
  */
 @Composable
 fun FolhaGiftHost(viewModel: AppViewModel, enabled: Boolean) {
     val context = LocalContext.current
     val progress by viewModel.progress.collectAsState()
-    val queue = remember { mutableStateListOf<FolhaItem>() }
+    val queue = remember { mutableStateListOf<List<FolhaItem>>() }
     LaunchedEffect(progress) {
         val summary = progress ?: return@LaunchedEffect
         val owned = FolhaWardrobe.items.filter { (it.badgeId != null || it.level != null || it.collection != null) && FolhaWardrobe.unlocked(it, summary) }
@@ -46,8 +47,8 @@ fun FolhaGiftHost(viewModel: AppViewModel, enabled: Boolean) {
         FolhaGiftSeen.write(context, seen + fresh.map { it.key() })
         queue += fresh.sortedByDescending { it.rarity.ordinal }
     }
-    val item = queue.firstOrNull()
-    if (enabled && item != null) FolhaGiftDialog(item, onUse = { br.com.estudario.data.FolhaLookStore.write(context, listOf(item)); queue.removeAt(0) }, onClose = { queue.removeAt(0) })
+    val items = queue.firstOrNull()
+    if (enabled && items != null) FolhaGiftDialog(items, onUse = { br.com.estudario.data.FolhaLookStore.write(context, items); queue.removeAt(0) }, onClose = { queue.removeAt(0) })
 }
 
 private fun rarityAccent(r: FolhaRarity) = when (r) {
@@ -57,26 +58,36 @@ private fun rarityAccent(r: FolhaRarity) = when (r) {
     FolhaRarity.LENDARIA -> Color(0xFFFFD877)
 }
 
+/** "A", "A e B", "A, B e C". */
+private fun joinNames(names: List<String>): String = if (names.size <= 1) names.firstOrNull().orEmpty() else names.dropLast(1).joinToString(", ") + " e " + names.last()
+
 /**
- * Peça nova (a mesma cena do site): a caixa de presente cai ao lado do Folha, se mexe sozinha com luz
- * vazando, ele puxa a fita, a tampa voa e sobe a carta da peça (com ele vestindo); a carta voa até ele e,
- * num clarão, ele aparece vestido. Depois entram o nome, a raridade e os botões.
+ * Peças novas (a mesma cena do site): a caixa de presente cai ao lado do Folha, se mexe sozinha com luz
+ * vazando, ele puxa a fita, a tampa voa e sobem as cartas (todas juntas, em leque, com ele vestindo cada
+ * peça); elas ficam paradas um tempo, voam até ele e, num clarão, ele aparece vestido. Depois entram os
+ * nomes, a raridade e os botões.
  */
 @Composable
-fun FolhaGiftDialog(item: FolhaItem, onUse: () -> Unit, onClose: () -> Unit) {
+fun FolhaGiftDialog(items: List<FolhaItem>, onUse: () -> Unit, onClose: () -> Unit) {
+    val best = items.maxOf { it.rarity }
+    val one = items.size == 1
+    val pieces = org.json.JSONArray().apply {
+        items.forEach { put(org.json.JSONObject().put("slot", it.slot.key).put("piece", it.id).put("rarity", it.rarity.name.lowercase()).put("name", it.name)) }
+    }
+    val reqs = items.map { FolhaWardrobe.requirement(it) }.distinct()
     SceneCelebration(
-        scene = listOf("tipo" to "peca", "piece-slot" to item.slot.key, "piece" to item.id, "rarity" to item.rarity.name.lowercase(), "piece-name" to item.name),
-        reveal = 3.9f,
+        scene = listOf("tipo" to "peca", "pieces" to pieces.toString(), "rarity" to best.name.lowercase()),
+        reveal = (FolhaWardrobe.giftFlashAt(items.size) + 0.2).toFloat(),
         onDismiss = onClose,
         text = {
-            CelEyebrow("NOVA PEÇA · ${item.rarity.label.uppercase()}", rarityAccent(item.rarity))
-            CelTitle(item.name)
-            CelBody("${item.slot.label} · ${FolhaWardrobe.requirement(item)}")
+            CelEyebrow(if (one) "NOVA PEÇA · ${best.label.uppercase()}" else "${items.size} PEÇAS NOVAS · ATÉ ${best.label.uppercase()}", rarityAccent(best))
+            CelTitle(if (one) items[0].name else joinNames(items.map { it.name }))
+            CelBody(if (one) "${items[0].slot.label} · ${reqs[0]}" else if (reqs.size == 1) reqs[0] else joinNames(items.map { it.slot.label }.distinct()))
         },
         actions = {
             OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp)) { Text("Depois", color = Color.White) }
             Button(onClick = onUse, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp), colors = ButtonDefaults.buttonColors(containerColor = CelGold, contentColor = Color(0xFF2A1A05))) {
-                Text("Usar agora", fontWeight = FontWeight.Bold)
+                Text(if (one) "Usar agora" else "Vestir tudo", fontWeight = FontWeight.Bold)
             }
         },
     )
