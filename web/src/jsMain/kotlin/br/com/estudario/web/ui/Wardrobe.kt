@@ -346,15 +346,6 @@ fun WardrobeScreen() {
             }
         }
 
-        Div({ classes("wdg-auto") }) {
-            Span({ classes("wdg-eyebrow") }) { Text("DETALHES QUE MUDAM SOZINHOS") }
-            Ul({ classes("wd-auto") }) {
-                AutoDetail("coffee", "Manhã", "Uma caneca de café fumegando ao lado dele.")
-                AutoDetail("bedtime", "Noite", "Com o capelo, ele troca por uma touca de dormir.")
-                AutoDetail("local_fire_department", "Sequência", "Medalha no capelo com 7 dias (bronze), 30 (prata) e 100 (ouro).")
-                AutoDetail("warning", "Meta do dia em risco", "No fim da tarde, se a meta ainda não foi batida, ele fica preocupado.")
-            }
-        }
     }
 }
 

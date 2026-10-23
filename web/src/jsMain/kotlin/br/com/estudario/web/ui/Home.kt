@@ -98,22 +98,7 @@ fun HomeScreen() {
             PaceCard(data, plan?.id, plan?.exam)
             PerformanceAndStanding(data, streak.current, streak.best)
             LevelCard(progress)
-            Card {
-                CardHead("Ritmo da semana") { Span({ classes("small", "muted", "strong") }) { Text("recorde: ${streak.best}") } }
-                P({ classes("small", "muted"); attr("style", "margin:-8px 0 14px") }) { Text("${streak.week.count { it.done }} de 7 dias no alvo") }
-                WeekDots(streak.week.map { (it.done || it.protected) to it.partial }, Queries.todayDate().isoDayOfWeek - 1)
-                // Proteção da sequência: uma folga a cada 7 dias seguidos salva um dia ruim.
-                Div({ classes("freeze-line"); attr("title", "A cada 7 dias seguidos você ganha 1 dia de folga (guarda até 2). Num dia sem estudo, ele é usado sozinho e a sequência não zera.") }) {
-                    Icon("shield", filled = streak.freezes > 0)
-                    Text(
-                        when {
-                            streak.freezes > 0 -> "${streak.freezes} ${if (streak.freezes == 1) "dia de folga guardado" else "dias de folga guardados"}" + (if (streak.daysToNextFreeze > 0) " · outro em ${streak.daysToNextFreeze} ${if (streak.daysToNextFreeze == 1) "dia" else "dias"}" else "")
-                            else -> "Folga da sequência em ${streak.daysToNextFreeze} ${if (streak.daysToNextFreeze == 1) "dia seguido" else "dias seguidos"}"
-                        },
-                    )
-                }
-                if (streak.week.any { it.protected }) P({ classes("xs", "muted"); attr("style", "margin:6px 0 0") }) { Text("Uma folga salvou sua sequência esta semana.") }
-            }
+            StreakWeekCard(streak)
         }
     }
 
@@ -341,21 +326,106 @@ private fun PerformanceAndStanding(data: Snapshot, streakDays: Int, best: Int) {
 
 @Composable
 private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressSummary) {
-    Card(extra = "clickable", attrs = { onClick { Router.go(Route.Profile) } }) {
-        Div({ classes("row", "between") }) {
-            Div({ classes("row") }) {
-                Span({ classes("level-badge") }) { Text("${progress.level}") }
-                Div {
-                    B { Text("Nível ${progress.level} · ${progress.levelTitle}") }
-                    Div({ classes("xs", "muted") }) { Text("${progress.totalXp} XP no total") }
-                }
+    // Com a cara da comemoração de subir de nível: o selo dourado com o número, o título e a barra que enche.
+    val pct = (progress.levelProgress * 100).toInt().coerceIn(0, 100)
+    val missing = progress.xpForNextLevel - progress.xpIntoLevel
+    Div({ classes("lvl-card"); attr("role", "button"); attr("tabindex", "0"); onClick { Router.go(Route.Profile) } }) {
+        Div({ classes("lvl-top") }) {
+            Div({ classes("lvl-seal") }) {
+                org.jetbrains.compose.web.dom.Img(src = levelSealSvg(progress.level), alt = "", attrs = { attr("aria-hidden", "true") })
             }
-            Xp(progress.xpToday, green = progress.xpToday > 0)
+            Div({ classes("grow") }) {
+                Span({ classes("lvl-eyebrow") }) { Text("SEU NÍVEL") }
+                B({ classes("lvl-title") }) { Text("Nível ${progress.level} · ${progress.levelTitle}") }
+                Div({ classes("lvl-sub") }) { Text("${progress.totalXp} XP no total") }
+            }
+            if (progress.xpToday > 0) Span({ classes("lvl-today") }) { Icon("bolt", filled = true); Text("+${progress.xpToday} XP hoje") }
         }
-        Div({ attr("style", "margin-top:12px") }) { ProgressBar(progress.levelProgress.toDouble()) }
-        P({ classes("xs", "muted"); attr("style", "margin-top:6px") }) { Text("Faltam ${progress.xpForNextLevel - progress.xpIntoLevel} XP para o nível ${progress.level + 1}") }
+        Div({ classes("lvl-bar") }) {
+            Span({ classes("lvl-fill"); attr("style", "width:${pct.coerceAtLeast(4)}%") })
+            B { Text("${progress.xpIntoLevel} / ${progress.xpForNextLevel} XP") }
+        }
+        Div({ classes("lvl-next") }) { Text("Faltam $missing XP para o nível ${progress.level + 1}") }
     }
 }
+
+/** O selo do nível (estrela dourada com o número), igual ao da comemoração de subir de nível. */
+private fun levelSealSvg(level: Int): String {
+    val svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE38A"/><stop offset=".55" stop-color="#FFB421"/><stop offset="1" stop-color="#E08A00"/></linearGradient>
+<linearGradient id="r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7B6CFF"/><stop offset="1" stop-color="#3A2BC9"/></linearGradient></defs>
+<path d="M30 78 L22 112 L40 102 L50 116 L58 84 Z" fill="url(#r)"/><path d="M90 78 L98 112 L80 102 L70 116 L62 84 Z" fill="url(#r)"/>
+<path d="M60 6 L72 20 L90 16 L94 34 L110 44 L102 60 L110 76 L94 86 L90 104 L72 100 L60 114 L48 100 L30 104 L26 86 L10 76 L18 60 L10 44 L26 34 L30 16 L48 20 Z" fill="url(#g)" stroke="#B86E00" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="60" cy="60" r="31" fill="#2A1F8F" stroke="#FFF1C2" stroke-width="3"/>
+<text x="60" y="${if (level >= 10) 72 else 74}" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="900" font-size="${if (level >= 100) 26 else if (level >= 10) 34 else 40}" fill="#FFD25A">$level</text>
+<path d="M38 26 q6 -6 14 -6" stroke="#FFFFFF" stroke-opacity=".6" stroke-width="4" fill="none" stroke-linecap="round"/></svg>"""
+    return "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(svg) as String
+}
+
+/**
+ * A semana da sequência: cada dia feito é uma chama (a fênix), o dia salvo pela folga é um cristal de
+ * gelo. Embaixo, o estoque de folgas (até 2 cristais) e quanto falta para ganhar a próxima.
+ */
+@Composable
+private fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
+    val todayIndex = Queries.todayDate().isoDayOfWeek - 1
+    Div({ classes("sw-card") }) {
+        Div({ classes("sw-head") }) {
+            org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(FLAME_SVG) as String, alt = "", attrs = { classes("sw-flame-big"); attr("aria-hidden", "true") })
+            Div({ classes("grow") }) {
+                Span({ classes("sw-eyebrow") }) { Text("SEQUÊNCIA DA FÊNIX") }
+                B({ classes("sw-count") }) { Text(if (streak.current == 0) "Comece hoje" else "${streak.current} ${if (streak.current == 1) "dia" else "dias"}") }
+                Div({ classes("sw-sub") }) { Text("${streak.week.count { it.done }} de 7 dias no alvo · recorde ${streak.best}") }
+            }
+        }
+        Div({ classes("sw-week") }) {
+            streak.week.forEachIndexed { i, day ->
+                val state = when {
+                    day.done -> "fire"
+                    day.protected -> "ice"
+                    day.partial -> "partial"
+                    i == todayIndex -> "today"
+                    day.future -> "future"
+                    else -> "miss"
+                }
+                Div({ classes("sw-day", state); attr("title", when (state) { "fire" -> "Dia cumprido"; "ice" -> "A folga salvou este dia"; "partial" -> "Estudou, mas não fechou a meta"; "today" -> "Hoje: ainda dá tempo"; "future" -> ""; else -> "Sem estudo" }) }) {
+                    Span({ classes("sw-letter") }) { Text(Queries.weekdayShort[i].take(1).uppercase()) }
+                    Div({ classes("sw-token") }) {
+                        when (state) {
+                            "fire" -> org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(FLAME_SVG) as String, alt = "")
+                            "ice" -> org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(ICE_SVG) as String, alt = "")
+                            else -> Unit
+                        }
+                    }
+                }
+            }
+        }
+        // O estoque de gelo: até 2 cristais guardados e quanto falta para o próximo.
+        Div({ classes("sw-ice"); attr("title", "A cada 7 dias seguidos você ganha 1 dia de folga (guarda até 2). Num dia sem estudo ele derrete no lugar da sequência.") }) {
+            Div({ classes("sw-ice-slots") }) {
+                repeat(br.com.estudario.domain.StreakEngine.MAX_FREEZES) { k ->
+                    Span({ classes(*listOfNotNull("sw-slot", if (k < streak.freezes) "full" else null).toTypedArray()) }) {
+                        org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(ICE_SVG) as String, alt = "")
+                    }
+                }
+            }
+            Div({ classes("grow") }) {
+                B { Text(if (streak.freezes > 0) "${streak.freezes} ${if (streak.freezes == 1) "folga de gelo guardada" else "folgas de gelo guardadas"}" else "Nenhuma folga guardada") }
+                val next = streak.daysToNextFreeze
+                if (next > 0) {
+                    val done = (br.com.estudario.domain.StreakEngine.DAYS_PER_FREEZE - next).coerceAtLeast(0)
+                    Div({ classes("sw-ice-bar") }) { Span({ attr("style", "width:${done * 100 / br.com.estudario.domain.StreakEngine.DAYS_PER_FREEZE}%") }) }
+                    Div({ classes("sw-sub") }) { Text("Mais $next ${if (next == 1) "dia seguido" else "dias seguidos"} e ganha outra") }
+                } else Div({ classes("sw-sub") }) { Text("Estoque cheio: protege 2 dias ruins") }
+            }
+        }
+        if (streak.week.any { it.protected }) Div({ classes("sw-saved") }) { Text("Uma folga de gelo salvou sua sequência esta semana.") }
+    }
+}
+
+private const val FLAME_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="f" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FF4D2E"/><stop offset=".55" stop-color="#FF9A1F"/><stop offset="1" stop-color="#FFD84A"/></linearGradient><linearGradient id="i" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFB13B"/><stop offset="1" stop-color="#FFF4B8"/></linearGradient></defs><path d="M33 4c3 10 15 16 15 31a16 16 0 0 1-32 0c0-8 4-12 7-16 1 5 3 8 6 9-2-9 0-17 4-24z" fill="url(#f)"/><path d="M32 30c2 5 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 2 5 3 5-1-5 0-9 1-12z" fill="url(#i)"/></svg>"""
+private const val ICE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9FBFF"/><stop offset=".5" stop-color="#8ED8FF"/><stop offset="1" stop-color="#3D8BFF"/></linearGradient></defs><path d="M32 4 L52 18 L52 46 L32 60 L12 46 L12 18 Z" fill="url(#c)" stroke="#2F6FD6" stroke-width="2.5" stroke-linejoin="round"/><path d="M32 4 L32 60 M12 18 L52 46 M52 18 L12 46" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="2"/><path d="M20 20 L28 14" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/><circle cx="44" cy="40" r="2.2" fill="#FFFFFF"/></svg>"""
+
 
 /** Pedindo atenção: revisões, erros, tarefas atrasadas e o tópico mais fraco. Só o que existe. */
 @Composable

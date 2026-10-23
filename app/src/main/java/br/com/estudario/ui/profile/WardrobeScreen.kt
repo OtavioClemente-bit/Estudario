@@ -395,17 +395,6 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                     }
                 }
             }
-            item {
-                ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("DETALHES QUE MUDAM SOZINHOS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        AutoDetail(Icons.Outlined.Coffee, "Manhã", "Uma caneca de café fumegando ao lado dele.")
-                        AutoDetail(Icons.Outlined.Bedtime, "Noite", "Com o capelo, ele troca por uma touca de dormir.")
-                        AutoDetail(Icons.Outlined.LocalFireDepartment, "Sequência", "Medalha no capelo com 7 dias (bronze), 30 (prata) e 100 (ouro).")
-                        AutoDetail(Icons.Outlined.WarningAmber, "Meta do dia em risco", "No fim da tarde, se a meta ainda não foi batida, ele fica preocupado.")
-                    }
-                }
-            }
         }
     }
 }
