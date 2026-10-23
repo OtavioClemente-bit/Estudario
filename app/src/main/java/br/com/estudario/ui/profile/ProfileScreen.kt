@@ -539,8 +539,22 @@ private fun StreakBand(summary: StreakSummary) {
         }
         Spacer(Modifier.height(EstudarioSpacing.comfortable))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            summary.week.forEach { day -> WeekDot(day, colors.completed) }
+            summary.week.forEach { day -> WeekDot(if (day.protected) day.copy(done = true) else day, colors.completed) }
         }
+        Spacer(Modifier.height(EstudarioSpacing.tight))
+        // Proteção da sequência: uma folga a cada 7 dias seguidos salva um dia ruim (guarda até 2).
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
+            Icon(androidx.compose.material.icons.Icons.Outlined.VerifiedUser, null, Modifier.size(18.dp), tint = androidx.compose.ui.graphics.Color(0xFF5E9BFF))
+            Text(
+                when {
+                    summary.freezes > 0 -> "${summary.freezes} ${if (summary.freezes == 1) "dia de folga guardado" else "dias de folga guardados"}" + (if (summary.daysToNextFreeze > 0) " · outro em ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia" else "dias"}" else "")
+                    else -> "Folga da sequência em ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia seguido" else "dias seguidos"}: num dia sem estudo, ela salva a sequência."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (summary.week.any { it.protected }) Text("Uma folga salvou sua sequência esta semana.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(EstudarioSpacing.comfortable))
         if (summary.todayDone) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {

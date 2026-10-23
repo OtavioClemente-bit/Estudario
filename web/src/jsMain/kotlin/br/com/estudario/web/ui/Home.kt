@@ -100,7 +100,18 @@ fun HomeScreen() {
             Card {
                 CardHead("Ritmo da semana") { Span({ classes("small", "muted", "strong") }) { Text("recorde: ${streak.best}") } }
                 P({ classes("small", "muted"); attr("style", "margin:-8px 0 14px") }) { Text("${streak.week.count { it.done }} de 7 dias no alvo") }
-                WeekDots(streak.week.map { it.done to it.partial }, Queries.todayDate().isoDayOfWeek - 1)
+                WeekDots(streak.week.map { (it.done || it.protected) to it.partial }, Queries.todayDate().isoDayOfWeek - 1)
+                // Proteção da sequência: uma folga a cada 7 dias seguidos salva um dia ruim.
+                Div({ classes("freeze-line"); attr("title", "A cada 7 dias seguidos você ganha 1 dia de folga (guarda até 2). Num dia sem estudo, ele é usado sozinho e a sequência não zera.") }) {
+                    Icon("shield", filled = streak.freezes > 0)
+                    Text(
+                        when {
+                            streak.freezes > 0 -> "${streak.freezes} ${if (streak.freezes == 1) "dia de folga guardado" else "dias de folga guardados"}" + (if (streak.daysToNextFreeze > 0) " · outro em ${streak.daysToNextFreeze} ${if (streak.daysToNextFreeze == 1) "dia" else "dias"}" else "")
+                            else -> "Folga da sequência em ${streak.daysToNextFreeze} ${if (streak.daysToNextFreeze == 1) "dia seguido" else "dias seguidos"}"
+                        },
+                    )
+                }
+                if (streak.week.any { it.protected }) P({ classes("xs", "muted"); attr("style", "margin:6px 0 0") }) { Text("Uma folga salvou sua sequência esta semana.") }
             }
         }
     }

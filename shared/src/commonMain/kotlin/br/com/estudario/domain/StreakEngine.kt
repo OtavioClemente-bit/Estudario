@@ -46,7 +46,7 @@ data class DailyGoal(
     }
 }
 
-data class StreakDay(val date: LocalDate, val done: Boolean, val partial: Boolean, val future: Boolean)
+data class StreakDay(val date: LocalDate, val done: Boolean, val partial: Boolean, val future: Boolean, val protected: Boolean = false)
 
 data class StreakSummary(
     val current: Int = 0,
@@ -61,6 +61,12 @@ data class StreakSummary(
     val activeDays: Int = 0,
     val totalQuestions: Int = 0,
     val totalMinutes: Int = 0,
+    /** Dias de folga guardados agora: ganha 1 a cada 7 dias seguidos (até [StreakEngine.MAX_FREEZES]). */
+    val freezes: Int = 0,
+    /** Dias sem estudo em que uma folga salvou a sequência. */
+    val protectedDays: Set<LocalDate> = emptySet(),
+    /** Dias seguidos até a próxima folga (0 quando já tem o máximo). */
+    val daysToNextFreeze: Int = 0,
 ) {
     /** 0f..1f, quanto falta para fechar o dia. Tarefa do plano ou revisão já fecham sozinhas. */
     val todayProgress: Float
@@ -72,6 +78,11 @@ data class StreakSummary(
 }
 
 object StreakEngine {
+    /** Folgas que dá para guardar ao mesmo tempo. */
+    const val MAX_FREEZES = 2
+    /** Dias seguidos que valem uma folga. */
+    const val DAYS_PER_FREEZE = 7
+
     /** O dia conta para a sequência? */
     fun isDone(day: DailyActivity, goal: DailyGoal): Boolean =
         day.questions >= goal.questionsOn(day.date) || day.planTasks > 0 || day.reviews > 0
@@ -102,18 +113,36 @@ object StreakEngine {
         val byDate = days.associateBy { it.date }
         val doneDays = byDate.values.filter { isDone(it, goal) }.mapTo(hashSetOf()) { it.date }
 
+        // Proteção da sequência (como a folga do Duolingo): a cada 7 dias seguidos a pessoa ganha um dia
+        // de folga (guarda até 2). Um dia sem estudo no meio da sequência gasta uma folga em vez de zerar
+        // tudo. O dia salvo não soma na contagem, mas não quebra. Hoje, ainda em aberto, nunca gasta folga.
+        val protectedDays = hashSetOf<LocalDate>()
+        var freezes = 0
+        var run = 0
+        var best = 0
+        val first = doneDays.minOrNull()
+        if (first != null) {
+            var d: LocalDate = first
+            while (d.isBefore(today) || d == today) {
+                when {
+                    d in doneDays -> {
+                        run++
+                        best = maxOf(best, run)
+                        if (run % DAYS_PER_FREEZE == 0) freezes = minOf(freezes + 1, MAX_FREEZES)
+                    }
+                    d == today -> Unit
+                    run > 0 && freezes > 0 -> { freezes--; protectedDays.add(d) }
+                    else -> run = 0
+                }
+                d = d.plusDays(1)
+            }
+        }
+        val kept = doneDays + protectedDays
+
         // Sequência atual: o dia de hoje ainda em aberto não quebra a sequência de ontem.
         var cursor = if (today in doneDays) today else today.minusDays(1)
         var current = 0
-        while (cursor in doneDays) { current++; cursor = cursor.minusDays(1) }
-
-        var best = 0
-        var run = 0
-        val sorted = doneDays.sorted()
-        sorted.forEachIndexed { index, date ->
-            run = if (index > 0 && sorted[index - 1].plusDays(1) == date) run + 1 else 1
-            best = maxOf(best, run)
-        }
+        while (cursor in kept) { if (cursor in doneDays) current++; cursor = cursor.minusDays(1) }
 
         val weekStart = today.minusDays((today.isoDayOfWeek - 1).toLong())
         val week = (0..6).map { offset ->
@@ -124,6 +153,7 @@ object StreakEngine {
                 done = date in doneDays,
                 partial = date !in doneDays && activity?.hasAnything == true,
                 future = date.isAfter(today),
+                protected = date in protectedDays,
             )
         }
 
@@ -146,6 +176,9 @@ object StreakEngine {
             activeDays = byDate.values.count { it.hasAnything },
             totalQuestions = byDate.values.sumOf { it.questions },
             totalMinutes = byDate.values.sumOf { it.minutes },
+            freezes = freezes,
+            protectedDays = protectedDays,
+            daysToNextFreeze = if (freezes >= MAX_FREEZES || current == 0) (if (freezes >= MAX_FREEZES) 0 else DAYS_PER_FREEZE) else DAYS_PER_FREEZE - (current % DAYS_PER_FREEZE),
         )
     }
 }
