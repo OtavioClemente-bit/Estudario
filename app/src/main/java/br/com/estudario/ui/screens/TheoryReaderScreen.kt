@@ -166,12 +166,22 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             val index = selected
             if (index != null && index in blocks.indices) {
                 val blockMarks = marks.filter { it.blockIndex == index }
+                // Grifo do parágrafo inteiro e grifos de trechos são independentes: ter um trecho grifado
+                // não impede grifar outro trecho (segurando e arrastando) nem o parágrafo todo.
+                val whole = blockMarks.firstOrNull { it.quote == blocks[index] }
+                val pieces = blockMarks.filter { it.quote != blocks[index] }
                 SelectionBar(
-                    highlighted = blockMarks.isNotEmpty(),
+                    highlighted = whole != null,
+                    pieces = pieces.size,
+                    onRemovePieces = {
+                        pieces.forEach { viewModel.deleteTheoryMark(it) }
+                        scope.launch { snackbar.showSnackbar(if (pieces.size > 1) "Trechos grifados removidos." else "Trecho grifado removido.") }
+                        selected = null
+                    },
                     onHighlight = {
-                        if (blockMarks.isNotEmpty()) {
-                            blockMarks.forEach { viewModel.deleteTheoryMark(it) }
-                            scope.launch { snackbar.showSnackbar(if (blockMarks.size > 1) "Grifos do parágrafo removidos." else "Grifo removido.") }
+                        if (whole != null) {
+                            viewModel.deleteTheoryMark(whole)
+                            scope.launch { snackbar.showSnackbar("Grifo do parágrafo removido.") }
                         } else {
                             viewModel.saveTheoryMark(TheoryMarkEntity(theoryId = theoryId, blockIndex = index, quote = blocks[index], note = ""))
                             markHintSeen = true
@@ -325,14 +335,22 @@ private fun androidx.compose.ui.graphics.Color.luminance(): Float = 0.2126f * re
 
 /** Barra que sobe quando um parágrafo está selecionado. */
 @Composable
-private fun SelectionBar(highlighted: Boolean, onHighlight: () -> Unit, onNote: () -> Unit, onCopy: () -> Unit, onReport: () -> Unit, onClose: () -> Unit) {
+private fun SelectionBar(highlighted: Boolean, pieces: Int, onRemovePieces: () -> Unit, onHighlight: () -> Unit, onNote: () -> Unit, onCopy: () -> Unit, onReport: () -> Unit, onClose: () -> Unit) {
     Surface(tonalElevation = 6.dp, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SelectionAction(if (highlighted) Icons.Outlined.FormatColorReset else Icons.Outlined.BorderColor, if (highlighted) "Tirar grifo" else "Grifar", Modifier.weight(1f), onHighlight)
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+        if (pieces > 0) Text(
+            "Para grifar outro trecho, segure uma palavra e arraste até onde quiser.",
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            SelectionAction(if (highlighted) Icons.Outlined.FormatColorReset else Icons.Outlined.BorderColor, if (highlighted) "Tirar grifo" else "Grifar tudo", Modifier.weight(1f), onHighlight)
+            if (pieces > 0) SelectionAction(Icons.Outlined.FormatColorReset, if (pieces > 1) "Tirar trechos" else "Tirar trecho", Modifier.weight(1f), onRemovePieces)
             SelectionAction(Icons.Outlined.EditNote, "Anotar", Modifier.weight(1f), onNote)
             SelectionAction(Icons.Outlined.ContentCopy, "Copiar", Modifier.weight(1f), onCopy)
             SelectionAction(Icons.Outlined.Flag, "Reportar", Modifier.weight(1f), onReport)
             IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, "Cancelar seleção") }
+        }
         }
     }
 }

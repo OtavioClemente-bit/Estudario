@@ -7,6 +7,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -121,7 +125,7 @@ fun StatisticsScreen(viewModel: AppViewModel, onBack: () -> Unit, showInlineBack
                 if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Voltar") }
                 Column(Modifier.weight(1f)) {
                     Text("Desempenho", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 3.dp).marker())
-                    Text("Como você está, num relance", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Seu estudo em números", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -281,18 +285,56 @@ private fun Kpi(icon: ImageVector, value: String, label: String, color: Color, m
 
 // ---------------------------------------------------------------------------------- ritmo diário
 
-/** Barras = minutos de estudo por dia; pontos sobre a barra = acerto do dia, na cor da escala. */
+/**
+ * Barras = minutos de estudo por dia; pontos sobre a barra = acerto do dia. Tocar (ou arrastar o dedo)
+ * numa barra mostra o dia inteiro num cartão em cima do gráfico; a linha tracejada é a média dos dias
+ * com estudo, e o melhor dia ganha a coroa.
+ */
 @Composable
 private fun RhythmCard(points: List<DailyActivityPoint>, label: String) {
     val days = points.takeLast(if (points.size > 31) 31 else points.size)
     val maxMinutes = (days.maxOfOrNull { it.minutes } ?: 0).coerceAtLeast(30)
     val active = days.count { it.eventCount > 0 }
+    val studied = days.filter { it.minutes > 0 }
+    val average = if (studied.isEmpty()) 0 else studied.sumOf { it.minutes } / studied.size
+    val best = studied.maxByOrNull { it.minutes }
+    var selected by androidx.compose.runtime.remember(days.size) { androidx.compose.runtime.mutableStateOf<Int?>(days.lastIndex.takeIf { it >= 0 && days[it].eventCount > 0 }) }
     Panel {
         PanelTitle("Seu ritmo", "$label · $active de ${days.size} dias com estudo")
+        // Os destaques do período, sempre à vista.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RhythmStat("Média por dia de estudo", if (average > 0) formatHours(average.toLong()) else "--", Modifier.weight(1f))
+            RhythmStat("Melhor dia", best?.let { "${formatHours(it.minutes.toLong())} · ${shortDate(it)}" } ?: "--", Modifier.weight(1f))
+        }
+        // O cartão do dia escolhido.
+        val day = selected?.let { days.getOrNull(it) }
+        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f), modifier = Modifier.fillMaxWidth()) {
+            if (day == null) Text("Toque numa barra para ver o dia", Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val weekday = day.date.dayOfWeek.toJavaDayOfWeek().getDisplayName(TextStyle.FULL, Locale("pt", "BR")).replaceFirstChar { it.uppercase() }
+                Text("$weekday, ${shortDate(day)}" + if (day == best) "  ·  melhor dia" else "", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(if (day.minutes > 0) formatHours(day.minutes.toLong()) + " de estudo" else if (day.eventCount > 0) "Estudou, sem tempo cronometrado" else "Sem estudo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                val extras = listOfNotNull(
+                    day.attempts.takeIf { it > 0 }?.let { "$it ${if (it == 1) "questão" else "questões"}" },
+                    day.accuracyPercent?.let { "$it% de acerto" },
+                    if (average > 0 && day.minutes > 0) (day.minutes - average).let { d -> if (d >= 0) "+${formatHours(d.toLong())} acima da média" else "${formatHours((-d).toLong())} abaixo da média" } else null,
+                )
+                if (extras.isNotEmpty()) Text(extras.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         val barColor = MaterialTheme.colorScheme.primary
         val idle = MaterialTheme.colorScheme.surfaceVariant
         val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f)
-        Canvas(Modifier.fillMaxWidth().height(150.dp)) {
+        val highlight = MaterialTheme.colorScheme.tertiary
+        Canvas(
+            Modifier.fillMaxWidth().height(160.dp)
+                .pointerInput(days.size) {
+                    detectTapGestures { pos -> selected = (pos.x / (size.width / days.size.coerceAtLeast(1))).toInt().coerceIn(0, days.lastIndex) }
+                }
+                .pointerInput(days.size) {
+                    detectHorizontalDragGestures { change, _ -> selected = (change.position.x / (size.width / days.size.coerceAtLeast(1))).toInt().coerceIn(0, days.lastIndex) }
+                },
+        ) {
             val slot = size.width / days.size.coerceAtLeast(1)
             val barWidth = (slot * .62f).coerceAtMost(28.dp.toPx())
             val chartHeight = size.height - 10.dp.toPx()
@@ -300,28 +342,35 @@ private fun RhythmCard(points: List<DailyActivityPoint>, label: String) {
                 val y = chartHeight * (1 - fraction)
                 drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
             }
-            days.forEachIndexed { index, day ->
+            days.forEachIndexed { index, d ->
                 val x = slot * index + (slot - barWidth) / 2
-                val height = if (day.minutes > 0) (day.minutes.toFloat() / maxMinutes * chartHeight).coerceAtLeast(6.dp.toPx())
-                else if (day.eventCount > 0) 6.dp.toPx() else 3.dp.toPx()
+                val height = if (d.minutes > 0) (d.minutes.toFloat() / maxMinutes * chartHeight).coerceAtLeast(6.dp.toPx())
+                else if (d.eventCount > 0) 6.dp.toPx() else 3.dp.toPx()
+                val isSel = index == selected
+                if (isSel) drawRoundRect(barColor.copy(alpha = .12f), Offset(slot * index, 0f), Size(slot, chartHeight), CornerRadius(8.dp.toPx(), 8.dp.toPx()))
                 drawRoundRect(
-                    if (day.eventCount > 0) barColor else idle,
+                    if (d.eventCount > 0) (if (isSel) highlight else barColor) else idle,
                     Offset(x, chartHeight - height),
                     Size(barWidth, height),
                     CornerRadius(barWidth / 2, barWidth / 2),
                 )
-                day.accuracyPercent?.let { percent ->
+                d.accuracyPercent?.let { percent ->
                     val cy = chartHeight - height - 7.dp.toPx()
                     drawCircle(Color.White, 5.dp.toPx(), Offset(x + barWidth / 2, cy))
                     drawCircle(accuracyTone(percent), 3.5.dp.toPx(), Offset(x + barWidth / 2, cy))
                 }
             }
+            // A média dos dias com estudo, tracejada.
+            if (average > 0) {
+                val y = chartHeight - average.toFloat() / maxMinutes * chartHeight
+                drawLine(highlight.copy(alpha = .7f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.5.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+            }
         }
         // Rótulos: dia da semana quando cabe; em períodos longos, só o começo e o fim.
         if (days.size <= 14) Row(Modifier.fillMaxWidth()) {
-            days.forEach { day ->
+            days.forEach { d ->
                 Text(
-                    day.date.dayOfWeek.toJavaDayOfWeek().getDisplayName(TextStyle.NARROW, Locale("pt", "BR")).uppercase(),
+                    d.date.dayOfWeek.toJavaDayOfWeek().getDisplayName(TextStyle.NARROW, Locale("pt", "BR")).uppercase(),
                     Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
@@ -336,6 +385,17 @@ private fun RhythmCard(points: List<DailyActivityPoint>, label: String) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Legend(barColor, "minutos de estudo")
             Legend(Strong, "acerto do dia", round = true)
+            if (average > 0) Legend(highlight, "média")
+        }
+    }
+}
+
+@Composable
+private fun RhythmStat(label: String, value: String, modifier: Modifier) {
+    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .6f), modifier = modifier) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

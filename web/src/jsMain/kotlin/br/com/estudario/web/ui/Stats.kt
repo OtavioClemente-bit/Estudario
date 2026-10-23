@@ -40,7 +40,7 @@ fun AchievementsScreen() {
     var open by remember { mutableStateOf<String?>(null) }
     open?.let { id -> progress.badges.firstOrNull { it.badge.id == id }?.let { MedalDetail(it, progress.badges, onPick = { open = it }, onClose = { open = null }) } }
     BackToProfile()
-    PageHead("Conquistas", "${progress.earnedBadges.size} de ${progress.badges.size} emblemas. Tudo vem do seu histórico real.")
+    PageHead("Conquistas", "${progress.earnedBadges.size} de ${progress.badges.size} emblemas. Continue estudando para liberar os próximos.")
     Div({ classes("badges") }) {
         (progress.earnedBadges + progress.nextBadges).forEach { item ->
             androidx.compose.runtime.key(item.badge.id) {
@@ -166,7 +166,7 @@ fun StatsScreen() {
     val minutes = window.sumOf { activity[it]?.minutes ?: 0 }
     val activeDays = window.count { activity[it]?.hasAnything == true }
 
-    PageHead("Desempenho", "Como você está, num relance") {
+    PageHead("Desempenho", "Seu estudo em números") {
         Div({ classes("filter-chips") }) {
             listOf(7 to "7 dias", 30 to "30 dias", 90 to "90 dias", 0 to "Tudo").forEach { (n, label) ->
                 Button({ classes(*listOfNotNull("fchip", if (days == n) "on" else null).toTypedArray()); onClick { days = n } }) { Text(label) }
@@ -219,7 +219,35 @@ fun StatsScreen() {
             H3 { Text("Seu ritmo") }
             P({ classes("small", "muted") }) { Text("Últimos ${shown.size} dias · ${shown.count { activity[it]?.hasAnything == true }} de ${shown.size} com estudo") }
         }
-        Div({ classes("rhythm") }) {
+        // Destaques do período e o dia apontado (passar o mouse ou tocar numa barra).
+        val studiedDays = shown.filter { (activity[it]?.minutes ?: 0) > 0 }
+        val average = if (studiedDays.isEmpty()) 0 else studiedDays.sumOf { activity[it]!!.minutes } / studiedDays.size
+        val best = studiedDays.maxByOrNull { activity[it]!!.minutes }
+        var hovered by remember(shown.size) { mutableStateOf<kotlinx.datetime.LocalDate?>(null) }
+        Div({ classes("rhythm-stats") }) {
+            Div({ classes("rstat") }) { Span { Text("Média por dia de estudo") }; B { Text(if (average > 0) Queries.minutesLabel(average) else "--") } }
+            Div({ classes("rstat") }) { Span { Text("Melhor dia") }; B { Text(best?.let { "${Queries.minutesLabel(activity[it]!!.minutes)} · ${Queries.shortDate(it)}" } ?: "--") } }
+            Div({ classes("rstat") }) { Span { Text("Total no período") }; B { Text(Queries.minutesLabel(shown.sumOf { activity[it]?.minutes ?: 0 })) } }
+        }
+        Div({ classes("rhythm"); onMouseLeave { hovered = null } }) {
+            if (average > 0) I({ classes("ravg"); attr("style", "bottom:${average * 100 / max}%") }) { Span { Text("média") } }
+            hovered?.let { date ->
+                val day = activity[date]
+                val value = day?.minutes ?: 0
+                val acc = day?.takeIf { it.questions > 0 }?.let { percent(it.correct, it.questions) }
+                val index = shown.indexOf(date)
+                val leftPct = (index * 100.0 + 50.0) / shown.size
+                Div({ classes(*listOfNotNull("rtip", if (leftPct > 70) "right" else if (leftPct < 30) "left" else null).toTypedArray()); attr("style", "left:${leftPct}%") }) {
+                    Div({ classes("rtip-date") }) { Text(Queries.weekdayShort[date.isoDayOfWeek - 1].replaceFirstChar { it.uppercase() } + ", " + Queries.shortDate(date) + if (date == today) " · hoje" else if (date == best) " · melhor dia" else "") }
+                    B({ classes("rtip-main") }) { Text(if (value > 0) Queries.minutesLabel(value) else if (day?.hasAnything == true) "Estudou" else "Sem estudo") }
+                    if (day != null && day.focusMinutes > 0) Div({ classes("rtip-row") }) { Icon("timer"); Text("Foco: ${Queries.minutesLabel(day.focusMinutes)}") }
+                    if (day != null && day.questionMinutes > 0) Div({ classes("rtip-row") }) { Icon("quiz"); Text("Em questões: ${Queries.minutesLabel(day.questionMinutes)}") }
+                    if (day != null && day.questions > 0) Div({ classes("rtip-row") }) { Icon("check_circle"); Text("${day.questions} ${if (day.questions == 1) "questão" else "questões"}" + (acc?.let { " · $it% de acerto" } ?: "")) }
+                    if (day != null && day.reviews > 0) Div({ classes("rtip-row") }) { Icon("history"); Text("${day.reviews} ${if (day.reviews == 1) "revisão" else "revisões"}") }
+                    if (day != null && day.planTasks > 0) Div({ classes("rtip-row") }) { Icon("task_alt"); Text("${day.planTasks} ${if (day.planTasks == 1) "tarefa" else "tarefas"} do plano") }
+                    if (average > 0 && value > 0) Div({ classes("rtip-cmp", if (value >= average) "up" else "down") }) { Text(if (value >= average) "+${Queries.minutesLabel(value - average)} acima da média" else "${Queries.minutesLabel(average - value)} abaixo da média") }
+                }
+            }
             shown.forEach { date ->
                 val day = activity[date]
                 val value = day?.minutes ?: 0
@@ -234,7 +262,12 @@ fun StatsScreen() {
                     if (day != null && day.reviews > 0) add("${day.reviews} ${if (day.reviews == 1) "revisão" else "revisões"}")
                     if (day != null && day.planTasks > 0) add("${day.planTasks} ${if (day.planTasks == 1) "tarefa" else "tarefas"} do plano")
                 }.joinToString(" · ")
-                Div({ classes(*listOfNotNull("rcol", if (date == today) "today" else null).toTypedArray()); attr("title", tip) }) {
+                Div({
+                    classes(*listOfNotNull("rcol", if (date == today) "today" else null, if (date == hovered) "on" else null).toTypedArray())
+                    attr("aria-label", tip)
+                    onMouseEnter { hovered = date }
+                    onClick { hovered = if (hovered == date) null else date }
+                }) {
                     if (acc != null) I({ classes("rdot"); attr("style", "background:${accuracyColor(acc)}") })
                     I({ classes(*listOfNotNull("rbar", if (!active) "idle" else null).toTypedArray()); attr("style", "height:${if (value > 0) (value * 100 / max).coerceAtLeast(5) else if (active) 5 else 3}%") })
                 }
@@ -245,8 +278,7 @@ fun StatsScreen() {
         Div({ classes("row", "wrap", "xs", "muted"); attr("style", "gap:14px;margin-top:8px") }) {
             Span({ classes("legend") }) { Span({ classes("sw"); attr("style", "background:var(--primary)") }); Text("minutos de estudo") }
             Span({ classes("legend") }) { Span({ classes("sw", "round"); attr("style", "background:#2FA36B") }); Text("acerto do dia") }
-            val focus = shown.sumOf { activity[it]?.focusMinutes ?: 0 }; val quiz = shown.sumOf { activity[it]?.questionMinutes ?: 0 }
-            if (focus + quiz > 0) Span { Text("Tempo = modo foco (${Queries.minutesLabel(focus)}) + questões (${Queries.minutesLabel(quiz)}), sem contar duas vezes") }
+            if (average > 0) Span({ classes("legend") }) { Span({ classes("sw"); attr("style", "background:#F2A900;height:2px") }); Text("média dos dias de estudo") }
         }
     }
 
