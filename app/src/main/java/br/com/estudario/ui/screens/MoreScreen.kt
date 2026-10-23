@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.material3.MaterialTheme
@@ -111,6 +112,17 @@ fun MoreScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        item {
+            // os sons do Estudário: criados para o app; não tocam no silencioso nem na vibração
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            var som by remember { mutableStateOf(br.com.estudario.ui.brand.EstudarioSom.isOn(ctx)) }
+            Group("Sons") {
+                ToggleRow(Icons.AutoMirrored.Outlined.VolumeUp, "Sons do Estudário", "Acerto, erro, toque no Folha e as comemorações. Não tocam com o celular no silencioso.", som) {
+                    som = it; br.com.estudario.ui.brand.EstudarioSom.setOn(ctx, it); if (it) br.com.estudario.ui.brand.EstudarioSom.play(ctx, "acerto")
                 }
             }
         }

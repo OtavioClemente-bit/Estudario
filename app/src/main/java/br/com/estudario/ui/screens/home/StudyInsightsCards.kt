@@ -136,7 +136,12 @@ object MissionStore {
 private fun MissionDone(r: StudyInsights.MissionResult, onAgain: () -> Unit, onClose: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val anim = remember(r.mission.startedAt) { androidx.compose.animation.core.Animatable(r.mission.before.toFloat()) }
-    LaunchedEffect(r.mission.startedAt, r.after) { kotlinx.coroutines.delay(450); anim.animateTo(r.after.toFloat(), androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+    val ctxSom = LocalContext.current
+    LaunchedEffect(r.mission.startedAt, r.after) {
+        // a primeira vez que o card aparece para esta missão, toca o som de missão cumprida
+        val p = weekPrefs(ctxSom)
+        if (p.getLong("missao_som", 0L) != r.mission.startedAt) { p.edit().putLong("missao_som", r.mission.startedAt).apply(); br.com.estudario.ui.brand.EstudarioSom.play(ctxSom, "missao") }
+        kotlinx.coroutines.delay(450); anim.animateTo(r.after.toFloat(), androidx.compose.animation.core.tween(1600, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
     val green = Color(0xFF1FA65C)
     InsightCard(green) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

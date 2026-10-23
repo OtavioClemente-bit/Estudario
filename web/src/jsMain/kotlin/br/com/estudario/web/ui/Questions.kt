@@ -299,6 +299,8 @@ fun QuizScreen(scope: String) {
             if (planTask != null) Toast.show("Tarefa do plano concluída!")
         }
         val xp = ProgressEngine.previewQuestions(results.size).base + right
+        // fim da bateria: a assinatura do Estudário
+        androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { kotlinx.browser.window.asDynamic().estudarioSom?.play("resultado") } }
         Card(extra = "pad-lg") {
             Div({ classes("stack"); attr("style", "align-items:center;text-align:center;padding:12px 0") }) {
                 Ring(if (results.isEmpty()) 0.0 else right.toDouble() / results.size) {
@@ -464,40 +466,6 @@ fun QuizScreen(scope: String) {
 }
 
 
-/** O que o Folha fala ao acertar e errar (FolhaLines do app); a semente é a questão, para não trocar a cada tela. */
-private val RIGHT_LINES = listOf(
-    "Isso! Mandou muito bem.",
-    "Acertou! Esse conteúdo já é seu.",
-    "Na mosca! Banca nenhuma te pega nessa.",
-    "Boa! É assim que a vaga vai chegando.",
-    "Perfeito. Pode marcar esse ponto no placar.",
-    "Acertou e com estilo. Próxima!",
-)
-private val WRONG_LINES = listOf(
-    "Errar aqui é melhor que errar na prova. Lê a explicação comigo?",
-    "Tudo bem! Essa volta pro seu caderno de erros e na próxima é sua.",
-    "Quase! Esse é exatamente o tipo de pegadinha que a banca adora.",
-    "Respira. Cada erro agora é um ponto a mais no dia da prova.",
-    "Faz parte. Entendendo o porquê, você não erra mais essa.",
-    "Opa, essa enganou. Bora entender e virar o jogo?",
-)
-
-/** Acertou logo depois de errar: o Folha solta o ar ("ufa"). */
-private val RELIEF_LINES = listOf(
-    "Ufa! Errou a anterior, mas essa você virou. É assim que se aprende.",
-    "Ufa! Recuperou na hora. Essa sacudida faz bem.",
-    "Ufa, voltou pro trilho! Bora manter.",
-    "Viu? Um erro não define a bateria. Mandou bem agora.",
-)
-
-/** Muitos acertos seguidos: o Folha pega fogo junto. */
-private val FIRE_LINES = listOf(
-    "Tá pegando fogo! Ninguém te segura hoje.",
-    "Sequência absurda! A banca que se cuide.",
-    "Em chamas! Continua nesse ritmo que a vaga é sua.",
-    "Isso é constância de quem passa. Próxima!",
-)
-
 /** Emblemas da sequência de acertos na bateria: aparecem ao chegar em cada marca. */
 private val STREAK_BADGES = listOf(3 to "Aquecendo", 5 to "Em chamas", 10 to "Imparável", 15 to "Lenda da bateria", 20 to "Gabaritando")
 
@@ -514,8 +482,11 @@ private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long
     val fire = right && streak >= 5
     // errou três ou mais seguidas: em vez da frase de erro, ele acolhe
     val tough = !right && results.size >= 3 && results.takeLast(3).none { it }
-    val lines = when { fire -> FIRE_LINES; relief -> RELIEF_LINES; right -> RIGHT_LINES; tough -> br.com.estudario.domain.FolhaMemory.toughLines; else -> WRONG_LINES }
-    val line = lines[((questionId % lines.size + lines.size) % lines.size).toInt()]
+    val F = br.com.estudario.domain.FolhaFalas
+    val tl = br.com.estudario.domain.FolhaMemory.toughLines
+    val line = when { fire -> F.fire(questionId); relief -> F.relief(questionId); right -> F.answer(true, questionId); tough -> tl[((questionId % tl.size + tl.size) % tl.size).toInt()]; else -> F.answer(false, questionId) }
+    // o som da resposta (sons do Estudário): acerto, erro ou o arpejo da sequência
+    androidx.compose.runtime.LaunchedEffect(questionId) { runCatching { kotlinx.browser.window.asDynamic().estudarioSom?.play(if (fire || badge != null) "combo" else if (right) "acerto" else "erro") } }
     val mood = when { fire -> "ecstatic"; badge != null -> "proud"; relief -> "relieved"; right -> "happy"; tough -> "talking"; else -> "sad" }
     Div({ classes("answer-reaction", if (right) "ok" else "bad", "pop-in") }) {
         Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { androidx.compose.runtime.key(questionId) { Folha(mood, 72) } }

@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        br.com.estudario.ui.brand.EstudarioSom.init(this)
         enableEdgeToEdge()
         // Mantém o login do Google vivo: ao abrir o app e a cada 10 minutos com ele na tela, a
         // sessão é renovada em silêncio antes de vencer (sem isso a pessoa "caía" depois de 1 hora).

@@ -320,6 +320,7 @@ fun Folha(
         indication = null,
     ) {
         sim.poke()
+        br.com.estudario.ui.brand.EstudarioSom.play(context, "toque", 0.7f)
         onClick()
     } else Modifier
 

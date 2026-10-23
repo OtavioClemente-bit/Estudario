@@ -414,6 +414,20 @@ fun SettingsScreen() {
             }
         }
         Card {
+            // os sons do Estudário (folha-live.js, estudarioSom): criados para o app, desligáveis aqui
+            CardHead("Sons")
+            var som by remember { mutableStateOf(runCatching { kotlinx.browser.window.asDynamic().estudarioSom.enabled as Boolean }.getOrDefault(true)) }
+            Div({ classes("segmented") }) {
+                listOf(true to "Ligados", false to "Desligados").forEach { (v, label) ->
+                    Button({
+                        classes(*listOfNotNull(if (som == v) "on" else null).toTypedArray())
+                        onClick { som = v; runCatching { kotlinx.browser.window.asDynamic().estudarioSom.set(v); if (v) kotlinx.browser.window.asDynamic().estudarioSom.play("acerto") } }
+                    }) { Text(label) }
+                }
+            }
+            P({ classes("xs", "muted"); attr("style", "margin:8px 0 0") }) { Text("Acerto, erro, toque no Folha e as comemorações. Os sons foram criados para o Estudário.") }
+        }
+        Card {
             CardHead("Questões por dia")
             BrandCounter(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, unit = "questões por dia", chips = listOf(10, 20, 30, 50), mood = ::goalMood, label = "Meta diária de questões")
             P({ classes("xs", "muted"); attr("style", "text-align:center;margin:8px 0 0") }) { Text("Uma tarefa do plano ou uma revisão também fecham o dia.") }

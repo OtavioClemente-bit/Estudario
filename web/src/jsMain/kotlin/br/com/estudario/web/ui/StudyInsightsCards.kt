@@ -89,7 +89,14 @@ object Mission {
 @Composable
 private fun MissionDoneCard(r: StudyInsights.MissionResult, answers: List<StudyInsights.Answer>) {
     var shown by remember(r.mission.startedAt) { mutableStateOf(r.mission.before) }
-    androidx.compose.runtime.LaunchedEffect(r.mission.startedAt, r.after) { kotlinx.coroutines.delay(450); shown = r.after }
+    androidx.compose.runtime.LaunchedEffect(r.mission.startedAt, r.after) {
+        // a primeira vez que o card aparece para esta missão, toca o som de missão cumprida
+        val heard = "estudario.missao.som"
+        if (runCatching { localStorage.getItem(heard) }.getOrNull() != r.mission.startedAt.toString()) {
+            runCatching { localStorage.setItem(heard, r.mission.startedAt.toString()); kotlinx.browser.window.asDynamic().estudarioSom?.play("missao") }
+        }
+        kotlinx.coroutines.delay(450); shown = r.after
+    }
     val up = r.delta > 0
     Div({ classes("card", "pad-lg", "insight-card", "mission-done", "rise") }) {
         Div({ classes("insight-top") }) {

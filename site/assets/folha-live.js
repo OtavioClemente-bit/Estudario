@@ -2022,6 +2022,7 @@
      */
     poke() {
       const now = performance.now();
+      if (!this.hasAttribute("quiet")) SOM.play("toque", 0.8);
       this._bounceAt = now;
       const all = reactionsNow();
       // o gesto mais novo da amizade aparece mais
@@ -3570,6 +3571,31 @@
   const this_k = (el) => el._k || 1;
 
   const CENAS = { nivel: cenaNivel, emblema: cenaEmblema, sequencia: cenaSequencia, peca: cenaPeca };
+  // ------------------------------------------------------------------ som
+  // Os sons do Estudário (scripts/som/gerar-sons.mjs: sintetizados do zero, sem amostra pronta), ao lado
+  // deste arquivo em sons/. window.estudarioSom.play("acerto"). Desligável: localStorage "estudario.som" = "off"
+  // (o site) ou o atributo som="0" na cena (o app manda conforme a configuração e o modo silencioso).
+  const SOM = (() => {
+    const here = document.currentScript && document.currentScript.src;
+    const base = here ? new URL("sons/", here).href : "sons/";
+    let ctx = null; const cache = {};
+    const on = () => { try { return localStorage.getItem("estudario.som") !== "off"; } catch (e) { return true; } };
+    const audio = () => { if (!ctx) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; ctx = new A(); } if (ctx.state === "suspended") ctx.resume().catch(() => {}); return ctx; };
+    // o navegador só libera o áudio depois de um toque: o primeiro toque já deixa pronto
+    const unlock = () => { audio(); window.removeEventListener("pointerdown", unlock, true); };
+    window.addEventListener("pointerdown", unlock, true);
+    function load(name) {
+      const a = audio(); if (!a) return Promise.reject();
+      return cache[name] || (cache[name] = fetch(base + name + ".wav").then((r) => r.arrayBuffer()).then((b) => new Promise((ok, err) => a.decodeAudioData(b, ok, err))));
+    }
+    function play(name, gain = 1) {
+      if (!on()) return;
+      load(name).then((buf) => { const a = audio(); const src = a.createBufferSource(), g = a.createGain(); g.gain.value = 0.8 * gain; src.buffer = buf; src.connect(g).connect(a.destination); src.start(); }).catch(() => {});
+    }
+    return { play, load, set(v) { try { localStorage.setItem("estudario.som", v ? "on" : "off"); } catch (e) {} }, get enabled() { return on(); } };
+  })();
+  window.estudarioSom = SOM;
+
   class EstudarioCena extends HTMLElement {
     static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity", "bleed"]; }
     connectedCallback() {
@@ -3589,6 +3615,14 @@
     _reach() { return 50 + (this._bleed || 0) * 0.85; }
     _restart() {
       this._start = performance.now();
+      // a trilha da cena começa junto com ela (a cena recomeça a cada atributo novo: toca uma vez só, no fim)
+      clearTimeout(this._somT);
+      if (!this.hasAttribute("at") && this.getAttribute("som") !== "0") this._somT = setTimeout(() => {
+        if (!this.isConnected || !SOM.enabled) return;
+        const name = "cena_" + this.getAttribute("tipo");
+        // espera o som carregar e, se a cena mal começou, recomeça junto para a batida cair no quadro certo
+        SOM.load(name).then(() => { if (!this.isConnected) return; if (performance.now() - this._start < 450) this._start = performance.now(); SOM.play(name); }).catch(() => {});
+      }, 30);
       const tipo = this.getAttribute("tipo"), glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum;
       const cols = tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
       this._conf = makeConfetti(7 + (tipo || "").length, tipo === "peca" && this.getAttribute("rarity") === "lendaria" ? 60 : 44, cols);

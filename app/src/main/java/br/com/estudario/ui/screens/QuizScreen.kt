@@ -350,6 +350,9 @@ fun QuizScreen(
                         val inARow = history.asReversed().takeWhile { it }.size
                         val relief = correct == true && inARow == 1 && history.size >= 2 && !history[history.size - 2]
                         val fire = correct == true && inARow >= 5
+                        // o som da resposta (sons do Estudário): acerto, erro ou o arpejo da sequência
+                        val ctxSom = androidx.compose.ui.platform.LocalContext.current
+                        androidx.compose.runtime.LaunchedEffect(current.question.id) { br.com.estudario.ui.brand.EstudarioSom.play(ctxSom, if (fire || inARow in setOf(3, 10, 15, 20)) "combo" else if (correct == true) "acerto" else "erro") }
                         // errou três ou mais seguidas: em vez da frase de erro, ele acolhe
                         val tough = correct != true && history.size >= 3 && history.takeLast(3).none { it }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -489,6 +492,9 @@ private fun QuizResult(
     val percent = if (questions.isEmpty()) 0 else correct * 100 / questions.size
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         // O Folha fecha a bateria: comemora se foi bem, motiva se foi difícil.
+        // fim da sessão: a assinatura do Estudário
+        val ctxSom = androidx.compose.ui.platform.LocalContext.current
+        androidx.compose.runtime.LaunchedEffect(Unit) { br.com.estudario.ui.brand.EstudarioSom.play(ctxSom, "resultado") }
         br.com.estudario.ui.assistant.Folha(
             170.dp,
             mood = if (percent >= 60) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.TALKING,
