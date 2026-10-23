@@ -31,8 +31,17 @@ fun BadgeCelebrationScreen(badges: List<Badge>, onClose: () -> Unit) {
     if (badges.isEmpty()) return
     var index by remember(badges) { mutableIntStateOf(0) }
     val badge = badges.getOrNull(index) ?: return
+    // a arte ilustrada do emblema vai para a cena como data URL (a WebView não lê res/drawable)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val arte = remember(badge.id) {
+        val res = ctx.resources.getIdentifier("emblema_" + badge.id.replace('-', '_'), "drawable", ctx.packageName)
+        if (res == 0) null else runCatching {
+            "data:image/webp;base64," + android.util.Base64.encodeToString(ctx.resources.openRawResource(res).use { it.readBytes() }, android.util.Base64.NO_WRAP)
+        }.getOrNull()
+    }
     SceneCelebration(
-        scene = listOf("tipo" to "emblema", "tier" to badge.tier.toString(), "categoria" to badge.id.substringBefore("-"), "faixa" to faixaLabel(badge.tier)),
+        scene = listOf("tipo" to "emblema", "tier" to badge.tier.toString(), "categoria" to badge.id.substringBefore("-"), "faixa" to faixaLabel(badge.tier)) +
+            listOfNotNull(arte?.let { "arte" to it }),
         reveal = 4.35f,
         onDismiss = onClose,
         sceneKey = index,

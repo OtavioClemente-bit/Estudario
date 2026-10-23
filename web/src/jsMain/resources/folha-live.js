@@ -3248,6 +3248,10 @@
   function cenaEmblema(g, T, t, el) {
     const tier = parseInt(el.getAttribute("tier") || "3", 10), cat = el.getAttribute("categoria") || "seq", faixa = (el.getAttribute("faixa") || "").toUpperCase();
     const C = TIERS[tier] || TIERS[3], look = el._look(), k = this_k(el), q = Q;
+    // a arte ilustrada do emblema (atributo "arte"): é ela que aparece pronta no fim, no lugar da medalha desenhada
+    const src = el.getAttribute("arte");
+    if (src && el._arteSrc !== src) { el._arteSrc = src; el._arte = null; const im = new Image(); im.onload = () => { if (el._arteSrc === src) el._arte = im; }; im.src = src; }
+    const arte = src ? el._arte : null;
     const MX = 50, MY = 38, R = 15, FX0 = 26, FY = 108, FS = 0.52;
     const sparks = el._sparks || (el._sparks = [sparkSet(31, 70), sparkSet(57, 70), sparkSet(83, 90), sparkSet(19, 18)]);
     // onde a cabeça do martelo bate: a mão na pose de golpe mais o comprimento do cabo
@@ -3418,19 +3422,25 @@
       const y = MY + sin(t * 1.6) * 0.6 * reveal, pop = outBack(segT(T, FORGE.arrive, FORGE.arrive + 0.35));
       glowAt(g, MX, MY, 30, "#FFFFFF", 0.85 * (1 - segT(T, FORGE.arrive, FORGE.arrive + 0.35)));
       const rib = outC(segT(T, FORGE.arrive + 0.05, FORGE.arrive + 0.55)), top = y - R - 1.4;
-      if (rib > 0) for (const side of [-1, 1]) {
+      if (rib > 0 && !arte) for (const side of [-1, 1]) {
         const p = new Path2D(), x1 = MX + side * 30, y1 = lerp(top, -60, rib);
         p.moveTo(MX + side * 1.4, top); p.lineTo(x1, y1); p.lineTo(x1 - side * 9, y1); p.lineTo(MX - side * 2.4, top); p.closePath();
         g.fillStyle = side < 0 ? vGrad(g, ["#3A2FC4", "#5247E0"], -60, top) : vGrad(g, ["#2A209E", "#3A2FC4"], -60, top); g.fill(p);
         g.save(); g.clip(p); for (const kk of [0.35, 0.65]) { const ln = new Path2D(); ln.moveTo(lerp(x1, x1 - side * 9, kk), y1); ln.lineTo(MX + side * lerp(1.4, -2.4, kk), top); stroke(g, ln, C[1], 1.1); } g.restore();
       }
-      circle(g, C[2], 1.9, MX, top); circle(g, C[0], 1.1, MX, top);
+      if (!arte) { circle(g, C[2], 1.9, MX, top); circle(g, C[0], 1.1, MX, top); }
       g.save(); g.translate(MX, y); const ps = 1.12 - 0.12 * pop; g.scale(ps, ps);
-      drawMedalArt(g, R, tier, cat, { deco: outBack(segT(T, FORGE.deco, FORGE.deco + 0.6)), engrave: 1, heat: 0, k, shine: T > FORGE.arrive + 0.85 ? ((T - FORGE.arrive - 0.85) * 0.36) % 1.3 : -1 });
+      if (arte) {
+        // a medalha forjada vira a arte: cresce do tamanho do disco até a cena inteira, com um brilho passando
+        const AS = lerp(R * 2, 50, outBack(segT(T, FORGE.arrive, FORGE.arrive + 0.6)));
+        g.drawImage(arte, -AS / 2, -AS / 2 - 2, AS, AS);
+        const sh = T > FORGE.arrive + 0.85 ? ((T - FORGE.arrive - 0.85) * 0.36) % 1.3 : -1;
+        if (sh >= 0 && sh <= 1) { g.save(); g.globalCompositeOperation = "lighter"; const x = lerp(-AS / 2, AS / 2, sh), gr = g.createLinearGradient(x - 6, -AS / 2, x + 6, AS / 2); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,255,255,0.22)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.beginPath(); g.arc(0, -2, AS * 0.36, 0, 2 * PI); g.fill(); g.restore(); }
+      } else drawMedalArt(g, R, tier, cat, { deco: outBack(segT(T, FORGE.deco, FORGE.deco + 0.6)), engrave: 1, heat: 0, k, shine: T > FORGE.arrive + 0.85 ? ((T - FORGE.arrive - 0.85) * 0.36) % 1.3 : -1 });
       g.restore();
       const ban = outBack(segT(T, FORGE.banner, FORGE.banner + 0.45));
       if (ban > 0 && faixa) {
-        g.save(); g.translate(MX, y + R + (tier >= 5 ? 9 : 6.5)); g.scale(ban, 1);
+        g.save(); g.translate(MX, y + (arte ? 26 : R + (tier >= 5 ? 9 : 6.5))); g.scale(ban, 1);
         for (const sd of [-1, 1]) { const p = new Path2D(); p.moveTo(sd * 13, -2.6); p.lineTo(sd * 19, -3); p.lineTo(sd * 17, 0.4); p.lineTo(sd * 19, 3.8); p.lineTo(sd * 13, 3.4); p.closePath(); g.fillStyle = C[2]; g.fill(p); }
         const bp = new Path2D(); bp.moveTo(-15, -3.6); bp.quadraticCurveTo(0, -5, 15, -3.6); bp.lineTo(15, 3.2); bp.quadraticCurveTo(0, 1.8, -15, 3.2); bp.closePath();
         g.fillStyle = hGrad(g, [C[2], C[1], C[0], C[1], C[2]], -15, 15); g.fill(bp); stroke(g, bp, "rgba(0,0,0,0.35)", 0.35);

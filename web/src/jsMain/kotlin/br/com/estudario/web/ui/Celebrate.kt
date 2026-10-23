@@ -231,7 +231,7 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
 private fun Scene(item: Celebration) {
     val attrs: List<Pair<String, String>> = when (item) {
         is Celebration.LevelUp -> listOf("tipo" to "nivel", "nivel" to item.level.toString())
-        is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier))
+        is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier), "arte" to "emblemas/g/${item.badge.id}.webp")
         is Celebration.StreakDay -> listOf("tipo" to "sequencia", "dias" to item.days.toString(), "semana" to item.week.joinToString(",") { (l, done) -> l + if (done) "1" else "0" })
         is Celebration.NewPiece -> listOf("tipo" to "peca", "pieces" to piecesJson(item.items), "rarity" to item.items.maxOf { it.rarity }.name.lowercase())
     }
