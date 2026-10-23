@@ -319,8 +319,9 @@ fun Folha(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
     ) {
-        sim.poke()
-        br.com.estudario.ui.brand.EstudarioSom.play(context, "toque", 0.7f)
+        // o toque de página; tonto, os passarinhos de desenho animado
+        val tonto = sim.poke()
+        br.com.estudario.ui.brand.EstudarioSom.play(context, if (tonto) "tonto" else "toque", 0.7f)
         onClick()
     } else Modifier
 
@@ -682,7 +683,8 @@ private class FolhaSim {
     }
 
     /** Toque: amassa e reage de um jeito diferente a cada vez; se for grande, solta uma frase. */
-    fun poke() {
+    /** Toque: reage e, no quarto toque rápido, fica tonto (devolve true quando ficou tonto agora). */
+    fun poke(): Boolean {
         bounceAt = nowMs; idleSince = nowMs
         val all = reactionsNow()
         // o gesto mais novo da amizade aparece mais
@@ -692,8 +694,10 @@ private class FolhaSim {
         if (k == "wink") { wink = true; winkUntil = nowMs + 710 }
         say(tapLine())
         taps.removeAll { nowMs - it > 1400 }; taps.add(nowMs)
-        if (taps.size >= 4) { dizzyUntil = nowMs + 2200; taps.clear() }
+        val tonto = taps.size >= 4
+        if (tonto) { dizzyUntil = nowMs + 2200; taps.clear() }
         burstAt = nowMs
+        return tonto
     }
 
     /** Carinho: arrastar o dedo de um lado para o outro em cima dele. [dx] em pixels; [w] a largura dele. */

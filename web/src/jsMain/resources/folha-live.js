@@ -2032,7 +2032,8 @@
       if (k === "wink") { this._wink = true; this._winkUntil = now + 110 + 600; }
       this._quip(pickLine(TAP_LINES), now);
       this._taps = (this._taps || []).filter((x) => now - x < 1400); this._taps.push(now);
-      if (this._taps.length >= 4) { this._dizzyUntil = now + 2200; this._taps = []; }
+      // quatro toques rápidos: ele fica tonto, com os passarinhos de desenho animado rodando a cabeça
+      if (this._taps.length >= 4) { this._dizzyUntil = now + 2200; this._taps = []; if (!this.hasAttribute("quiet")) SOM.play("tonto"); }
       this._burstAt = now;
       live.add(this); wake();
     }

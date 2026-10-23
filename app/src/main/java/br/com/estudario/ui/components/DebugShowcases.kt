@@ -1,5 +1,6 @@
 package br.com.estudario.ui.components
 
+import br.com.estudario.time.minusDays
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,7 +70,7 @@ fun CelebrationShowcase(kind: String, tier: Int, item: String?) = EstudarioTheme
         val again = { round.intValue++; Unit }
         when (kind) {
             "nivel" -> br.com.estudario.ui.profile.LevelUpScreen(br.com.estudario.ui.AppViewModel.LevelUp(7, "Concurseiro", newTitle = true, totalXp = 2_150), onClose = again)
-            "sequencia" -> br.com.estudario.ui.profile.StreakCelebrationScreen(br.com.estudario.ui.profile.StreakCelebration(br.com.estudario.domain.StreakSummary(current = 10, best = 10, todayDone = true), "meta"), onClose = again)
+            "sequencia" -> br.com.estudario.ui.profile.StreakCelebrationScreen(br.com.estudario.ui.profile.StreakCelebration(br.com.estudario.domain.StreakSummary(current = 10, best = 10, todayDone = true, week = (6 downTo 0).map { br.com.estudario.domain.StreakDay(br.com.estudario.time.today().minusDays(it.toLong()), done = true, partial = false, future = false) }), "meta"), onClose = again)
             "peca" -> br.com.estudario.ui.profile.FolhaGiftDialog(br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.id == item } ?: br.com.estudario.domain.FolhaWardrobe.items.last(), onUse = again, onClose = again)
             else -> br.com.estudario.ui.profile.BadgeCelebrationScreen(listOf(BadgeCatalog.all.first { it.tier == tier.coerceIn(1, 6) } ), onClose = again)
         }
