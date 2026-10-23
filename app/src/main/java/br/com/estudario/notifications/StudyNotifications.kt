@@ -213,11 +213,13 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
         val dao = app.database.dao()
         val due = dao.reviewsOnce().count { it.completedAt == null && it.ignoredAt == null && it.dueAt <= System.currentTimeMillis() }
         val queued = dao.queueOnce().count { !it.paused }
-        // Já estudou hoje e não tem revisão vencida: não precisa chamar.
+        // Dia já garantido e nenhuma revisão vencida: não precisa chamar. (Começou e não fechou o dia:
+        // ainda vale lembrar quanto falta.)
         val today = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val studiedToday = dao.attemptsOnce().any { it.answeredAt >= today } || dao.sessionsOnce().any { it.completedAt >= today } ||
             dao.reviewHistoryOnce().any { it.reviewedAt >= today }
-        if (studiedToday && due == 0) {
+        val dayDone = br.com.estudario.ui.widget.FolhaWidget.read(applicationContext)?.todayDone ?: studiedToday
+        if (dayDone && due == 0) {
             if (!snoozed) StudyNotificationCoordinator.reminderTime(applicationContext, app.preferences).let { (h, m) -> StudyNotificationCoordinator.scheduleDaily(applicationContext, h, m) }
             return Result.success()
         }
@@ -229,8 +231,27 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
             val answers = dao.attemptsOnce().map { a -> val sid = questionTopic[a.questionId]?.let { topicSubject[it] }; br.com.estudario.domain.StudyInsights.Answer(a.answeredAt, a.correct, sid, sid?.let { subjectName[it] }) }
             br.com.estudario.domain.StudyInsights.weakSpot(answers, System.currentTimeMillis())
         }.getOrNull()
-        val streak = br.com.estudario.ui.widget.FolhaWidget.read(applicationContext)?.streak ?: 0
-        val body = when {
+        val widget = br.com.estudario.ui.widget.FolhaWidget.read(applicationContext)
+        val streak = widget?.streak ?: 0
+        // O que está pendente de verdade: questões que faltam para fechar o dia, a revisão que vence hoje
+        // (com o nome do tópico) e a tarefa de hoje no plano. O título usa o mais concreto.
+        val goal = widget?.goal?.takeIf { it > 0 } ?: 0
+        val doneToday = widget?.todayQuestions ?: 0
+        val missing = if (goal > 0 && widget?.todayDone == false && doneToday > 0) (goal - doneToday).coerceAtLeast(0) else 0
+        val topicName = runCatching { dao.topicsOnce().associate { it.id to it.title } }.getOrDefault(emptyMap())
+        val dueReviews = dao.reviewsOnce().filter { it.completedAt == null && it.ignoredAt == null && it.dueAt <= System.currentTimeMillis() }.sortedBy { it.dueAt }
+        val firstReview = dueReviews.firstOrNull()?.let { topicName[it.topicId] }
+        val todayTask = runCatching {
+            val epoch = java.time.LocalDate.now().toEpochDay()
+            app.database.plannerDao().tasksOnce().firstOrNull { it.scheduledEpochDay == epoch && (it.status == br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA || it.status == br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
+        }.getOrNull()
+        val concrete: Pair<String, String>? = when {
+            streak >= 2 && missing in 1..15 -> "Faltam $missing ${if (missing == 1) "questão" else "questões"} para manter seus $streak dias 🔥" to "Você já fez $doneToday hoje. Mais $missing e o dia está garantido."
+            firstReview != null -> (if (dueReviews.size > 1) "Sua revisão de $firstReview vence hoje (e mais ${dueReviews.size - 1})" else "Sua revisão de $firstReview vence hoje") to "Uns ${StudyCopy.minutes(dueReviews.size)}. Revisar no dia certo é o que fixa o conteúdo."
+            todayTask != null -> "Hoje no plano: ${todayTask.topicNameSnapshot ?: todayTask.subjectNameSnapshot ?: "seu próximo bloco"}" to "${todayTask.plannedMinutes} min de ${when (todayTask.type) { br.com.estudario.domain.planner.PlanTaskType.THEORY -> "teoria"; br.com.estudario.domain.planner.PlanTaskType.QUESTIONS -> "questões"; br.com.estudario.domain.planner.PlanTaskType.REVIEW -> "revisão"; else -> "estudo" }}." + if (streak >= 2) " E a sequência de $streak dias continua 🔥" else ""
+            else -> null
+        }
+        val body = concrete?.second ?: when {
             due > 0 && queued > 0 -> "${StudyCopy.reviews(due)} e ${StudyCopy.items(queued)} na fila. ${StudyCopy.minutes(due)} de revisão já mantêm o ritmo."
             due > 0 -> "${StudyCopy.reviews(due)} para hoje, uns ${StudyCopy.minutes(due)}. Revisar no dia certo é o que fixa o conteúdo."
             queued > 0 -> "${StudyCopy.items(queued)} no seu plano. Continue do próximo bloco."
@@ -247,6 +268,7 @@ class DailyStudyReminderWorker(context: Context, params: WorkerParameters) : Cor
         )
         val title = when {
             snoozed -> "Passou uma hora: bora agora?"
+            concrete != null -> concrete.first
             streak >= 2 -> "Bora manter os $streak dias seguidos?"
             else -> calls[java.time.LocalDate.now().dayOfYear % calls.size]
         }

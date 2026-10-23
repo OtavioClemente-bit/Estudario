@@ -48,6 +48,11 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     // Ajustes de leitura (como num leitor de livros): tamanho e fonte, lembrados entre as aberturas.
     var textScale by remember { mutableFloatStateOf(uiPrefs.getFloat("reader_scale", 1.05f)) }
     var bookFont by remember { mutableStateOf(uiPrefs.getBoolean("reader_book", true)) }
+    // Página: 0 normal (tema do app), 1 sépia, 2 noite. Só texto: sem o Folha nem nada se mexendo.
+    var pageTone by remember { mutableStateOf(uiPrefs.getInt("reader_tone", 0)) }
+    var quietReading by remember { mutableStateOf(uiPrefs.getBoolean("reader_quiet", false)) }
+    val toneBg = when (pageTone) { 1 -> androidx.compose.ui.graphics.Color(0xFFF4ECD8); 2 -> androidx.compose.ui.graphics.Color(0xFF101114); else -> null }
+    val toneInk = when (pageTone) { 1 -> androidx.compose.ui.graphics.Color(0xFF4A3B28); 2 -> androidx.compose.ui.graphics.Color(0xFFD9D4C7); else -> null }
     var readerSettings by remember { mutableStateOf(false) }
     // Anotação aberta: o parágrafo e o trecho (o parágrafo inteiro ou só a parte selecionada).
     var editing by remember { mutableStateOf<Pair<Int, String>?>(null) }
@@ -136,7 +141,9 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     }
 
     if (readerSettings) ReaderSettingsSheet(
-        scale = textScale, book = bookFont,
+        scale = textScale, book = bookFont, tone = pageTone, quiet = quietReading,
+        onTone = { pageTone = it; uiPrefs.edit().putInt("reader_tone", it).apply() },
+        onQuiet = { quietReading = it; uiPrefs.edit().putBoolean("reader_quiet", it).apply() },
         onScale = { textScale = it; uiPrefs.edit().putFloat("reader_scale", it).apply() },
         onBook = { bookFont = it; uiPrefs.edit().putBoolean("reader_book", it).apply() },
         onDismiss = { readerSettings = false },
@@ -241,7 +248,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 }
             }
             // Explica o gesto uma única vez; some ao fechar ou na primeira marcação.
-        if (!markHintSeen && blocks.isNotEmpty()) {
+        if (!markHintSeen && blocks.isNotEmpty() && !quietReading) {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     br.com.estudario.ui.assistant.Folha(40.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
@@ -251,7 +258,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             }
         }
         androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalReaderBook provides bookFont) {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().then(if (toneBg != null) Modifier.background(toneBg) else Modifier), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             blocks.forEachIndexed { index, block ->
                 item(key = index) {
                     val blockMarks = marks.filter { it.blockIndex == index }
@@ -268,7 +275,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                 when {
                                     isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = .5f)
                                     mark != null -> highlighter.copy(alpha = .16f)
-                                    else -> MaterialTheme.colorScheme.surface
+                                    else -> toneBg ?: MaterialTheme.colorScheme.surface
                                 },
                             )
                             .border(if (isSelected) 1.5.dp else 0.dp, if (isSelected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(10.dp))
@@ -282,6 +289,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                 text,
                                 m,
                                 textSizeSp = MaterialTheme.typography.bodyLarge.fontSize.value * textScale,
+                                textColor = toneInk,
                                 onTap = { selected = if (selected == index) null else index },
                                 highlights = partial,
                                 notedHighlights = blockMarks.filter { it.note.isNotBlank() }.mapTo(hashSetOf()) { it.quote },
@@ -334,7 +342,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
             item {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        br.com.estudario.ui.assistant.Folha(110.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
+                        if (!quietReading) br.com.estudario.ui.assistant.Folha(110.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
                         Text("Teoria concluída!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Leitura registrada como 100%. Agora vale treinar com as questões do tópico para fixar.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
@@ -402,7 +410,7 @@ private fun ReadLine(progress: Float) {
 /** Ajustes de leitura: quatro tamanhos de letra e a fonte (Livro ou Simples). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReaderSettingsSheet(scale: Float, book: Boolean, onScale: (Float) -> Unit, onBook: (Boolean) -> Unit, onDismiss: () -> Unit) {
+private fun ReaderSettingsSheet(scale: Float, book: Boolean, tone: Int, quiet: Boolean, onTone: (Int) -> Unit, onQuiet: (Boolean) -> Unit, onScale: (Float) -> Unit, onBook: (Boolean) -> Unit, onDismiss: () -> Unit) {
     val steps = listOf(0.9f, 1.05f, 1.2f, 1.38f)
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -436,6 +444,28 @@ private fun ReaderSettingsSheet(scale: Float, book: Boolean, onScale: (Float) ->
                         Box(contentAlignment = Alignment.Center) { Text(label, fontWeight = FontWeight.Bold, fontFamily = if (value) androidx.compose.ui.text.font.FontFamily.Serif else null) }
                     }
                 }
+            }
+            Text("PÁGINA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(Triple(0, "Normal", null), Triple(1, "Sépia", androidx.compose.ui.graphics.Color(0xFFF4ECD8) to androidx.compose.ui.graphics.Color(0xFF4A3B28)), Triple(2, "Noite", androidx.compose.ui.graphics.Color(0xFF101114) to androidx.compose.ui.graphics.Color(0xFFD9D4C7))).forEach { (value, label, colors) ->
+                    val on = tone == value
+                    Surface(
+                        onClick = { onTone(value) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = colors?.first ?: MaterialTheme.colorScheme.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(2.dp, if (on) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) { Text(label, fontWeight = FontWeight.Bold, color = colors?.second ?: MaterialTheme.colorScheme.onSurface) }
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Só texto", fontWeight = FontWeight.Bold)
+                    Text("Sem o Folha nem nada se mexendo, para ler muito tempo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = quiet, onCheckedChange = onQuiet)
             }
         }
     }

@@ -502,6 +502,11 @@ private fun EmptyGenerate(icon: String, title: String, text: String, onGenerate:
 
 @Composable
 private fun TheoryReader(theory: Theory) {
+    DisposableEffect(ReaderPrefs.quiet) {
+        val root = document.documentElement
+        if (ReaderPrefs.quiet) root?.classList?.add("reading-quiet") else root?.classList?.remove("reading-quiet")
+        onDispose { root?.classList?.remove("reading-quiet") }
+    }
     val blocks = remember(theory.markdown) { studyBlocks(theory.markdown) }
     val chapters = remember(blocks) { chaptersOf(blocks) }
     var readUpTo by remember(theory.id) { mutableStateOf(theory.lastReadBlock) }
@@ -739,7 +744,7 @@ private fun TheoryReader(theory: Theory) {
     val extracted = remember(blocks) { blocks.map { InlineSources.extract(it) } }
     Div({ classes(*listOfNotNull("theory-layout", if (chapters.size > 1) "has-toc" else null).toTypedArray()) }) {
     Div({
-        classes(*listOfNotNull("theory-text", if (ReaderPrefs.serif) "reader-book" else null).toTypedArray())
+        classes(*listOfNotNull("theory-text", if (ReaderPrefs.serif) "reader-book" else null, if (ReaderPrefs.tone != "normal") "reader-tone-" + ReaderPrefs.tone else null).toTypedArray())
         attr("style", "--reader-size:${ReaderPrefs.sizes[ReaderPrefs.size]}px")
     }) {
         TheoryPinDock(theory.id)
@@ -1164,6 +1169,14 @@ object ReaderPrefs {
         private set
     fun setSize(v: Int) { size = v.coerceIn(0, 3); write("estudario.reader.size", size.toString()) }
     fun setSerif(v: Boolean) { serif = v; write("estudario.reader.font", if (v) "livro" else "simples") }
+    /** Cor da página de leitura: normal (a do site), sépia ou noite. */
+    var tone by mutableStateOf(read("estudario.reader.tone")?.takeIf { it in setOf("normal", "sepia", "noite") } ?: "normal")
+        private set
+    fun setTone(v: String) { tone = v; write("estudario.reader.tone", v) }
+    /** Só texto: nada se mexendo na tela (sem animações, sem o Folha piscando), para ler muito tempo. */
+    var quiet by mutableStateOf(read("estudario.reader.quiet") == "1")
+        private set
+    fun setQuiet(v: Boolean) { quiet = v; write("estudario.reader.quiet", if (v) "1" else "0") }
 }
 
 @Composable
@@ -1188,6 +1201,22 @@ private fun ReaderSettingsPop(onClose: () -> Unit) {
                 org.jetbrains.compose.web.dom.Button({ classes(*listOfNotNull(if (!ReaderPrefs.serif) "on" else null).toTypedArray()); onClick { ReaderPrefs.setSerif(false) } }) { Text("Simples") }
             }
         }
+        Div({ classes("reader-pop-row") }) {
+            Span({ classes("xs", "muted", "strong") }) { Text("PÁGINA") }
+            Div({ classes("segmented") }) {
+                listOf("normal" to "Normal", "sepia" to "Sépia", "noite" to "Noite").forEach { (k, label) ->
+                    org.jetbrains.compose.web.dom.Button({ classes(*listOfNotNull("tone-$k", if (ReaderPrefs.tone == k) "on" else null).toTypedArray()); onClick { ReaderPrefs.setTone(k) } }) { Text(label) }
+                }
+            }
+        }
+        Div({ classes("reader-pop-row") }) {
+            Span({ classes("xs", "muted", "strong") }) { Text("SÓ TEXTO") }
+            Div({ classes("segmented") }) {
+                org.jetbrains.compose.web.dom.Button({ classes(*listOfNotNull(if (ReaderPrefs.quiet) "on" else null).toTypedArray()); onClick { ReaderPrefs.setQuiet(true) } }) { Text("Ligado") }
+                org.jetbrains.compose.web.dom.Button({ classes(*listOfNotNull(if (!ReaderPrefs.quiet) "on" else null).toTypedArray()); onClick { ReaderPrefs.setQuiet(false) } }) { Text("Desligado") }
+            }
+        }
+        P({ classes("xs", "muted"); attr("style", "margin:0") }) { Text("Só texto tira tudo o que se mexe na tela enquanto você lê.") }
         Btn("Pronto", onClose, style = "ghost", small = true)
     }
 }

@@ -272,6 +272,18 @@ private fun PaceCard(data: Snapshot, planId: String?, exam: Long?) {
     Div({ classes("insight", "clickable"); onClick { if (planId == null) Router.go(Route.Setup) else { PlanEntry.overview = true; Router.go(Route.Plan) } } }) {
         Span({ classes("insight-mark"); attr("style", "background:$tone") })
         Div({ classes("grow") }) {
+            // Contagem para a prova: os dias que faltam e quanto do edital já foi visto.
+            val daysLeft = exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
+            if (daysLeft != null) {
+                val competition = CompetitionFilter.current(data)
+                val leaves = Queries.leafTopics(data, Queries.subjectsOf(data, competition?.id).mapTo(hashSetOf()) { it.id })
+                val seen = if (leaves.isEmpty()) null else percent(leaves.count(Queries::isStudied), leaves.size)
+                Div({ classes("exam-count") }) {
+                    B { Text(if (daysLeft == 0L) "Hoje" else "$daysLeft") }
+                    Span { Text(if (daysLeft == 0L) "é o dia da prova" else if (daysLeft == 1L) "dia para a prova" else "dias para a prova") }
+                    if (seen != null) Span({ classes("exam-seen") }) { Text("$seen% do edital visto") }
+                }
+            }
             Span({ classes("insight-label") }) { Text("Previsão") }
             B({ classes("insight-title") }) { Text(title) }
             P({ classes("small", "muted") }) { Text(detail) }
