@@ -75,7 +75,6 @@ internal fun categoryIcon(category: BadgeCategory): ImageVector = when (category
     BadgeCategory.EDITAL -> Icons.Outlined.Checklist
     BadgeCategory.REVISOES -> Icons.Outlined.EventRepeat
     BadgeCategory.SIMULADOS -> Icons.Outlined.Timer
-    BadgeCategory.DISCURSIVAS -> Icons.Outlined.EditNote
     BadgeCategory.MARATONA -> Icons.Outlined.DirectionsRun
 }
 

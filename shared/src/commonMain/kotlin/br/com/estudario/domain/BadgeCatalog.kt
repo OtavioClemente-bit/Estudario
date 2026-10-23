@@ -14,7 +14,6 @@ enum class BadgeCategory(val label: String) {
     EDITAL("Edital"),
     REVISOES("Revisões"),
     SIMULADOS("Simulados"),
-    DISCURSIVAS("Discursivas"),
     MARATONA("Maratona"),
 }
 
@@ -155,15 +154,6 @@ object BadgeCatalog {
         ),
     )
 
-    val discursivas = tiers(
-        BadgeCategory.DISCURSIVAS, "discursiva", "discursivas",
-        listOf(
-            Triple(1, "Primeira folha", "Escrever 1 discursiva do plano"),
-            Triple(5, "Cinco discursivas", "Escrever 5 discursivas do plano"),
-            Triple(20, "Punho treinado", "Escrever 20 discursivas do plano"),
-        ),
-    )
-
     val maratona = tiers(
         BadgeCategory.MARATONA, "maratona", "min",
         listOf(
@@ -175,7 +165,7 @@ object BadgeCatalog {
     )
 
     val all: List<Badge> = plano + sequencia + metas + questoes + precisao + topicos +
-        edital + revisoes + simulados + discursivas + maratona
+        edital + revisoes + simulados + maratona
 
     fun evaluate(
         input: ProgressEngine.ProgressInput,
@@ -187,7 +177,6 @@ object BadgeCatalog {
         val editalPercent = if (input.topicsTotal == 0) 0 else input.topicsStudied * 100 / input.topicsTotal
         val maiorDia = input.days.maxOfOrNull { it.minutes } ?: 0
         val simulados = planWork.count { it.type == PlanTaskType.SIMULATION }
-        val discursivas = planWork.count { it.type == PlanTaskType.DISCURSIVE }
         val faltamParaValer = (200 - input.totalQuestions).coerceAtLeast(0)
 
         return all.map { badge ->
@@ -209,7 +198,6 @@ object BadgeCatalog {
                 )
                 BadgeCategory.REVISOES -> BadgeProgress(badge, input.reviewsCompleted)
                 BadgeCategory.SIMULADOS -> BadgeProgress(badge, simulados)
-                BadgeCategory.DISCURSIVAS -> BadgeProgress(badge, discursivas)
                 BadgeCategory.MARATONA -> BadgeProgress(badge, maiorDia)
             }
         }

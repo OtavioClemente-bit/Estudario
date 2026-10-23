@@ -82,7 +82,6 @@ private fun shapeOf(category: BadgeCategory): BadgeShape = when (category) {
     BadgeCategory.EDITAL -> BadgeShape.DIAMOND
     BadgeCategory.REVISOES -> BadgeShape.SCALLOP
     BadgeCategory.SIMULADOS -> BadgeShape.SQUARE
-    BadgeCategory.DISCURSIVAS -> BadgeShape.TAG
     BadgeCategory.MARATONA -> BadgeShape.HEX_FLAT
 }
 
@@ -97,7 +96,6 @@ private fun enamelOf(category: BadgeCategory): Pair<Color, Color> = when (catego
     BadgeCategory.EDITAL -> Color(0xFFFFD27A) to Color(0xFFB45309)
     BadgeCategory.REVISOES -> Color(0xFFFF9CCB) to Color(0xFFBE185D)
     BadgeCategory.SIMULADOS -> Color(0xFF9FB0C8) to Color(0xFF334155)
-    BadgeCategory.DISCURSIVAS -> Color(0xFFC4A6FF) to Color(0xFF6D28D9)
     BadgeCategory.MARATONA -> Color(0xFF67E8F9) to Color(0xFF0E7490)
 }
 
