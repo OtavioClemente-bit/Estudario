@@ -145,9 +145,19 @@ fun HomeScreen(
     val savedPending = savedRecently.filter { it !in savedSeen }
     if (savedPending.isNotEmpty() && streak != null) {
         val d = java.time.LocalDate.parse(savedPending.max())
+        // os últimos 7 dias para os braseiros: 1 feito, 2 salvo pelo Folha, 0 sem estudo
+        val s = streak!!
+        val byDate = s.calendar.associateBy { it.date }
+        val week = (6 downTo 0).map { back ->
+            val day = java.time.LocalDate.now().minusDays(back.toLong())
+            val kd = kotlinx.datetime.LocalDate.fromEpochDays(day.toEpochDay().toInt())
+            val flag = when { kd in s.protectedDays -> 2; byDate[kd]?.let { br.com.estudario.domain.StreakEngine.isDone(it, s.goal) } == true -> 1; else -> 0 }
+            day.dayOfWeek.getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale("pt", "BR")).uppercase() to flag
+        }
         br.com.estudario.ui.profile.StreakSaveScene(
             streak!!.current, streak!!.freezes,
             d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale("pt", "BR")).replace(".", "").replaceFirstChar { it.uppercase() } + ", " + d.dayOfMonth + "/" + d.monthValue,
+            week,
         ) {
             savedSeen = savedSeen + savedPending
             savePrefs.edit().putStringSet("streak_saved_seen", savedSeen).apply()

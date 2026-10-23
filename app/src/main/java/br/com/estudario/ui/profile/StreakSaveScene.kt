@@ -52,7 +52,7 @@ import kotlinx.coroutines.launch
  * fênix acorda em labaredas e ele sussurra "sequência salva!". Uma vez por dia salvo.
  */
 @Composable
-fun StreakSaveScene(days: Int, left: Int, dayLabel: String, onClose: () -> Unit) {
+fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<String, Int>> = emptyList(), onClose: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
     val folhaX = remember { Animatable(260f) }
     val spark = remember { Animatable(0f) }
@@ -98,6 +98,36 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, onClose: () -> Unit)
                         if (lit < 0.5f) for (j in 0 until 3) {
                             val u = (zz + j / 3f) % 1f
                             Text("z", Modifier.offset(x = (40 + u * 26).dp, y = (-20 - u * 50).dp).alpha((1 - u) * (1 - lit * 2)), color = Color(0xFFCFC8FF), fontWeight = FontWeight.Black, fontSize = (12 + u * 10).sp)
+                        }
+                    }
+                    // os braseiros da semana: feitos com chama baixinha, o dia que faltou soltando fumaça,
+                    // e quando o Folha acende a fênix esse braseiro também pega fogo (roxo e dourado)
+                    if (week.isNotEmpty()) androidx.compose.foundation.layout.Row(
+                        Modifier.align(Alignment.BottomStart).padding(start = 4.dp, bottom = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        week.forEach { (letter, st) ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Canvas(Modifier.size(24.dp, 30.dp)) {
+                                    val w = size.width; val h = size.height
+                                    val on = when (st) { 1 -> 0.55f + 0.45f * lit; 2 -> if (step >= 4) lit else 0f; else -> 0f }
+                                    if (on > 0f) {
+                                        val core = if (st == 2) Color(0xFFFFD25A) else Color(0xFFFFF0B8)
+                                        val body = if (st == 2) Color(0xFF8B7BFF) else Color(0xFFFF9A1F)
+                                        if (st == 2) drawCircle(Brush.radialGradient(listOf(Color(0x998B7BFF), Color.Transparent), Offset(w / 2, h * .45f), w * .7f), w * .7f, Offset(w / 2, h * .45f))
+                                        val fh = h * .62f * on
+                                        val flameP = Path().apply { moveTo(w / 2, h * .7f - fh); quadraticBezierTo(w * .9f, h * .55f, w / 2, h * .72f); quadraticBezierTo(w * .1f, h * .55f, w / 2, h * .7f - fh); close() }
+                                        drawPath(flameP, body)
+                                        drawCircle(core, w * .1f, Offset(w / 2, h * .62f))
+                                    } else if (st == 2 || st == 0) {
+                                        for (j in 0 until 3) { val u = (zz + j / 3f) % 1f; drawCircle(Color(0xFFB4AFD2).copy(alpha = .35f * (1 - u)), (2f + u * 3f) * density / 2, Offset(w / 2 + kotlin.math.sin(j + zz * 6) * 2f, h * .62f - u * h * .5f)) }
+                                    }
+                                    // a tigela
+                                    val bowl = Path().apply { moveTo(w * .12f, h * .72f); quadraticBezierTo(w / 2, h * 1.02f, w * .88f, h * .72f); close() }
+                                    drawPath(bowl, if (st == 2 && lit > 0f) Color(0xFF5A4AB0) else Color(0xFF3A3466))
+                                }
+                                Text(letter, color = if (st == 2 && lit > 0f) Color(0xFFFFD25A) else Color.White.copy(alpha = if (st == 1) .85f else .45f), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                            }
                         }
                     }
                     // a faísca saindo do dedo do Folha até o peito da fênix

@@ -3950,6 +3950,33 @@
       for (let j = 0; j < 3; j++) { const u = (t * 0.35 + j / 3) % 1; g.save(); g.globalAlpha = za * (1 - u) * 0.9; g.fillStyle = "#CFC8FF"; g.font = `900 ${3 + u * 3}px Nunito, system-ui, sans-serif`; g.fillText("z", PX + 10 + u * 9 + sin(u * 6 + j) * 1.5, PY - 12 - u * 18); g.restore(); }
       for (let j = 0; j < 3; j++) { const u = (t * 0.5 + j / 3) % 1; circle(g, `rgba(170,165,210,${0.25 * za * (1 - u)})`, 1 + u * 2.4, PX + sin(t + j) * 2, PY - 4 - u * 12); }
     }
+    // os braseiros da semana: os dias feitos com a chama baixinha, o dia que faltou soltando fumaça;
+    // quando o Folha acende a fênix, esse braseiro também pega fogo, roxo e dourado (o marca-página)
+    let week = (el.getAttribute("semana") || "").split(",").filter(Boolean).map((w) => [w.slice(0, -1) || w, w.slice(-1)]);
+    if (!week.length) week = [["S", "1"], ["T", "1"], ["Q", "2"], ["Q", "1"], ["S", "1"]];
+    const nW = week.length, bx0 = 33, gap = Math.min(7.4, 46 / Math.max(nW - 1, 1));
+    const wx = (i) => bx0 + (i - (nW - 1) / 2) * gap, wy = (x) => 85 - 4 * (1 - ((x - bx0) / 26) ** 2);
+    week.forEach(([letter, st], i) => {
+      const x = wx(i), y = wy(x), saved = st === "2", done = st === "1";
+      g.save(); g.translate(x, y);
+      const bowl = new Path2D(); bowl.moveTo(-3.4, 1); bowl.quadraticCurveTo(0, 5.6, 3.4, 1); bowl.closePath();
+      g.fillStyle = vGrad(g, ["#4A4472", "#231F45"], 1, 5); g.fill(bowl); stroke(g, bowl, saved && lit > 0 ? "rgba(255,210,90,0.8)" : "rgba(255,255,255,0.25)", 0.3);
+      g.fillStyle = "#2A2550"; g.fillRect(-0.7, 4.4, 1.4, 2); g.fillRect(-2, 6.2, 4, 0.8);
+      if (done) { g.translate(0, 1); drawSmallFlame(g, t + i, 5.5 * (0.55 + 0.45 * lit) * (1 + 0.06 * sin(t * 9 + i)), 2.1); }
+      else if (saved) {
+        const on = outBack(segT(T, SAV.light + 0.15, SAV.light + 0.6));
+        if (on > 0) {
+          g.translate(0, 1);
+          glowAt(g, 0, -3, 7, "#8B7BFF", 0.55 * on);
+          drawSmallFlame(g, t + i, 7 * on * (1 + 0.07 * sin(t * 8)), 2.4);
+          glowAt(g, 0, -2.5, 3.5, "#FFD25A", 0.6 * on);
+        } else for (let j = 0; j < 3; j++) { const u = (t * 0.6 + j / 3) % 1; circle(g, `rgba(180,175,210,${0.35 * (1 - u)})`, 0.7 + u * 1.4, sin(t + j) * 1.1, -u * 7); }
+      }
+      g.restore();
+      g.fillStyle = saved && lit > 0 ? "rgba(255,215,120,0.95)" : done ? "rgba(255,225,170,0.85)" : "rgba(255,255,255,0.45)";
+      g.font = "900 2.8px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(letter, x, y + 9.2);
+    });
     // o número: apagado enquanto ela dorme, arde de novo quando acende
     const beat = 1 + 0.06 * Math.max(0, sin(t * 4.2)) ** 6;
     fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, 0.25 + 0.75 * lit, lit > 0.5 ? beat : 1);

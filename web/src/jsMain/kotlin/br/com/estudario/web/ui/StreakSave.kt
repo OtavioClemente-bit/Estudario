@@ -41,7 +41,7 @@ private object SavedDays {
 fun StreakSaveHost() {
     // Só na demonstração: ?demo&salvou mostra a cena (para conferir a animação).
     var preview by remember { mutableStateOf(Store.demo && kotlinx.browser.window.location.search.contains("salvou")) }
-    if (preview && Store.load == br.com.estudario.web.data.LoadState.Ready) { StreakSaveScene(12, 1, "Sex, 24 out") { preview = false }; return }
+    if (preview && Store.load == br.com.estudario.web.data.LoadState.Ready) { StreakSaveScene(12, 1, "Sex, 24 out", "S1,T1,Q2,Q1,S1,S1,D1") { preview = false }; return }
     if (Store.demo || Store.load != br.com.estudario.web.data.LoadState.Ready) return
     val streak = Progress.of(Store.data).streak
     val recent = streak.protectedDays.filter { Queries.todayDate().toEpochDays() - it.toEpochDays() <= 7 }.map { it.toString() }
@@ -49,13 +49,21 @@ fun StreakSaveHost() {
     var open by remember(pending.joinToString()) { mutableStateOf(pending.isNotEmpty()) }
     if (!open || pending.isEmpty()) return
     val savedDate = pending.maxOrNull()?.let { kotlinx.datetime.LocalDate.parse(it) }
-    StreakSaveScene(streak.current, streak.freezes, savedDate?.let { Queries.weekdayShort[it.dayOfWeek.ordinal].replaceFirstChar { c -> c.uppercase() } + ", " + Queries.shortDate(it) } ?: "") {
+    // os últimos 7 dias para os braseiros da cena: 1 feito, 2 salvo pelo Folha, 0 sem estudo
+    val today = Queries.todayDate()
+    val byDate = streak.calendar.associateBy { it.date }
+    val semana = (6 downTo 0).joinToString(",") { back ->
+        val d = kotlinx.datetime.LocalDate.fromEpochDays(today.toEpochDays() - back)
+        val flag = when { d in streak.protectedDays -> "2"; byDate[d]?.let { br.com.estudario.domain.StreakEngine.isDone(it, streak.goal) } == true -> "1"; else -> "0" }
+        Queries.weekdayShort[d.dayOfWeek.ordinal].take(1).uppercase() + flag
+    }
+    StreakSaveScene(streak.current, streak.freezes, savedDate?.let { Queries.weekdayShort[it.dayOfWeek.ordinal].replaceFirstChar { c -> c.uppercase() } + ", " + Queries.shortDate(it) } ?: "", semana) {
         SavedDays.mark(pending); open = false
     }
 }
 
 @Composable
-private fun StreakSaveScene(days: Int, left: Int, dayLabel: String, onClose: () -> Unit) {
+private fun StreakSaveScene(days: Int, left: Int, dayLabel: String, semana: String, onClose: () -> Unit) {
     // A cena desenhada (folha-live.js, <estudario-cena tipo="salvou">): a fênix dorme quase apagada, o
     // Folha chega na ponta dos pés pedindo silêncio e acende a chama ele mesmo. O texto entra no fim.
     var done by remember { mutableStateOf(false) }
@@ -65,7 +73,7 @@ private fun StreakSaveScene(days: Int, left: Int, dayLabel: String, onClose: () 
             Div({ classes("ss-cena") }) {
                 org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
                     elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-cena"),
-                    applyAttrs = { attr("tipo", "salvou"); attr("dias", days.toString()); attr("bleed", "34"); attr("aria-label", "O Folha acende a chama da fênix e salva a sequência") },
+                    applyAttrs = { attr("tipo", "salvou"); attr("dias", days.toString()); attr("semana", semana); attr("bleed", "34"); attr("aria-label", "O Folha acende a chama da fênix e salva a sequência") },
                     content = null,
                 )
             }
