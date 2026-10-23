@@ -556,7 +556,8 @@ private fun TheoryReader(theory: Theory) {
         val onContext: (org.w3c.dom.events.Event) -> Unit = { e ->
             val m = e as org.w3c.dom.events.MouseEvent
             val target = m.target.asDynamic()
-            val inText = target?.closest?.invoke(".theory-text") != null
+            // closest() direto: em dynamic, "?.invoke()" vira chamada ao método invoke e dava sempre nulo.
+            val inText = target != null && target != undefined && jsTypeOf(target.closest) == "function" && target.closest(".theory-text") != null
             if (inText) {
                 m.preventDefault()
                 val blockEl = target.closest("[id^='tb-" + theory.id + "-']")
@@ -768,6 +769,11 @@ private fun TheoryReader(theory: Theory) {
                             }
                         }
                     }) { Icon(if (whole != null) "ink_eraser" else "format_ink_highlighter"); Text(if (whole != null) "Tirar grifo" else "Grifar tabela") }
+                    Button({
+                        classes("table-grifo", "pin")
+                        attr("title", "Abre a tabela numa janelinha por cima da página, para consultar enquanto lê")
+                        onClick { if (!TheoryPins.add(TheoryPins.titleFor(blocks[i]), blocks[i])) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser") }
+                    }) { Icon("push_pin"); Text("Fixar") }
                 }
                 if (trap != null) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
@@ -851,6 +857,12 @@ private fun TheoryReader(theory: Theory) {
                 }
             }
             Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null } }) { Icon("edit_note"); Text("Grifar com nota") }
+            Button({ classes("grifo-btn"); attr("title", "Abre o trecho numa janelinha por cima da página"); onClick {
+                val b = blocks.getOrNull(p.block)
+                val md = if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) b else p.quote
+                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser")
+                window.asDynamic().getSelection()?.removeAllRanges(); picked = null
+            } }) { Icon("push_pin"); Text("Fixar") }
         }
     }
     // Grifar com nota abre a folha de caderno; a nota vai para Anotações no Caderno de estudo.
@@ -866,11 +878,11 @@ private fun TheoryReader(theory: Theory) {
                 // Trecho dentro de uma tabela fixa a tabela inteira (o texto solto perderia as colunas).
                 val b = pick?.block?.let { blocks.getOrNull(it) }
                 val md = if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) b else pick?.quote.orEmpty()
-                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 fixados. Solte um para fixar outro.") else { Toast.show("Fixado no alto da leitura"); window.asDynamic().getSelection()?.removeAllRanges() }
+                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else { Toast.show("Fixado: arraste a janela para onde quiser"); window.asDynamic().getSelection()?.removeAllRanges() }
             },
             onPinBlock = {
                 val md = ctx.block?.let { blocks.getOrNull(it) }.orEmpty()
-                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 fixados. Solte um para fixar outro.") else Toast.show("Fixado no alto da leitura")
+                if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser")
             },
             onMarkColor = { c -> if (mark != null && !Store.demo) Store.update { Actions.setTheoryMarkColor(it, mark.id, c) } },
             onMarkNote = { if (mark != null) editMarkNote = mark },
