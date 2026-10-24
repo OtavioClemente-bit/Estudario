@@ -91,17 +91,29 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var today by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // Pagos: passou das matérias do plano livres de hoje e a pessoa escolheu seguir (gasta 1 do mês).
     var overDailyOk by remember { mutableStateOf(false) }
+    var style by remember { mutableStateOf("MIXED") }
+    var difficulty by remember { mutableStateOf("MEDIUM") }
+    var board by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         free = freeAllowance()
+        if (free != null || br.com.estudario.web.data.LibraryGaps.free()) { style = "MIXED"; difficulty = "MIXED" }
+        // Matéria sem questões ainda: a banca vem do edital (perfil da prova ou catálogo), como no app.
+        if (board.isBlank()) {
+            val competition = Store.data.topics.firstOrNull { it.id == topicId }?.let { t -> Store.data.subjects.firstOrNull { it.id == t.subjectId } }
+                ?.let { s -> Store.data.competitions.firstOrNull { it.id == s.competitionId } }
+            if (competition != null) {
+                val fromProfile = br.com.estudario.web.data.Simulations.examProfile(Store.data, competition.id).board?.trim()?.ifBlank { null }
+                (fromProfile ?: br.com.estudario.web.data.Catalog.boardFor(competition.name))?.let { if (board.isBlank()) board = it.take(40) }
+            }
+        }
         quota = quotaFor(if (questionsOnly) "QUESTION_BATCH" else "CONTENT_GENERATION")
         if (!questionsOnly && free == null) today = planToday()
         checked = true
         if (!questionsOnly) quota?.maxPerRequest?.takeIf { it >= 1 }?.let { maxQuestions = it }
     }
     var upgradeSeen by remember { mutableStateOf(false) }
-    var style by remember { mutableStateOf("MIXED") }
-    var difficulty by remember { mutableStateOf("MEDIUM") }
-    var board by remember { mutableStateOf("") }
+    // Grátis: questões sempre misturadas (o servidor força o mesmo); escolher é do Essencial e do Pro.
+    val freeTier = free != null || br.com.estudario.web.data.LibraryGaps.free()
     // A geração mora em Generation: fechar a janela não interrompe nada.
     val progress = Generation.state[topicId]
     val topic = Store.data.topics.firstOrNull { it.id == topicId }
@@ -213,11 +225,11 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             val top = if (questionsOnly) BATCH_QUESTIONS else maxQuestions
                             BrandCounter(count, { count = it }, step = 1, min = 1, max = top, unit = "questões", chips = listOf(5, 10, 20, 30).filter { it <= top }, label = "Quantidade de questões")
                         }
-                        ChoiceCards(styleChoices, { it == style }) { style = it }
+                        if (freeTier) FreeMixedNotice() else ChoiceCards(styleChoices, { it == style }) { style = it }
                     }
                     "level" -> {
                         FolhaSays("wink", 64) { B { Text("Em que nível e no estilo de qual banca?") } }
-                        ChoiceCards(difficultyChoices, { it == difficulty }, cols = 4) { difficulty = it }
+                        if (!freeTier) ChoiceCards(difficultyChoices, { it == difficulty }, cols = 4) { difficulty = it }
                         Div({ classes("field") }) {
                             Label { Text("Banca (opcional)") }
                             Input(InputType.Text) {
@@ -320,4 +332,16 @@ private fun QuotaMeter(q: Quota, what: String) {
         }
         Div({ classes("qm-bar") }) { Span({ attr("style", "width:${(q.remaining * 100 / q.limit).coerceIn(0, 100)}%") }) }
     }
+}
+
+/** Grátis: no lugar das escolhas de nível e formato, o que vem e por quê (como no app). */
+@Composable
+private fun FreeMixedNotice() {
+    var offer by remember { mutableStateOf(false) }
+    Div({ classes("free-mixed") }) {
+        B { Text("Questões misturadas") }
+        P({ classes("small", "muted") }) { Text("Fáceis, médias e difíceis, de múltipla escolha e de Certo ou Errado, sempre no assunto do tópico.") }
+        Span({ classes("small", "strong", "link"); attr("role", "button"); attr("tabindex", "0"); onClick { offer = true } }) { Text("Escolher só um nível ou só um formato é do Essencial e do Pro.") }
+    }
+    if (offer) UpgradeModal(UpgradeReason.GENERIC) { offer = false }
 }

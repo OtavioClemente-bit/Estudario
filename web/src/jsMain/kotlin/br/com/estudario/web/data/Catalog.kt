@@ -110,6 +110,14 @@ object Catalog {
             .ifEmpty { throw IllegalStateException("Este edital não está mais disponível no catálogo.") }
     }
 
+    /** A banca do edital do catálogo de onde o concurso veio (achado pelo nome), ou null. */
+    suspend fun boardFor(competitionName: String): String? = runCatching {
+        val all = entries()
+        val entry = all.firstOrNull { it.title.equals(competitionName, true) }
+            ?: all.filter { it.shortName.equals(competitionName, true) }.mapNotNull { it.board?.trim()?.ifBlank { null } }.distinct().singleOrNull()?.let { return it }
+        entry?.board?.trim()?.ifBlank { null }
+    }.getOrNull()
+
     /**
      * A prova oficial do edital de onde o concurso veio (achado pelo nome, que é o do catálogo:
      * "PF 2025" ou "PF 2025 · Agente"), ou null sem edital do catálogo ou sem prova pronta.

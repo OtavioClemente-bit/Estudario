@@ -278,7 +278,18 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         val ids = topics.map { it.id }.toSet()
         questions.filter { it.question.topicId in ids }.mapNotNull { it.question.board }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
     }
-    var options by remember(subjectBoard) { mutableStateOf(ContentPromptOptions(board = subjectBoard)) }
+    // Grátis: questões sempre misturadas (o servidor força o mesmo); escolher é do Essencial e do Pro.
+    val freeTier = remember { br.com.estudario.data.planner.LibraryGaps.free(context) }
+    var options by remember(subjectBoard) {
+        mutableStateOf(ContentPromptOptions(board = subjectBoard).let { if (freeTier) it.copy(difficulty = QuestionDifficulty.MIXED, style = QuestionStyle.MIXED) else it })
+    }
+    // Matéria sem questões ainda: a banca vem do edital (perfil da prova ou catálogo).
+    LaunchedEffect(competition?.id, subjectBoard) {
+        val c = competition ?: return@LaunchedEffect
+        if (options.board.isBlank()) br.com.estudario.data.catalog.editalBoardOf(context, c.id, c.name).takeIf(String::isNotBlank)?.let { b ->
+            if (options.board.isBlank()) options = options.copy(board = b.take(40))
+        }
+    }
     var attachment by remember { mutableStateOf<PromptAttachment?>(null) }
     val attach = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { attachment = context.attachmentFor(it) } }
     var serverTarget by remember { mutableStateOf<TopicEntity?>(null) }
@@ -367,8 +378,10 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             answer = "${options.questionCount} questões · ${options.difficulty.label} · ${options.style.label}" + options.board.takeIf(String::isNotBlank)?.let { " · $it" }.orEmpty(),
         ) {
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
-            OptionSection("Dificuldade") { DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) } }
-            OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
+            if (freeTier) FreeMixedQuestionsNotice() else {
+                OptionSection("Dificuldade") { DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) } }
+                OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
+            }
             BoardField(options.board) { options = options.copy(board = it.take(40)) }
         })
     }
@@ -625,15 +638,25 @@ fun AdditionalQuestionPromptBuilderDialog(
             ?.key
             .orEmpty()
     }
+    val questionsContext = LocalContext.current
+    // Grátis: questões sempre misturadas (o servidor força o mesmo); escolher é do Essencial e do Pro.
+    val freeTier = remember { br.com.estudario.data.planner.LibraryGaps.free(questionsContext) }
     var options by remember(subjectBoard) {
         mutableStateOf(
             ContentPromptOptions(
                 blocks = setOf(ContentBlock.QUESTIONS),
                 questionCount = 10,
-                difficulty = QuestionDifficulty.MEDIUM,
+                difficulty = if (freeTier) QuestionDifficulty.MIXED else QuestionDifficulty.MEDIUM,
+                style = QuestionStyle.MIXED,
                 board = subjectBoard,
             ),
         )
+    }
+    LaunchedEffect(competition?.id, subjectBoard) {
+        val c = competition ?: return@LaunchedEffect
+        if (options.board.isBlank()) br.com.estudario.data.catalog.editalBoardOf(questionsContext, c.id, c.name).takeIf(String::isNotBlank)?.let { b ->
+            if (options.board.isBlank()) options = options.copy(board = b.take(40))
+        }
     }
     val batchId = remember(topicId) { UUID.randomUUID().toString() }
 
@@ -664,7 +687,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             answer = "${options.questionCount} questões · ${options.style.label}",
         ) {
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = false) { options = options.copy(questionCount = it) }
-            OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
+            if (freeTier) FreeMixedQuestionsNotice() else OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
         },
         WizardStep(
             "Nível e banca",
@@ -672,7 +695,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             question = "Em que nível e no estilo de qual banca?",
             answer = listOf(options.difficulty.label, options.board).filter(String::isNotBlank).joinToString(" · "),
         ) {
-            DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) }
+            if (!freeTier) DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) }
             BoardField(options.board) { options = options.copy(board = it.take(40)) }
             Text(
                 if (existingQuestions.isEmpty()) "Ainda não há questões cadastradas nesta matéria para comparar."

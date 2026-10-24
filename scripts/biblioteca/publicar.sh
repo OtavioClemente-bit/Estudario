@@ -17,3 +17,9 @@ fi
 
 SUPABASE_URL="https://$REF.supabase.co" SUPABASE_SERVICE_ROLE_KEY="$KEY" \
   deno run --allow-read --allow-env --allow-net --allow-write=scripts/biblioteca/.publicado-cache.json scripts/biblioteca/importar.ts --publicar "$@"
+
+# Depois de publicar, a lista de recortes magros (Equipe › Cobertura) acompanha a biblioteca nova.
+# Falhar aqui não desfaz a publicação.
+SUPABASE_URL="https://$REF.supabase.co" SUPABASE_SERVICE_ROLE_KEY="$KEY" \
+  deno run --allow-read --allow-env --allow-net --allow-write=work scripts/biblioteca/recortes-magros.ts --gravar \
+  || echo "Aviso: não deu para atualizar a lista de recortes magros." >&2

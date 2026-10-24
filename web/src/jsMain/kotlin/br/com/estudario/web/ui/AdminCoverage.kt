@@ -54,11 +54,12 @@ fun AdminCoverageScreen() {
     var tab by remember { mutableStateOf("uso") }
     PageHead("Cobertura dos editais", "Os editais que as pessoas estão usando e quanto de cada um já tem matéria pronta")
     Div({ classes("filter-chips"); attr("style", "margin-bottom:14px") }) {
-        listOf("uso" to "Em uso pelas contas", "catalogo" to "Todo o catálogo").forEach { (k, label) ->
+        listOf("uso" to "Em uso pelas contas", "catalogo" to "Todo o catálogo", "magros" to "Recortes magros").forEach { (k, label) ->
             Button({ classes(*listOfNotNull("fchip", if (tab == k) "on" else null).toTypedArray()); onClick { tab = k } }) { Text(label) }
         }
     }
     val all = entries
+    if (tab == "magros") { ThinSlices(); return }
     if (tab == "uso") {
         EditaisInUse { id -> all?.firstOrNull { it.id == id }?.let { open = it } }
         open?.let { entry -> CoverageModal(entry) { open = null } }
@@ -288,6 +289,83 @@ private fun EditaisInUse(onOpenCatalog: (String) -> Unit) {
             }
             if (shown.isEmpty()) P({ classes("muted") }) { Text("Nenhum edital em uso ainda.") }
             (totals["unreadable"] ?: 0).takeIf { it > 0 }?.let { P({ classes("xs", "muted") }) { Text("$it conta(s) com a cópia ilegível ficaram de fora.") } }
+        }
+    }
+}
+
+/** Um recorte magro: o pedaço de uma matéria que alguns tópicos abrem, com o que sobra nele. */
+private class Thin(
+    val topicId: String, val title: String, val chapters: String, val flashcards: Int, val recall: Int,
+    val totalFlashcards: Int, val totalRecall: Int, val topics: List<String>, val topicCount: Int,
+)
+
+/**
+ * Tópicos que abrem só um pedaço de uma matéria e, filtrados pelo recorte, ficam com poucos
+ * flashcards ou sem memorização ativa. A lista vem de scripts/biblioteca/recortes-magros.ts (a
+ * mesma montagem do servidor). "Copiar pedido" monta o texto para escrever os itens que faltam.
+ */
+@Composable
+private fun ThinSlices() {
+    var rows by remember { mutableStateOf<List<Thin>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val token = Auth.accessToken() ?: run { error = "Entre de novo."; return@LaunchedEffect }
+        val response = runCatching {
+            httpRequest("POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/admin_thin_slices", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Content-Type" to "application/json", "Accept" to "application/json"), "{}")
+        }.getOrNull()
+        if (response == null || !response.ok) { error = "A lista ainda não foi gerada (rode scripts/biblioteca/recortes-magros.ts com --gravar)."; return@LaunchedEffect }
+        rows = runCatching {
+            (snapshotJson.parseToJsonElement(response.body) as? JsonArray).orEmpty().map { it.jsonObject }.map { o ->
+                fun s(k: String) = (o[k] as? JsonPrimitive)?.content.orEmpty()
+                fun i(k: String) = (o[k] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+                Thin(s("topic_id"), s("title"), s("chapters"), i("flashcards"), i("recall"), i("total_flashcards"), i("total_recall"),
+                    (o["topics"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }, i("topic_count"))
+            }
+        }.getOrElse { error = "Resposta inesperada do servidor."; null }
+    }
+    val list = rows
+    if (list == null) { CenterMessage { Folha("thinking", 80); Text(error ?: "Carregando os recortes…") }; return }
+    Div({ classes("admin-stats") }) {
+        CoverageStat("content_cut", "${list.size}", "recortes magros", "#E8590C")
+        CoverageStat("psychology", "${list.count { it.recall == 0 }}", "sem memorização", "#E5484D")
+        CoverageStat("style", "${list.count { it.flashcards <= 1 }}", "com 0 ou 1 flashcard", "#5B5BD6")
+        CoverageStat("topic", "${list.sumOf { it.topicCount }}", "tópicos de edital afetados", "#0E9AA7")
+    }
+    P({ classes("small", "muted") }) { Text("Tópicos que abrem só um pedaço de uma matéria e, nesse pedaço, ficam com menos de 4 flashcards ou de 2 itens de memorização. Escrever cartões e memorização desses capítulos resolve todos os tópicos da linha.") }
+    Input(InputType.Search) {
+        classes("input"); attr("style", "width:100%;margin:8px 0 12px"); attr("placeholder", "Buscar matéria, capítulo ou tópico")
+        value(query); onInput { query = it.value }
+    }
+    val q = query.trim().lowercase()
+    val shown = list.filter { q.isEmpty() || q in it.title.lowercase() || q in it.chapters.lowercase() || it.topics.any { t -> q in t.lowercase() } }
+    Card {
+        Div({ classes("stack") }) {
+            shown.take(300).forEach { item ->
+                Div({ classes("pick-row", "flat") }) {
+                    Span({ classes("grow") }) {
+                        B { Text("${item.title} › ${item.chapters}") }
+                        Span({ classes("hint") }) { Text("${item.topicCount} tópico(s): " + item.topics.take(3).joinToString(" · ") { it.take(80) }) }
+                    }
+                    Span({ attr("style", "min-width:150px;text-align:right") }) {
+                        B { Text("${item.flashcards} de ${item.totalFlashcards} cartões") }
+                        Span({ classes("hint"); attr("style", "display:block") }) { Text("${item.recall} de ${item.totalRecall} de memorização") }
+                    }
+                    Btn("Copiar pedido", {
+                        val text = buildString {
+                            append("Matéria: ${item.title} (${item.topicId})\n")
+                            append("Capítulos do recorte: ${item.chapters}\n")
+                            append("Hoje o recorte entrega ${item.flashcards} flashcards e ${item.recall} itens de memorização ativa.\n")
+                            append("Escrever flashcards e memorização ativa sobre esses capítulos (que citem os termos deles).\n")
+                            append("Tópicos que abrem esse recorte:\n")
+                            item.topics.forEach { append("- $it\n") }
+                        }
+                        window.navigator.asDynamic().clipboard?.writeText(text)
+                        Toast.show("Pedido copiado")
+                    }, style = "ghost", small = true, icon = "content_copy")
+                }
+            }
+            if (shown.isEmpty()) P({ classes("muted") }) { Text("Nenhum recorte encontrado.") }
         }
     }
 }

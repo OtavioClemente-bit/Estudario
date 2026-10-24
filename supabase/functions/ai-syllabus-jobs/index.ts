@@ -537,6 +537,12 @@ async function createTextJob(
         input = { ...content, options: { ...content.options, questionCount: rules.materialMaxQuestions } };
       }
     }
+    // Grátis: questões sempre misturadas (níveis e formatos), o pedido que a biblioteca sempre atende.
+    // Só um nível ou só um formato podia vir vazio. Escolher é do Essencial e do Pro.
+    if (rules.tier === "FREE" && (feature === "CONTENT_GENERATION" || feature === "QUESTION_BATCH")) {
+      const content = input as ContentJobInput;
+      input = { ...content, options: { ...content.options, difficulty: "MIXED", questionStyle: "MIXED" } };
+    }
     if (feature === "QUESTION_BATCH" && rules.batchesPerTopic !== null && dependencies.topicBatchCount) {
       let used: number;
       try {

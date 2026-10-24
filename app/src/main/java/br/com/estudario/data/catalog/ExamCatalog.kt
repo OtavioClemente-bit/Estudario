@@ -332,3 +332,19 @@ object ExamCatalogProvider {
         ).also { instance = it }
     }
 }
+
+/**
+ * A banca do edital de um concurso: a do perfil da prova ou, sem ela, a do catálogo de onde o
+ * concurso veio. "" quando não se sabe. É a banca que vai no pedido da matéria quando a pessoa ainda
+ * não tem questões naquela matéria (sem banca, a matéria vinha sem "Como a banca cobra").
+ */
+suspend fun editalBoardOf(context: android.content.Context, competitionId: Long, competitionName: String): String {
+    val app = context.applicationContext as? br.com.estudario.EstudarioApplication ?: return ""
+    app.database.simulationDao().examProfile(competitionId)?.board?.trim()?.takeIf(String::isNotBlank)?.let { return it }
+    return runCatching {
+        val catalog = ExamCatalogProvider.get(context)
+        if (!catalog.isConfigured) return@runCatching ""
+        val id = catalog.catalogIdFor(competitionName, CatalogLinks.get(context, competitionId)) ?: return@runCatching ""
+        catalog.entries().firstOrNull { it.id == id }?.board?.trim().orEmpty()
+    }.getOrDefault("")
+}

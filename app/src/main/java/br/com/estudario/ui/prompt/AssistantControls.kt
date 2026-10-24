@@ -357,3 +357,31 @@ fun durationText(minutes: Int): String = when {
     minutes % 60 == 0 -> "${minutes / 60}h"
     else -> "${minutes / 60}h${"%02d".format(minutes % 60)}"
 }
+
+/**
+ * Grátis: no lugar das escolhas de nível e formato, o que vem e por quê. Misturado é o pedido que a
+ * biblioteca sempre atende (só um nível ou um formato podia vir sem questões). Escolher é dos pagos.
+ */
+@Composable
+fun FreeMixedQuestionsNotice() {
+    var offer by remember { mutableStateOf(false) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Questões misturadas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "Fáceis, médias e difíceis, de múltipla escolha e de Certo ou Errado, sempre no assunto do tópico.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "Escolher só um nível ou só um formato é do Essencial e do Pro.",
+            style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { offer = true },
+        )
+    }
+    if (offer) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.GENERIC, onDismiss = { offer = false })
+}
