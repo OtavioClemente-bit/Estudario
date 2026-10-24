@@ -672,7 +672,14 @@ private fun MainNavigation(viewModel: AppViewModel) {
         // comemorações esperam: aparecem quando a rodada acaba, sem interromper o estudo.
         val studying = StudyFlow.busy || (focusSession.active && !focusSession.paused)
         val celebration by viewModel.celebration.collectAsState()
-        celebration?.let { current -> if (tourStep == null && !studying) StreakCelebrationScreen(current, viewModel::consumeCelebration) }
+        val reviewContext = androidx.compose.ui.platform.LocalContext.current
+        celebration?.let { current ->
+            if (tourStep == null && !studying) StreakCelebrationScreen(current) {
+                viewModel.consumeCelebration()
+                // Fechou a comemoração de uma boa sequência: o momento certo para a avaliação na Play.
+                AppReview.maybeAsk(reviewContext, current.summary.current)
+            }
+        }
         // Emblema novo entra depois da comemoração do dia, para as duas não brigarem pela tela.
         val badgeUnlock by viewModel.badgeUnlock.collectAsState()
         if (celebration == null && tourStep == null && !studying) BadgeCelebrationScreen(badgeUnlock, viewModel::consumeBadgeUnlock)

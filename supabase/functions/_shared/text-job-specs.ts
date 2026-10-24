@@ -123,6 +123,9 @@ async function libraryContent(
 ): Promise<WorkerProposal | null> {
   const store = dependencies.jobs;
   if (!store.libraryLookup) return null;
+  // Grátis: só o que está pronto, sem nenhuma chamada de IA (nem rota nova, nem recorte de banca,
+  // nem questões completadas). Sem saber o plano, vale como Grátis.
+  const free = store.planTierOf ? (await store.planTierOf(job.userId).catch(() => "FREE")) === "FREE" : false;
   const aliases = lookupAliases(input);
   let found = await store.libraryLookup(aliases, normalizeBoard(input.board), normalizeAlias(input.role));
   // Matéria de outro estado (texto curto ligado em editais de lá) não serve: vai para a rota ou para a IA.
@@ -131,7 +134,7 @@ async function libraryContent(
   // várias matérias, é a primeira.
   let primary = found ? { topicId: found.topicId, material: found.material } : null;
   if (!found) {
-    const routed = await routedLibraryHit(job, input, aliases, dependencies).catch(() => null);
+    const routed = await routedLibraryHit(job, input, aliases, dependencies, free).catch(() => null);
     if (routed) ({ hit: found, primary } = routed);
   }
   if (!found || !primary) {
@@ -149,7 +152,7 @@ async function libraryContent(
   }
   // Matéria pronta sem recorte desta banca: faz o recorte uma vez (perfil da banca + tópico) e guarda.
   const boardNorm = normalizeBoard(input.board);
-  if (!found.note && input.board && boardNorm && Deno.env.get("BOARD_NOTES_ENABLED") !== "false") {
+  if (!found.note && !free && input.board && boardNorm && Deno.env.get("BOARD_NOTES_ENABLED") !== "false") {
     found.note = await ensureBoardNote({
       provider: dependencies.provider,
       store,
@@ -178,14 +181,35 @@ async function libraryContent(
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
   // Sem recorte cadastrado, o nome do tópico escolhe os capítulos (pedir "HTML5" traz só HTML5).
   const focus = found.focus ?? inferFocus(found.material, input.topicPath[input.topicPath.length - 1]);
-  const content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, focus, true);
+  let content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, focus, true);
+  // Grátis: nenhuma questão pronta no formato pedido (ex.: só Certo/Errado num tópico estreito): sai
+  // com os formatos que houver, em vez de ir para a IA.
+  if (!content && free && input.options.questionStyle !== "MIXED") {
+    content = assembleFromLibrary(found.material, found.note, { ...input, options: { ...input.options, questionStyle: "MIXED" } }, `${job.id}:${job.userId}`, focus, true);
+    if (content) content.warnings = [...(Array.isArray(content.warnings) ? content.warnings as unknown[] : []), { code: "INSUFFICIENT_EVIDENCE", message: "Este tópico não tinha questões prontas no formato escolhido: vieram em outro formato." }];
+  }
   if (!content) return null;
   // A biblioteca não tinha todas (ex.: 13 de 30): a IA escreve só as que faltam, em cima da teoria
   // pronta, em vez de refazer o material inteiro. Em partes de até QUESTION_CHUNK, ao mesmo tempo
   // (acima disso o modelo erra mais), até completar o pedido.
   const have = Array.isArray(content.questions) ? (content.questions as unknown[]).length : 0;
   const missing = input.options.questionCount - have;
-  if (missing > 0) {
+  if (missing > 0 && free) {
+    // Grátis: completa com questões prontas de outro formato (ex.: pediu só Certo/Errado e o tópico
+    // tem poucas), sem IA. Se nem assim der, entrega as que houver.
+    const picked = ((content.questions as Record<string, unknown>[] | undefined) ?? []).map((q) => String(q.statement ?? ""));
+    const fill = input.options.questionStyle === "MIXED" ? null : assembleFromLibrary(
+      found.material, found.note,
+      { ...input, options: { ...input.options, blocks: ["QUESTIONS"], questionStyle: "MIXED", questionCount: missing }, avoidStatements: [...input.avoidStatements, ...picked] },
+      `${job.id}:${job.userId}:fill`, focus, true,
+    );
+    const extra = ((fill?.questions as unknown[] | undefined) ?? []).slice(0, missing);
+    if (extra.length > 0) {
+      content.questions = [...((content.questions as unknown[] | undefined) ?? []), ...extra];
+      const warnings = Array.isArray(content.warnings) ? content.warnings as unknown[] : [];
+      content.warnings = [...warnings, { code: "INSUFFICIENT_EVIDENCE", message: "Completamos com questões de outro formato: o banco deste tópico não tinha todas no formato escolhido." }];
+    }
+  } else if (missing > 0) {
     const sizes = Array.from({ length: Math.ceil(missing / QUESTION_CHUNK) }, (_, i) => Math.min(QUESTION_CHUNK, missing - i * QUESTION_CHUNK));
     const parts = await Promise.all(sizes.map((size) => libraryTopUp(content, size, input, job, dependencies).catch(() => [])));
     // Partes feitas em paralelo podem repetir enunciado: fica a primeira.
@@ -265,12 +289,15 @@ async function routedLibraryHit(
   input: ContentJobInput,
   aliases: string[],
   dependencies: Parameters<NonNullable<AiJobSpec["cached"]>>[1],
+  /** Grátis: só rota já guardada (escolher uma rota nova chama a IA). */
+  savedOnly = false,
 ): Promise<{ hit: LibraryHit; primary: { topicId: string; material: Record<string, unknown> } } | null> {
   const store = dependencies.jobs;
   const topicNorm = aliases[0];
   if (!topicNorm || !store.libraryCatalog || !store.libraryMaterials || Deno.env.get("LIBRARY_ROUTER_ENABLED") === "false") return null;
   const catalog = await store.libraryCatalog();
   let route = await store.libraryRoute?.(topicNorm, catalog.length) ?? null;
+  if (!route && savedOnly) return null;
   if (!route) {
     route = await routeTopic({
       provider: dependencies.provider,
@@ -514,7 +541,9 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
     const input = inputOf<SimulationJobInput>(job, parseSimulationJobInput);
     if (Deno.env.get("SIMULATION_LIBRARY_ENABLED") === "false") return null;
     const plan = await planSimulationFromLibrary(input, dependencies.jobs, `${job.id}:${job.userId}`);
-    if (plan.remaining) {
+    // Grátis (o diagnóstico): sai só com as questões prontas, mesmo que menor, sem IA para o resto.
+    const free = dependencies.jobs.planTierOf ? (await dependencies.jobs.planTierOf(job.userId).catch(() => "FREE")) === "FREE" : false;
+    if (plan.remaining && !(free && plan.questions.length > 0)) {
       SIMULATION_LEFTOVER.set(job.id, plan.remaining);
       return null;
     }

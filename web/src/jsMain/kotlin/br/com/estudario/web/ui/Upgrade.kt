@@ -29,6 +29,20 @@ enum class UpgradeReason(val title: String, val body: String) {
     EDITAIS("Você chegou ao limite de editais salvos", "No Grátis você guarda até 5 editais. No Essencial são 15, e no Pro não há limite."),
     PLANS("Mais planos de estudo", "No Grátis você tem um plano e pode ajustá-lo quando quiser. Com o Essencial ou o Pro, dá para montar planos novos todo mês."),
     GENERIC("Estude sem parar no meio", "Os planos Essencial e Pro liberam mais materiais, questões, simulados e o edital pelo seu PDF."),
+    EXTRAS("Suas 10 matérias extras do mês acabaram", "No Grátis, o plano do dia é sempre livre e você estuda mais 10 matérias por mês fora dele. Com um plano, você estuda qualquer matéria do edital, quando quiser."),
+    ADVANCE("Adiante seu plano", "No site, o Grátis adianta 1 matéria por semana; no app, um anúncio curto adianta até 2 por dia. Com um plano, você adianta quantos dias quiser, sem anúncio."),
+    PLAN_DAY("O plano de hoje já está com você", "As matérias de hoje já saíram. Amanhã chegam as próximas. Com um plano, você estuda no seu ritmo."),
+    NOT_READY("Esta matéria ainda não está pronta", "Ela entrou na fila da nossa equipe e aparece aqui quando ficar pronta. Com o Essencial, o Estudário escreve a matéria agora mesmo, com fontes oficiais."),
+}
+
+/** A recusa que vira oferta, pela mensagem (as telas só têm o texto); null quando é erro de verdade. */
+fun upgradeReasonFor(message: String?, questionsOnly: Boolean = false): UpgradeReason? = when (message) {
+    null -> null
+    AiJobs.message("FREE_EXTRA_LIMIT") -> UpgradeReason.EXTRAS
+    AiJobs.message("FREE_ADVANCE_NEEDS_AD") -> UpgradeReason.ADVANCE
+    AiJobs.message("FREE_PLAN_DAY_LIMIT") -> UpgradeReason.PLAN_DAY
+    AiJobs.message("PLAN_AI_MATERIAL_LIMIT") -> UpgradeReason.NOT_READY
+    else -> if (isQuotaMessage(message)) (if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) else null
 }
 
 /** A mensagem de erro é a de cota esgotada? (as telas só têm o texto, não o código) */
@@ -38,8 +52,8 @@ fun isQuotaMessage(message: String?): Boolean =
 private class OfferPlan(val tier: String, val name: String, val price: String, val glyph: String, val lines: List<Pair<String, String>>)
 
 private val offerPlans = listOf(
-    OfferPlan("essencial", "Essencial", "R$ 24,90", "star", listOf("25" to "materiais por mês", "10" to "lotes de questões", "3" to "simulados por mês", "2" to "editais pelo PDF")),
-    OfferPlan("pro", "Pro", "R$ 49,90", "diamond", listOf("40" to "materiais por mês", "25" to "lotes de questões", "6" to "simulados por mês", "5" to "editais pelo PDF")),
+    OfferPlan("essencial", "Essencial", "R$ 24,90", "star", listOf("25" to "matérias extras por mês", "10" to "lotes de questões", "3" to "simulados por mês", "2" to "editais pelo PDF")),
+    OfferPlan("pro", "Pro", "R$ 49,90", "diamond", listOf("40" to "matérias extras por mês", "25" to "lotes de questões", "6" to "simulados por mês", "5" to "editais pelo PDF")),
 )
 
 /**
@@ -73,7 +87,7 @@ fun UpgradeModal(reason: UpgradeReason, onDismiss: () -> Unit) {
                     }
                 }
             }
-            P({ classes("offer-note") }) { Text("Seu plano de estudo, as revisões, o treino e o caderno continuam no Grátis.") }
+            P({ classes("offer-note") }) { Text("No Grátis continuam a matéria do plano de hoje, as revisões, o treino e o caderno.") }
             Button({ classes("offer-cta"); onClick { onDismiss(); Router.go(Route.PlanLimits) } }) { Text("Conhecer os planos") }
             Button({ classes("offer-later"); onClick { onDismiss() } }) { Text("Agora não") }
             P({ classes("offer-fine") }) { Text("Assinatura pelo app, na Google Play. Vale aqui na mesma conta. Cancela quando quiser.") }

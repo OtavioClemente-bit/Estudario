@@ -405,7 +405,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         server = ServerGenerationOption(
-            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. Usa 1 material do seu plano.",
+            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. A matéria do plano de hoje não gasta nada; fora do plano, usa 1 do seu saldo.",
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
                 singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."
@@ -424,11 +424,14 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     }
     serverTarget?.let { target ->
         // A geração roda no escopo do app: fechar a janela não cancela, só manda para segundo plano.
-        val taskId = "content:${target.id}"
+        // Nova tentativa (ex.: depois do anúncio que adianta o dia) ganha outro id de tarefa.
+        var attempt by remember(target.id) { mutableStateOf(0) }
+        val taskId = "content:${target.id}" + if (attempt > 0) ":$attempt" else ""
         LaunchedEffect(taskId) {
             br.com.estudario.ui.ai.BackgroundAiTasks.start(taskId, target.title, "Material", competition.id) {
                 var result: String? = null
-                application.aiContentGenerator.generate(competition, subject, topics, target, options).collect { value ->
+                // No Grátis o servidor confere para que é a matéria: dia do plano, adiantar ou extra.
+                application.aiContentGenerator.generate(competition, subject, topics, target, options, purpose = viewModel.contentPurposeFor(target.id)).collect { value ->
                     when (value) {
                         is AiContentProgress.Done -> result = value.estudo
                         is AiContentProgress.Failed -> throw IllegalStateException(value.message)
@@ -444,6 +447,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             onDone = { estudo -> serverTarget = null; br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); onDismiss(); viewModel.openIncomingText(estudo, competition.id) },
             onBackground = { br.com.estudario.ui.ai.BackgroundAiTasks.sendToBackground(taskId); serverTarget = null; onDismiss() },
             onClose = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); serverTarget = null },
+            onRetry = { br.com.estudario.ui.ai.BackgroundAiTasks.dismiss(taskId); attempt++ },
         )
     }
 }
@@ -486,7 +490,7 @@ private val ContentCommitments = listOf(
  * edital). Ao terminar, entrega o pacote para a revisão de importação; se falhar, explica e volta.
  */
 @Composable
-private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, onDone: (String) -> Unit, onBackground: () -> Unit, onClose: () -> Unit, questionsOnly: Boolean = false) {
+private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, onDone: (String) -> Unit, onBackground: () -> Unit, onClose: () -> Unit, questionsOnly: Boolean = false, onRetry: (() -> Unit)? = null) {
     val stages = if (questionsOnly) QuestionGenerationStages else ContentGenerationStages
     val tasks by br.com.estudario.ui.ai.BackgroundAiTasks.tasks.collectAsState()
     val status = tasks.firstOrNull { it.id == taskId }?.status
@@ -546,14 +550,24 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
                             }
                         },
                     )
-                } else if (failed.message == br.com.estudario.data.ai.QUOTA_ENDED_MESSAGE) {
-                    // Saldo esgotado não é erro: mostra a oferta do plano certo (questões ou materiais).
-                    val reason = if (questionsOnly) br.com.estudario.ui.plans.UpgradeReason.QUESTIONS else br.com.estudario.ui.plans.UpgradeReason.CONTENT
+                } else if (br.com.estudario.ui.plans.upgradeReasonOf(failed.message, questionsOnly) != null) {
+                    // Limite do plano não é erro: mostra a saída certa (oferta, anúncio para adiantar, ou
+                    // a matéria que entrou na fila da equipe).
+                    val reason = br.com.estudario.ui.plans.upgradeReasonOf(failed.message, questionsOnly)!!
+                    val soft = reason == br.com.estudario.ui.plans.UpgradeReason.ADVANCE || reason == br.com.estudario.ui.plans.UpgradeReason.PLAN_DAY || reason == br.com.estudario.ui.plans.UpgradeReason.NOT_READY
                     Spacer(Modifier.height(32.dp))
-                    br.com.estudario.ui.assistant.Folha(132.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
+                    br.com.estudario.ui.assistant.Folha(132.dp, mood = if (reason == br.com.estudario.ui.plans.UpgradeReason.NOT_READY) br.com.estudario.ui.assistant.FolhaMood.THINKING else br.com.estudario.ui.assistant.FolhaMood.TALKING)
                     Text(reason.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Text(reason.body, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    br.com.estudario.ui.plans.UpgradeCta(reason, openAtStart = true)
+                    if (reason == br.com.estudario.ui.plans.UpgradeReason.ADVANCE && onRetry != null) {
+                        val app = LocalContext.current.applicationContext as br.com.estudario.EstudarioApplication
+                        val free by androidx.compose.runtime.produceState<br.com.estudario.data.ai.AiFreeAllowance?>(null) {
+                            value = (app.aiPlanRepository.load() as? br.com.estudario.ui.plans.AiPlanLoadResult.Available)?.summary?.freeAllowance
+                        }
+                        free?.adAdvances?.takeIf { it.enabled }?.let { ads -> br.com.estudario.ui.plans.RewardedAdvanceCard(ads, onCredit = onRetry) }
+                    }
+                    // Acabou o que é do Grátis: a oferta abre na hora, em tela cheia. Nos outros casos, o botão fica à mão.
+                    br.com.estudario.ui.plans.UpgradeCta(reason, label = if (soft) "Conhecer os planos" else "Ver planos", openAtStart = !soft)
                     TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Voltar") }
                 } else {
                     Spacer(Modifier.height(32.dp))

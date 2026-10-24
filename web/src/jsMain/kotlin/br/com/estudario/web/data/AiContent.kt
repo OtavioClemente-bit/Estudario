@@ -39,7 +39,20 @@ object AiContent {
         val board: String = "",
         /** Enunciados que a pessoa já tem: "mais questões" sai da biblioteca sem repetir. */
         val avoid: List<String> = emptyList(),
+        /** Para que é a matéria no Grátis (conferido no servidor): PLAN_DAY, ADVANCE ou EXTRA. */
+        val purpose: String = "EXTRA",
     )
+
+    /** Tópico com tarefa do plano hoje (ou atrasada) é o dia do plano; num dia que ainda vem, adiantar; fora do plano, extra. */
+    fun purposeFor(data: Snapshot, topicId: Long): String {
+        val today = Queries.todayEpoch()
+        val days = data.tasks.filter { it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }.map { it.day }
+        return when {
+            days.any { it <= today } -> "PLAN_DAY"
+            days.any { it > today } -> "ADVANCE"
+            else -> "EXTRA"
+        }
+    }
 
     sealed interface Progress {
         data object Checking : Progress
@@ -80,6 +93,7 @@ object AiContent {
         val blocks = options.blocks
         val body = buildJsonObject {
             put("feature", "CONTENT_GENERATION")
+            put("purpose", options.purpose)
             put("input", buildJsonObject {
                 put("competitionName", competition.name.take(300))
                 if (options.board.isNotBlank()) put("board", options.board.trim().take(80)) else put("board", JsonNull)
@@ -141,8 +155,7 @@ object AiContent {
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
             "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
             "TOPIC_BATCH_LIMIT" -> "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais: o lote extra é do seu plano pago."
-            "PLAN_FEATURE_LOCKED" -> "No plano grátis, o simulado é só o diagnóstico. Os outros simulados são do seu plano pago."
-            "PLAN_AI_MATERIAL_LIMIT" -> "Este tópico ainda não tem material pronto, e as matérias escritas na hora pela IA do seu plano grátis acabaram neste mês."
+            "PLAN_FEATURE_LOCKED", "PLAN_AI_MATERIAL_LIMIT", "FREE_EXTRA_LIMIT", "FREE_ADVANCE_NEEDS_AD", "FREE_PLAN_DAY_LIMIT" -> AiJobs.message(code)
             "DEVICE_QUOTA_EXHAUSTED" -> "O saldo grátis de gerações já foi usado neste navegador ou nesta rede."
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."
             "TURNSTILE_FAILED", "TURNSTILE_UNAVAILABLE" -> "A verificação de segurança não passou. Recarregue a página e tente de novo."

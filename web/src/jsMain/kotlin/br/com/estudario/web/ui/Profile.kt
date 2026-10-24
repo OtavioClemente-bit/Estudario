@@ -470,14 +470,14 @@ fun NotificationsScreen() {
 private class Usage(val feature: String, val limit: Int, val used: Int, val remaining: Int, val resetAt: String?)
 private class PlanLimit(val feature: String, val periodKind: String, val quota: Int, val maxPerRequest: Int?)
 private class Pricing(val name: String, val tagline: String, val monthCents: Int, val yearCents: Int, val featured: Boolean)
-private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<Pair<String, List<PlanLimit>>>, val usage: List<Usage>, val pricing: Map<String, Pricing>, val playEnabled: Boolean)
+private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<Pair<String, List<PlanLimit>>>, val usage: List<Usage>, val pricing: Map<String, Pricing>, val playEnabled: Boolean, val free: FreeInfo? = null)
 
 private fun brl(cents: Int): String = "R$ " + (cents / 100).toString().reversed().chunked(3).joinToString(".").reversed() + "," + (cents % 100).toString().padStart(2, '0')
 
 private fun featureLabel(feature: String) = when (feature) {
     "SYLLABUS_GENERATION" -> "Edital pelo seu PDF"
     "PLAN_GENERATION" -> "Planos de estudo"
-    "CONTENT_GENERATION" -> "Matérias"
+    "CONTENT_GENERATION" -> "Matérias extras (além do plano do dia)"
     "QUESTION_BATCH" -> "Lotes de 10 questões extras"
     "SAVED_EDITAIS" -> "Editais salvos"
     "AD_REWARD" -> "Bônus por anúncio"
@@ -534,8 +534,22 @@ private fun parsePlan(body: String): PlanInfo {
         (p.s("planTier") ?: "FREE") to Pricing(p.s("name") ?: "", p.s("tagline") ?: "", p.i("priceMonthCents") ?: 0, p.i("priceYearCents") ?: 0, (p["featured"] as? JsonPrimitive)?.contentOrNull == "true")
     }
     val playEnabled = ((root["billing"] as? JsonObject)?.get("playEnabled") as? JsonPrimitive)?.contentOrNull == "true"
-    return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled)
+    val free = (root["freeAllowance"] as? JsonObject)?.let { f ->
+        fun count(k: String) = f[k] as? JsonObject
+        FreeInfo(
+            count("planDay")?.i("used") ?: 0, count("planDay")?.i("limit") ?: 3,
+            count("extras")?.i("used") ?: 0, count("extras")?.i("limit") ?: 10,
+            count("weeklyAdvance")?.i("used") ?: 0, count("weeklyAdvance")?.i("limit") ?: 1,
+        )
+    }
+    return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled, free)
 }
+
+/** As regras de matéria do Grátis, contadas no servidor (dia do plano, extras, adiantar). */
+class FreeInfo(val planDayUsed: Int, val planDayLimit: Int, val extrasUsed: Int, val extrasLimit: Int, val weeklyUsed: Int, val weeklyLimit: Int)
+
+/** O uso do Grátis; null em plano pago, na demonstração ou se não deu para ler. */
+suspend fun freeAllowance(): FreeInfo? = fetchPlanInfo()?.free
 
 /** O saldo de um recurso no plano da conta, como o medidor do app (AiGenerationScreen). */
 class Quota(val remaining: Int, val limit: Int, val monthly: Boolean, val resetLabel: String?, val maxPerRequest: Int?)
@@ -561,6 +575,20 @@ private suspend fun fetchPlanInfo(): PlanInfo? {
 suspend fun materialQuestionLimit(): Int? {
     val info = fetchPlanInfo() ?: return null
     return info.plans.firstOrNull { it.first == info.tier }?.second?.firstOrNull { it.feature == "CONTENT_GENERATION" }?.maxPerRequest
+}
+
+@Composable
+private fun FreeLine(icon: String, title: String, detail: String, value: String) {
+    Div({ classes("row") }) {
+        Span({ classes("mini-medal") }) { Icon(icon) }
+        Div({ classes("grow") }) {
+            Div({ classes("row", "between") }) {
+                B({ classes("small") }) { Text(title) }
+                Span({ classes("small", "strong") }) { Text(value) }
+            }
+            Span({ classes("xs", "muted") }) { Text(detail) }
+        }
+    }
 }
 
 @Composable
@@ -596,10 +624,22 @@ fun PlanLimitsScreen() {
         }
         Folha("wink", 88, "margin:-8px 0 -14px")
     }
+    // Grátis: as regras de matéria (o teto de matérias do banco é só interno e não aparece).
+    current.free?.let { f ->
+        Card {
+            CardHead("Seu Grátis")
+            P({ classes("small", "muted") }) { Text("As matérias saem prontas da biblioteca do Estudário, conferidas pela equipe.") }
+            Div({ classes("stack") }) {
+                FreeLine("event_repeat", "Matéria do plano de hoje", "livre todo dia", "${f.planDayUsed} de ${f.planDayLimit} hoje")
+                FreeLine("menu_book", "Matérias fora do plano", "qualquer do edital, neste mês", "${(f.extrasLimit - f.extrasUsed).coerceAtLeast(0)} de ${f.extrasLimit} restantes")
+                FreeLine("fast_forward", "Adiantar o plano", "no site, 1 por semana; no app, anúncio curto (2 por dia)", if (f.weeklyUsed < f.weeklyLimit) "1 livre nesta semana" else "usado nesta semana")
+            }
+        }
+    }
     Card {
         CardHead("Uso deste período")
         Div({ classes("stack") }) {
-            current.usage.filter { it.feature in visibleFeatures && it.limit > 0 }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { u ->
+            current.usage.filter { it.feature in visibleFeatures && it.limit > 0 && !(current.free != null && it.feature == "CONTENT_GENERATION") }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { u ->
                 key(u.feature) {
                     Div({ classes("row") }) {
                         Span({ classes("mini-medal") }) { Icon(featureIcon(u.feature)) }
@@ -652,7 +692,13 @@ fun PlanLimitsScreen() {
     Card(extra = "tier-compare") {
         CardHead("O que o " + (current.pricing[chosen]?.name?.ifBlank { null } ?: planName(chosen)) + " inclui")
         Div({ classes("stack") }) {
-            chosenLimits.filter { it.feature in visibleFeatures && it.quota > 0 }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { l ->
+            Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Matéria do plano de hoje") }; Span({ classes("small", "strong") }) { Text("livre") } }
+            if (chosen == "FREE") {
+                Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Matérias fora do plano") }; Span({ classes("small", "strong") }) { Text("10 por mês") } }
+                Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Adiantar o plano") }; Span({ classes("small", "strong") }) { Text("anúncio no app · 1/semana no site") } }
+                Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Matéria escrita na hora pela IA") }; Span({ classes("small", "muted") }) { Text("só nos pagos") } }
+            }
+            chosenLimits.filter { it.feature in visibleFeatures && it.quota > 0 && !(chosen == "FREE" && it.feature == "CONTENT_GENERATION") }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { l ->
                 key(l.feature) {
                     val max = tiers.mapNotNull { (_, limits) -> limits.firstOrNull { it.feature == l.feature }?.quota }.maxOrNull()?.coerceAtLeast(1) ?: 1
                     Div({ classes("stack", "tight") }) {

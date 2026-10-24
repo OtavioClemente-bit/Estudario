@@ -35,6 +35,7 @@ import {
 } from "../_shared/text-job-input.ts";
 import { effectivePlanTier, SupabaseAccessDataSource } from "../_shared/access-policy.ts";
 import { parseSimulationJobInput } from "../_shared/simulation.ts";
+import { decideFreeContent, type FreeAllowanceStore, parsePurpose, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
 const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH"]);
@@ -77,6 +78,8 @@ export interface AiSyllabusJobsDependencies {
   networkQuota?: NetworkQuota;
   /** Verificação anti-robô (Cloudflare Turnstile) dos pedidos do app web. Ausente = não verifica (testes). */
   webGuard?: WebGuard;
+  /** Regras de matéria do Grátis (dia do plano, adiantar, extras). Ausente = não confere (testes). */
+  freeAllowance?: FreeAllowanceStore;
 }
 
 export interface NetworkQuota {
@@ -220,6 +223,9 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     QUESTION_LIMIT_EXCEEDED: "Question count is above the plan limit",
     TOPIC_BATCH_LIMIT: "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais.",
     PLAN_FEATURE_LOCKED: "No plano grátis, o simulado é só o diagnóstico. Assine para montar outros simulados.",
+    FREE_PLAN_DAY_LIMIT: "As matérias do plano de hoje já saíram. Amanhã tem mais, ou adiante um dia.",
+    FREE_EXTRA_LIMIT: "As 10 matérias fora do plano deste mês já foram usadas. Assine para estudar qualquer matéria.",
+    FREE_ADVANCE_NEEDS_AD: "Para adiantar mais um dia no plano grátis, assista a um anúncio (ou assine para adiantar à vontade).",
     DEVICE_QUOTA_EXHAUSTED: "The free allowance of this device has been used",
     DEVICE_REQUIRED: "Device identification is required",
     TURNSTILE_FAILED: "Human verification failed; reload the page",
@@ -375,7 +381,7 @@ async function createJob(
     const textClient = await clientContext(request);
     const blocked = await verifyWebClient(dependencies, request, textClient);
     if (blocked) return blocked;
-    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, textClient);
+    return createTextJob(dependencies, user, key, body.feature as AiFeature, body.input, textClient, body.purpose);
   }
   if (body.feature !== undefined && body.feature !== SYLLABUS_FEATURE) return safeError("INVALID_FEATURE", 400);
   const source = sourceInput(body);
@@ -489,6 +495,7 @@ async function createTextJob(
   feature: AiFeature,
   rawInput: unknown,
   client: ClientContext = { web: false, device: null, ip: null, network: null },
+  rawPurpose: unknown = undefined,
 ): Promise<Response> {
   let input: unknown;
   try {
@@ -511,6 +518,9 @@ async function createTextJob(
       input = { ...content, options: { ...content.options, questionCount: QUESTION_BATCH_SIZE } };
     }
   }
+  // No Grátis, para que é a matéria (dia do plano, adiantar, extra) e o crédito de anúncio usado.
+  let freeTag: Record<string, unknown> = {};
+  let freeCredit: string | null = null;
   if (dependencies.planRules) {
     let rules: PlanRules;
     try {
@@ -537,6 +547,25 @@ async function createTextJob(
     if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
       return safeError("PLAN_FEATURE_LOCKED", 403);
     }
+    // Plano por IA é dos planos pagos: o Grátis monta o plano no próprio app, sem IA.
+    if (feature === "PLAN_GENERATION" && rules.tier === "FREE") return safeError("PLAN_FEATURE_LOCKED", 403);
+    if (feature === "CONTENT_GENERATION" && rules.tier === "FREE" && dependencies.freeAllowance) {
+      const purpose = parsePurpose(rawPurpose);
+      let decision;
+      try {
+        decision = decideFreeContent(purpose, await dependencies.freeAllowance.usage(user.userId));
+      } catch {
+        return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
+      }
+      if (!decision.ok) return safeError(decision.code, 403);
+      freeTag = { purpose, ...(decision.weekly ? { weekly: true } : {}) };
+      if (decision.useCredit) {
+        const credit = await dependencies.freeAllowance.consumeCredit(user.userId).catch(() => null);
+        if (!credit) return safeError("FREE_ADVANCE_NEEDS_AD", 403);
+        freeCredit = credit;
+        freeTag = { ...freeTag, adCredit: credit };
+      }
+    }
   }
   // Matéria que saiu com menos questões que o pedido (a IA entrega até 10): os lotes até completar
   // não gastam cota. O worker devolve a cota quando o lote marcado dá certo.
@@ -555,7 +584,7 @@ async function createTextJob(
     }
     if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
   }
-  const payload = { feature, input, ...(compensated ? { compensated: true } : {}) } satisfies Record<string, unknown>;
+  const payload = { feature, input, ...(compensated ? { compensated: true } : {}), ...freeTag } satisfies Record<string, unknown>;
   const fingerprint = await requestFingerprint(payload);
   let created;
   try {
@@ -567,9 +596,12 @@ async function createTextJob(
       requestPayload: payload,
     });
   } catch (error) {
+    // O pedido não virou job: o crédito do anúncio volta para a pessoa.
+    if (freeCredit) await dependencies.freeAllowance?.releaseCredit(freeCredit).catch(() => undefined);
     if (error instanceof JobStoreError) return safeError(error.code, error.status, error.retryAfterSeconds);
     return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
   }
+  if (freeCredit) await dependencies.freeAllowance?.linkCredit(freeCredit, created.jobId).catch(() => undefined);
   const blockedText = await claimDeviceAllowance(dependencies, user.userId, client, feature, created);
   if (blockedText) return blockedText;
   let job = await dependencies.jobs.getJob(user.userId, created.jobId);
@@ -803,6 +835,7 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     deviceQuota: serviceDeviceQuota(supabaseUrl, serviceRoleKey),
     networkQuota: serviceNetworkQuota(supabaseUrl, serviceRoleKey),
     webGuard: turnstileGuard(Deno.env.get("TURNSTILE_SECRET_KEY")?.trim()),
+    freeAllowance: new SupabaseFreeAllowance(supabaseUrl, serviceRoleKey),
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
     },

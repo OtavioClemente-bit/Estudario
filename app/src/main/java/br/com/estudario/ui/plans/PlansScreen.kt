@@ -225,7 +225,8 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                                 onYearly = { yearly = it },
                                 onSelected = { selectedTier = it },
                             )
-                            UsageSection(current.summary.usage)
+                            current.summary.freeAllowance?.let { FreeSection(it, onAdvanced = { reload++ }) }
+                            UsageSection(current.summary.usage.filter { current.summary.freeAllowance == null || it.feature != "CONTENT_GENERATION" })
                             EveryPlanHas()
                         }
                     }
@@ -389,6 +390,42 @@ private fun Notice(title: String, body: String, actionLabel: String?, onAction: 
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (actionLabel != null) Button(onClick = onAction, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { Text(actionLabel, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+/** Grátis: as regras de matéria à vista (dia do plano, extras, adiantar com anúncio). */
+@Composable
+private fun FreeSection(free: br.com.estudario.data.ai.AiFreeAllowance, onAdvanced: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionTitle("Seu Grátis", "As matérias saem prontas da biblioteca do Estudário, conferidas pela equipe.")
+        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Column(Modifier.padding(vertical = 8.dp)) {
+                FreeRow(Icons.Outlined.EventRepeat, "Matéria do plano de hoje", "livre todo dia", "${free.planDay.used}", "de ${free.planDay.limit} hoje")
+                Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                FreeRow(Icons.Outlined.MenuBook, "Matérias fora do plano", "qualquer do edital, neste mês", "${free.extras.left}", "de ${free.extras.limit}")
+                Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                FreeRow(Icons.Outlined.OndemandVideo, "Adiantar com anúncio", "2 por dia, 10 por mês", "${free.adAdvances.today}", "de ${free.adAdvances.dailyLimit} hoje")
+            }
+        }
+        if (free.adAdvances.enabled) RewardedAdvanceCard(free.adAdvances, onCredit = onAdvanced)
+    }
+}
+
+@Composable
+private fun FreeRow(icon: ImageVector, title: String, detail: String, big: String, small: String) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(big, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+            Text(small, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

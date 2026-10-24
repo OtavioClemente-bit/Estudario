@@ -8,6 +8,7 @@ import {
   authenticateSupabaseRequest,
   AuthError,
 } from "../_shared/auth.ts";
+import { FREE_RULES, type FreeUsage, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
 
 /**
  * GET  /ai-plan             -> plano efetivo, catálogo dos planos e uso atual (somente leitura).
@@ -22,6 +23,25 @@ export interface AiPlanHandlerDependencies {
   pricing: (user: AuthenticatedUser) => Promise<PlanPricing[]>;
   /** As assinaturas estão abertas (conta de serviço do Play configurada). */
   playEnabled: () => boolean;
+  /** Uso das regras de matéria do Grátis (dia do plano, adiantar, extras). Ausente = não manda. */
+  freeUsage?: (user: AuthenticatedUser) => Promise<FreeUsage>;
+  /** Anúncio premiado ligado (bloco do AdMob com a verificação do servidor configurada). */
+  adsEnabled?: () => boolean;
+}
+
+/** O que o app mostra do Grátis: quanto já usou de cada regra e os limites. */
+export function freeAllowanceView(usage: FreeUsage, adsEnabled: boolean) {
+  return {
+    planDay: { used: usage.planDayToday, limit: FREE_RULES.planDayPerDay },
+    extras: { used: usage.extrasMonth, limit: FREE_RULES.extrasPerMonth },
+    adAdvances: {
+      enabled: adsEnabled,
+      today: usage.adCreditsToday, dailyLimit: FREE_RULES.adAdvancesPerDay,
+      month: usage.adCreditsMonth, monthlyLimit: FREE_RULES.adAdvancesPerMonth,
+      available: usage.adCreditsAvailable,
+    },
+    weeklyAdvance: { used: usage.weeklyAdvances, limit: FREE_RULES.freeAdvancesPerWeek },
+  };
 }
 
 export interface PlanPricing {
@@ -85,7 +105,10 @@ export function createAiPlanHandler(
         return jsonResponse({ recorded: true, rewardGranted: false, tapsToday: taps });
       }
       const summary = await dependencies.policyForUser(user).getPlanSummary(user.userId);
-      return jsonResponse({ ...summary, pricing: await dependencies.pricing(user), billing: { playEnabled: dependencies.playEnabled() } });
+      const free = summary.planTier === "FREE" && dependencies.freeUsage
+        ? await dependencies.freeUsage(user).then((usage) => freeAllowanceView(usage, dependencies.adsEnabled?.() === true)).catch(() => null)
+        : null;
+      return jsonResponse({ ...summary, ...(free ? { freeAllowance: free } : {}), pricing: await dependencies.pricing(user), billing: { playEnabled: dependencies.playEnabled() } });
     } catch {
       return safeError("AI_PLAN_UNAVAILABLE", 503);
     }
@@ -155,6 +178,12 @@ async function handleAiPlan(request: Request): Promise<Response> {
     registerAdInterest,
     pricing: loadPricing,
     playEnabled: () => !!Deno.env.get("PLAY_SERVICE_ACCOUNT_JSON")?.trim(),
+    freeUsage: (user) => {
+      const url = Deno.env.get("SUPABASE_URL")?.trim(), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+      if (!url || !key) return Promise.reject(new Error("FREE_USAGE_UNAVAILABLE"));
+      return new SupabaseFreeAllowance(url, key).usage(user.userId);
+    },
+    adsEnabled: () => Deno.env.get("AD_REWARDS_ENABLED")?.trim() === "true",
   })(request);
 }
 

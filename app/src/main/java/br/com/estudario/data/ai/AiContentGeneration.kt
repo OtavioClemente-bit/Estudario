@@ -36,6 +36,15 @@ sealed interface AiContentProgress {
 /** Saldo do plano esgotado: a tela reconhece esta frase e mostra a oferta de plano no lugar do erro. */
 const val QUOTA_ENDED_MESSAGE = "O saldo do seu plano para isto acabou neste mês."
 
+/** Grátis: as 10 matérias fora do plano do mês acabaram (a tela mostra a oferta). */
+const val FREE_EXTRAS_ENDED_MESSAGE = "As 10 matérias fora do plano deste mês já foram usadas."
+/** Grátis: adiantar mais um dia pede um anúncio (a tela oferece o anúncio e os planos). */
+const val FREE_ADVANCE_AD_MESSAGE = "Para adiantar mais um dia, assista a um anúncio curto."
+/** Grátis: as matérias do plano de hoje já saíram. */
+const val FREE_PLAN_DAY_DONE_MESSAGE = "As matérias do plano de hoje já saíram. Amanhã tem mais."
+/** O tópico ainda não tem matéria pronta, e o Grátis não escreve pela IA (vai para a fila da equipe). */
+const val NOT_READY_MESSAGE = "Esta matéria ainda não está pronta na biblioteca."
+
 class AiContentGenerator(
     private val config: SupabaseClientConfig,
     private val authRepository: SupabaseAuthRepository,
@@ -51,6 +60,8 @@ class AiContentGenerator(
         options: ContentPromptOptions,
         /** "Gerar mais questões": enunciados que a pessoa já tem, para o servidor não repetir. */
         avoidStatements: List<String> = emptyList(),
+        /** Para que é a matéria no Grátis: PLAN_DAY, ADVANCE ou EXTRA (AppViewModel.contentPurposeFor). */
+        purpose: String = "EXTRA",
     ): Flow<AiContentProgress> = flow {
         emit(AiContentProgress.Sending)
         if (!config.isConfigured) return@flow emit(AiContentProgress.Failed("A geração pelo Estudário não está disponível nesta versão do app."))
@@ -58,6 +69,7 @@ class AiContentGenerator(
             ?: return@flow emit(AiContentProgress.Failed("Entre na sua conta para gerar com o Estudário."))
         val body = JSONObject()
             .put("feature", "CONTENT_GENERATION")
+            .put("purpose", purpose)
             .put("input", AiContentRequest.input(competition, subject, topics, target, options).apply {
                 // Até 400; o servidor compara com todas. Começo + fim: itens agrupados repetem o texto longo do início.
                 if (avoidStatements.isNotEmpty()) put("avoidStatements", JSONArray(avoidStatements.take(400).map { s -> s.trim().let { t -> if (t.length <= 300) t else t.take(150) + t.takeLast(150) } }))
@@ -95,7 +107,11 @@ class AiContentGenerator(
                     return@flow emit(AiContentProgress.Done(AiContentEstudo.build(competition, subject, topics, target, proposal)))
                 }
                 "FAILED", "EXPIRED", "CANCELLED" -> return@flow emit(AiContentProgress.Failed(
-                    "Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo.",
+                    when (job.optString("errorCode")) {
+                        // Grátis num tópico sem matéria pronta: o servidor não chama a IA.
+                        "PLAN_AI_MATERIAL_LIMIT" -> NOT_READY_MESSAGE
+                        else -> "Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo."
+                    },
                 ))
             }
         }
@@ -118,7 +134,10 @@ class AiContentGenerator(
     private fun errorMessage(response: AiHttpResponse): String {
         val code = runCatching { JSONObject(response.body).getJSONObject("error").getString("code") }.getOrNull()
         return when (code) {
-            "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED", "QUESTION_LIMIT_EXCEEDED" -> QUOTA_ENDED_MESSAGE
+            "QUOTA_EXHAUSTED", "AI_QUOTA_EXHAUSTED", "QUESTION_LIMIT_EXCEEDED", "TOPIC_BATCH_LIMIT" -> QUOTA_ENDED_MESSAGE
+            "FREE_EXTRA_LIMIT" -> FREE_EXTRAS_ENDED_MESSAGE
+            "FREE_ADVANCE_NEEDS_AD" -> FREE_ADVANCE_AD_MESSAGE
+            "FREE_PLAN_DAY_LIMIT" -> FREE_PLAN_DAY_DONE_MESSAGE
             "QUOTA_RESERVED" -> "Já tem uma geração em andamento. Espere ela terminar."
             "DEVICE_QUOTA_EXHAUSTED" -> DEVICE_QUOTA_MESSAGE
             "AI_RATE_LIMIT_EXCEEDED" -> "Muitas tentativas em pouco tempo. Tente de novo em alguns minutos."

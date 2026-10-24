@@ -71,7 +71,11 @@ enum class UpgradeReason(val title: String, val body: String) {
     QUESTIONS("Seus lotes de questões acabaram", "Mais questões comentadas no estilo da banca, para treinar o tópico até ele ficar firme."),
     EDITAIS("Você chegou ao limite de editais salvos", "No Grátis você guarda até 5 editais. No Essencial são 15, e no Pro não há limite."),
     PLANS("Mais planos de estudo", "No Grátis você tem um plano e pode ajustá-lo quando quiser. Com o Essencial ou o Pro, dá para montar planos novos todo mês."),
-    GENERIC("Estude sem parar no meio", "Os planos Essencial e Pro liberam mais materiais, questões, simulados e o edital pelo seu PDF.");
+    GENERIC("Estude sem parar no meio", "Os planos Essencial e Pro liberam mais materiais, questões, simulados e o edital pelo seu PDF."),
+    EXTRAS("Suas 10 matérias extras do mês acabaram", "No Grátis, o plano do dia é sempre livre e você estuda mais 10 matérias por mês fora dele. Com um plano, você estuda qualquer matéria do edital, quando quiser."),
+    ADVANCE("Adiante seu plano", "No Grátis, cada anúncio curto adianta uma matéria do plano (até 2 por dia). Com um plano, você adianta quantos dias quiser, sem anúncio."),
+    PLAN_DAY("O plano de hoje já está com você", "As matérias de hoje já saíram. Amanhã chegam as próximas, ou adiante um dia. Com um plano, você estuda no seu ritmo."),
+    NOT_READY("Esta matéria ainda não está pronta", "Ela entrou na fila da nossa equipe e você recebe um aviso quando ficar pronta. Com o Essencial, o Estudário escreve a matéria agora mesmo, com fontes oficiais.");
 
     companion object {
         fun forFeature(feature: String?): UpgradeReason = when (feature) {
@@ -85,12 +89,23 @@ enum class UpgradeReason(val title: String, val body: String) {
     }
 }
 
+/** A recusa do servidor que vira oferta (em vez de erro), pela frase que o gerador devolve. */
+fun upgradeReasonOf(message: String, questionsOnly: Boolean): UpgradeReason? = when (message) {
+    br.com.estudario.data.ai.QUOTA_ENDED_MESSAGE -> if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT
+    br.com.estudario.data.ai.FREE_EXTRAS_ENDED_MESSAGE -> UpgradeReason.EXTRAS
+    br.com.estudario.data.ai.FREE_ADVANCE_AD_MESSAGE -> UpgradeReason.ADVANCE
+    br.com.estudario.data.ai.FREE_PLAN_DAY_DONE_MESSAGE -> UpgradeReason.PLAN_DAY
+    br.com.estudario.data.ai.NOT_READY_MESSAGE -> UpgradeReason.NOT_READY
+    br.com.estudario.data.ai.DEVICE_QUOTA_MESSAGE -> UpgradeReason.CONTENT
+    else -> null
+}
+
 /** Os dois planos pagos como aparecem na oferta (valores do banco, conferidos em 14/10/2026). */
 private data class OfferPlan(val tier: String, val name: String, val price: String, val lines: List<Pair<String, String>>)
 
 private val offerPlans = listOf(
-    OfferPlan("ESSENCIAL", "Essencial", "R$ 24,90", listOf("25" to "materiais por mês", "10" to "lotes de questões", "3" to "simulados por mês", "2" to "editais pelo PDF")),
-    OfferPlan("PRO", "Pro", "R$ 49,90", listOf("40" to "materiais por mês", "25" to "lotes de questões", "6" to "simulados por mês", "5" to "editais pelo PDF")),
+    OfferPlan("ESSENCIAL", "Essencial", "R$ 24,90", listOf("25" to "matérias extras por mês", "10" to "lotes de questões", "3" to "simulados por mês", "2" to "editais pelo PDF")),
+    OfferPlan("PRO", "Pro", "R$ 49,90", listOf("40" to "matérias extras por mês", "25" to "lotes de questões", "6" to "simulados por mês", "5" to "editais pelo PDF")),
 )
 
 /**
@@ -150,7 +165,7 @@ fun UpgradeDialog(reason: UpgradeReason, onDismiss: () -> Unit, onSignIn: (() ->
                 }
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "Seu plano de estudo, as revisões, o treino e o caderno continuam no Grátis.",
+                    "No Grátis continuam a matéria do plano de hoje, as revisões, o treino e o caderno.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,

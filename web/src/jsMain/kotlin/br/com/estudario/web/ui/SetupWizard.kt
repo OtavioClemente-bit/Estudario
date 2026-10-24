@@ -78,6 +78,10 @@ fun SetupScreen() {
     var subjects by remember { mutableStateOf<List<CatalogSubject>>(emptyList()) }
     var aiEdital by remember { mutableStateOf<Triple<String, String, List<EditalAi.SubjectNode>>?>(null) }
     var pdfOpen by remember { mutableStateOf(false) }
+    // Edital pelo PDF é dos planos pagos: no Grátis, o clique já abre a oferta (o servidor também recusa).
+    var pdfUpgrade by remember { mutableStateOf(false) }
+    var pdfQuota by remember { mutableStateOf<Quota?>(null) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { pdfQuota = quotaFor("SYLLABUS_GENERATION") }
     var examDate by remember { mutableStateOf("") }
     var minutes by remember { mutableStateOf(listOf(120, 120, 120, 120, 120, 180, 0)) }
     var block by remember { mutableStateOf(50) }
@@ -183,9 +187,10 @@ fun SetupScreen() {
                         H3 { Text("Não achou o seu concurso?") }
                         P({ classes("small", "muted") }) { Text("Envie o PDF do edital: eu monto as matérias e os tópicos para você.") }
                     }
-                    Btn("Enviar PDF do edital", { pdfOpen = true }, style = "tonal", icon = "upload_file", enabled = !Store.demo)
+                    Btn("Enviar PDF do edital", { if (pdfQuota?.let { it.remaining == 0 } == true) pdfUpgrade = true else pdfOpen = true }, style = "tonal", icon = "upload_file", enabled = !Store.demo)
                 }
             }
+            if (pdfUpgrade) UpgradeModal(UpgradeReason.SYLLABUS) { pdfUpgrade = false }
             if (pdfOpen) PdfEditalDialog(onClose = { pdfOpen = false }) { name, role, nodes -> aiEdital = Triple(name, role, nodes); chosen = null; axes = emptyMap(); pdfOpen = false; step = 1 }
         }
         1 -> {

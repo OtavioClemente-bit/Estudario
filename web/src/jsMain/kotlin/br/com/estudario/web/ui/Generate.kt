@@ -85,7 +85,9 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var count by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
     // Uma consulta só: o saldo do mês (medidor no topo) e o teto de questões ao criar a matéria.
     var quota by remember { mutableStateOf<Quota?>(null) }
+    var free by remember { mutableStateOf<FreeInfo?>(null) }
     LaunchedEffect(Unit) {
+        free = freeAllowance()
         quota = quotaFor(if (questionsOnly) "QUESTION_BATCH" else "CONTENT_GENERATION")
         if (!questionsOnly) quota?.maxPerRequest?.takeIf { it >= 1 }?.let { maxQuestions = it }
     }
@@ -101,7 +103,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     val current = steps[step.coerceIn(0, steps.lastIndex)]
 
     fun start() {
-        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else emptyList()))
+        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else emptyList(), purpose = AiContent.purposeFor(Store.data, topicId)))
     }
     // Reaberta pela faixa do canto, a janela vem sem o pedido: o tipo fica guardado em Generation.
     val showQuestions = questionsOnly || Generation.questionsOnly[topicId] == true
@@ -124,7 +126,9 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     Div({ classes("wizard-dots") }) { steps.indices.forEach { i -> Span({ classes(*listOfNotNull(if (i <= step) "on" else null).toTypedArray()) }) } }
                 }
                 Div({ classes("gen-body") }) {
-                quota?.let { q ->
+                // Grátis: o medidor mostra a regra que vale para esta matéria (dia do plano, adiantar ou extra).
+                free?.takeIf { !questionsOnly }?.let { f -> FreeMeter(f, AiContent.purposeFor(Store.data, topicId)) }
+                quota?.takeIf { free == null || questionsOnly }?.let { q ->
                     QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
                     // Sem saldo, a oferta aparece logo, como no app (fechar volta para a janela).
                     if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
@@ -168,7 +172,8 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 if (p is AiContent.Progress.Failed) {
                     Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
                     var upgradeSeen by remember(p) { mutableStateOf(false) }
-                    if (isQuotaMessage(p.message) && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
+                    val reason = upgradeReasonFor(p.message, questionsOnly)
+                    if (reason != null && !upgradeSeen) UpgradeModal(reason) { upgradeSeen = true }
                 }
                 }
                 Div({ classes("gen-foot") }) {
@@ -220,6 +225,23 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
 /** Enunciados das questões que a pessoa já tem neste tópico (as mais recentes primeiro), para não repetir. */
 private fun avoidFor(topicId: Long): List<String> =
     Store.data.questions.filter { it.topicId == topicId }.asReversed().map { it.statement }.filter { it.isNotBlank() }.take(400)
+
+/** Grátis: a regra desta matéria, à vista antes de gerar (as matérias saem prontas da biblioteca). */
+@Composable
+private fun FreeMeter(f: FreeInfo, purpose: String) {
+    val (big, label, empty) = when (purpose) {
+        "PLAN_DAY" -> Triple("Livre", "Matéria do seu plano de hoje · ${f.planDayUsed} de ${f.planDayLimit} hoje", f.planDayUsed >= f.planDayLimit)
+        "ADVANCE" -> Triple(if (f.weeklyUsed < f.weeklyLimit) "1" else "0", "adiantamento grátis nesta semana (no app, um anúncio curto adianta até 2 por dia)", f.weeklyUsed >= f.weeklyLimit)
+        else -> Triple("${(f.extrasLimit - f.extrasUsed).coerceAtLeast(0)}", "de ${f.extrasLimit} matérias fora do plano restantes neste mês", f.extrasUsed >= f.extrasLimit)
+    }
+    Div({ classes(*listOfNotNull("quota-meter", if (empty) "empty" else null).toTypedArray()) }) {
+        Div({ classes("qm-top") }) {
+            Span({ classes("qm-num") }) { B { Text(big) } }
+            Span({ classes("qm-label") }) { Text(label) }
+        }
+        P({ classes("xs", "muted"); attr("style", "margin:6px 0 0") }) { Text("No Grátis as matérias saem prontas da biblioteca do Estudário, conferidas pela equipe.") }
+    }
+}
 
 /** O saldo do mês em uma faixa: quantos restam, a barra e quando renova. */
 @Composable

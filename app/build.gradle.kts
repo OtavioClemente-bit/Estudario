@@ -71,6 +71,12 @@ check(playIntegrityCloudProjectNumber.isEmpty() || playIntegrityCloudProjectNumb
     "estudario.playIntegrity.cloudProjectNumber must contain only digits."
 }
 
+// AdMob (anúncio premiado do Grátis, para adiantar uma matéria do plano). Os ids do app e do bloco
+// premiado vêm do AdMob, em ~/.gradle/gradle.properties; sem eles, ficam os de teste do Google (que só
+// mostram anúncio de teste). O botão só aparece quando o servidor liga (AD_REWARDS_ENABLED).
+val admobAppId = providers.gradleProperty("estudario.admob.appId").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-3940256099942544~3347511713"
+val admobRewardedUnit = providers.gradleProperty("estudario.admob.rewardedUnit").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-3940256099942544/5224354917"
+
 val signingProperties = Properties()
 val propertiesFile = rootProject.file("keystore.properties")
 if (propertiesFile.exists()) {
@@ -85,14 +91,16 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 135
-        versionName = "3.3.107"
+        versionCode = 136
+        versionName = "3.3.108"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", supabasePublishableKey.toBuildConfigLiteral())
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.toBuildConfigLiteral())
         buildConfigField("long", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "${playIntegrityCloudProjectNumber.ifEmpty { "0" }}L")
+        buildConfigField("String", "ADMOB_REWARDED_UNIT", admobRewardedUnit.toBuildConfigLiteral())
+        manifestPlaceholders["admobAppId"] = admobAppId
     }
 
     buildFeatures {
@@ -182,6 +190,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("com.google.android.play:integrity:1.4.0")
     implementation("com.android.billingclient:billing-ktx:8.0.0")
+    implementation("com.google.android.gms:play-services-ads:24.4.0")
+    implementation("com.google.android.play:review-ktx:2.0.2")
     // Login com a conta Google do celular (Credential Manager).
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")

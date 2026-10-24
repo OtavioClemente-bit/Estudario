@@ -19,6 +19,41 @@ Valores conferidos no banco em 14/10/2026 (`ai_plan_limits` e `plan_catalog`):
 
 A página estudario.com.br (`site/index.html`) repete esses números: mudou aqui, muda lá.
 
+## Grátis só com matéria pronta (24/10/2026)
+
+O Grátis não usa IA em nada. A trava fica no worker, logo antes de chamar a OpenAI: conta grátis
+(ou sem conseguir ler o plano) nunca chama, em nenhum recurso. Matéria, lote de questões e o
+simulado diagnóstico saem só da biblioteca; faltando questão num formato, completa com outro
+formato. Tópico sem matéria pronta entra na fila (`library_misses`) e o app mostra a oferta.
+
+Matérias do Grátis, conferidas na criação do pedido (`_shared/free-allowance.ts`):
+
+| Motivo (o app manda em `purpose`) | Regra |
+|---|---|
+| `PLAN_DAY` matéria do plano de hoje | livre, até 3 por dia |
+| `ADVANCE` adiantar o próximo dia do plano | 1 crédito de anúncio confirmado pelo Google (até 2 por dia, 10 por mês) ou 1 por semana sem anúncio |
+| `EXTRA` qualquer outra matéria do edital (e app antigo, sem o campo) | 10 por mês |
+
+A cota `CONTENT_GENERATION` do Grátis (120/mês) virou só o teto de segurança da soma.
+
+Nos pagos, a matéria do plano de hoje que sai pronta (sem IA) devolve a cota
+(`ai_refund_plan_day_quota`): os 25/40 do mês são para usar além do plano do dia. Matéria escrita
+pela IA conta sempre.
+
+### Anúncio premiado (AdMob)
+
+O app nunca diz sozinho que a pessoa viu o anúncio: o AdMob chama a função `ad-reward-ssv`
+assinada pelo Google, e só então o crédito existe (`ad_reward_credits`). Para ligar:
+
+1. No AdMob, crie o app (Android, br.com.estudario) e um bloco **Premiado**.
+2. No bloco: **Verificação do lado do servidor** → URL
+   `https://gaqqilzhmvkxfpvivwwv.supabase.co/functions/v1/ad-reward-ssv`.
+3. Em `~/.gradle/gradle.properties`: `estudario.admob.appId=ca-app-pub-...~...` e
+   `estudario.admob.rewardedUnit=ca-app-pub-.../...` (sem eles o app usa os de teste do Google).
+4. Play Console: declarar que o app **contém anúncios** e atualizar a **Segurança dos dados**
+   (ID de publicidade).
+5. Ligar no servidor: `supabase secrets set AD_REWARDS_ENABLED=true`. Antes disso o botão nem aparece.
+
 Hoje só a geração de edital passa pelo backend. Os demais limites já estão cadastrados para a
 tela de planos e para quando conteúdo, plano e questões forem gerados no servidor.
 
@@ -72,5 +107,5 @@ group by day order by day desc;
 
 ```bash
 supabase db push
-supabase functions deploy ai-access ai-plan ai-syllabus-jobs ai-syllabus-worker
+supabase functions deploy ai-access ai-plan ai-syllabus-jobs ai-syllabus-worker ai-text-worker ad-reward-ssv
 ```

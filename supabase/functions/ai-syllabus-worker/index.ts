@@ -189,6 +189,10 @@ export interface SyllabusWorkerStore {
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Plano efetivo da conta e quantas matérias a IA já escreveu para ela neste mês (as da biblioteca não contam). */
   aiMaterialsThisMonth?(userId: string): Promise<{ tier: string; used: number }>;
+  /** Plano efetivo da conta ("FREE" se o pago venceu). Usado na trava que impede o Grátis de chamar a IA. */
+  planTierOf?(userId: string): Promise<string>;
+  /** Devolve a cota da matéria do plano de hoje que saiu pronta, sem IA (ai_refund_plan_day_quota). */
+  refundPlanDayQuota?(jobId: string): Promise<void>;
   /** Devolve 1 da cota de um lote de compensação que deu certo (uma vez só; ver ai_refund_job_quota). */
   refundJobQuota?(jobId: string): Promise<void>;
   /** Revisão já concluída deste job (nova tentativa não paga o revisor de novo). */
@@ -852,7 +856,21 @@ export async function processSyllabusJob(
       if (cached) {
         await dependencies.jobs.finalizeSuccess(job.id, lease, cached, cached.warnings, null);
         await refundCompensation(dependencies, job);
+        // Matéria do plano de hoje saiu pronta: não gasta a cota (o banco confere que foi sem IA).
+        if (job.requestPayload?.purpose === "PLAN_DAY") await dependencies.jobs.refundPlanDayQuota?.(job.id).catch(() => undefined);
         return true;
+      }
+      // O Grátis nunca chama a IA, em nenhum recurso (matéria, questões, simulado, plano, edital): só
+      // o que saiu pronto da biblioteca, acima. Sem conseguir saber o plano, também não chama (falha
+      // fechada). Fica aqui, no servidor, para nenhum app alterado contornar. A cota volta.
+      if (dependencies.jobs.planTierOf) {
+        const tier = await dependencies.jobs.planTierOf(job.userId).catch(() => null);
+        if (tier === null || tier === "FREE") {
+          const code = tier === null ? "AI_JOB_DATA_UNAVAILABLE"
+            : job.feature === "CONTENT_GENERATION" || job.feature === "QUESTION_BATCH" ? "PLAN_AI_MATERIAL_LIMIT" : "PLAN_FEATURE_LOCKED";
+          await finalizeFailure(dependencies, job, lease, code, "FAILED", false);
+          return true;
+        }
       }
       // Ex.: Grátis que já usou as matérias pela IA do mês. A IA nem é chamada; a cota volta.
       const blocked = spec.beforeProvider ? await spec.beforeProvider(job, dependencies).catch(() => null) : null;
@@ -1362,14 +1380,17 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     await saved.body?.cancel().catch(() => {});
     await this.markServed(key, userId);
   }
-  async aiMaterialsThisMonth(userId: string): Promise<{ tier: string; used: number }> {
-    const user = encodeURIComponent(userId);
-    const profile = await this.rest(`profiles?select=plan_tier,plan_renews_at&user_id=eq.${user}&limit=1`);
+  async planTierOf(userId: string): Promise<string> {
+    const profile = await this.rest(`profiles?select=plan_tier,plan_renews_at&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
     if (!profile.ok) throw new Error("PROFILE_UNAVAILABLE");
     const row = ((await profile.json()) as { plan_tier?: string; plan_renews_at?: string | null }[])[0];
     // Mesma regra de effectivePlanTier: plano pago vencido vale como Grátis.
     const paidActive = row?.plan_tier && row.plan_tier !== "FREE" && (!row.plan_renews_at || Date.parse(row.plan_renews_at) > Date.now());
-    const tier = paidActive ? row!.plan_tier! : "FREE";
+    return paidActive ? row!.plan_tier! : "FREE";
+  }
+  async aiMaterialsThisMonth(userId: string): Promise<{ tier: string; used: number }> {
+    const user = encodeURIComponent(userId);
+    const tier = await this.planTierOf(userId);
     // Início do mês no horário de Brasília (UTC−3).
     const now = new Date(Date.now() - 3 * 3_600_000);
     const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 3)).toISOString();
@@ -1379,6 +1400,10 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     );
     if (!jobs.ok) throw new Error("JOBS_UNAVAILABLE");
     return { tier, used: ((await jobs.json()) as unknown[]).length };
+  }
+  async refundPlanDayQuota(jobId: string): Promise<void> {
+    const response = await this.rest("rpc/ai_refund_plan_day_quota", { method: "POST", body: JSON.stringify({ p_job_id: jobId }) });
+    await response.body?.cancel().catch(() => {});
   }
   async refundJobQuota(jobId: string): Promise<void> {
     const response = await this.rest("rpc/ai_refund_job_quota", { method: "POST", body: JSON.stringify({ p_job_id: jobId }) });

@@ -93,7 +93,7 @@ internal data class TierLook(val color: Color, val deep: Color, val accent: Colo
 internal fun tierLook(tier: String): TierLook = when (tier) {
     "PRO" -> TierLook(Color(0xFF7C3AED), Color(0xFF4C1D95), Color(0xFFF5B83D), Glyph.Gem, "Reta final? O Pro tem folga para gerar tudo o que você precisar, sem contar material.")
     "ESSENCIAL" -> TierLook(Color(0xFF4F46E5), Color(0xFF2E2799), Color(0xFF22C59A), Glyph.Star, "O Essencial dá conta de um tópico novo por dia, com questões e simulados todo mês.")
-    else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? O Grátis já tem seu plano de estudo, revisões, treino e 10 materiais por mês.")
+    else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? No Grátis, a matéria do seu plano de hoje é sempre livre, pronta da biblioteca, e você ainda estuda 10 matérias extras por mês.")
 }
 
 /** Ordem do carrossel: do grátis ao mais completo. */
@@ -317,8 +317,9 @@ private fun PlanTile(
 @Composable
 internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>) {
     val look = tierLook(plan.planTier)
+    val free = plan.planTier == "FREE"
     val rows = listOf(
-        "CONTENT_GENERATION" to "Materiais completos",
+        "CONTENT_GENERATION" to "Matérias extras (qualquer do edital)",
         "QUESTION_BATCH" to "Lotes de questões",
         "SIMULATION_GENERATION" to "Simulados",
         "SYLLABUS_GENERATION" to "Edital pelo PDF",
@@ -333,8 +334,16 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         FolhaTalking(56.dp, look.folha)
-        // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem".
-        rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 }.forEach { (feature, label) ->
+        // Em todos: a matéria do plano de hoje não gasta nada. No Grátis, as regras dele em texto.
+        RuleRow("Matéria do plano de hoje", "livre", tone)
+        if (free) {
+            RuleRow("Matérias fora do plano", "10 por mês", tone)
+            RuleRow("Adiantar o plano", "anúncio · 2/dia", tone)
+            RuleRow("Matéria escrita na hora pela IA", "só nos pagos", MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
+        // Grátis é só o teto interno; as regras dele estão acima).
+        rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 && !(free && feature == "CONTENT_GENERATION") }.forEach { (feature, label) ->
             val limit = plan.limits.firstOrNull { it.feature == feature }
             val max = all.mapNotNull { p -> p.limits.firstOrNull { it.feature == feature }?.quotaLimit }.maxOrNull()?.coerceAtLeast(1) ?: 1
             val value = limit?.quotaLimit ?: 0
@@ -357,6 +366,15 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** Uma regra em texto (sem barra): o nome e o valor. */
+@Composable
+private fun RuleRow(label: String, value: String, tone: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = tone)
     }
 }
 

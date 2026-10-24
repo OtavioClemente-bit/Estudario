@@ -779,6 +779,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }?.takeIf { it > 0 }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /**
+     * Para que é a matéria pedida ao servidor (regras do Grátis, conferidas lá): tópico com tarefa do
+     * plano hoje é o dia do plano; com tarefa num dia que ainda vem é adiantar; fora do plano é extra.
+     */
+    fun contentPurposeFor(topicId: Long): String {
+        val pending = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+        val today = LocalDate.now().toEpochDay()
+        val days = allPlanTasks.value.filter { it.topicId == topicId && it.status in pending }.map { it.scheduledEpochDay }
+        return when {
+            days.any { it <= today } -> "PLAN_DAY"
+            days.any { it > today } -> "ADVANCE"
+            else -> "EXTRA"
+        }
+    }
+
     fun startFocus(
         title: String,
         topicId: Long? = null,
