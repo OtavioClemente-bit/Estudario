@@ -53,6 +53,10 @@
     oliva: { c: ["#86935A", "#66733D", "#48542A"], under: "#262E12", corner: "silver", pattern: "camo", stitch: "rgba(214,204,150,0.7)", arm: ["#5C6934", "#929F62"] },
     jaleco: { c: ["#FFFFFF", "#EEF2F8", "#D3DBE7"], under: "#8D99AD", corner: "silver", pattern: "jaleco", stitch: "rgba(70,140,200,0.7)", arm: ["#B8C4D6", "#E9EEF6"] },
     vademecum: { c: ["#B23A45", "#8C1F2C", "#62121C"], under: "#3A0910", corner: "gold", pattern: "codigo", arm: ["#7E1A26", "#BE4A55"] },
+    // farda azul-marinho da polícia, lousa verde do professor e o terno chumbo de risca de giz do controle
+    farda: { c: ["#3A4A8C", "#22306A", "#141C46"], under: "#0A0F2A", corner: "gold", pattern: "farda", stitch: "rgba(233,174,52,0.6)", arm: ["#1C2858", "#3A4A8C"] },
+    lousa: { c: ["#3F7A5C", "#2D5E45", "#1F4532"], under: "#10271B", corner: "silver", pattern: "lousa", arm: ["#2A5641", "#4E8A6A"] },
+    chumbo: { c: ["#555A66", "#3C404B", "#272A33"], under: "#14161C", corner: "silver", pattern: "risca", arm: ["#33363F", "#626775"] },
   };
   // Fitas: escuro, meio e claro (quatro cores = degradê pronto, como o arco-íris).
   const RIBBONS = {
@@ -476,6 +480,26 @@
       for (let x = -50; x < 100; x += 1.2) line(g, "rgba(120,140,170,0.05)", x, 40, x + 54, 95, 0.25, false);
       for (const x of [10, 90]) { g.fillStyle = "#E0475E"; g.fillRect(x - 0.45, 49, 0.9, 3.2); g.fillRect(x - 1.6, 50.15, 3.2, 0.9); }
       for (const x of [30, 70]) { circle(g, "rgba(120,140,170,0.55)", 0.85, x, 90.2 - abs(x - 50) * 0.06); circle(g, "#FFFFFF", 0.6, x - 0.15, 90 - abs(x - 50) * 0.06); }
+    } else if (pat === "farda") {
+      // farda: tecido rip-stop (quadriculado miúdo), o brasão dourado nas lombadas e a faixa refletiva na barra
+      for (let x = 6; x < 96; x += 2.2) line(g, "rgba(255,255,255,0.05)", x, 40, x, 95, 0.25, false);
+      for (let y = 41; y < 95; y += 2.2) line(g, "rgba(255,255,255,0.05)", 6, y, 94, y, 0.25, false);
+      for (const x of [10, 90]) { const sh = new Path2D(); sh.moveTo(x - 1.6, 48.4); sh.lineTo(x + 1.6, 48.4); sh.lineTo(x + 1.6, 51); sh.quadraticCurveTo(x, 53.6, x - 1.6, 51); sh.closePath(); g.fillStyle = "#E9AE34"; g.fill(sh); circle(g, "#22306A", 0.6, x, 50.4); }
+      const band = new Path2D(); band.moveTo(10, 81.6); band.bezierCurveTo(22, 79.5, 38, 80.4, 50, 85.6); band.bezierCurveTo(62, 80.4, 78, 79.5, 90, 81.6); band.lineTo(90, 83.6); band.bezierCurveTo(78, 81.5, 62, 82.4, 50, 87.6); band.bezierCurveTo(38, 82.4, 22, 81.5, 10, 83.6); band.closePath();
+      g.fillStyle = hGrad(g, ["#B8BCC8", "#F2F4FA", "#9EA3B2", "#F2F4FA", "#B8BCC8"], 10, 90); g.fill(band);
+    } else if (pat === "lousa") {
+      // lousa: verde fosco com pó de giz, um triângulo e uma conta meio apagados e a moldura de madeira nas lombadas
+      for (let i = 0; i < 40; i++) circle(g, "rgba(255,255,255,0.06)", 0.4 + (i % 3) * 0.3, 8 + ((i * 37) % 84), 42 + ((i * 23) % 50));
+      const ch = "rgba(255,255,255,0.32)";
+      const tri = new Path2D(); tri.moveTo(14, 86); tri.lineTo(14, 77); tri.lineTo(24, 86); tri.closePath(); stroke(g, tri, ch, 0.4);
+      line(g, ch, 14, 84.4, 15.6, 84.4, 0.3, false); line(g, ch, 15.6, 84.4, 15.6, 86, 0.3, false);
+      for (const [x0, y0, x1, y1] of [[77, 78, 80, 82], [77, 82, 80, 78], [82, 79.4, 84.4, 79.4], [82, 80.8, 84.4, 80.8], [86, 78, 87.6, 77.4], [87.6, 77.4, 87.6, 82]]) line(g, ch, x0, y0, x1, y1, 0.4, false);
+      const sw = new Path2D(); sw.moveTo(70, 86); sw.bezierCurveTo(74, 84, 80, 87, 86, 85); stroke(g, sw, "rgba(255,255,255,0.12)", 1.6);
+      for (const x of [9.2, 90.8]) { g.fillStyle = "rgba(150,100,55,0.75)"; g.fillRect(x - 1.2, 43, 2.4, 46); line(g, "rgba(255,220,170,0.35)", x - 0.6, 43, x - 0.6, 89, 0.3, false); }
+    } else if (pat === "risca") {
+      // terno de risca de giz, com os botões nas lombadas
+      for (let x = 6; x < 96; x += 2.6) line(g, "rgba(230,232,240,0.22)", x, 40, x, 95, 0.22, false);
+      for (const x of [10, 90]) for (const y of [62, 70]) circle(g, "rgba(200,205,220,0.7)", 0.7, x, y);
     } else if (pat === "codigo") {
       // Vade Mecum: couro com grão, filetes dourados nas lombadas e na barra, e o parágrafo em relevo
       for (const s of GRAIN) circle(g, `rgba(30,0,6,${s.a * 1.2})`, s.r * 1.2, s.x < 50 ? 8.5 + (s.x - 15) * 0.1 : 91.5 - (85 - s.x) * 0.1, s.y + 6);
@@ -743,13 +767,16 @@
   }
 
   // ---- companheiro: um bichinho (ou plantinha) no chão, ao lado esquerdo do Folha
-  // Fica no chão (não pula junto); comemora junto, cochila junto e pula quando tocam no Folha.
+  // Fica no chão (não pula junto) e vive em função dele: olha para o Folha, de tempos em tempos manda um
+  // coraçãozinho, chega pertinho e consola quando ele fica triste, cochila junto e comemora do seu jeito
+  // (a plantinha joga pétalas, o patinho grasna, o gato bate "toca aqui", a coruja canta, o robô fica de
+  // olhos de coração, o coelho espalha estrelinhas e o dragão solta anéis de fumaça).
   function drawPet(g, t, kind, mood, small, burst) {
     if (!kind || kind === "nenhum" || small) return;   // pequeno demais, só atrapalharia
     const party = /^(happy|ecstatic|proud|wave|present)$/.test(mood), sleepy = mood === "sleepy", sad = mood === "sad";
     const hop = party ? -abs(sin(t * 5.2 + 0.8)) * 3 : burst > 0 ? -sin(PI * (1 - burst)) * 4 : sad ? 0.3 : -abs(sin(t * 1.3)) * 0.4;
     const blink = sleepy || (t % 3.7) < 0.13;
-    const x = -9, base = 95, k = 1.45;
+    const x = sad ? -5 : -9, base = 95, k = 1.45;
     g.save(); g.translate(x, base); g.scale(1, 0.22); circle(g, rgba(INK, 0.2), (7 + hop * 0.3) * k, 0, 0); g.restore();
     g.save(); g.translate(x, base + hop * k); g.scale(k, k);
     let tearAt = null;
@@ -762,7 +789,7 @@
         return;
       }
       if (blink) { const p = new Path2D(); p.moveTo(ex - r * 1.2, ey); p.quadraticCurveTo(ex, ey + r * 0.9, ex + r * 1.2, ey); stroke(g, p, INK, 0.5); return; }
-      circle(g, INK, r, ex, ey); circle(g, "#FFFFFF", r * 0.4, ex - r * 0.3, ey - r * 0.35);
+      circle(g, INK, r, ex + r * 0.28, ey - r * 0.15); circle(g, "#FFFFFF", r * 0.4, ex - r * 0.02, ey - r * 0.5);
     };
     const smile = (mx, my, w = 1.1) => { const p = new Path2D(); p.moveTo(mx - w, my); p.quadraticCurveTo(mx, my + w * (party ? 1.2 : 0.7), mx + w, my); stroke(g, p, INK, 0.45); };
     if (kind === "planta") {
@@ -827,7 +854,7 @@
       g.fillStyle = "#FF8FA3"; g.fill(heart(0, -6.2, 1.3));
       const head = new Path2D(); head.roundRect(-5.2, -17.6, 10.4, 8, 2.2); g.fillStyle = vGrad(g, ["#E3E6F0", "#B7B4D0"], -17.6, -9.6); g.fill(head);
       const scr = new Path2D(); scr.roundRect(-4, -16.4, 8, 5.6, 1.4); g.fillStyle = "#1E1B2E"; g.fill(scr);
-      for (const s of [-1, 1]) { if (blink) line(g, MINT, s * 1.8 - 0.8, -13.4, s * 1.8 + 0.8, -13.4, 0.5); else { const e = new Path2D(); e.roundRect(s * 1.8 - 0.7, -14.6, 1.4, 2.2, 0.6); g.fillStyle = MINT; g.fill(e); } }
+      for (const s of [-1, 1]) { if (blink) line(g, MINT, s * 1.8 - 0.8, -13.4, s * 1.8 + 0.8, -13.4, 0.5); else if (party) { g.fillStyle = "#FF8FA3"; g.fill(heart(s * 1.8 + 0.3, -13.4, 1)); } else { const e = new Path2D(); e.roundRect(s * 1.8 - 0.4, -14.8, 1.4, 2.2, 0.6); g.fillStyle = MINT; g.fill(e); } }
       const sm = new Path2D(); sm.moveTo(-1, -12); sm.quadraticCurveTo(0, -11.2, 1, -12); stroke(g, sm, MINT, 0.4);
       line(g, "#8E92A6", 0, -17.6, 0, -20.2, 0.5);
       circle(g, sin(t * 4) > 0 ? "#FF5C4D" : MINT, 0.9, 0, -20.6);
@@ -866,6 +893,39 @@
         const k = 0.6 + 0.4 * abs(sin(t * 8)), f = new Path2D(); f.moveTo(7.6, -11.6); f.quadraticCurveTo(10 + 2 * k, -14, 12 + 2.5 * k, -11.2); f.quadraticCurveTo(10 + 2 * k, -9, 7.6, -10.6); f.closePath();
         g.fillStyle = hGrad(g, ["#FFE07A", "#FF9F3A", "#F2552C"], 7.6, 13); g.fill(f);
       }
+    }
+    // ---- reage ao Folha (à direita dele)
+    const ci = (t % 8.5) / 8.5, check = !party && !sleepy && !sad && ci > 0.8 ? sin(PI * (ci - 0.8) / 0.2) : 0;
+    const headY = { planta: -12, patinho: -14, gatinho: -17, coruja: -17, robo: -22, coelho: -18, dragao: -17 }[kind] || -15;
+    const bub = sad ? 0.85 + 0.15 * sin(t * 3) : check;
+    if (bub > 0.02) {
+      // balãozinho de coração: o carinho de tempos em tempos e o consolo quando ele está triste
+      const bx = 6.5, by = headY - 5 - (sad ? sin(t * 2) * 0.6 : (1 - bub) * 2);
+      g.save(); g.globalAlpha = bub;
+      const b = new Path2D(); b.ellipse(bx, by, 3.6, 3, 0, 0, 2 * PI); g.fillStyle = "#FFFFFF"; g.fill(b); stroke(g, b, "rgba(29,22,112,0.25)", 0.3);
+      circle(g, "#FFFFFF", 0.8, bx - 2.6, by + 3.2); circle(g, "#FFFFFF", 0.45, bx - 3.8, by + 4.4);
+      g.fillStyle = "#FF6B86"; g.fill(heart(bx, by + 0.3, 1.5 * (1 + 0.12 * sin(t * 6))));
+      g.restore();
+    }
+    if (party) {
+      if (kind === "planta") for (let i = 0; i < 5; i++) {
+        const ph = (t * 0.7 + i / 5) % 1, px = 2 + ph * 18, py = -19 - sin(PI * ph) * 7 + ph * 6;
+        g.save(); g.globalAlpha = 1 - ph; g.translate(px, py); g.rotate(t * 3 + i); g.beginPath(); g.ellipse(0, 0, 1, 0.55, 0, 0, 2 * PI); g.fillStyle = "#FF8FA3"; g.fill(); g.restore();
+      }
+      else if (kind === "patinho") { const q = (t * 3) % 1; for (const a of [-0.5, 0, 0.5]) line(g, `rgba(255,138,43,${1 - q})`, 8.6 + cos(a) * (1 + q * 2), -9.8 + sin(a) * (1 + q * 2), 8.6 + cos(a) * (2 + q * 2.5), -9.8 + sin(a) * (2 + q * 2.5), 0.4); }
+      else if (kind === "gatinho") {
+        const w = sin(t * 8) * 0.6; g.save(); g.translate(4.6, -6.6 + w);
+        circle(g, "#F7B36E", 1.7, 0, 0); circle(g, "#FFB3C7", 0.7, 0, 0.3); for (const d of [-0.9, 0, 0.9]) circle(g, "#FFB3C7", 0.32, d, -1);
+        g.restore();
+        const hp = (t * 0.8) % 1; g.save(); g.globalAlpha = sin(PI * hp); g.fillStyle = "#FF6B86"; g.fill(heart(9 + sin(t * 2), -20 - hp * 4, 1.2)); g.restore();
+      }
+      else if (kind === "coruja") for (let i = 0; i < 2; i++) {
+        const ph = (t * 0.6 + i / 2) % 1, nx = 5 + ph * 10, ny = -14 - ph * 8;
+        g.save(); g.globalAlpha = sin(PI * ph); circle(g, INK, 0.8, nx, ny); line(g, INK, nx + 0.7, ny, nx + 0.7, ny - 3, 0.35); line(g, INK, nx + 0.7, ny - 3, nx + 2, ny - 2.4, 0.35); g.restore();
+      }
+      else if (kind === "robo") for (let i = 0; i < 4; i++) { const ph = (t * 1.4 + i / 4) % 1; circle(g, `rgba(126,224,184,${1 - ph})`, 0.45, ph * 12, -20.6 - sin(PI * ph) * 5); }
+      else if (kind === "coelho") for (let i = 0; i < 3; i++) { const ph = (t * 0.9 + i / 3) % 1; star4(g, -4 + i * 5, -24 - ph * 4, 1.3 * sin(PI * ph), `rgba(255,214,110,${sin(PI * ph)})`); }
+      else if (kind === "dragao") { const ph = (t * 0.9) % 1; g.save(); g.globalAlpha = (1 - ph) * 0.9; g.beginPath(); g.ellipse(13 + ph * 6, -11.5 - ph * 3, 1.2 + ph * 2, 0.8 + ph * 1.4, 0, 0, 2 * PI); g.strokeStyle = "rgba(170,165,190,0.9)"; g.lineWidth = 0.5; g.stroke(); g.restore(); }
     }
     if (tearAt) {
       const ph = (t % 1.8) / 1.8, ty = tearAt[1] + 1 + ph * 4, a = ph < 0.15 ? ph / 0.15 : 1 - Math.max(0, ph - 0.7) / 0.3;
@@ -1051,6 +1111,39 @@
     g.fillStyle = "#2E7D3A"; g.fill(star5(g, bx, by + 0.2, 1.7));
     const k = Math.max(0, sin(t * 1.2)) ** 10; if (k > 0.02) star4(g, bx + 2, by - 2.6, 2.6 * k, `rgba(255,255,255,${k})`);
   }
+  function drawQuepe(g, t) {
+    // quepe da polícia: copa azul-marinho larga, faixa preta com cordão dourado, pala de verniz e o brasão alado
+    hatShadow(g, 18);
+    const crown = new Path2D(); crown.moveTo(33, 40); crown.bezierCurveTo(28, 30, 34, 24.5, 50, 24.5); crown.bezierCurveTo(66, 24.5, 72, 30, 67, 40); crown.closePath();
+    g.fillStyle = vGrad(g, ["#3A4A8C", "#22306A", "#141C46"], 24.5, 40); g.fill(crown);
+    g.beginPath(); g.ellipse(50, 27.2, 17.6, 3.6, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#4C5DA6", "#2A3878"], 23.6, 30.8); g.fill();
+    line(g, "rgba(255,255,255,0.22)", 38, 26.4, 56, 25.4, 0.6);
+    const band = new Path2D(); band.moveTo(34.4, 38.6); band.quadraticCurveTo(50, 36.2, 65.6, 38.6); band.lineTo(65.2, 44.4); band.quadraticCurveTo(50, 41.8, 34.8, 44.4); band.closePath();
+    g.fillStyle = vGrad(g, ["#1A1A22", "#060608"], 37, 44.4); g.fill(band);
+    const cord = new Path2D(); cord.moveTo(36, 42.6); cord.quadraticCurveTo(50, 40.6, 64, 42.6); stroke(g, cord, "#B57A0C", 0.9); stroke(g, cord, "#FFD877", 0.45);
+    for (const x of [36, 64]) circle(g, "#E9AE34", 0.9, x, 42.6);
+    const visor = new Path2D(); visor.moveTo(35, 44.2); visor.quadraticCurveTo(50, 41.6, 65, 44.2); visor.quadraticCurveTo(60, 49.4, 50, 49.6); visor.quadraticCurveTo(40, 49.4, 35, 44.2); visor.closePath();
+    g.fillStyle = vGrad(g, ["#2C2C36", "#0B0B10"], 42, 49.6); g.fill(visor);
+    const vh = new Path2D(); vh.moveTo(39, 45.4); vh.quadraticCurveTo(50, 44, 60, 45.4); stroke(g, vh, "rgba(255,255,255,0.35)", 0.5);
+    const bx = 50, by = 32.6;
+    for (const sd of [-1, 1]) { const w = new Path2D(); w.moveTo(bx + sd * 2.4, by - 0.6); w.quadraticCurveTo(bx + sd * 6.4, by - 2.6, bx + sd * 7.6, by - 0.4); w.quadraticCurveTo(bx + sd * 5, by + 0.6, bx + sd * 2.4, by + 1.4); w.closePath(); g.fillStyle = vGrad(g, GOLD3, by - 2.6, by + 1.4); g.fill(w); }
+    const sh = new Path2D(); sh.moveTo(bx - 2.6, by - 3.2); sh.lineTo(bx + 2.6, by - 3.2); sh.lineTo(bx + 2.6, by + 0.6); sh.quadraticCurveTo(bx + 2.4, by + 2.8, bx, by + 3.8); sh.quadraticCurveTo(bx - 2.4, by + 2.8, bx - 2.6, by + 0.6); sh.closePath();
+    g.fillStyle = vGrad(g, ["#FFF1BF", "#F5C451", "#B57A0C"], by - 3.2, by + 3.8); g.fill(sh); stroke(g, sh, "rgba(110,70,0,0.6)", 0.3);
+    g.fillStyle = "#22306A"; g.fill(star5(g, bx, by + 0.1, 1.6));
+    const k = Math.max(0, sin(t * 1.2 + 0.8)) ** 10; if (k > 0.02) star4(g, bx + 2.4, by - 2.8, 2.6 * k, `rgba(255,255,255,${k})`);
+  }
+  function drawViseira(g, t) {
+    // viseira de contador: faixa escura, aba larga de acetato verde translúcido e um lápis preso do lado
+    hatShadow(g, 14);
+    const band = new Path2D(); band.moveTo(34.6, 37.4); band.quadraticCurveTo(50, 34.4, 65.4, 37.4); band.lineTo(65, 43.4); band.quadraticCurveTo(50, 40.4, 35, 43.4); band.closePath();
+    g.fillStyle = vGrad(g, ["#3A3F4E", "#1E2230"], 37, 43.6); g.fill(band);
+    line(g, "rgba(255,255,255,0.2)", 37, 40.2, 63, 40.2, 0.35);
+    drawPencilAt(g, 63.5, 41.5, 69, 33, 0.9);
+    const brim = new Path2D(); brim.moveTo(33.2, 42.2); brim.quadraticCurveTo(50, 39.2, 66.8, 42.2); brim.quadraticCurveTo(64.4, 47.6, 50, 48); brim.quadraticCurveTo(35.6, 47.6, 33.2, 42.2); brim.closePath();
+    g.fillStyle = vGrad(g, ["rgba(70,190,120,0.82)", "rgba(30,140,80,0.62)"], 40, 48); g.fill(brim); stroke(g, brim, "rgba(10,70,40,0.7)", 0.45);
+    const hl = new Path2D(); hl.moveTo(38, 43.4); hl.quadraticCurveTo(50, 41.6, 62, 43.4); stroke(g, hl, "rgba(220,255,230,0.6)", 0.5);
+    const k = Math.max(0, sin(t * 0.9)) ** 12; if (k > 0.02) star4(g, 40, 45, 2 * k, `rgba(255,255,255,${k})`);
+  }
   function drawTouca(g, t) {
     // touca de centro cirúrgico: tecido azul-turquesa estampado, barra dobrada e o laço amarrado do lado
     hatShadow(g, 18);
@@ -1184,6 +1277,8 @@
     else if (hat === "boina") drawBoina(g);
     else if (hat === "boina-militar") drawBoinaMilitar(g, t);
     else if (hat === "touca") drawTouca(g, t);
+    else if (hat === "quepe") drawQuepe(g, t);
+    else if (hat === "viseira") drawViseira(g, t);
     else if (hat === "explorador") drawExplorador(g);
     else if (hat === "fones") drawFones(g, t);
     else if (hat === "cartola") drawCartola(g);
@@ -1353,6 +1448,54 @@
       g.fillStyle = vGrad(g, ["#FFF6D6", "#E9AE34"], my - 1.8, my + 1.8); g.fill(star5(g, 0, my + 0.1, 1.9)); stroke(g, star5(g, 0, my + 0.1, 1.9), "rgba(150,95,10,0.6)", 0.2);
       g.save(); g.beginPath(); g.arc(0, my, R, 0, 2 * PI); g.clip(); const k = (t * 0.35) % 1.6; line(g, "rgba(255,255,255,0.6)", -6 + k * 9, my - 6, -8 + k * 9, my + 6, 1.3); g.restore();
       g.restore();
+    } else if (kind === "distintivo") {
+      // distintivo da polícia: estrela de seis pontas dourada, com o centro esmaltado, num porta-distintivo de couro
+      const px = 25, py = 74, sw = sin(t * 1.6) * 0.04;
+      g.save(); g.translate(px, py); g.rotate(sw);
+      const lt = new Path2D(); lt.roundRect(-5, -6, 10, 12.4, 2.2); g.fillStyle = vGrad(g, ["#3A2A1E", "#1C130C"], -6, 6.4); g.fill(lt);
+      g.save(); g.setLineDash([0.6, 0.5]); const st = new Path2D(); st.roundRect(-4.2, -5.2, 8.4, 10.8, 1.6); stroke(g, st, "rgba(230,190,130,0.55)", 0.22); g.restore();
+      const star6 = (r) => { const p = new Path2D(); for (let i = 0; i < 12; i++) { const a = -PI / 2 + i * PI / 6, rr = i % 2 ? r * 0.55 : r; i ? p.lineTo(cos(a) * rr, sin(a) * rr + 0.2) : p.moveTo(cos(a) * rr, sin(a) * rr + 0.2); } p.closePath(); return p; };
+      g.save(); g.translate(0.3, 0.4); g.fillStyle = "rgba(0,0,0,0.35)"; g.fill(star6(4.2)); g.restore();
+      g.fillStyle = vGrad(g, ["#FFF4CC", "#F5C451", "#B57A0C"], -4.2, 4.4); g.fill(star6(4.2)); stroke(g, star6(4.2), "rgba(110,70,0,0.6)", 0.25);
+      for (let i = 0; i < 6; i++) { const a = -PI / 2 + i * PI / 3; circle(g, "#FFE9A8", 0.45, cos(a) * 4.2, sin(a) * 4.2 + 0.2); }
+      circle(g, "#B57A0C", 2.2, 0, 0.2); circle(g, "#22306A", 1.8, 0, 0.2); g.fillStyle = "#FFD877"; g.fill(star5(g, 0, 0.3, 1));
+      const k = Math.max(0, sin(t * 1.1 + 2)) ** 10; if (k > 0.02) star4(g, 2.8, -3.2, 2.4 * k, `rgba(255,255,255,${k})`);
+      g.restore();
+    } else if (kind === "cracha") {
+      // crachá de professor: cordão menta saindo do pescoço, presilha de metal e o cartão com a foto do Folha
+      const sw = sin(t * 1.7) * 0.06;
+      const s1 = new Path2D(); s1.moveTo(33.6, 72.6); s1.quadraticCurveTo(30.6, 77, 30, 80.4);
+      const s2 = new Path2D(); s2.moveTo(42, 73.6); s2.quadraticCurveTo(33, 77, 30.6, 80.4);
+      for (const p of [s1, s2]) { stroke(g, p, "#1E8A5A", small ? 2 : 1.5); stroke(g, p, "#5FE3B5", small ? 0.8 : 0.5); }
+      g.save(); g.translate(30.2, 80.6); g.rotate(sw);
+      const clip = new Path2D(); clip.roundRect(-1, -0.6, 2, 2.4, 0.5); g.fillStyle = hGrad(g, ["#8E92A6", "#E3E6F0", "#8E92A6"], -1, 1); g.fill(clip);
+      const card = new Path2D(); card.roundRect(-4.6, 1.6, 9.2, 11.6, 1.2); g.fillStyle = "#FFFFFF"; g.fill(card); stroke(g, card, "rgba(40,40,80,0.4)", 0.3);
+      g.save(); g.clip(card); g.fillStyle = vGrad(g, ["#3A2FC4", "#2A209E"], 1.6, 4.6); g.fillRect(-5, 1.6, 10, 3); g.restore();
+      const ph = new Path2D(); ph.roundRect(-3.4, 5.4, 4, 4.6, 0.6); g.fillStyle = "#FFF6E0"; g.fill(ph); stroke(g, ph, "rgba(40,40,80,0.3)", 0.2);
+      circle(g, "#1D1670", 0.35, -2.2, 7.2); circle(g, "#1D1670", 0.35, -0.6, 7.2);
+      const sm = new Path2D(); sm.moveTo(-2.2, 8.4); sm.quadraticCurveTo(-1.4, 9.1, -0.6, 8.4); stroke(g, sm, "#1D1670", 0.25);
+      for (const [y, w] of [[6, 3.2], [7.4, 2.4], [8.8, 2.8]]) line(g, "rgba(60,60,100,0.45)", 1.2, y, 1.2 + w * 0.8, y, 0.35);
+      line(g, "rgba(255,255,255,0.8)", -3.6, 2.6, 2, 2.6, 0.4);
+      line(g, "#5FE3B5", -3.4, 11.6, 3.4, 11.6, 0.6);
+      g.restore();
+    } else if (kind === "caneta") {
+      // caneta-tinteiro de laca preta com clipe dourado e uma lapiseira menta, num bolsinho de couro
+      const px = 26, py = 70;
+      g.save(); g.translate(px - 1.2, py); g.rotate(-0.06);
+      const body = new Path2D(); body.roundRect(-1.3, -6, 2.6, 14, 1.2); g.fillStyle = hGrad(g, ["#0E0E14", "#3A3A48", "#0E0E14"], -1.3, 1.3); g.fill(body);
+      g.fillStyle = hGrad(g, GOLD3, -1.35, 1.35); g.fillRect(-1.35, -0.6, 2.7, 0.9);
+      const cl = new Path2D(); cl.roundRect(0.7, -5.6, 0.8, 7, 0.4); g.fillStyle = vGrad(g, GOLD3, -5.6, 1.4); g.fill(cl); circle(g, "#E9AE34", 0.55, 1.1, 1.4);
+      circle(g, "#E9AE34", 0.6, 0, -6);
+      line(g, "rgba(255,255,255,0.4)", -0.6, -5, -0.6, 7, 0.3);
+      g.restore();
+      g.save(); g.translate(px + 1.8, py + 1); g.rotate(0.08);
+      const b2 = new Path2D(); b2.roundRect(-0.9, -4.6, 1.8, 12, 0.8); g.fillStyle = hGrad(g, ["#2E9E72", "#7EE0B8", "#2E9E72"], -0.9, 0.9); g.fill(b2);
+      g.fillStyle = "#C9CCE0"; g.fillRect(0.4, -4.2, 0.5, 5);
+      g.restore();
+      const pk = new Path2D(); pk.moveTo(px - 4.6, py + 3); pk.lineTo(px + 4.6, py + 3); pk.lineTo(px + 4.2, py + 11); pk.quadraticCurveTo(px, py + 12.6, px - 4.2, py + 11); pk.closePath();
+      g.fillStyle = vGrad(g, ["#5A3A26", "#3A2418"], py + 3, py + 12.6); g.fill(pk); stroke(g, pk, "rgba(20,10,5,0.6)", 0.3);
+      g.save(); g.setLineDash([0.6, 0.5]); const st = new Path2D(); st.moveTo(px - 3.8, py + 4); st.lineTo(px + 3.8, py + 4); stroke(g, st, "rgba(240,200,150,0.6)", 0.22); g.restore();
+      line(g, "rgba(255,255,255,0.15)", px - 3.6, py + 5, px - 3.4, py + 10, 0.4);
     } else if (kind === "medalha-militar") {
       // medalha de honra: barretas no alto (verde e amarelo; azul e branco), a fita verde com a faixa
       // amarela dobrada em pentágono e a estrela de cinco pontas com o centro esmaltado de azul
@@ -1521,6 +1664,45 @@
       for (const x of [-4, 4]) { const c = new Path2D(); c.roundRect(x - 1, 3.2, 2, 1.8, 0.4); g.fillStyle = vGrad(g, GOLD3, 3.2, 5); g.fill(c); }
       for (const [x, y] of [[-6.4, 1.2], [6.4, 1.2], [-6.4, 10], [6.4, 10]]) circle(g, "#E9AE34", 0.5, x, y);
       line(g, "rgba(255,255,255,0.25)", -5.6, 5.6, 2, 5.6, 0.4);
+    } else if (kind === "radio") {
+      // rádio da viatura: corpo preto emborrachado, antena, alto-falante, visor verde com sinal e a luz vermelha
+      // de transmitindo (pisca mais rápido na festa, com as ondinhas saindo da antena)
+      g.save(); g.rotate(-0.12 + (party ? sin(t * 6) * 0.08 : 0));
+      line(g, "#2A2C38", 1.6, -9, 1.8, -17, 0.9); circle(g, "#2A2C38", 0.75, 1.8, -17.2);
+      const kn = new Path2D(); kn.roundRect(-2.4, -12, 1.8, 2.2, 0.5); g.fillStyle = "#3C4054"; g.fill(kn);
+      const body = new Path2D(); body.roundRect(-3.2, -10, 6.4, 14, 1.4); g.fillStyle = hGrad(g, ["#1C1E28", "#3C4054", "#1C1E28"], -3.2, 3.2); g.fill(body); stroke(g, body, "rgba(0,0,0,0.6)", 0.3);
+      for (let i = 0; i < 4; i++) line(g, "rgba(140,145,170,0.7)", -2, -7.6 + i * 1.1, 2, -7.6 + i * 1.1, 0.45);
+      const sc = new Path2D(); sc.roundRect(-2.2, -2.6, 4.4, 2.4, 0.4); g.fillStyle = "#7EE0B8"; g.fill(sc);
+      for (let i = 0; i < 4; i++) { g.fillStyle = "#1D4A3A"; g.fillRect(-1.6 + i * 0.9, -0.6 - (i + 1) * 0.35, 0.6, (i + 1) * 0.35); }
+      const on = (t * (party ? 4 : 1.2)) % 1 < 0.5; if (on && !small) circle(g, "rgba(255,92,77,0.3)", 1.4, -1.8, -9); circle(g, on ? "#FF5C4D" : "#6B1E1A", 0.6, -1.8, -9);
+      line(g, "rgba(255,255,255,0.3)", -2.6, -9.2, -2.6, 3, 0.35);
+      if (party && !small) for (let i = 0; i < 3; i++) { const ph = (t * 1.5 + i / 3) % 1; g.beginPath(); g.arc(1.8, -17.2, 1.5 + ph * 5, -PI * 0.85, -PI * 0.15); g.strokeStyle = `rgba(126,224,184,${0.8 * (1 - ph)})`; g.lineWidth = 0.4; g.stroke(); }
+      g.restore();
+    } else if (kind === "maca") {
+      // maçã do professor: vermelha brilhante, cabinho e folha menta; na festa solta estrelinhas
+      g.save(); g.translate(0, -5); g.rotate(sin(t * 1.3) * 0.05);
+      const ap = new Path2D(); ap.moveTo(0, -4.2); ap.bezierCurveTo(2.6, -6.4, 6.6, -4.6, 6, 0.6); ap.bezierCurveTo(5.6, 4.8, 2.4, 6.6, 0, 5.2); ap.bezierCurveTo(-2.4, 6.6, -5.6, 4.8, -6, 0.6); ap.bezierCurveTo(-6.6, -4.6, -2.6, -6.4, 0, -4.2); ap.closePath();
+      const rg = g.createRadialGradient(-2, -2, 0.5, 0, 0, 7.5); rg.addColorStop(0, "#FF7A7A"); rg.addColorStop(0.55, "#E0303F"); rg.addColorStop(1, "#9C1424"); g.fillStyle = rg; g.fill(ap);
+      stroke(g, ap, "rgba(90,10,20,0.5)", 0.3);
+      line(g, "#6B4320", 0, -4, 0.6, -7.4, 0.7);
+      const lf = new Path2D(); lf.moveTo(0.6, -6.4); lf.quadraticCurveTo(3.4, -9.2, 5.2, -7); lf.quadraticCurveTo(3, -5.2, 0.6, -6.4); lf.closePath(); g.fillStyle = vGrad(g, ["#7EE0B8", "#2E9E72"], -9, -5); g.fill(lf);
+      g.beginPath(); g.ellipse(-2.8, -1.6, 1.1, 1.8, -0.4, 0, 2 * PI); g.fillStyle = "rgba(255,255,255,0.55)"; g.fill();
+      if (party) for (let i = 0; i < 3; i++) { const ph = (t * 0.9 + i / 3) % 1; star4(g, -6 + i * 6, -9 - ph * 4, 1.4 * sin(PI * ph), `rgba(255,255,255,${sin(PI * ph)})`); }
+      g.restore();
+    } else if (kind === "calculadora") {
+      // calculadora de mesa: visor verde com os dígitos mudando e as teclas (na festa ele aperta sem parar)
+      g.save(); g.rotate(-0.1);
+      const body = new Path2D(); body.roundRect(-4.4, -12, 8.8, 13.6, 1.4); g.fillStyle = vGrad(g, ["#4A5068", "#2C3042"], -12, 1.6); g.fill(body); stroke(g, body, "rgba(0,0,0,0.5)", 0.3);
+      const sc = new Path2D(); sc.roundRect(-3.4, -10.8, 6.8, 3, 0.5); g.fillStyle = "#C8E6C0"; g.fill(sc);
+      const n = Math.floor(t * (party ? 6 : 1.5));
+      for (let i = 0; i < 4; i++) { g.fillStyle = ((n + i * 3) % 5) !== 0 ? "#2A3A2A" : "rgba(42,58,42,0.25)"; g.fillRect(-2.6 + i * 1.5, -10, 1, 1.5); }
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+        const key = new Path2D(); key.roundRect(-3.5 + c * 1.85, -6.6 + r * 1.85, 1.45, 1.35, 0.35);
+        const press = party && ((Math.floor(t * 6) + r * 4 + c) % 7 === 0);
+        g.fillStyle = press ? "#7EE0B8" : c === 3 ? "#F5B83D" : r === 3 && c === 0 ? "#FF8FA3" : "#D7DAE6"; g.fill(key);
+      }
+      line(g, "rgba(255,255,255,0.3)", -3.8, -11.4, 3.6, -11.4, 0.35);
+      g.restore();
     } else if (kind === "bandeira") {
       // bandeira do Brasil num mastro com ponta dourada: tremula para fora (longe do rosto); na festa,
       // ele agita e o pano tremula mais rápido
@@ -1687,6 +1869,47 @@
         }
         for (let j = 0; j < 8; j++) { const a = j * PI / 4 + i + 0.4, r2 = rr * 0.42; circle(g, rgba(c2, al), 0.7, cx + cos(a) * r2, cy + sin(a) * r2 + fall * 0.5); }
       }
+    } else if (kind === "giroflex") {
+      // giroflex: atrás dele, a luz vermelha e a azul se revezando, com os fachos varrendo a partir dos cantos de cima
+      const redOn = (t * 2.2) % 1 < 0.5, flash = sin(PI * ((t * 4.4) % 1));
+      if (behind) for (const [sd, col] of [[-1, "255,60,70"], [1, "60,120,255"]]) {
+        const on = sd < 0 ? redOn : !redOn, a = (on ? 0.72 : 0.14) * (0.6 + 0.4 * flash) * boost, x = 50 + sd * 44;
+        const gl = g.createRadialGradient(x, 58, 1, x, 58, 40); gl.addColorStop(0, `rgba(${col},${a})`); gl.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gl; g.beginPath(); g.arc(x, 58, 40, 0, 2 * PI); g.fill();
+        g.save(); g.translate(50 + sd * 56, -6); g.rotate(PI / 2 - sd * (0.45 + 0.35 * sin(t * 3 + (sd > 0 ? PI : 0))));
+        const bm = g.createLinearGradient(0, 0, 90, 0); bm.addColorStop(0, `rgba(${col},${(on ? 0.62 : 0.14) * boost})`); bm.addColorStop(1, `rgba(${col},0)`);
+        g.fillStyle = bm; g.beginPath(); g.moveTo(0, 0); g.lineTo(90, -12); g.lineTo(90, 12); g.closePath(); g.fill(); g.restore();
+      }
+      else if (!small) for (let i = 0; i < 4; i++) { const ph = (t * 0.6 + i / 4) % 1, sd = i % 2 ? 1 : -1; star4(g, 50 + sd * (40 + i * 2), 30 + i * 12, 1.8 * sin(PI * ph), sd < 0 ? `rgba(255,120,130,${sin(PI * ph)})` : `rgba(120,170,255,${sin(PI * ph)})`); }
+    } else if (kind === "abc") {
+      // letras e contas de giz subindo devagar dos lados (nunca na frente do rosto), com pozinho de giz
+      if (!behind) {
+        const G = [[[-1.2, 1.6, 0, -1.6], [0, -1.6, 1.2, 1.6], [-0.6, 0.4, 0.6, 0.4]], [[-1.2, 0, 1.2, 0], [0, -1.2, 0, 1.2]], [[-1.2, -0.5, 1.2, -0.5], [-1.2, 0.5, 1.2, 0.5]], [[-0.5, -1, 0, -1.6], [0, -1.6, 0, 1.6]], [[-1, -1, 1, 1], [-1, 1, 1, -1]], [[-1.4, 0.2, -0.6, 1.6], [-0.6, 1.6, 0.2, -1.6], [0.2, -1.6, 1.6, -1.6]], [[-1.4, -1.2, 1.4, -1.2], [-0.6, -1.2, -0.8, 1.6], [0.6, -1.2, 0.8, 1.6]]];
+        const C = ["255,255,255", "190,245,220", "255,236,160", "255,200,215"];
+        for (let i = 0; i < (small ? 5 : 10); i++) {
+          const ph = (t * 0.22 + i * 0.1) % 1, sd = i % 2 ? 1 : -1, x = 50 + sd * (36 + ((i * 7) % 14)) + sin(t * 1.2 + i) * 2, y = 96 - ph * 92;
+          if (y > 40 && y < 92 && x > 14 && x < 86) continue;
+          const a = sin(PI * ph), sc = (1.2 + (i % 3) * 0.25) * boost;
+          g.save(); g.translate(x, y); g.rotate(sin(t + i) * 0.3); g.scale(sc, sc); g.lineCap = "round";
+          for (const [w, col] of [[1.1, `rgba(29,22,112,${0.3 * a})`], [0.5, `rgba(${C[i % 4]},${0.95 * a})`]]) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); for (const [x0, y0, x1, y1] of G[i % G.length]) { g.moveTo(x0, y0); g.lineTo(x1, y1); } g.stroke(); }
+          g.restore();
+          if (!small) circle(g, `rgba(255,255,255,${0.4 * a})`, 0.4, x + 1.6, y + 2.2);
+        }
+      }
+    } else if (kind === "graficos") {
+      // gráficos de controle flutuando dos lados (a última barra sobe e desce) e moedas girando para cima
+      if (!behind) {
+        for (const [cx, cy, p0] of [[-4, 60, 0], [98, 20, 0.5]]) {
+          const y = cy + sin(t * 1.2 + p0 * 6) * 1.4, grow = 0.5 + 0.5 * sin(t * 1.6 + p0 * 6);
+          const card = new Path2D(); card.roundRect(cx - 6, y - 6, 12, 10, 1.6); g.fillStyle = "rgba(255,255,255,0.92)"; g.fill(card); stroke(g, card, "rgba(29,22,112,0.35)", 0.3);
+          [0.35, 0.55, 0.75, 1].forEach((h, i) => { const bh = 7 * h * (i === 3 ? 0.7 + 0.3 * grow : 1); g.fillStyle = i === 3 ? "#2E9E72" : "#7B8CFF"; g.fillRect(cx - 4.4 + i * 2.4, y + 2.6 - bh, 1.6, bh); });
+          const ar = new Path2D(); ar.moveTo(cx - 4.6, y + 0.6); ar.lineTo(cx - 1.6, y - 1.4); ar.lineTo(cx + 0.6, y - 0.6); ar.lineTo(cx + 4, y - 4.2); stroke(g, ar, "#F5B83D", 0.5);
+        }
+        if (!small) for (let i = 0; i < 6; i++) {
+          const ph = (t * 0.3 + i / 6) % 1, sd = i % 2 ? 1 : -1, x = 50 + sd * (40 + ((i * 5) % 10)), y = 94 - ph * 60, a = sin(PI * ph), sq = cos(t * 4 + i);
+          g.save(); g.translate(x, y); g.scale(Math.max(0.15, Math.abs(sq)), 1); circle(g, `rgba(181,122,12,${a})`, 1.9 * boost, 0, 0); circle(g, `rgba(255,216,119,${a})`, 1.5 * boost, 0, 0); g.restore();
+          if (Math.abs(sq) > 0.6) line(g, `rgba(181,122,12,${a})`, x, y - 0.9 * boost, x, y + 0.9 * boost, 0.35);
+        }
+      }
     } else if (kind === "batimentos") {
       // batimentos: atrás dele, a linha do monitor cardíaco atravessa a cena com o pulso de luz correndo;
       // na frente, coraçõezinhos que pulsam no ritmo e cruzinhas subindo
@@ -1782,36 +2005,51 @@
       g.restore();
     }
   }
-  // Costas: atrás do livro, presas nos ombros. Asas de fada que batem (rápido na festa), mochila-foguete
+  // Costas: atrás do livro, presas nos ombros. Mochila de estudos com chaveiro que balança, mochila-foguete
   // com chama que acende quando ele pula, manto real esvoaçante com gola de arminho e barra dourada.
   function drawBack(g, t, kind, mood, small, hop) {
     if (!kind || kind === "nada") return;
     const party = mood === "happy" || mood === "ecstatic", air = clamp((-hop - 1.5) / 4, 0, 1);
-    if (kind === "asas") {
-      const f = sin(t * (party ? 13 : 3)), amp = party ? 1 : 0.35 + air * 0.6;
-      for (const side of [-1, 1]) {
-        g.save();
-        if (side > 0) { g.translate(100, 0); g.scale(-1, 1); }
-        const rx = 24, ry = 54;
-        g.translate(rx, ry); g.rotate((-4 - f * 9 * amp) * PI / 180); g.scale(0.84 + 0.16 * f * amp, 1); g.translate(-rx, -ry);
-        const up = new Path2D(); up.moveTo(24, 48); up.bezierCurveTo(18, 24, 2, 2, -8, 6); up.bezierCurveTo(-17, 10, -16, 30, -10, 40); up.bezierCurveTo(-4, 50, 8, 55, 24, 56); up.closePath();
-        const lo = new Path2D(); lo.moveTo(23, 57); lo.bezierCurveTo(6, 56, -12, 62, -13, 73); lo.bezierCurveTo(-14, 83, 2, 82, 12, 74); lo.bezierCurveTo(18, 69, 22, 64, 24, 60); lo.closePath();
-        if (!small) { g.save(); g.shadowColor = "rgba(214,170,255,0.75)"; g.shadowBlur = 6; g.fillStyle = "rgba(255,255,255,0.01)"; g.fill(up); g.fill(lo); g.restore(); }
-        for (const [p, y0, y1] of [[up, 4, 56], [lo, 57, 82]]) {
-          const gr = g.createLinearGradient(-12, y0, 24, y1); gr.addColorStop(0, "rgba(255,196,238,0.92)"); gr.addColorStop(0.5, "rgba(203,178,255,0.86)"); gr.addColorStop(1, "rgba(160,228,255,0.82)");
-          g.fillStyle = gr; g.fill(p); stroke(g, p, "rgba(255,255,255,0.95)", small ? 1.3 : 0.7);
-        }
-        if (!small) {
-          const v = new Path2D(); v.moveTo(23, 51); v.quadraticCurveTo(12, 30, -5, 10); v.moveTo(23, 53); v.quadraticCurveTo(4, 40, -12, 30); v.moveTo(23, 59); v.quadraticCurveTo(4, 64, -9, 76);
-          stroke(g, v, "rgba(255,255,255,0.75)", 0.45);
-          // brilho de vidro no topo da asa
-          const hl = new Path2D(); hl.moveTo(-13, 14); hl.quadraticCurveTo(-11, 7, -5, 7); stroke(g, hl, "rgba(255,255,255,0.8)", 0.9);
-          for (let i = 0; i < 4; i++) { const ph = (t * 0.9 + i * 0.25 + (side > 0 ? 0.5 : 0)) % 1; star4(g, [-13, -4, -10, 6][i], [24, 5, 78, 16][i], 1.9 * sin(PI * ph), `rgba(255,255,255,${sin(PI * ph)})`); }
-          // pó de fada caindo
-          for (let i = 0; i < 4; i++) { const ph = (t * 0.5 + i / 4 + (side > 0 ? 0.12 : 0)) % 1; circle(g, `rgba(255,226,250,${0.9 * (1 - ph)})`, 0.7 * (1 - ph) + 0.2, -6 + i * 3 + sin(t * 3 + i) * 2, 78 + ph * 18); }
-        }
+    if (kind === "mochila") {
+      // mochila de estudos pendurada no ombro esquerdo: lona índigo com bolso da frente, zíper, alça de couro
+      // passando por trás, lápis e régua saindo por cima e um chaveirinho de estrela que balança (mais na festa)
+      const sw = sin(t * (party ? 7 : 1.6)) * (party ? 0.28 : 0.1) + air * 0.2;
+      g.save(); g.translate(2, 60); g.rotate(-0.08 + sin(t * 1.2) * 0.02 - air * 0.06); g.translate(-2, -60);
+      // o que sai por cima: régua e lápis
+      g.save(); g.translate(-1, 44); g.rotate(-0.22);
+      const rg = new Path2D(); rg.roundRect(-1.6, -13, 3.2, 15, 0.4); g.fillStyle = vGrad(g, ["#FFE58A", "#F5C842"], -13, 2); g.fill(rg); stroke(g, rg, "rgba(120,80,10,0.45)", 0.3);
+      if (!small) for (let i = 0; i < 6; i++) line(g, "rgba(120,80,10,0.6)", -1.6, -11 + i * 2, -0.4 - (i % 2) * 0.6, -11 + i * 2, 0.25);
+      g.restore();
+      drawPencilAt(g, 8.5, 46, 12.5, 32, 1.25);
+      // corpo
+      const body = new Path2D(); body.moveTo(-9, 50); body.quadraticCurveTo(-9.6, 43, -2, 42.4); body.lineTo(10, 42.4); body.quadraticCurveTo(15.6, 43, 15.4, 50); body.lineTo(15, 80); body.quadraticCurveTo(15, 84, 10.6, 84); body.lineTo(-4.6, 84); body.quadraticCurveTo(-9, 84, -9, 80); body.closePath();
+      g.fillStyle = hGrad(g, ["#1D1670", "#3A2FC4", "#2A209E", "#16105A"], -9, 15.4); g.fill(body);
+      if (!small) { g.save(); g.clip(body); for (let i = 0; i < 14; i++) line(g, "rgba(255,255,255,0.05)", -9 + i * 2, 42, -9 + i * 2 - 6, 84, 0.5); g.restore(); }
+      stroke(g, body, "rgba(10,8,40,0.6)", small ? 1 : 0.5);
+      // tampa com costura e fivela
+      const flap = new Path2D(); flap.moveTo(-8.4, 50); flap.quadraticCurveTo(-8.6, 44, -2, 43.6); flap.lineTo(10, 43.6); flap.quadraticCurveTo(14.8, 44, 14.8, 50); flap.quadraticCurveTo(3, 56, -8.4, 50); flap.closePath();
+      g.fillStyle = vGrad(g, ["#5247E0", "#3A2FC4"], 43.6, 54); g.fill(flap);
+      if (!small) { const st = new Path2D(); st.moveTo(-7, 49.4); st.quadraticCurveTo(3, 54.2, 13.4, 49.4); g.save(); g.setLineDash([0.9, 0.7]); stroke(g, st, "rgba(255,255,255,0.45)", 0.3); g.restore(); }
+      const bk = new Path2D(); bk.roundRect(1.4, 51.2, 3.6, 3.2, 0.6); g.fillStyle = hGrad(g, GOLD3, 1.4, 5); g.fill(bk); stroke(g, bk, "rgba(90,60,5,0.6)", 0.3);
+      // bolso da frente com zíper
+      const pk = new Path2D(); pk.roundRect(-6.4, 63, 18.8, 16, 3); g.fillStyle = vGrad(g, ["#3A2FC4", "#2A209E"], 63, 79); g.fill(pk); stroke(g, pk, "rgba(10,8,40,0.5)", 0.35);
+      line(g, "#C9CCE0", -4.6, 66.2, 10.6, 66.2, 0.55);
+      if (!small) { for (let i = 0; i < 15; i++) line(g, "rgba(30,25,90,0.7)", -4.4 + i, 65.8, -4.4 + i, 66.6, 0.2); const pu = new Path2D(); pu.roundRect(8.6, 66, 1.4, 3, 0.5); g.fillStyle = hGrad(g, GOLD3, 8.6, 10); g.fill(pu); }
+      // etiqueta menta com o "E" do Estudário
+      const tg = new Path2D(); tg.roundRect(-0.6, 70.6, 6.4, 4.4, 1); g.fillStyle = MINT; g.fill(tg);
+      if (!small) { g.fillStyle = "#1D1670"; g.font = "900 3.4px Nunito, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("E", 2.6, 73); }
+      // chaveiro de estrela no zíper
+      if (!small) {
+        g.save(); g.translate(9.3, 69); g.rotate(sw);
+        line(g, "#B9BCD0", 0, 0, 0, 4, 0.35); g.beginPath(); g.arc(0, 4.6, 0.8, 0, 2 * PI); g.strokeStyle = "#D7D9E8"; g.lineWidth = 0.35; g.stroke();
+        g.fillStyle = hGrad(g, GOLD3, -2.4, 2.4); g.fill(star5(g, 0, 7.8, 2.4)); stroke(g, star5(g, 0, 7.8, 2.4), "rgba(120,80,10,0.55)", 0.25);
         g.restore();
+        line(g, "rgba(255,255,255,0.35)", -7.6, 52, -7.8, 80, 0.6);
       }
+      g.restore();
+      // a alça passando por cima do ombro, por trás do livro
+      const sp = new Path2D(); sp.moveTo(-2, 43); sp.bezierCurveTo(2, 36, 10, 35, 16, 40);
+      stroke(g, sp, "#16105A", small ? 3.4 : 2.8); stroke(g, sp, "#2A209E", small ? 2.2 : 1.8);
     } else if (kind === "foguete") {
       const thrust = party ? 1 : air;
       for (const side of [-1, 1]) {
@@ -3165,13 +3403,24 @@
     g.fillStyle = "rgba(10,10,20,0.65)"; g.fillRect(x1 - 4.4, top - 2.4, 1.8, 1.2); g.beginPath(); g.ellipse(x1 - 1.4, top - 1.6, 0.6, 0.4, 0, 0, 2 * PI); g.fill();
   }
   // a medalha deitada na bigorna (perspectiva: achatada no y), com a espessura da borda aparecendo
+  // a arte ilustrada do emblema como disco da forja: aparece conforme é cunhada (eng) e em brasa enquanto quente.
+  // A arte tem a fita embaixo, então o medalhão ocupa uns 68% da largura e fica um pouco acima do centro.
+  function drawArteDisc(g, arte, R, eng, heat) {
+    if (!arte || eng <= 0) return;
+    const D = R * 2 / 0.68, c = arte._hot || (arte._hot = document.createElement("canvas")), n = 160;
+    if (c.width !== n) { c.width = c.height = n; }
+    const h = c.getContext("2d"); h.clearRect(0, 0, n, n); h.globalCompositeOperation = "source-over"; h.drawImage(arte, 0, 0, n, n);
+    if (heat > 0) { h.globalCompositeOperation = "source-atop"; h.fillStyle = `rgba(255,${Math.round(90 + 60 * (1 - heat))},30,${0.75 * heat})`; h.fillRect(0, 0, n, n); }
+    g.save(); g.globalAlpha *= eng; g.drawImage(c, -D / 2, -D * 0.45, D, D); g.restore();
+  }
   function drawFlatMedal(g, x, y, R, sy, tier, cat, o) {
     const C = TIERS[tier] || TIERS[3], heat = o.heat || 0, sq = o.squash || 0;
     g.save(); g.translate(x, y); g.scale(1 + sq * 0.08, 1 - sq * 0.1);
     g.save(); g.scale(1, sy);
     g.beginPath(); g.ellipse(0, 3.4, R * 0.99, R * 0.99, 0, 0, 2 * PI);
     g.fillStyle = heat > 0.5 ? lerpColor("#7D2A10", "#E0601A", heat) : lerpColor(C[2], "#B8461A", heat * 2); g.fill();
-    drawMedalArt(g, R, tier, cat, { deco: 0, engrave: o.engrave, heat, k: o.k });
+    if (o.arte) drawArteDisc(g, o.arte, R, o.engrave, heat);
+    else drawMedalArt(g, R, tier, cat, { deco: 0, engrave: o.engrave, heat, k: o.k });
     g.restore(); g.restore();
   }
   // faíscas das marteladas: cada uma sai da pancada com velocidade própria, sofre arrasto e gravidade,
@@ -3303,9 +3552,10 @@
         const cx = Math.cos(spin), th = Math.sin(spin) * RF * 0.12;
         g.save(); g.scale(Math.max(0.04, Math.abs(cx)), sy);
         g.beginPath(); g.arc(th / Math.max(0.04, Math.abs(cx)), 0, RF, 0, 2 * PI); g.fillStyle = C[2]; g.fill();
-        drawMedalArt(g, RF, tier, cx > 0 ? cat : "", { deco: 0, engrave: cx > 0 ? eng : 0, heat, k });
+        if (arte) drawArteDisc(g, arte, RF, cx > 0 ? eng : 0, heat);
+        else drawMedalArt(g, RF, tier, cx > 0 ? cat : "", { deco: 0, engrave: cx > 0 ? eng : 0, heat, k });
         g.restore();
-      } else drawFlatMedal(g, 0, 0, RF, sy, tier, cat, { engrave: eng, heat, squash, k });
+      } else drawFlatMedal(g, 0, 0, RF, sy, tier, cat, { engrave: eng, heat, squash, k, arte });
       g.restore();
       // calor: brilho somado em volta do disco
       if (heat > 0 && rise === 0) { g.save(); g.globalCompositeOperation = "lighter"; g.translate(x, y); g.scale(1, 0.45); glowAt(g, 0, 0, RF * 1.9, "#FF7A28", 0.55 * heat); g.restore(); }
@@ -3432,8 +3682,8 @@
       g.save(); g.translate(MX, y); const ps = 1.12 - 0.12 * pop; g.scale(ps, ps);
       if (arte) {
         // a medalha forjada vira a arte: cresce do tamanho do disco até a cena inteira, com um brilho passando
-        const AS = lerp(R * 2, 50, outBack(segT(T, FORGE.arrive, FORGE.arrive + 0.6)));
-        g.drawImage(arte, -AS / 2, -AS / 2 - 2, AS, AS);
+        const AS = lerp(R * 2 / 0.68, 50, outBack(segT(T, FORGE.arrive, FORGE.arrive + 0.6)));
+        g.drawImage(arte, -AS / 2, -AS * 0.45, AS, AS);
         const sh = T > FORGE.arrive + 0.85 ? ((T - FORGE.arrive - 0.85) * 0.36) % 1.3 : -1;
         if (sh >= 0 && sh <= 1) { g.save(); g.globalCompositeOperation = "lighter"; const x = lerp(-AS / 2, AS / 2, sh), gr = g.createLinearGradient(x - 6, -AS / 2, x + 6, AS / 2); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(0.5, "rgba(255,255,255,0.22)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.beginPath(); g.arc(0, -2, AS * 0.36, 0, 2 * PI); g.fill(); g.restore(); }
       } else drawMedalArt(g, R, tier, cat, { deco: outBack(segT(T, FORGE.deco, FORGE.deco + 0.6)), engrave: 1, heat: 0, k, shine: T > FORGE.arrive + 0.85 ? ((T - FORGE.arrive - 0.85) * 0.36) % 1.3 : -1 });

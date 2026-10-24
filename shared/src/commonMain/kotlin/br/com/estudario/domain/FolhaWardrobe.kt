@@ -18,7 +18,7 @@ enum class FolhaSlot(val key: String, val label: String, val hint: String, val g
     OCULOS("eyes", "Óculos", "Seguem o olhar do Folha.", FolhaGroup.ACESSORIOS),
     PESCOCO("neck", "Peito", "Gravatas, medalhas e enfeites no pé das páginas.", FolhaGroup.ACESSORIOS),
     MAO("hand", "Na mão", "Um item que ele segura na mão esquerda e leva junto em todos os gestos.", FolhaGroup.ACESSORIOS),
-    COSTAS("back", "Costas", "Atrás do livro: asas, manto, toga, mochila-foguete ou paraquedas. Só saem de coleções completas.", FolhaGroup.EFEITOS),
+    COSTAS("back", "Costas", "Atrás do livro: mochila, manto, toga, mochila-foguete ou paraquedas. Só saem de coleções completas.", FolhaGroup.EFEITOS),
     AURA("aura", "Aura", "Um efeito em volta dele. Toque no Folha para ver o estouro.", FolhaGroup.EFEITOS),
     COMPANHEIRO("pet", "Companheiro", "Um amigo que fica ao lado dele, comemora junto e cochila junto.", FolhaGroup.EFEITOS),
 }
@@ -102,7 +102,7 @@ object FolhaWardrobe {
 
         // recompensas de coleção (exclusivas e chamativas)
         item("nada", FolhaSlot.COSTAS, "Nada nas costas"),
-        item("asas", FolhaSlot.COSTAS, "Asas de fada", E, collection = "fofura"),
+        item("mochila", FolhaSlot.COSTAS, "Mochila de estudos", E, collection = "fofura"),
         item("holofote", FolhaSlot.AURA, "Holofotes de palco", E, collection = "detetive"),
         item("fogos", FolhaSlot.AURA, "Fogos de artifício", L, collection = "campeao"),
         item("foguete", FolhaSlot.COSTAS, "Mochila-foguete", L, collection = "executivo"),
@@ -111,6 +111,9 @@ object FolhaWardrobe {
         item("paraquedas", FolhaSlot.COSTAS, "Paraquedas verde e amarelo", L, collection = "militar"),
         item("batimentos", FolhaSlot.AURA, "Batimentos", L, collection = "saude"),
         item("toga", FolhaSlot.COSTAS, "Toga de magistrado", L, collection = "juridico"),
+        item("giroflex", FolhaSlot.AURA, "Giroflex", L, collection = "policia"),
+        item("abc", FolhaSlot.AURA, "Letras de giz", L, collection = "educacao"),
+        item("graficos", FolhaSlot.AURA, "Gráficos e moedas", L, collection = "controle"),
 
         // coleções de carreira: peças de quem estuda para a área militar, a saúde e os tribunais
         item("oliva", FolhaSlot.CAPA, "Verde-oliva", R, level = 11),
@@ -126,6 +129,18 @@ object FolhaWardrobe {
         item("meia-lua", FolhaSlot.OCULOS, "Óculos meia-lua", R, level = 19),
         item("balanca", FolhaSlot.PESCOCO, "Broche da balança", E, badge = "edital-75"),
         item("martelo", FolhaSlot.MAO, "Martelo de juiz", E, badge = "simulado-20"),
+        // polícia, educação e controle (fiscal, auditoria, contas): as áreas que mais aparecem nos editais
+        item("farda", FolhaSlot.CAPA, "Farda azul-marinho", R, level = 21),
+        item("quepe", FolhaSlot.CHAPEU, "Quepe", R, badge = "seq-60"),
+        item("distintivo", FolhaSlot.PESCOCO, "Distintivo", E, badge = "quest-5000"),
+        item("radio", FolhaSlot.MAO, "Rádio da viatura", E, level = 23),
+        item("lousa", FolhaSlot.CAPA, "Lousa verde", R, level = 25),
+        item("cracha", FolhaSlot.PESCOCO, "Crachá de professor", R, badge = "topico-150"),
+        item("maca", FolhaSlot.MAO, "Maçã do professor", R, badge = "revisao-400"),
+        item("chumbo", FolhaSlot.CAPA, "Risca de giz", R, level = 27),
+        item("viseira", FolhaSlot.CHAPEU, "Viseira de contador", R, badge = "plano-500"),
+        item("caneta", FolhaSlot.PESCOCO, "Caneta-tinteiro", E, badge = "acerto-90"),
+        item("calculadora", FolhaSlot.MAO, "Calculadora", R, level = 29),
 
         // peças que eram de coleção e agora saem por nível
         item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, level = 22),
@@ -231,8 +246,8 @@ object FolhaWardrobe {
 
     /** Coleções, da mais fácil de completar para a mais difícil. */
     val collections: List<FolhaCollection> = listOf(
-        FolhaCollection("fofura", "Fofura", "Coração nos olhos, flor no peito e balão na mão. Ganha asas de fada que brilham.",
-            listOf(FolhaSlot.CAPA to "bolinhas", FolhaSlot.OCULOS to "coracao", FolhaSlot.PESCOCO to "flor", FolhaSlot.MAO to "balao"), FolhaSlot.COSTAS to "asas"),
+        FolhaCollection("fofura", "Fofura", "Coração nos olhos, flor no peito e balão na mão. Ganha a mochila de estudos, com chaveiro de estrela.",
+            listOf(FolhaSlot.CAPA to "bolinhas", FolhaSlot.OCULOS to "coracao", FolhaSlot.PESCOCO to "flor", FolhaSlot.MAO to "balao"), FolhaSlot.COSTAS to "mochila"),
         FolhaCollection("detetive", "Detetive", "Para investigar cada tópico do edital. Ganha holofotes de palco varrendo a cena.",
             listOf(FolhaSlot.CHAPEU to "explorador", FolhaSlot.OCULOS to "leitura", FolhaSlot.MAO to "lupa", FolhaSlot.COMPANHEIRO to "coruja"), FolhaSlot.AURA to "holofote"),
         FolhaCollection("campeao", "Campeão", "Boné, óculos escuros, medalha e troféu. Ganha fogos de artifício.",
@@ -245,6 +260,12 @@ object FolhaWardrobe {
             listOf(FolhaSlot.CAPA to "oliva", FolhaSlot.CHAPEU to "boina-militar", FolhaSlot.OCULOS to "aviador", FolhaSlot.PESCOCO to "medalha-militar", FolhaSlot.MAO to "bandeira"), FolhaSlot.COSTAS to "paraquedas"),
         FolhaCollection("juridico", "Tribunais", "Vade Mecum, óculos meia-lua, a balança da Justiça e o martelo. Ganha a toga de magistrado.",
             listOf(FolhaSlot.CAPA to "vademecum", FolhaSlot.OCULOS to "meia-lua", FolhaSlot.PESCOCO to "balanca", FolhaSlot.MAO to "martelo"), FolhaSlot.COSTAS to "toga"),
+        FolhaCollection("policia", "Polícia", "Farda azul-marinho, quepe, distintivo e o rádio da viatura. Ganha o giroflex, vermelho e azul.",
+            listOf(FolhaSlot.CAPA to "farda", FolhaSlot.CHAPEU to "quepe", FolhaSlot.PESCOCO to "distintivo", FolhaSlot.MAO to "radio"), FolhaSlot.AURA to "giroflex"),
+        FolhaCollection("educacao", "Educação", "Lousa verde, crachá, armação grossa e a maçã do professor. Ganha letras de giz flutuando.",
+            listOf(FolhaSlot.CAPA to "lousa", FolhaSlot.PESCOCO to "cracha", FolhaSlot.OCULOS to "nerd", FolhaSlot.MAO to "maca"), FolhaSlot.AURA to "abc"),
+        FolhaCollection("controle", "Controle e Fiscal", "Risca de giz, viseira de contador, caneta-tinteiro e calculadora. Ganha gráficos subindo e moedas.",
+            listOf(FolhaSlot.CAPA to "chumbo", FolhaSlot.CHAPEU to "viseira", FolhaSlot.PESCOCO to "caneta", FolhaSlot.MAO to "calculadora"), FolhaSlot.AURA to "graficos"),
         FolhaCollection("mago", "Mago", "Chapéu, varinha, óculos de estrela e o dragãozinho. Ganha um círculo mágico no chão.",
             listOf(FolhaSlot.CHAPEU to "mago", FolhaSlot.OCULOS to "estrela", FolhaSlot.MAO to "varinha", FolhaSlot.COMPANHEIRO to "dragao"), FolhaSlot.AURA to "runas"),
         FolhaCollection("realeza", "Realeza", "Coroa, roseta, luvas e marcador de ouro. Ganha um manto real esvoaçante.",

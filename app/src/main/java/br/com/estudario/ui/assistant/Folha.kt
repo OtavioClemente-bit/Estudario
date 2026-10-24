@@ -181,6 +181,10 @@ private val COVERS = mapOf(
     // coleções de carreira: verde-oliva com camuflado, jaleco branco e o Vade Mecum de couro vinho
     "oliva" to CoverStyle(listOf(rgb(0xFF86935A), rgb(0xFF66733D), rgb(0xFF48542A)), rgb(0xFF262E12), listOf(rgb(0xFF5C6934), rgb(0xFF929F62)), silver = true, pattern = "camo", stitch = Color(0xB3D6CC96)),
     "jaleco" to CoverStyle(listOf(rgb(0xFFFFFFFF), rgb(0xFFEEF2F8), rgb(0xFFD3DBE7)), rgb(0xFF8D99AD), listOf(rgb(0xFFB8C4D6), rgb(0xFFE9EEF6)), silver = true, pattern = "jaleco", stitch = Color(0xB3468CC8)),
+    // farda azul-marinho da polícia, lousa verde do professor e o terno chumbo de risca de giz do controle
+    "farda" to CoverStyle(listOf(rgb(0xFF3A4A8C), rgb(0xFF22306A), rgb(0xFF141C46)), rgb(0xFF0A0F2A), listOf(rgb(0xFF1C2858), rgb(0xFF3A4A8C)), pattern = "farda", stitch = Color(0x99E9AE34)),
+    "lousa" to CoverStyle(listOf(rgb(0xFF3F7A5C), rgb(0xFF2D5E45), rgb(0xFF1F4532)), rgb(0xFF10271B), listOf(rgb(0xFF2A5641), rgb(0xFF4E8A6A)), silver = true, pattern = "lousa"),
+    "chumbo" to CoverStyle(listOf(rgb(0xFF555A66), rgb(0xFF3C404B), rgb(0xFF272A33)), rgb(0xFF14161C), listOf(rgb(0xFF33363F), rgb(0xFF626775)), silver = true, pattern = "risca"),
     "vademecum" to CoverStyle(listOf(rgb(0xFFB23A45), rgb(0xFF8C1F2C), rgb(0xFF62121C)), rgb(0xFF3A0910), listOf(rgb(0xFF7E1A26), rgb(0xFFBE4A55)), pattern = "codigo"),
 )
 
@@ -1217,35 +1221,51 @@ private fun DrawScope.drawSpotLamps(t: Float) {
     }
 }
 
-// Costas: atrás do livro, presas nos ombros. Asas de fada que batem (rápido na festa), mochila-foguete
+// Costas: atrás do livro, presas nos ombros. Mochila de estudos com chaveiro que balança, mochila-foguete
 // com chama que acende quando ele pula, manto real esvoaçante com gola de arminho e barra dourada.
 private fun DrawScope.drawBack(t: Float, kind: String, mood: FolhaMood, small: Boolean, hop: Float) {
     if (kind == "nada") return
     val party = mood == FolhaMood.HAPPY || mood == FolhaMood.ECSTATIC; val air = clamp((-hop - 1.5f) / 4f, 0f, 1f)
     fun mirrored(side: Float, block: DrawScope.() -> Unit) = if (side > 0f) scale(-1f, 1f, pivot = Offset(50f, 0f)) { block() } else block()
     when (kind) {
-        "asas" -> {
-            val f = sin(t * (if (party) 13f else 3f)); val amp = if (party) 1f else 0.35f + air * 0.6f
-            for (side in listOf(-1f, 1f)) mirrored(side) {
-                rotate(-4f - f * 9f * amp, pivot = Offset(24f, 54f)) {
-                    scale(0.84f + 0.16f * f * amp, 1f, pivot = Offset(24f, 54f)) {
-                        val up = Path().apply { moveTo(24f, 48f); cubicTo(18f, 24f, 2f, 2f, -8f, 6f); cubicTo(-17f, 10f, -16f, 30f, -10f, 40f); cubicTo(-4f, 50f, 8f, 55f, 24f, 56f); close() }
-                        val lo = Path().apply { moveTo(23f, 57f); cubicTo(6f, 56f, -12f, 62f, -13f, 73f); cubicTo(-14f, 83f, 2f, 82f, 12f, 74f); cubicTo(18f, 69f, 22f, 64f, 24f, 60f); close() }
-                        for ((p, y0, y1) in listOf(Triple(up, 4f, 56f), Triple(lo, 57f, 82f))) {
-                            drawPath(p, Brush.linearGradient(listOf(Color(0xEBFFC4EE), Color(0xDBCBB2FF), Color(0xD1A0E4FF)), start = Offset(-12f, y0), end = Offset(24f, y1)))
-                            drawPath(p, Color.White.copy(alpha = 0.95f), style = stroke(if (small) 1.3f else 0.7f))
-                        }
-                        if (!small) {
-                            val v = Path().apply { moveTo(23f, 51f); quadraticTo(12f, 30f, -5f, 10f); moveTo(23f, 53f); quadraticTo(4f, 40f, -12f, 30f); moveTo(23f, 59f); quadraticTo(4f, 64f, -9f, 76f) }
-                            drawPath(v, Color.White.copy(alpha = 0.75f), style = stroke(0.45f))
-                            drawPath(Path().apply { moveTo(-13f, 14f); quadraticTo(-11f, 7f, -5f, 7f) }, Color.White.copy(alpha = 0.8f), style = stroke(0.9f))
-                            val sxs = floatArrayOf(-13f, -4f, -10f, 6f); val sys = floatArrayOf(24f, 5f, 78f, 16f)
-                            for (i in 0 until 4) { val ph = (t * 0.9f + i * 0.25f + (if (side > 0f) 0.5f else 0f)) % 1f; star4(sxs[i], sys[i], 1.9f * sin(PIf * ph), Color.White.copy(alpha = sin(PIf * ph))) }
-                            for (i in 0 until 4) { val ph = (t * 0.5f + i / 4f + (if (side > 0f) 0.12f else 0f)) % 1f; drawCircle(Color(0xFFFFE2FA).copy(alpha = 0.9f * (1f - ph)), 0.7f * (1f - ph) + 0.2f, Offset(-6f + i * 3f + sin(t * 3f + i) * 2f, 78f + ph * 18f)) }
-                        }
+        "mochila" -> {
+            // mochila de estudos pendurada no ombro esquerdo (igual ao site): lona índigo, bolso com zíper, régua e
+            // lápis saindo por cima, etiqueta menta com o "E" e um chaveiro de estrela que balança (mais na festa)
+            val sw = sin(t * (if (party) 7f else 1.6f)) * (if (party) 0.28f else 0.1f) + air * 0.2f
+            val gold3 = listOf(Color(0xFFFFF1BF), Gold, Color(0xFFC98A12))
+            rotate((-0.08f + sin(t * 1.2f) * 0.02f - air * 0.06f) * DEG, pivot = Offset(2f, 60f)) {
+                translate(-1f, 44f) { rotate(-0.22f * DEG, pivot = Offset.Zero) {
+                    val rg = roundRect(-1.6f, -13f, 3.2f, 15f, 0.4f)
+                    drawPath(rg, vg(listOf(Color(0xFFFFE58A), Color(0xFFF5C842)), -13f, 2f)); drawPath(rg, Color(0x73785008), style = stroke(0.3f))
+                    if (!small) for (i in 0 until 6) line(Color(0x99785008), -1.6f, -11f + i * 2f, -0.4f - (i % 2) * 0.6f, -11f + i * 2f, 0.25f)
+                } }
+                drawPencilAt(8.5f, 46f, 12.5f, 32f, 1.25f)
+                val body = Path().apply { moveTo(-9f, 50f); quadraticTo(-9.6f, 43f, -2f, 42.4f); lineTo(10f, 42.4f); quadraticTo(15.6f, 43f, 15.4f, 50f); lineTo(15f, 80f); quadraticTo(15f, 84f, 10.6f, 84f); lineTo(-4.6f, 84f); quadraticTo(-9f, 84f, -9f, 80f); close() }
+                drawPath(body, hg(listOf(Color(0xFF1D1670), Color(0xFF3A2FC4), Color(0xFF2A209E), Color(0xFF16105A)), -9f, 15.4f))
+                if (!small) clipPath(body) { for (i in 0 until 14) line(Color.White.copy(alpha = 0.05f), -9f + i * 2f, 42f, -9f + i * 2f - 6f, 84f, 0.5f) }
+                drawPath(body, Color(0x990A0828), style = stroke(if (small) 1f else 0.5f))
+                val flap = Path().apply { moveTo(-8.4f, 50f); quadraticTo(-8.6f, 44f, -2f, 43.6f); lineTo(10f, 43.6f); quadraticTo(14.8f, 44f, 14.8f, 50f); quadraticTo(3f, 56f, -8.4f, 50f); close() }
+                drawPath(flap, vg(listOf(Color(0xFF5247E0), Color(0xFF3A2FC4)), 43.6f, 54f))
+                if (!small) drawPath(Path().apply { moveTo(-7f, 49.4f); quadraticTo(3f, 54.2f, 13.4f, 49.4f) }, Color.White.copy(alpha = 0.45f), style = Stroke(0.3f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.9f, 0.7f))))
+                val bk = roundRect(1.4f, 51.2f, 3.6f, 3.2f, 0.6f); drawPath(bk, hg(gold3, 1.4f, 5f)); drawPath(bk, Color(0x995A3C05), style = stroke(0.3f))
+                val pk = roundRect(-6.4f, 63f, 18.8f, 16f, 3f); drawPath(pk, vg(listOf(Color(0xFF3A2FC4), Color(0xFF2A209E)), 63f, 79f)); drawPath(pk, Color(0x800A0828), style = stroke(0.35f))
+                line(Color(0xFFC9CCE0), -4.6f, 66.2f, 10.6f, 66.2f, 0.55f)
+                if (!small) { for (i in 0 until 15) line(Color(0xB31E195A), -4.4f + i, 65.8f, -4.4f + i, 66.6f, 0.2f); drawPath(roundRect(8.6f, 66f, 1.4f, 3f, 0.5f), hg(gold3, 8.6f, 10f)) }
+                drawPath(roundRect(-0.6f, 70.6f, 6.4f, 4.4f, 1f), Mint)
+                if (!small) {
+                    // o "E" da etiqueta, em traços
+                    val ink = Color(0xFF1D1670)
+                    line(ink, 1.8f, 71.6f, 1.8f, 74f, 0.55f); line(ink, 1.8f, 71.6f, 3.6f, 71.6f, 0.55f); line(ink, 1.8f, 72.8f, 3.2f, 72.8f, 0.55f); line(ink, 1.8f, 74f, 3.6f, 74f, 0.55f)
+                    rotate(sw * DEG, pivot = Offset(9.3f, 69f)) {
+                        line(Color(0xFFB9BCD0), 9.3f, 69f, 9.3f, 73f, 0.35f)
+                        drawCircle(Color(0xFFD7D9E8), 0.8f, Offset(9.3f, 73.6f), style = stroke(0.35f))
+                        val st = star5(9.3f, 76.8f, 2.4f); drawPath(st, hg(gold3, 6.9f, 11.7f)); drawPath(st, Color(0x8C785008), style = stroke(0.25f))
                     }
+                    line(Color.White.copy(alpha = 0.35f), -7.6f, 52f, -7.8f, 80f, 0.6f)
                 }
             }
+            val sp = Path().apply { moveTo(-2f, 43f); cubicTo(2f, 36f, 10f, 35f, 16f, 40f) }
+            drawPath(sp, Color(0xFF16105A), style = stroke(if (small) 3.4f else 2.8f)); drawPath(sp, Color(0xFF2A209E), style = stroke(if (small) 2.2f else 1.8f))
         }
         "foguete" -> {
             val thrust = if (party) 1f else air
@@ -1669,7 +1689,7 @@ private fun DrawScope.drawPet(t: Float, kind: String, mood: FolhaMood, small: Bo
     val hop = when { party -> -abs(sin(t * 5.2f + 0.8f)) * 3f; burst > 0f -> -sin(PIf * (1f - burst)) * 4f; sad -> 0.3f; else -> -abs(sin(t * 1.3f)) * 0.4f }
     var tearAt: Offset? = null
     val blink = sleepy || (t % 3.7f) < 0.13f
-    val x = -9f; val base = 95f; val k = 1.45f
+    val x = if (sad) -5f else -9f; val base = 95f; val k = 1.45f   // triste: chega pertinho para consolar
     scale(1f, 0.22f, pivot = Offset(x, base)) { drawCircle(Ink.copy(alpha = 0.2f), (7f + hop * 0.3f) * k, Offset(x, base)) }
     fun DrawScope.eye(ex: Float, ey: Float, r: Float = 0.75f) {
         if (sad && !sleepy) {   // olhinho triste: pupila menor, sobrancelha subindo por dentro e uma lágrima no primeiro olho
@@ -1680,7 +1700,8 @@ private fun DrawScope.drawPet(t: Float, kind: String, mood: FolhaMood, small: Bo
             return
         }
         if (blink) { drawPath(Path().apply { moveTo(ex - r * 1.2f, ey); quadraticTo(ex, ey + r * 0.9f, ex + r * 1.2f, ey) }, Ink, style = stroke(0.5f)); return }
-        drawCircle(Ink, r, Offset(ex, ey)); drawCircle(Color.White, r * 0.4f, Offset(ex - r * 0.3f, ey - r * 0.35f))
+        // olhando para o Folha (à direita e um pouco para cima)
+        drawCircle(Ink, r, Offset(ex + r * 0.28f, ey - r * 0.15f)); drawCircle(Color.White, r * 0.4f, Offset(ex - r * 0.02f, ey - r * 0.5f))
     }
     fun DrawScope.smile(mx: Float, my: Float, w: Float = 1.1f) = drawPath(Path().apply { moveTo(mx - w, my); quadraticTo(mx, my + w * (if (party) 1.2f else 0.7f), mx + w, my) }, Ink, style = stroke(0.45f))
     translate(x, base + hop * k) {
@@ -1754,7 +1775,7 @@ private fun DrawScope.drawPet(t: Float, kind: String, mood: FolhaMood, small: Bo
                     drawPath(heart(0f, -6.2f, 1.3f), Color(0xFFFF8FA3))
                     drawPath(roundRect(-5.2f, -17.6f, 10.4f, 8f, 2.2f), vg(listOf(Color(0xFFE3E6F0), Color(0xFFB7B4D0)), -17.6f, -9.6f))
                     drawPath(roundRect(-4f, -16.4f, 8f, 5.6f, 1.4f), Color(0xFF1E1B2E))
-                    for (s in listOf(-1f, 1f)) { if (blink) line(Mint, s * 1.8f - 0.8f, -13.4f, s * 1.8f + 0.8f, -13.4f, 0.5f) else drawPath(roundRect(s * 1.8f - 0.7f, -14.6f, 1.4f, 2.2f, 0.6f), Mint) }
+                    for (s in listOf(-1f, 1f)) { if (blink) line(Mint, s * 1.8f - 0.8f, -13.4f, s * 1.8f + 0.8f, -13.4f, 0.5f) else if (party) drawPath(heart(s * 1.8f + 0.3f, -13.4f, 1f), Color(0xFFFF8FA3)) else drawPath(roundRect(s * 1.8f - 0.4f, -14.8f, 1.4f, 2.2f, 0.6f), Mint) }
                     drawPath(Path().apply { moveTo(-1f, -12f); quadraticTo(0f, -11.2f, 1f, -12f) }, Mint, style = stroke(0.4f))
                     line(Color(0xFF8E92A6), 0f, -17.6f, 0f, -20.2f, 0.5f)
                     drawCircle(if (sin(t * 4f) > 0f) Color(0xFFFF5C4D) else Mint, 0.9f, Offset(0f, -20.6f))
@@ -1802,6 +1823,37 @@ private fun DrawScope.drawPet(t: Float, kind: String, mood: FolhaMood, small: Bo
                             hg(listOf(Color(0xFFFFE07A), Color(0xFFFF9F3A), Color(0xFFF2552C)), 7.6f, 13f))
                     }
                 }
+            }
+            // ---- reage ao Folha (à direita dele): o carinho de tempos em tempos, o consolo e a comemoração de cada um
+            val ci = (t % 8.5f) / 8.5f; val check = if (!party && !sleepy && !sad && ci > 0.8f) sin(PIf * (ci - 0.8f) / 0.2f) else 0f
+            val headY = when (kind) { "planta" -> -12f; "patinho" -> -14f; "robo" -> -22f; "coelho" -> -18f; else -> -17f }
+            val bub = if (sad) 0.85f + 0.15f * sin(t * 3f) else check
+            if (bub > 0.02f) {
+                val bx = 6.5f; val by = headY - 5f - (if (sad) sin(t * 2f) * 0.6f else (1f - bub) * 2f)
+                oval(Color.White.copy(alpha = bub), bx - 3.6f, by - 3f, 7.2f, 6f)
+                drawOval(Color(0x401D1670).copy(alpha = 0.25f * bub), Offset(bx - 3.6f, by - 3f), Size(7.2f, 6f), style = stroke(0.3f))
+                drawCircle(Color.White.copy(alpha = bub), 0.8f, Offset(bx - 2.6f, by + 3.2f)); drawCircle(Color.White.copy(alpha = bub), 0.45f, Offset(bx - 3.8f, by + 4.4f))
+                drawPath(heart(bx, by + 0.3f, 1.5f * (1f + 0.12f * sin(t * 6f))), Color(0xFFFF6B86).copy(alpha = bub))
+            }
+            if (party) when (kind) {
+                "planta" -> for (i in 0 until 5) {
+                    val ph = (t * 0.7f + i / 5f) % 1f; val px = 2f + ph * 18f; val py = -19f - sin(PIf * ph) * 7f + ph * 6f
+                    rotate((t * 3f + i) * DEG, pivot = Offset(px, py)) { oval(Color(0xFFFF8FA3).copy(alpha = 1f - ph), px - 1f, py - 0.55f, 2f, 1.1f) }
+                }
+                "patinho" -> { val q = (t * 3f) % 1f; for (a in listOf(-0.5f, 0f, 0.5f)) line(Color(0xFFFF8A2B).copy(alpha = 1f - q), 8.6f + cos(a) * (1f + q * 2f), -9.8f + sin(a) * (1f + q * 2f), 8.6f + cos(a) * (2f + q * 2.5f), -9.8f + sin(a) * (2f + q * 2.5f), 0.4f) }
+                "gatinho" -> {
+                    val w = sin(t * 8f) * 0.6f
+                    drawCircle(Color(0xFFF7B36E), 1.7f, Offset(4.6f, -6.6f + w)); drawCircle(Color(0xFFFFB3C7), 0.7f, Offset(4.6f, -6.3f + w))
+                    for (d in listOf(-0.9f, 0f, 0.9f)) drawCircle(Color(0xFFFFB3C7), 0.32f, Offset(4.6f + d, -7.6f + w))
+                    val hp = (t * 0.8f) % 1f; drawPath(heart(9f + sin(t * 2f), -20f - hp * 4f, 1.2f), Color(0xFFFF6B86).copy(alpha = sin(PIf * hp)))
+                }
+                "coruja" -> for (i in 0 until 2) {
+                    val ph = (t * 0.6f + i / 2f) % 1f; val nx = 5f + ph * 10f; val ny = -14f - ph * 8f; val c = Ink.copy(alpha = sin(PIf * ph))
+                    drawCircle(c, 0.8f, Offset(nx, ny)); line(c, nx + 0.7f, ny, nx + 0.7f, ny - 3f, 0.35f); line(c, nx + 0.7f, ny - 3f, nx + 2f, ny - 2.4f, 0.35f)
+                }
+                "robo" -> for (i in 0 until 4) { val ph = (t * 1.4f + i / 4f) % 1f; drawCircle(Mint.copy(alpha = 1f - ph), 0.45f, Offset(ph * 12f, -20.6f - sin(PIf * ph) * 5f)) }
+                "coelho" -> for (i in 0 until 3) { val ph = (t * 0.9f + i / 3f) % 1f; star4(-4f + i * 5f, -24f - ph * 4f, 1.3f * sin(PIf * ph), Color(0xFFFFD66E).copy(alpha = sin(PIf * ph))) }
+                "dragao" -> { val ph = (t * 0.9f) % 1f; drawOval(Color(0xFFAAA5BE).copy(alpha = (1f - ph) * 0.9f), Offset(13f + ph * 6f - (1.2f + ph * 2f), -11.5f - ph * 3f - (0.8f + ph * 1.4f)), Size(2f * (1.2f + ph * 2f), 2f * (0.8f + ph * 1.4f)), style = Stroke(0.5f)) }
             }
         }
     }
@@ -1932,6 +1984,32 @@ private fun DrawScope.drawCoverPattern(t: Float, c: CoverStyle, cover: Path) {
             for (cx in listOf(10f, 90f)) { drawRect(Color(0xFFE0475E), Offset(cx - 0.45f, 49f), Size(0.9f, 3.2f)); drawRect(Color(0xFFE0475E), Offset(cx - 1.6f, 50.15f), Size(3.2f, 0.9f)) }
             for (cx in listOf(30f, 70f)) { val cy = 90.2f - abs(cx - 50f) * 0.06f; drawCircle(Color(0x8C788CAA), 0.85f, Offset(cx, cy)); drawCircle(Color.White, 0.6f, Offset(cx - 0.15f, cy - 0.2f)) }
         }
+        "farda" -> {
+            // farda: tecido rip-stop (quadriculado miúdo), o brasão dourado nas lombadas e a faixa refletiva na barra
+            var x = 6f; while (x < 96f) { line(Color.White.copy(alpha = 0.05f), x, 40f, x, 95f, 0.25f, false); x += 2.2f }
+            var y = 41f; while (y < 95f) { line(Color.White.copy(alpha = 0.05f), 6f, y, 94f, y, 0.25f, false); y += 2.2f }
+            for (cx in listOf(10f, 90f)) {
+                drawPath(Path().apply { moveTo(cx - 1.6f, 48.4f); lineTo(cx + 1.6f, 48.4f); lineTo(cx + 1.6f, 51f); quadraticTo(cx, 53.6f, cx - 1.6f, 51f); close() }, Color(0xFFE9AE34))
+                drawCircle(Color(0xFF22306A), 0.6f, Offset(cx, 50.4f))
+            }
+            val band = Path().apply { moveTo(10f, 81.6f); cubicTo(22f, 79.5f, 38f, 80.4f, 50f, 85.6f); cubicTo(62f, 80.4f, 78f, 79.5f, 90f, 81.6f); lineTo(90f, 83.6f); cubicTo(78f, 81.5f, 62f, 82.4f, 50f, 87.6f); cubicTo(38f, 82.4f, 22f, 81.5f, 10f, 83.6f); close() }
+            drawPath(band, hg(listOf(Color(0xFFB8BCC8), Color(0xFFF2F4FA), Color(0xFF9EA3B2), Color(0xFFF2F4FA), Color(0xFFB8BCC8)), 10f, 90f))
+        }
+        "lousa" -> {
+            // lousa: verde fosco com pó de giz, um triângulo e uma conta meio apagados e a moldura de madeira nas lombadas
+            for (i in 0 until 40) drawCircle(Color.White.copy(alpha = 0.06f), 0.4f + (i % 3) * 0.3f, Offset(8f + ((i * 37) % 84), 42f + ((i * 23) % 50)))
+            val ch = Color.White.copy(alpha = 0.32f)
+            drawPath(Path().apply { moveTo(14f, 86f); lineTo(14f, 77f); lineTo(24f, 86f); close() }, ch, style = stroke(0.4f))
+            line(ch, 14f, 84.4f, 15.6f, 84.4f, 0.3f, false); line(ch, 15.6f, 84.4f, 15.6f, 86f, 0.3f, false)
+            for (q in listOf(floatArrayOf(77f, 78f, 80f, 82f), floatArrayOf(77f, 82f, 80f, 78f), floatArrayOf(82f, 79.4f, 84.4f, 79.4f), floatArrayOf(82f, 80.8f, 84.4f, 80.8f), floatArrayOf(86f, 78f, 87.6f, 77.4f), floatArrayOf(87.6f, 77.4f, 87.6f, 82f))) line(ch, q[0], q[1], q[2], q[3], 0.4f, false)
+            drawPath(Path().apply { moveTo(70f, 86f); cubicTo(74f, 84f, 80f, 87f, 86f, 85f) }, Color.White.copy(alpha = 0.12f), style = stroke(1.6f))
+            for (cx in listOf(9.2f, 90.8f)) { drawRect(Color(0xBF966437), Offset(cx - 1.2f, 43f), Size(2.4f, 46f)); line(Color(0x59FFDCAA), cx - 0.6f, 43f, cx - 0.6f, 89f, 0.3f, false) }
+        }
+        "risca" -> {
+            // terno de risca de giz, com os botões nas lombadas
+            var x = 6f; while (x < 96f) { line(Color(0x38E6E8F0), x, 40f, x, 95f, 0.22f, false); x += 2.6f }
+            for (cx in listOf(10f, 90f)) for (cy in listOf(62f, 70f)) drawCircle(Color(0xB3C8CDDC), 0.7f, Offset(cx, cy))
+        }
         "codigo" -> {
             // Vade Mecum: couro com grão, filetes dourados nas lombadas e o parágrafo em relevo
             for (g in GRAIN) drawCircle(Color(0xFF1E0006).copy(alpha = g[3] * 1.2f), g[2] * 1.2f, Offset(if (g[0] < 50f) 8.5f + (g[0] - 15f) * 0.1f else 91.5f - (85f - g[0]) * 0.1f, g[1] + 6f))
@@ -2025,6 +2103,38 @@ private fun DrawScope.drawBoinaMilitar(t: Float) {
     drawPath(sh, vg(listOf(Color(0xFFFFF1BF), Color(0xFFF5C451), Color(0xFFB57A0C)), by - 3f, by + 3.8f)); drawPath(sh, Color(0x996E4600), style = stroke(0.3f))
     drawPath(star5(bx, by + 0.2f, 1.7f), Color(0xFF2E7D3A))
     val k = maxOf(0f, sin(t * 1.2f)).pow(10); if (k > 0.02f) star4(bx + 2f, by - 2.6f, 2.6f * k, Color.White.copy(alpha = k))
+}
+
+private fun DrawScope.drawQuepe(t: Float) {
+    // quepe da polícia: copa azul-marinho larga, faixa preta com cordão dourado, pala de verniz e o brasão alado
+    hatShadow(18f)
+    drawPath(Path().apply { moveTo(33f, 40f); cubicTo(28f, 30f, 34f, 24.5f, 50f, 24.5f); cubicTo(66f, 24.5f, 72f, 30f, 67f, 40f); close() }, vg(listOf(Color(0xFF3A4A8C), Color(0xFF22306A), Color(0xFF141C46)), 24.5f, 40f))
+    drawOval(vg(listOf(Color(0xFF4C5DA6), Color(0xFF2A3878)), 23.6f, 30.8f), Offset(32.4f, 23.6f), Size(35.2f, 7.2f))
+    line(Color.White.copy(alpha = 0.22f), 38f, 26.4f, 56f, 25.4f, 0.6f)
+    drawPath(Path().apply { moveTo(34.4f, 38.6f); quadraticTo(50f, 36.2f, 65.6f, 38.6f); lineTo(65.2f, 44.4f); quadraticTo(50f, 41.8f, 34.8f, 44.4f); close() }, vg(listOf(Color(0xFF1A1A22), Color(0xFF060608)), 37f, 44.4f))
+    val cord = Path().apply { moveTo(36f, 42.6f); quadraticTo(50f, 40.6f, 64f, 42.6f) }
+    drawPath(cord, Color(0xFFB57A0C), style = stroke(0.9f)); drawPath(cord, Color(0xFFFFD877), style = stroke(0.45f))
+    for (x in listOf(36f, 64f)) drawCircle(Color(0xFFE9AE34), 0.9f, Offset(x, 42.6f))
+    drawPath(Path().apply { moveTo(35f, 44.2f); quadraticTo(50f, 41.6f, 65f, 44.2f); quadraticTo(60f, 49.4f, 50f, 49.6f); quadraticTo(40f, 49.4f, 35f, 44.2f); close() }, vg(listOf(Color(0xFF2C2C36), Color(0xFF0B0B10)), 42f, 49.6f))
+    drawPath(Path().apply { moveTo(39f, 45.4f); quadraticTo(50f, 44f, 60f, 45.4f) }, Color.White.copy(alpha = 0.35f), style = stroke(0.5f))
+    val bx = 50f; val by = 32.6f
+    for (sd in listOf(-1f, 1f)) drawPath(Path().apply { moveTo(bx + sd * 2.4f, by - 0.6f); quadraticTo(bx + sd * 6.4f, by - 2.6f, bx + sd * 7.6f, by - 0.4f); quadraticTo(bx + sd * 5f, by + 0.6f, bx + sd * 2.4f, by + 1.4f); close() }, vg(GOLD3, by - 2.6f, by + 1.4f))
+    val sh = Path().apply { moveTo(bx - 2.6f, by - 3.2f); lineTo(bx + 2.6f, by - 3.2f); lineTo(bx + 2.6f, by + 0.6f); quadraticTo(bx + 2.4f, by + 2.8f, bx, by + 3.8f); quadraticTo(bx - 2.4f, by + 2.8f, bx - 2.6f, by + 0.6f); close() }
+    drawPath(sh, vg(listOf(Color(0xFFFFF1BF), Color(0xFFF5C451), Color(0xFFB57A0C)), by - 3.2f, by + 3.8f)); drawPath(sh, Color(0x996E4600), style = stroke(0.3f))
+    drawPath(star5(bx, by + 0.1f, 1.6f), Color(0xFF22306A))
+    val k = maxOf(0f, sin(t * 1.2f + 0.8f)).pow(10); if (k > 0.02f) star4(bx + 2.4f, by - 2.8f, 2.6f * k, Color.White.copy(alpha = k))
+}
+
+private fun DrawScope.drawViseira(t: Float) {
+    // viseira de contador: faixa escura, aba larga de acetato verde translúcido e um lápis preso do lado
+    hatShadow(14f)
+    drawPath(Path().apply { moveTo(34.6f, 37.4f); quadraticTo(50f, 34.4f, 65.4f, 37.4f); lineTo(65f, 43.4f); quadraticTo(50f, 40.4f, 35f, 43.4f); close() }, vg(listOf(Color(0xFF3A3F4E), Color(0xFF1E2230)), 35f, 43.4f))
+    line(Color.White.copy(alpha = 0.2f), 37f, 40.2f, 63f, 40.2f, 0.35f)
+    drawPencilAt(63.5f, 41.5f, 69f, 33f, 0.9f)
+    val brim = Path().apply { moveTo(33.2f, 42.2f); quadraticTo(50f, 39.2f, 66.8f, 42.2f); quadraticTo(64.4f, 47.6f, 50f, 48f); quadraticTo(35.6f, 47.6f, 33.2f, 42.2f); close() }
+    drawPath(brim, vg(listOf(Color(0xD146BE78), Color(0x9E1E8C50)), 40f, 48f)); drawPath(brim, Color(0xB30A4628), style = stroke(0.45f))
+    drawPath(Path().apply { moveTo(38f, 43.4f); quadraticTo(50f, 41.6f, 62f, 43.4f) }, Color(0x99DCFFE6), style = stroke(0.5f))
+    val k = maxOf(0f, sin(t * 0.9f)).pow(12); if (k > 0.02f) star4(40f, 45f, 2f * k, Color.White.copy(alpha = k))
 }
 
 private fun DrawScope.drawTouca(t: Float) {
@@ -2176,6 +2286,8 @@ private fun DrawScope.drawHat(f: FolhaFrame, look: Look, tilt: Float) {
         "boina" -> drawBoina()
         "boina-militar" -> drawBoinaMilitar(t)
         "touca" -> drawTouca(t)
+        "quepe" -> drawQuepe(t)
+        "viseira" -> drawViseira(t)
         "explorador" -> drawExplorador()
         "fones" -> drawFones(t)
         "cartola" -> drawCartola()
@@ -2373,6 +2485,64 @@ private fun DrawScope.drawNeckwear(t: Float, small: Boolean, kind: String) {
                 }
             }
         }
+        "distintivo" -> {
+            // distintivo da polícia: estrela de seis pontas dourada, com o centro esmaltado, num porta-distintivo de couro
+            translate(25f, 74f) {
+                rotate(sin(t * 1.6f) * 0.04f * DEG, pivot = Offset.Zero) {
+                    drawPath(roundRect(-5f, -6f, 10f, 12.4f, 2.2f), vg(listOf(Color(0xFF3A2A1E), Color(0xFF1C130C)), -6f, 6.4f))
+                    drawPath(roundRect(-4.2f, -5.2f, 8.4f, 10.8f, 1.6f), Color(0x8CE6BE82), style = Stroke(0.22f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.6f, 0.5f))))
+                    fun star6(r: Float, dx: Float = 0f, dy: Float = 0f) = Path().apply { for (i in 0 until 12) { val a = -PIf / 2f + i * PIf / 6f; val rr = if (i % 2 == 1) r * 0.55f else r; if (i == 0) moveTo(dx + cos(a) * rr, dy + sin(a) * rr + 0.2f) else lineTo(dx + cos(a) * rr, dy + sin(a) * rr + 0.2f) }; close() }
+                    drawPath(star6(4.2f, 0.3f, 0.4f), Color.Black.copy(alpha = 0.35f))
+                    drawPath(star6(4.2f), vg(listOf(Color(0xFFFFF4CC), Color(0xFFF5C451), Color(0xFFB57A0C)), -4.2f, 4.4f)); drawPath(star6(4.2f), Color(0x996E4600), style = stroke(0.25f))
+                    for (i in 0 until 6) { val a = -PIf / 2f + i * PIf / 3f; drawCircle(Color(0xFFFFE9A8), 0.45f, Offset(cos(a) * 4.2f, sin(a) * 4.2f + 0.2f)) }
+                    drawCircle(Color(0xFFB57A0C), 2.2f, Offset(0f, 0.2f)); drawCircle(Color(0xFF22306A), 1.8f, Offset(0f, 0.2f)); drawPath(star5(0f, 0.3f, 1f), Color(0xFFFFD877))
+                    val k = maxOf(0f, sin(t * 1.1f + 2f)).pow(10); if (k > 0.02f) star4(2.8f, -3.2f, 2.4f * k, Color.White.copy(alpha = k))
+                }
+            }
+        }
+        "cracha" -> {
+            // crachá de professor: cordão menta saindo do pescoço, presilha de metal e o cartão com a foto do Folha
+            for (p in listOf(Path().apply { moveTo(33.6f, 72.6f); quadraticTo(30.6f, 77f, 30f, 80.4f) }, Path().apply { moveTo(42f, 73.6f); quadraticTo(33f, 77f, 30.6f, 80.4f) })) {
+                drawPath(p, Color(0xFF1E8A5A), style = stroke(if (small) 2f else 1.5f)); drawPath(p, Color(0xFF5FE3B5), style = stroke(if (small) 0.8f else 0.5f))
+            }
+            translate(30.2f, 80.6f) {
+                rotate(sin(t * 1.7f) * 0.06f * DEG, pivot = Offset.Zero) {
+                    drawPath(roundRect(-1f, -0.6f, 2f, 2.4f, 0.5f), hg(listOf(Color(0xFF8E92A6), Color(0xFFE3E6F0), Color(0xFF8E92A6)), -1f, 1f))
+                    val card = roundRect(-4.6f, 1.6f, 9.2f, 11.6f, 1.2f)
+                    drawPath(card, Color.White); drawPath(card, Color(0x66282850), style = stroke(0.3f))
+                    clipPath(card) { drawRect(vg(listOf(Color(0xFF3A2FC4), Color(0xFF2A209E)), 1.6f, 4.6f), Offset(-5f, 1.6f), Size(10f, 3f)) }
+                    val ph = roundRect(-3.4f, 5.4f, 4f, 4.6f, 0.6f); drawPath(ph, Color(0xFFFFF6E0)); drawPath(ph, Color(0x4D282850), style = stroke(0.2f))
+                    drawCircle(Color(0xFF1D1670), 0.35f, Offset(-2.2f, 7.2f)); drawCircle(Color(0xFF1D1670), 0.35f, Offset(-0.6f, 7.2f))
+                    drawPath(Path().apply { moveTo(-2.2f, 8.4f); quadraticTo(-1.4f, 9.1f, -0.6f, 8.4f) }, Color(0xFF1D1670), style = stroke(0.25f))
+                    for ((y, w) in listOf(6f to 3.2f, 7.4f to 2.4f, 8.8f to 2.8f)) line(Color(0x733C3C64), 1.2f, y, 1.2f + w * 0.8f, y, 0.35f)
+                    line(Color.White.copy(alpha = 0.8f), -3.6f, 2.6f, 2f, 2.6f, 0.4f)
+                    line(Color(0xFF5FE3B5), -3.4f, 11.6f, 3.4f, 11.6f, 0.6f)
+                }
+            }
+        }
+        "caneta" -> {
+            // caneta-tinteiro de laca preta com clipe dourado e uma lapiseira menta, num bolsinho de couro
+            val px = 26f; val py = 70f
+            translate(px - 1.2f, py) {
+                rotate(-0.06f * DEG, pivot = Offset.Zero) {
+                    drawPath(roundRect(-1.3f, -6f, 2.6f, 14f, 1.2f), hg(listOf(Color(0xFF0E0E14), Color(0xFF3A3A48), Color(0xFF0E0E14)), -1.3f, 1.3f))
+                    drawRect(hg(GOLD3, -1.35f, 1.35f), Offset(-1.35f, -0.6f), Size(2.7f, 0.9f))
+                    drawPath(roundRect(0.7f, -5.6f, 0.8f, 7f, 0.4f), vg(GOLD3, -5.6f, 1.4f)); drawCircle(Color(0xFFE9AE34), 0.55f, Offset(1.1f, 1.4f))
+                    drawCircle(Color(0xFFE9AE34), 0.6f, Offset(0f, -6f))
+                    line(Color.White.copy(alpha = 0.4f), -0.6f, -5f, -0.6f, 7f, 0.3f)
+                }
+            }
+            translate(px + 1.8f, py + 1f) {
+                rotate(0.08f * DEG, pivot = Offset.Zero) {
+                    drawPath(roundRect(-0.9f, -4.6f, 1.8f, 12f, 0.8f), hg(listOf(Color(0xFF2E9E72), Mint, Color(0xFF2E9E72)), -0.9f, 0.9f))
+                    drawRect(Color(0xFFC9CCE0), Offset(0.4f, -4.2f), Size(0.5f, 5f))
+                }
+            }
+            val pk = Path().apply { moveTo(px - 4.6f, py + 3f); lineTo(px + 4.6f, py + 3f); lineTo(px + 4.2f, py + 11f); quadraticTo(px, py + 12.6f, px - 4.2f, py + 11f); close() }
+            drawPath(pk, vg(listOf(Color(0xFF5A3A26), Color(0xFF3A2418)), py + 3f, py + 12.6f)); drawPath(pk, Color(0x99140A05), style = stroke(0.3f))
+            drawPath(Path().apply { moveTo(px - 3.8f, py + 4f); lineTo(px + 3.8f, py + 4f) }, Color(0x99F0C896), style = Stroke(0.22f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(0.6f, 0.5f))))
+            line(Color.White.copy(alpha = 0.15f), px - 3.6f, py + 5f, px - 3.4f, py + 10f, 0.4f)
+        }
         "medalha-militar" -> {
             // medalha de honra: barretas no alto (verde e amarelo; azul e branco), a fita verde com a faixa
             // amarela dobrada em pentágono e a estrela de cinco pontas com o centro esmaltado de azul
@@ -2565,6 +2735,52 @@ private fun DrawScope.drawHeld(kind: String, h: Offset, angRad: Float, t: Float,
                         for (x in listOf(-4f, 4f)) drawPath(roundRect(x - 1f, 3.2f, 2f, 1.8f, 0.4f), vg(GOLD3, 3.2f, 5f))
                         for ((x, y) in listOf(-6.4f to 1.2f, 6.4f to 1.2f, -6.4f to 10f, 6.4f to 10f)) drawCircle(Color(0xFFE9AE34), 0.5f, Offset(x, y))
                         line(Color.White.copy(alpha = 0.25f), -5.6f, 5.6f, 2f, 5.6f, 0.4f)
+                    }
+                    "radio" -> {
+                        // rádio da viatura: corpo preto emborrachado, antena, alto-falante, visor verde com sinal e a luz
+                        // vermelha de transmitindo (pisca mais rápido na festa, com as ondinhas saindo da antena)
+                        rotate((-0.12f + (if (party) sin(t * 6f) * 0.08f else 0f)) * DEG, pivot = Offset.Zero) {
+                            line(Color(0xFF2A2C38), 1.6f, -9f, 1.8f, -17f, 0.9f); drawCircle(Color(0xFF2A2C38), 0.75f, Offset(1.8f, -17.2f))
+                            drawPath(roundRect(-2.4f, -12f, 1.8f, 2.2f, 0.5f), Color(0xFF3C4054))
+                            val body = roundRect(-3.2f, -10f, 6.4f, 14f, 1.4f)
+                            drawPath(body, hg(listOf(Color(0xFF1C1E28), Color(0xFF3C4054), Color(0xFF1C1E28)), -3.2f, 3.2f)); drawPath(body, Color.Black.copy(alpha = 0.6f), style = stroke(0.3f))
+                            for (i in 0 until 4) line(Color(0xB38C91AA), -2f, -7.6f + i * 1.1f, 2f, -7.6f + i * 1.1f, 0.45f)
+                            drawPath(roundRect(-2.2f, -2.6f, 4.4f, 2.4f, 0.4f), Mint)
+                            for (i in 0 until 4) drawRect(Color(0xFF1D4A3A), Offset(-1.6f + i * 0.9f, -0.6f - (i + 1) * 0.35f), Size(0.6f, (i + 1) * 0.35f))
+                            val on = (t * (if (party) 4f else 1.2f)) % 1f < 0.5f
+                            if (on && !small) drawCircle(Color(0x4DFF5C4D), 1.4f, Offset(-1.8f, -9f))
+                            drawCircle(if (on) Color(0xFFFF5C4D) else Color(0xFF6B1E1A), 0.6f, Offset(-1.8f, -9f))
+                            line(Color.White.copy(alpha = 0.3f), -2.6f, -9.2f, -2.6f, 3f, 0.35f)
+                            if (party && !small) for (i in 0 until 3) {
+                                val ph = (t * 1.5f + i / 3f) % 1f; val r = 1.5f + ph * 5f
+                                drawArc(Mint.copy(alpha = 0.8f * (1f - ph)), -153f, 108f, false, Offset(1.8f - r, -17.2f - r), Size(2f * r, 2f * r), style = Stroke(0.4f))
+                            }
+                        }
+                    }
+                    "maca" -> translate(0f, -5f) {
+                        // maçã do professor: vermelha brilhante, cabinho e folha menta; na festa solta estrelinhas
+                        rotate(sin(t * 1.3f) * 0.05f * DEG, pivot = Offset.Zero) {
+                            val ap = Path().apply { moveTo(0f, -4.2f); cubicTo(2.6f, -6.4f, 6.6f, -4.6f, 6f, 0.6f); cubicTo(5.6f, 4.8f, 2.4f, 6.6f, 0f, 5.2f); cubicTo(-2.4f, 6.6f, -5.6f, 4.8f, -6f, 0.6f); cubicTo(-6.6f, -4.6f, -2.6f, -6.4f, 0f, -4.2f); close() }
+                            drawPath(ap, Brush.radialGradient(0f to Color(0xFFFF7A7A), 0.55f to Color(0xFFE0303F), 1f to Color(0xFF9C1424), center = Offset(-2f, -2f), radius = 7.5f))
+                            drawPath(ap, Color(0x805A0A14), style = stroke(0.3f))
+                            line(Color(0xFF6B4320), 0f, -4f, 0.6f, -7.4f, 0.7f)
+                            drawPath(Path().apply { moveTo(0.6f, -6.4f); quadraticTo(3.4f, -9.2f, 5.2f, -7f); quadraticTo(3f, -5.2f, 0.6f, -6.4f); close() }, vg(listOf(Mint, Color(0xFF2E9E72)), -9f, -5f))
+                            rotate(-0.4f * DEG, pivot = Offset(-2.8f, -1.6f)) { oval(Color.White.copy(alpha = 0.55f), -3.9f, -3.4f, 2.2f, 3.6f) }
+                            if (party) for (i in 0 until 3) { val ph = (t * 0.9f + i / 3f) % 1f; star4(-6f + i * 6f, -9f - ph * 4f, 1.4f * sin(PIf * ph), Color.White.copy(alpha = sin(PIf * ph))) }
+                        }
+                    }
+                    "calculadora" -> rotate(-0.1f * DEG, pivot = Offset.Zero) {
+                        // calculadora de mesa: visor verde com os dígitos mudando e as teclas (na festa ele aperta sem parar)
+                        val body = roundRect(-4.4f, -12f, 8.8f, 13.6f, 1.4f)
+                        drawPath(body, vg(listOf(Color(0xFF4A5068), Color(0xFF2C3042)), -12f, 1.6f)); drawPath(body, Color.Black.copy(alpha = 0.5f), style = stroke(0.3f))
+                        drawPath(roundRect(-3.4f, -10.8f, 6.8f, 3f, 0.5f), Color(0xFFC8E6C0))
+                        val n = (t * (if (party) 6f else 1.5f)).toInt()
+                        for (i in 0 until 4) drawRect(if ((n + i * 3) % 5 != 0) Color(0xFF2A3A2A) else Color(0x402A3A2A), Offset(-2.6f + i * 1.5f, -10f), Size(1f, 1.5f))
+                        for (r in 0 until 4) for (c in 0 until 4) {
+                            val press = party && (((t * 6f).toInt() + r * 4 + c) % 7 == 0)
+                            drawPath(roundRect(-3.5f + c * 1.85f, -6.6f + r * 1.85f, 1.45f, 1.35f, 0.35f), when { press -> Mint; c == 3 -> Color(0xFFF5B83D); r == 3 && c == 0 -> Color(0xFFFF8FA3); else -> Color(0xFFD7DAE6) })
+                        }
+                        line(Color.White.copy(alpha = 0.3f), -3.8f, -11.4f, 3.6f, -11.4f, 0.35f)
                     }
                     "bandeira" -> {
                         // bandeira do Brasil num mastro com ponta dourada: tremula para fora (longe do rosto); na festa,
@@ -2760,6 +2976,65 @@ private fun DrawScope.drawAura(t: Float, kind: String, small: Boolean, burst: Fl
                     if (!small && u > 0.35f && (j + (t * 10f).toInt()) % 3 == 0) star4(px + cos(a) * 1.5f, py + 2.5f + u * 4f, 1.3f, Color.White.copy(alpha = al))
                 }
                 for (j in 0 until 8) { val a = j * PIf / 4f + i + 0.4f; val r2 = rr * 0.42f; drawCircle(c2.copy(alpha = al), 0.7f, Offset(cx + cos(a) * r2, cy + sin(a) * r2 + fall * 0.5f)) }
+            }
+        }
+        "giroflex" -> {
+            // giroflex: atrás dele, a luz vermelha e a azul se revezando, com os fachos varrendo a partir dos cantos de cima
+            val redOn = (t * 2.2f) % 1f < 0.5f; val flash = sin(PIf * ((t * 4.4f) % 1f))
+            if (behind) for ((sd, col) in listOf(-1f to Color(0xFFFF3C46), 1f to Color(0xFF3C78FF))) {
+                val on = if (sd < 0f) redOn else !redOn; val a = (if (on) 0.72f else 0.14f) * (0.6f + 0.4f * flash) * boost; val x = 50f + sd * 44f
+                drawCircle(Brush.radialGradient(listOf(col.copy(alpha = a.coerceIn(0f, 1f)), col.copy(alpha = 0f)), center = Offset(x, 58f), radius = 40f), 40f, Offset(x, 58f))
+                translate(50f + sd * 56f, -6f) {
+                    rotate((PIf / 2f - sd * (0.45f + 0.35f * sin(t * 3f + (if (sd > 0f) PIf else 0f)))) * DEG, pivot = Offset.Zero) {
+                        drawPath(Path().apply { moveTo(0f, 0f); lineTo(90f, -12f); lineTo(90f, 12f); close() }, Brush.horizontalGradient(listOf(col.copy(alpha = ((if (on) 0.62f else 0.14f) * boost).coerceIn(0f, 1f)), col.copy(alpha = 0f)), startX = 0f, endX = 90f))
+                    }
+                }
+            }
+            else if (!small) for (i in 0 until 4) {
+                val ph = (t * 0.6f + i / 4f) % 1f; val sd = if (i % 2 == 1) 1f else -1f
+                star4(50f + sd * (40f + i * 2f), 30f + i * 12f, 1.8f * sin(PIf * ph), (if (sd < 0f) Color(0xFFFF7882) else Color(0xFF78AAFF)).copy(alpha = sin(PIf * ph)))
+            }
+        }
+        "abc" -> if (!behind) {
+            // letras e contas de giz subindo devagar dos lados (nunca na frente do rosto), com pozinho de giz
+            val glyphs = listOf(
+                listOf(floatArrayOf(-1.2f, 1.6f, 0f, -1.6f), floatArrayOf(0f, -1.6f, 1.2f, 1.6f), floatArrayOf(-0.6f, 0.4f, 0.6f, 0.4f)),
+                listOf(floatArrayOf(-1.2f, 0f, 1.2f, 0f), floatArrayOf(0f, -1.2f, 0f, 1.2f)),
+                listOf(floatArrayOf(-1.2f, -0.5f, 1.2f, -0.5f), floatArrayOf(-1.2f, 0.5f, 1.2f, 0.5f)),
+                listOf(floatArrayOf(-0.5f, -1f, 0f, -1.6f), floatArrayOf(0f, -1.6f, 0f, 1.6f)),
+                listOf(floatArrayOf(-1f, -1f, 1f, 1f), floatArrayOf(-1f, 1f, 1f, -1f)),
+                listOf(floatArrayOf(-1.4f, 0.2f, -0.6f, 1.6f), floatArrayOf(-0.6f, 1.6f, 0.2f, -1.6f), floatArrayOf(0.2f, -1.6f, 1.6f, -1.6f)),
+                listOf(floatArrayOf(-1.4f, -1.2f, 1.4f, -1.2f), floatArrayOf(-0.6f, -1.2f, -0.8f, 1.6f), floatArrayOf(0.6f, -1.2f, 0.8f, 1.6f)),
+            )
+            val cols = listOf(Color.White, Color(0xFFBEF5DC), Color(0xFFFFECA0), Color(0xFFFFC8D7))
+            for (i in 0 until if (small) 5 else 10) {
+                val ph = (t * 0.22f + i * 0.1f) % 1f; val sd = if (i % 2 == 1) 1f else -1f
+                val x = 50f + sd * (36f + ((i * 7) % 14)) + sin(t * 1.2f + i) * 2f; val y = 96f - ph * 92f
+                if (y > 40f && y < 92f && x > 14f && x < 86f) continue
+                val a = sin(PIf * ph); val sc = (1.2f + (i % 3) * 0.25f) * boost
+                translate(x, y) {
+                    rotate(sin(t + i) * 0.3f * DEG, pivot = Offset.Zero) {
+                        scale(sc, sc, pivot = Offset.Zero) {
+                            for ((w, col) in listOf(1.1f to Color(0xFF1D1670).copy(alpha = 0.3f * a), 0.5f to cols[i % 4].copy(alpha = 0.95f * a))) for (q in glyphs[i % glyphs.size]) line(col, q[0], q[1], q[2], q[3], w)
+                        }
+                    }
+                }
+                if (!small) drawCircle(Color.White.copy(alpha = 0.4f * a), 0.4f, Offset(x + 1.6f, y + 2.2f))
+            }
+        }
+        "graficos" -> if (!behind) {
+            // gráficos de controle flutuando dos lados (a última barra sobe e desce) e moedas girando para cima
+            for (q in listOf(floatArrayOf(-4f, 60f, 0f), floatArrayOf(98f, 20f, 0.5f))) {
+                val cx = q[0]; val y = q[1] + sin(t * 1.2f + q[2] * 6f) * 1.4f; val grow = 0.5f + 0.5f * sin(t * 1.6f + q[2] * 6f)
+                val card = roundRect(cx - 6f, y - 6f, 12f, 10f, 1.6f); drawPath(card, Color.White.copy(alpha = 0.92f)); drawPath(card, Color(0x591D1670), style = stroke(0.3f))
+                listOf(0.35f, 0.55f, 0.75f, 1f).forEachIndexed { i, hh -> val bh = 7f * hh * (if (i == 3) 0.7f + 0.3f * grow else 1f); drawRect(if (i == 3) Color(0xFF2E9E72) else Color(0xFF7B8CFF), Offset(cx - 4.4f + i * 2.4f, y + 2.6f - bh), Size(1.6f, bh)) }
+                drawPath(Path().apply { moveTo(cx - 4.6f, y + 0.6f); lineTo(cx - 1.6f, y - 1.4f); lineTo(cx + 0.6f, y - 0.6f); lineTo(cx + 4f, y - 4.2f) }, Color(0xFFF5B83D), style = stroke(0.5f))
+            }
+            if (!small) for (i in 0 until 6) {
+                val ph = (t * 0.3f + i / 6f) % 1f; val sd = if (i % 2 == 1) 1f else -1f
+                val x = 50f + sd * (40f + ((i * 5) % 10)); val y = 94f - ph * 60f; val a = sin(PIf * ph); val sq = cos(t * 4f + i)
+                scale(maxOf(0.15f, abs(sq)), 1f, pivot = Offset(x, y)) { drawCircle(Color(0xFFB57A0C).copy(alpha = a), 1.9f * boost, Offset(x, y)); drawCircle(Color(0xFFFFD877).copy(alpha = a), 1.5f * boost, Offset(x, y)) }
+                if (abs(sq) > 0.6f) line(Color(0xFFB57A0C).copy(alpha = a), x, y - 0.9f * boost, x, y + 0.9f * boost, 0.35f)
             }
         }
         "batimentos" -> {
