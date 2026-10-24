@@ -13,6 +13,7 @@
   .folha img { display: block; width: 100%; height: 100%; }
 </style>
 <script src="../../../web/src/jsMain/resources/folha.js"></script>
+<script src="../../../web/src/jsMain/resources/folha-live.js"></script>
 </head>
 <body>
 <div id="ic"></div>
@@ -61,7 +62,46 @@
   const sticker = (mood, size, ring, depth) => `<div class="folha" style="width:${size*k}px;height:${size*k}px;filter:
       drop-shadow(${ring*k}px 0 0 #fff) drop-shadow(-${ring*k}px 0 0 #fff) drop-shadow(0 ${ring*k}px 0 #fff) drop-shadow(0 -${ring*k}px 0 #fff)
       drop-shadow(0 ${depth*k}px 0 #1D1670) drop-shadow(0 ${16*k}px ${18*k}px rgba(8,4,40,.55))"><img src="${folha(mood, size)}"></div>`;
-  const frente = { a: camada === "full" ? sticker("happy", 336, 7, 10) : sticker("happy", 258, 6, 8), b: sticker("happy", 250, 5, 7), c: sticker("wink", 292, 0, 0).replace("drop-shadow(0 0px 0 #1D1670)", "") };
+  // O Folha do ícone: olhos abertos e brilhando, e mãos de verdade (luvas creme com polegar e punho
+  // índigo, no lugar das bolinhas): a esquerda acena, a direita levanta uma estrela dourada.
+  const INK = "#26215C", ARM = "#3326CE";
+  const mao = (x, y, rot, lado) => `<g transform="translate(${x} ${y}) rotate(${rot}) scale(1.6)">
+      <ellipse cx="${lado * 4.6}" cy="0.6" rx="2.6" ry="3.7" transform="rotate(${lado * 32} ${lado * 4.6} 0.6)" fill="#FFF6E6" stroke="${INK}" stroke-width="1.3"/>
+      <path d="M-4.7 2.2C-5.1 -4.2 -3.4 -7.4 0 -7.4C3.4 -7.4 5.1 -4.2 4.7 2.2C4.5 5.2 2.6 6.4 0 6.4C-2.6 6.4 -4.5 5.2 -4.7 2.2Z" fill="#FFF6E6" stroke="${INK}" stroke-width="1.3"/>
+      <path d="M-1.7 -6.6V-3.2M1.7 -6.6V-3.2" stroke="${INK}" stroke-width=".9" stroke-linecap="round" opacity=".45"/>
+      <path d="M-3 -3.6Q-1.8 -5.6 -0.4 -5.8" stroke="#fff" stroke-width="1" stroke-linecap="round" fill="none"/>
+      <rect x="-4.4" y="4.8" width="8.8" height="2.8" rx="1.4" fill="#5B4BF5" stroke="${INK}" stroke-width="1.1"/></g>`;
+  const estrela = (cx, cy, r) => { let d = ""; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .46 : r;
+      d += (i ? "L" : "M") + (cx + rr * Math.cos(a)).toFixed(2) + " " + (cy + rr * Math.sin(a)).toFixed(2); }
+    return `<path d="${d}Z" fill="#FFD23F" stroke="#B87800" stroke-width="1.2" stroke-linejoin="round"/><path d="M${cx - r * .35} ${cy - r * .2}L${cx - r * .1} ${cy - r * .55}" stroke="#FFF6C8" stroke-width="1.1" stroke-linecap="round"/>`; };
+  const aceno = `<path d="M-15 30Q-17 36 -15 42M-19.5 27Q-22.5 36 -19.5 45" stroke="#FFE38A" stroke-width="1.7" fill="none" stroke-linecap="round"/>`;
+  const brilho = `<circle cx="108" cy="22" r="14" fill="#FFE08A" opacity=".3"/><circle cx="108" cy="22" r="9" fill="#FFF3C4" opacity=".45"/>`;
+  const bracos = `<path d="M12 64Q-1 62 -4 46" stroke="${ARM}" stroke-width="4.4" fill="none" stroke-linecap="round"/>
+      <path d="M88 64Q101 62 104 46" stroke="${ARM}" stroke-width="4.4" fill="none" stroke-linecap="round"/>
+      ${mao(-5, 39, -18, 1)}${estrela(104.5, 24.5, 11)}${mao(105, 39, 14, -1)}`;
+  const folhaMaos = (size) => {
+    let s = folhaSvg({ mood: "point", size, look: [0, -0.2], tilt: -5, shadow: false, confetti: false, sparkles: false, armColor: "#3326CF" });
+    s = s.replace(/<path[^>]*stroke="#3326CF"[^>]*\/>/g, "").replace(/<circle[^>]*stroke="#3326CF"[^>]*\/>/g, "");
+    s = s.replace(/(<g transform="translate\(0 0\) rotate\(-5 50 80\)">)/, "$1" + bracos);
+    s = s.replace('viewBox="-6 8 112 94"', 'viewBox="-24 4 148 104"').replace(/height="[\d.]+"/, `height="${size * 104 / 148}"`);
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(s);
+  };
+  const adesivo = (size, ring, depth) => `<div class="folha" style="width:${size*k}px;height:${size*k}px;filter:
+      drop-shadow(${ring*k}px 0 0 #fff) drop-shadow(-${ring*k}px 0 0 #fff) drop-shadow(0 ${ring*k}px 0 #fff) drop-shadow(0 -${ring*k}px 0 #fff)
+      drop-shadow(0 ${depth*k}px 0 #1D1670) drop-shadow(0 ${16*k}px ${18*k}px rgba(8,4,40,.55))"><img src="${folhaMaos(size)}"></div>`;
+  // E · o Folha vivo do app (o mesmo da capa), acenando com a luva, em adesivo
+  // O contorno do adesivo só pega o que é sólido (alfa > .5): a sombra do chão, transparente, fica sem borda.
+  const vivo = (mood, size, ring, depth) => `<svg width="0" height="0" style="position:absolute"><filter id="stk" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="a"><feFuncA type="discrete" tableValues="0 0 1 1"/></feComponentTransfer>
+      <feMorphology in="a" operator="dilate" radius="${ring*k}" result="d"/>
+      <feOffset in="d" dy="${depth*k}" result="dd"/><feFlood flood-color="#1D1670"/><feComposite in2="dd" operator="in" result="tab"/>
+      <feFlood flood-color="#fff"/><feComposite in2="d" operator="in" result="ring"/>
+      <feMerge><feMergeNode in="tab"/><feMergeNode in="ring"/><feMergeNode in="SourceGraphic"/></feMerge></filter></svg>
+    <div class="folha" style="width:${size*k}px;height:${size*k}px;filter:drop-shadow(0 ${16*k}px ${18*k}px rgba(8,4,40,.55))">
+      <div style="filter:url(#stk)"><estudario-folha mood="${mood}" size="${Math.round(size*k)}" noenter noscene></estudario-folha></div></div>`;
+  fundo.e = fundo.a.replace(star(338, 104, 1.05, "#FFE38A"), star(80, 300, .7, "#FFE38A"));
+  fundo.d = fundo.a.replace(star(338, 104, 1.05, "#FFE38A"), star(80, 300, .7, "#FFE38A"));
+  const frente = { e: camada === "full" ? vivo(q.get("m") || "wave", 330, 6, 9) : vivo(q.get("m") || "wave", 212, 5, 7), d: camada === "full" ? adesivo(400, 6, 9) : adesivo(316, 5, 7), a: camada === "full" ? sticker("happy", 336, 7, 10) : sticker("happy", 258, 6, 8), b: sticker("happy", 250, 5, 7), c: sticker("wink", 292, 0, 0).replace("drop-shadow(0 0px 0 #1D1670)", "") };
   const mono = `<div class="folha" style="width:${292*k}px;height:${292*k}px;filter:brightness(0) invert(1)"><img src="${folha("happy", 292)}"></div>`;
   ic.innerHTML = camada === "fundo" ? fundo[v] : camada === "frente" ? frente[v] : camada === "mono" ? mono : fundo[v] + frente[v];
 </script>

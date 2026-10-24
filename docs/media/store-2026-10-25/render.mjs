@@ -13,7 +13,7 @@ await tab.setViewport({ width: Number(w), height: Number(h), deviceScaleFactor: 
 const url = page.startsWith("http") ? page : "file:///" + page.replace(/\\/g, "/");
 await tab.goto(url, { waitUntil: "networkidle0", timeout: 120000 });
 await tab.evaluate(async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => i.decode().catch(() => 0))); });
-await new Promise((r) => setTimeout(r, 600));
+await new Promise((r) => setTimeout(r, Number(process.env.WAIT || 600)));
 const jpg = out.endsWith(".jpg");
 await tab.screenshot({ path: out, clip: { x: 0, y: 0, width: Number(w), height: Number(h) }, omitBackground: !jpg, ...(jpg ? { type: "jpeg", quality: 95 } : {}) });
 await browser.close();
