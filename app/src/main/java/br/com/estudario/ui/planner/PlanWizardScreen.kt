@@ -110,8 +110,14 @@ fun PlanWizardScreen(
     )
     fun weightOf(subject: SubjectEntity) = weights[subject.id] ?: 3
 
-    val preview = remember(config, selectedSubjects, selectedTopics, weeklyCapacity, examDate, weights.toMap()) {
-        buildPreview(config, selectedSubjects, selectedTopics, availability, weeklyCapacity, examDate) { weights[it] ?: 3 }
+    // No Grátis, o plano só leva tópicos com matéria pronta: confere a biblioteca ao abrir o assistente.
+    val wizardContext = androidx.compose.ui.platform.LocalContext.current
+    var gaps by remember { mutableStateOf(br.com.estudario.data.planner.LibraryGaps.excluded(wizardContext)) }
+    LaunchedEffect(Unit) {
+        (wizardContext.applicationContext as? br.com.estudario.EstudarioApplication)?.let { gaps = br.com.estudario.data.planner.LibraryGaps.refresh(it) }
+    }
+    val preview = remember(config, selectedSubjects, selectedTopics, weeklyCapacity, examDate, weights.toMap(), gaps) {
+        buildPreview(config, selectedSubjects, selectedTopics, availability, weeklyCapacity, examDate, { weights[it] ?: 3 }, gaps)
     }
 
     val podeAvancar = when (step) {
@@ -309,6 +315,8 @@ private fun buildPreview(
     weeklyCapacity: Int,
     examDate: LocalDate?,
     weightOf: (Long) -> Int,
+    /** No Grátis, tópicos sem matéria pronta ficam fora do plano (LibraryGaps). */
+    gaps: Set<Long> = emptySet(),
 ): WizardPreview {
     val today = LocalDate.now()
     val heaviest = availability.filterNot { it.unavailable }.maxByOrNull { it.availableMinutes }
@@ -317,7 +325,8 @@ private fun buildPreview(
         val weight = weightOf(subject.id)
         BlueprintSubject(subject.id, subject.name, priorityFor(weight), weight, index)
     }
-    val blueprintTopics = topics.map { topic ->
+    // No Grátis, tópicos sem matéria pronta ficam fora do plano (entram quando a matéria sair).
+    val blueprintTopics = topics.filter { it.id !in gaps || it.status != TopicStatus.NAO_ESTUDADO }.map { topic ->
         BlueprintTopic(
             topicId = topic.id,
             subjectId = topic.subjectId,

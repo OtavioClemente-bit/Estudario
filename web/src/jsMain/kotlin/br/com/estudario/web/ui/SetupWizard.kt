@@ -102,10 +102,17 @@ fun SetupScreen() {
     val edital: List<Pair<String, List<String>>> = aiEdital?.third?.map { it.name to flatten(it.topics) } ?: subjects.map { it.name to it.topics }
     val editalName = chosen?.shortName ?: aiEdital?.first.orEmpty()
 
+    /** Os dados com o edital escolhido já gravado (e o id do concurso). */
+    fun withEdital(data: Snapshot): Pair<Snapshot, Long> {
+        val entry = chosen
+        val ai = aiEdital
+        return if (entry != null) Catalog.apply(data, entry, subjects) else EditalAi.apply(data, ai!!.first, ai.third)
+    }
+
     fun build(data: Snapshot): Pair<Snapshot, String> {
         val entry = chosen
         val ai = aiEdital
-        val (withEdital, competitionId) = if (entry != null) Catalog.apply(data, entry, subjects) else EditalAi.apply(data, ai!!.first, ai.third)
+        val (withEdital, competitionId) = withEdital(data)
         // Sem direito a plano novo (Grátis já tem o seu): o concurso entra no plano que existe.
         val existing = data.plans.firstOrNull { it.active } ?: data.plans.firstOrNull()
         if (existing != null && !Entitlements.canCreatePlan(data)) {
@@ -307,6 +314,9 @@ fun SetupScreen() {
                 scope.launch {
                     // O plano fica pronto em instantes; a tela mostra todas as etapas, uma a uma, antes da prévia.
                     val started = kotlin.js.Date.now()
+                    // Grátis: antes de montar, confere quais tópicos do edital têm matéria pronta (os outros
+                    // ficam fora do plano e entram quando a matéria sair).
+                    runCatching { br.com.estudario.web.data.LibraryGaps.refresh(withEdital(Store.data).first, isFreeTier()) }
                     val built = try { build(Store.data) } catch (e: Throwable) { error = e.message ?: "Não deu para montar o plano."; building = false; null }
                     if (built != null) {
                         val total = PLAN_STAGES.size * PLAN_STAGE_MILLIS + 600L

@@ -156,6 +156,8 @@ object Planning {
                 },
                 today = today,
                 zone = Queries.zone,
+                // No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps).
+                excludedTopicIds = LibraryGaps.excluded(),
             )
 
     /** StudyPlanApplicationService.replan + applyProposal. */

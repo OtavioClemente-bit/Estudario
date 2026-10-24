@@ -182,7 +182,7 @@ export interface SyllabusWorkerStore {
   saveBoardNote?(topicId: string, boardNorm: string, board: string, note: Record<string, unknown>): Promise<void>;
   /** Enciclopédia: catálogo das matérias publicadas, rotas tópico → matérias e as matérias em si. */
   libraryCatalog?(): Promise<Array<{ id: string; title: string; subject: string; covers: string }>>;
-  libraryRoute?(topicNorm: string, catalogSize: number): Promise<{ topicIds: string[]; coverage: "FULL" | "PARTIAL" | "NONE" } | null>;
+  libraryRoute?(topicNorm: string, catalogSize: number | null): Promise<{ topicIds: string[]; coverage: "FULL" | "PARTIAL" | "NONE" } | null>;
   saveLibraryRoute?(topicNorm: string, subjectNorm: string, route: { topicIds: string[]; coverage: string }, catalogSize: number): Promise<void>;
   libraryMaterials?(ids: string[]): Promise<Record<string, unknown>[]>;
   libraryBoardNote?(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null>;
@@ -1462,9 +1462,11 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     return (await response.json() as Array<{ id: string; title: string; subject: string; covers: string | null }>)
       .map((row) => ({ ...row, covers: row.covers ?? "" }));
   }
-  async libraryRoute(topicNorm: string, catalogSize: number): Promise<{ topicIds: string[]; coverage: "FULL" | "PARTIAL" | "NONE" } | null> {
+  async libraryRoute(topicNorm: string, catalogSize: number | null): Promise<{ topicIds: string[]; coverage: "FULL" | "PARTIAL" | "NONE" } | null> {
     // Rota feita com um catálogo de outro tamanho é refeita: pode haver matéria nova que cobre o tópico.
-    const response = await this.rest(`library_topic_routes?select=topic_ids,coverage&topic_norm=eq.${encodeURIComponent(topicNorm)}&catalog_size=eq.${catalogSize}&limit=1`);
+    // Sem tamanho (Grátis): só a rota completa guardada, de qualquer tamanho.
+    const size = catalogSize === null ? "&coverage=eq.FULL" : `&catalog_size=eq.${catalogSize}`;
+    const response = await this.rest(`library_topic_routes?select=topic_ids,coverage&topic_norm=eq.${encodeURIComponent(topicNorm)}${size}&limit=1`);
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return null;

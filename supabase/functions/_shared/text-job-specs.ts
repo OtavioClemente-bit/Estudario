@@ -296,7 +296,9 @@ async function routedLibraryHit(
   const topicNorm = aliases[0];
   if (!topicNorm || !store.libraryCatalog || !store.libraryMaterials || Deno.env.get("LIBRARY_ROUTER_ENABLED") === "false") return null;
   const catalog = await store.libraryCatalog();
-  let route = await store.libraryRoute?.(topicNorm, catalog.length) ?? null;
+  // Grátis: rota completa já guardada vale mesmo se a biblioteca cresceu depois (a matéria que ela
+  // aponta continua lá); refazer a rota chamaria a IA.
+  let route = await store.libraryRoute?.(topicNorm, savedOnly ? null : catalog.length) ?? null;
   if (!route && savedOnly) return null;
   if (!route) {
     route = await routeTopic({

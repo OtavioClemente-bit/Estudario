@@ -13,7 +13,11 @@ import kotlinx.datetime.TimeZone
  * Lê o estado do app e entrega ao motor o retrato do plano. A montagem em si é a mesma do app web
  * ([PlannerSnapshotBuilder], no módulo comum); aqui só os dados do Room viram as entradas dela.
  */
-class StudyPlanSnapshotFactory(private val db: AppDatabase) {
+class StudyPlanSnapshotFactory(
+    private val db: AppDatabase,
+    /** No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps). */
+    private val excludedTopics: () -> Set<Long> = { emptySet() },
+) {
     suspend fun create(planId: String, today: LocalDate = today()): StudyPlannerSnapshot = PlannerSnapshotBuilder.build(input(planId, today))
 
     /** As entradas do motor, também usadas pela previsão (PlanProjection simula o plano com elas). */
@@ -48,6 +52,7 @@ class StudyPlanSnapshotFactory(private val db: AppDatabase) {
                 dayOverrides = planner.dayOverridesFor(planId).map { PlannerSnapshotBuilder.DayOverride(it.epochDay, it.availableMinutes, it.unavailable, it.locked) },
                 today = today,
                 zone = TimeZone.currentSystemDefault(),
+                excludedTopicIds = excludedTopics(),
             )
     }
 }

@@ -70,12 +70,18 @@ object PlannerSnapshotBuilder {
         val dayOverrides: List<DayOverride>,
         val today: LocalDate,
         val zone: TimeZone,
+        /**
+         * Tópicos que ficam fora do plano agora: no Grátis, os que ainda não têm matéria pronta na
+         * biblioteca (o Grátis não usa IA). Entram sozinhos no replanejamento quando ficam prontos.
+         * Tópico já estudado continua (revisões e questões dele seguem).
+         */
+        val excludedTopicIds: Set<Long> = emptySet(),
     )
 
     fun build(input: Input): StudyPlannerSnapshot = with(input) {
         val config = plan.config
         val subjectIds = planSubjects.mapTo(hashSetOf()) { it.subjectId }
-        val topics = topics.filter { it.subjectId in subjectIds }
+        val topics = topics.filter { it.subjectId in subjectIds && (it.id !in excludedTopicIds || it.studied) }
         val attemptsByQuestion = attempts.groupBy { it.questionId }
 
         val occupied = tasks

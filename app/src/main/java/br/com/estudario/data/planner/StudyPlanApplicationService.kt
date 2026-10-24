@@ -70,9 +70,11 @@ class StudyPlanApplicationService(
     private val db: AppDatabase,
     private val engine: StudyPlannerEngine,
     private val calendarSync: CalendarSyncService? = null,
+    /** No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps). */
+    excludedTopics: () -> Set<Long> = { emptySet() },
 ) {
     private val planner = db.plannerDao()
-    private val snapshotFactory = StudyPlanSnapshotFactory(db)
+    private val snapshotFactory = StudyPlanSnapshotFactory(db, excludedTopics)
 
     /** Entradas do motor para a previsão (PlanProjection). */
     suspend fun plannerInput(planId: String): br.com.estudario.domain.planner.PlannerSnapshotBuilder.Input = snapshotFactory.input(planId)

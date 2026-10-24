@@ -93,6 +93,7 @@ private fun titleOf(route: Route): String = when (route) {
     Route.Settings -> "Ajustes"
     Route.Setup -> "Configurar estudos"
     Route.AdminReports -> "Reportes"
+    Route.AdminCoverage -> "Cobertura"
 }
 
 private var drawerOpen by mutableStateOf(false)
@@ -127,6 +128,10 @@ fun App() {
     Store.conflict?.let { head -> ConflictDialog(head.deviceLabel) }
     // O visual do Folha (armário, sequência e hora do dia) vale para todos os Folhas do site.
     if (Store.load == LoadState.Ready) FolhaLookSync()
+    // Grátis: confere na biblioteca quais tópicos já têm matéria pronta (os outros ficam fora do plano).
+    if (Store.load == LoadState.Ready && !Store.demo) androidx.compose.runtime.LaunchedEffect(Unit) {
+        runCatching { br.com.estudario.web.data.LibraryGaps.refresh(Store.data, isFreeTier()) }
+    }
     if (Store.load == LoadState.Ready) GenerationBanner()
     if (Store.load == LoadState.Ready) ReprogramHost()
     CelebrationHost()
@@ -169,6 +174,7 @@ private fun Screen(route: Route) {
         Route.Settings -> SettingsScreen()
         Route.Setup -> SetupScreen()
         Route.AdminReports -> AdminReportsScreen()
+        Route.AdminCoverage -> AdminCoverageScreen()
     }
 }
 
@@ -252,7 +258,7 @@ private fun SidebarContent(section: Route) {
         Icon("chevron_right", extraClass = "faint")
     }
     // A seção Equipe (reportes) só aparece para a conta do administrador.
-    val sections = if (isOwner()) menu + NavSection("Equipe", listOf(NavEntry(Route.AdminReports, "Reportes", "flag"))) else menu
+    val sections = if (isOwner()) menu + NavSection("Equipe", listOf(NavEntry(Route.AdminReports, "Reportes", "flag"), NavEntry(Route.AdminCoverage, "Cobertura", "library_books"))) else menu
     Nav({ attr("aria-label", "Menu") }) {
         sections.forEach { group ->
             // Seção recolhível: a da página atual fica sempre aberta; a escolha fica guardada no navegador.

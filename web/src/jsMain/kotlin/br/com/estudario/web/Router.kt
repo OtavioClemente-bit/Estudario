@@ -35,6 +35,7 @@ sealed class Route(val path: String) {
     data object Setup : Route("configurar")
     /** Reportes e comentários (só a conta do administrador). */
     data object AdminReports : Route("equipe/reportes")
+    data object AdminCoverage : Route("equipe/cobertura")
 
     /** Item do menu ao qual esta rota pertence. */
     val section: Route
@@ -85,7 +86,7 @@ sealed class Route(val path: String) {
                 }
                 "desempenho" -> Stats
                 "configurar" -> Setup
-                "equipe" -> AdminReports
+                "equipe" -> if (second == "cobertura") AdminCoverage else AdminReports
                 else -> Home
             }
         }

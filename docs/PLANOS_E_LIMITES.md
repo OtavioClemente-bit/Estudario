@@ -36,6 +36,16 @@ Matérias do Grátis, conferidas na criação do pedido (`_shared/free-allowance
 
 A cota `CONTENT_GENERATION` do Grátis (120/mês) virou só o teto de segurança da soma.
 
+O plano do Grátis só leva tópicos com matéria pronta: o app e o site perguntam à função
+`library-ready` (mesma regra do gerador: apelido direto ou rota completa guardada) e deixam os
+outros de fora (`LibraryGaps` → `PlannerSnapshotBuilder.excludedTopicIds`). Quando a matéria é
+publicada, o tópico entra sozinho no próximo replanejamento. Se o aluno grátis pedir um tópico que
+não está pronto, aparece "Esta matéria está em produção".
+
+A página **Equipe › Cobertura** do site (só a conta do dono) mostra a cobertura de cada edital do
+catálogo; abrindo um edital, os tópicos que faltam são conferidos ao vivo e "Copiar pedido" monta a
+lista para pedir as matérias em lote.
+
 Nos pagos, a matéria do plano de hoje que sai pronta (sem IA) devolve a cota
 (`ai_refund_plan_day_quota`): os 25/40 do mês são para usar além do plano do dia. Matéria escrita
 pela IA conta sempre.
@@ -107,5 +117,5 @@ group by day order by day desc;
 
 ```bash
 supabase db push
-supabase functions deploy ai-access ai-plan ai-syllabus-jobs ai-syllabus-worker ai-text-worker ad-reward-ssv
+supabase functions deploy ai-access ai-plan ai-syllabus-jobs ai-syllabus-worker ai-text-worker ad-reward-ssv library-ready
 ```

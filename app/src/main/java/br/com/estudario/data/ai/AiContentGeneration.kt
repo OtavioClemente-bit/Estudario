@@ -43,7 +43,7 @@ const val FREE_ADVANCE_AD_MESSAGE = "Para adiantar mais um dia, assista a um an�
 /** Grátis: as matérias do plano de hoje já saíram. */
 const val FREE_PLAN_DAY_DONE_MESSAGE = "As matérias do plano de hoje já saíram. Amanhã tem mais."
 /** O tópico ainda não tem matéria pronta, e o Grátis não escreve pela IA (vai para a fila da equipe). */
-const val NOT_READY_MESSAGE = "Esta matéria ainda não está pronta na biblioteca."
+const val NOT_READY_MESSAGE = "Esta matéria está em produção pela nossa equipe."
 
 class AiContentGenerator(
     private val config: SupabaseClientConfig,

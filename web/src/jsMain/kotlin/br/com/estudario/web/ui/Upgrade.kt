@@ -32,7 +32,7 @@ enum class UpgradeReason(val title: String, val body: String) {
     EXTRAS("Suas 10 matérias extras do mês acabaram", "No Grátis, o plano do dia é sempre livre e você estuda mais 10 matérias por mês fora dele. Com um plano, você estuda qualquer matéria do edital, quando quiser."),
     ADVANCE("Adiante seu plano", "No site, o Grátis adianta 1 matéria por semana; no app, um anúncio curto adianta até 2 por dia. Com um plano, você adianta quantos dias quiser, sem anúncio."),
     PLAN_DAY("O plano de hoje já está com você", "As matérias de hoje já saíram. Amanhã chegam as próximas. Com um plano, você estuda no seu ritmo."),
-    NOT_READY("Esta matéria ainda não está pronta", "Ela entrou na fila da nossa equipe e aparece aqui quando ficar pronta. Com o Essencial, o Estudário escreve a matéria agora mesmo, com fontes oficiais."),
+    NOT_READY("Esta matéria está em produção", "Nossa equipe está preparando esta matéria, e ela aparece aqui assim que ficar pronta. Com o Essencial, o Estudário escreve agora mesmo, com fontes oficiais."),
 }
 
 /** A recusa que vira oferta, pela mensagem (as telas só têm o texto); null quando é erro de verdade. */

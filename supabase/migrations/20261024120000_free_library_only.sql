@@ -1,8 +1,8 @@
 -- Plano Grátis só com matéria pronta (24/10/2026).
 --
 -- O Grátis não usa mais IA em nada: matéria, lote de questões e o simulado diagnóstico saem só da
--- biblioteca (a trava fica no worker, antes de chamar o provedor; falha fechada). O plano por IA e
--- o edital por PDF são dos planos pagos.
+-- biblioteca (a trava fica no worker, antes de chamar o provedor; falha fechada). O plano escrito
+-- pela IA e o edital por PDF são dos planos pagos.
 --
 -- Matérias do Grátis passam a ter três motivos, conferidos na criação do pedido (free-allowance.ts):
 --   dia do plano até 3 por dia; adiantar com anúncio (2 por dia, 10 por mês) ou 1 por semana sem
@@ -12,8 +12,8 @@
 update public.ai_plan_limits set quota_limit = 120
 where plan_tier = 'FREE' and feature = 'CONTENT_GENERATION' and period_kind = 'MONTHLY';
 
-update public.ai_plan_limits set quota_limit = 0
-where plan_tier = 'FREE' and feature = 'PLAN_GENERATION';
+-- PLAN_GENERATION do Grátis continua 1: é o limite do plano montado no próprio app (Entitlements),
+-- sem IA. O plano escrito pela IA é barrado na criação do pedido e no worker.
 
 -- Crédito de anúncio premiado, gravado só quando o Google confirma o anúncio (ad-reward-ssv, com a
 -- assinatura dele conferida). O id é o transaction_id do AdMob: o mesmo anúncio não vale duas vezes.
@@ -72,3 +72,23 @@ $$;
 
 revoke all on function public.ai_refund_plan_day_quota(uuid) from public, anon, authenticated;
 grant execute on function public.ai_refund_plan_day_quota(uuid) to service_role;
+
+-- Quais textos de tópico têm matéria pronta (apelido direto ou rota completa já guardada). O plano do
+-- Grátis só inclui os prontos (library-ready); o resto entra sozinho quando a matéria é publicada.
+create or replace function public.library_ready_norms(p_norms text[])
+returns setof text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select a.alias_norm from public.library_topic_aliases a
+  join public.library_topics t on t.id = a.topic_id and t.status = 'PUBLISHED'
+  where a.alias_norm = any(p_norms)
+  union
+  select r.topic_norm from public.library_topic_routes r
+  where r.topic_norm = any(p_norms) and r.coverage = 'FULL' and cardinality(r.topic_ids) > 0
+$$;
+
+revoke all on function public.library_ready_norms(text[]) from public, anon, authenticated;
+grant execute on function public.library_ready_norms(text[]) to service_role;

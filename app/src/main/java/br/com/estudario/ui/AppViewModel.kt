@@ -79,6 +79,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val aiReviewTarget: StateFlow<AiReviewTarget?> = _aiReviewTarget.asStateFlow()
 
     init {
+        // Grátis: confere na biblioteca quais tópicos do edital já têm matéria pronta. Os que não têm
+        // ficam fora do plano; os que ficaram prontos voltam no próximo replanejamento.
+        viewModelScope.launch {
+            app.supabaseAuthRepository.observeSession().first { it !is br.com.estudario.data.remote.SupabaseSessionState.Loading }
+            runCatching { br.com.estudario.data.planner.LibraryGaps.refresh(app) }
+        }
+    }
+
+    init {
         viewModelScope.launch {
             val sessionState = app.supabaseAuthRepository.observeSession().first {
                 it !is br.com.estudario.data.remote.SupabaseSessionState.Loading

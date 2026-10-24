@@ -548,6 +548,9 @@ private fun parsePlan(body: String): PlanInfo {
 /** As regras de matéria do Grátis, contadas no servidor (dia do plano, extras, adiantar). */
 class FreeInfo(val planDayUsed: Int, val planDayLimit: Int, val extrasUsed: Int, val extrasLimit: Int, val weeklyUsed: Int, val weeklyLimit: Int)
 
+/** A conta está no Grátis? null na demonstração ou se não deu para ler. */
+suspend fun isFreeTier(): Boolean? = fetchPlanInfo()?.tier?.let { it == "FREE" }
+
 /** O uso do Grátis; null em plano pago, na demonstração ou se não deu para ler. */
 suspend fun freeAllowance(): FreeInfo? = fetchPlanInfo()?.free
 
