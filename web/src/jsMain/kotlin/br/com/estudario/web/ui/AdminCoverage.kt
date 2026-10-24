@@ -51,8 +51,19 @@ fun AdminCoverageScreen() {
     var open by remember { mutableStateOf<CatalogEntry?>(null) }
     LaunchedEffect(Unit) { entries = runCatching { Catalog.entries() }.getOrElse { error = it.message ?: "Não deu para carregar o catálogo."; emptyList() } }
 
-    PageHead("Cobertura dos editais", "Quanto de cada edital já tem matéria pronta na biblioteca")
+    var tab by remember { mutableStateOf("uso") }
+    PageHead("Cobertura dos editais", "Os editais que as pessoas estão usando e quanto de cada um já tem matéria pronta")
+    Div({ classes("filter-chips"); attr("style", "margin-bottom:14px") }) {
+        listOf("uso" to "Em uso pelas contas", "catalogo" to "Todo o catálogo").forEach { (k, label) ->
+            Button({ classes(*listOfNotNull("fchip", if (tab == k) "on" else null).toTypedArray()); onClick { tab = k } }) { Text(label) }
+        }
+    }
     val all = entries
+    if (tab == "uso") {
+        EditaisInUse { id -> all?.firstOrNull { it.id == id }?.let { open = it } }
+        open?.let { entry -> CoverageModal(entry) { open = null } }
+        return
+    }
     if (all == null) { CenterMessage { Folha("thinking", 80); Text(error ?: "Carregando o catálogo…") }; return }
 
     val topics = all.sumOf { it.topicCount }
@@ -176,5 +187,107 @@ private fun CoverageModal(entry: CatalogEntry, onClose: () -> Unit) {
             }
         }
         Div({ classes("row", "end"); attr("style", "margin-top:8px") }) { Btn("Fechar", onClose, style = "ghost") }
+    }
+}
+
+/** Um edital em uso, somado de todas as contas (admin-editais-usage). */
+private class InUse(
+    val catalogId: String?, val title: String, val details: String, val users: Int, val primaryUsers: Int, val paidUsers: Int,
+    val topicCount: Int, val readyPercent: Int?, val studiedPercent: Int, val lastActive: String?,
+)
+
+/**
+ * Os editais que as contas estão usando agora, lidos da cópia na nuvem de cada conta: quantas
+ * pessoas, quantas têm ele como principal, quantas pagam, quanto já estudaram e quanto da biblioteca
+ * cobre. Tocar num edital do catálogo abre os tópicos que faltam (mesma janela da outra aba).
+ */
+@Composable
+private fun EditaisInUse(onOpenCatalog: (String) -> Unit) {
+    var items by remember { mutableStateOf<List<InUse>?>(null) }
+    var totals by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf("users") }
+    var attempt by remember { mutableStateOf(0) }
+    LaunchedEffect(attempt) {
+        error = null
+        val token = Auth.accessToken() ?: run { error = "Entre de novo."; return@LaunchedEffect }
+        val response = runCatching {
+            httpRequest("GET", "${WebConfig.SUPABASE_URL}/functions/v1/admin-editais-usage", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Accept" to "application/json"))
+        }.getOrNull()
+        if (response == null || !response.ok) { error = "A contagem não respondeu (a função admin-editais-usage está publicada?)."; return@LaunchedEffect }
+        runCatching {
+            val root = snapshotJson.parseToJsonElement(response.body).jsonObject
+            fun kotlinx.serialization.json.JsonObject.s(k: String) = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            fun kotlinx.serialization.json.JsonObject.i(k: String) = (this[k] as? JsonPrimitive)?.content?.toIntOrNull()
+            totals = (root["totals"] as? kotlinx.serialization.json.JsonObject).orEmpty().mapNotNull { (k, v) -> (v as? JsonPrimitive)?.content?.toIntOrNull()?.let { k to it } }.toMap()
+            items = (root["items"] as? JsonArray).orEmpty().map { it.jsonObject }.map { o ->
+                InUse(o.s("catalogId"), o.s("title").orEmpty(), o.s("details").orEmpty(), o.i("users") ?: 0, o.i("primaryUsers") ?: 0, o.i("paidUsers") ?: 0,
+                    o.i("topicCount") ?: 0, o.i("readyPercent"), o.i("studiedPercent") ?: 0, o.s("lastActive"))
+            }
+        }.onFailure { error = "Resposta inesperada do servidor." }
+    }
+    val list = items
+    if (list == null) {
+        if (error != null) Card {
+            FolhaSays("thinking") { B { Text(error!!) } }
+            Btn("Tentar de novo", { attempt++ }, style = "outline", icon = "refresh", small = true)
+        } else CenterMessage { Folha("thinking", 80); Text("Somando os editais de todas as contas…") }
+        return
+    }
+    Div({ classes("admin-stats") }) {
+        CoverageStat("group", "${totals["withEditais"] ?: 0}", "contas com edital (de ${totals["accounts"] ?: 0})", "#5B5BD6")
+        CoverageStat("menu_book", "${totals["editais"] ?: 0}", "editais diferentes em uso", "#0E9AA7")
+        CoverageStat("verified", "${totals["fromCatalog"] ?: 0}", "do catálogo", "#2FA36B")
+        CoverageStat("workspace_premium", "${list.sumOf { it.paidUsers }.coerceAtMost(totals["withEditais"] ?: 0)}", "usos por contas pagas", "#E8590C")
+    }
+    Div({ classes("row", "wrap"); attr("style", "gap:10px;margin:12px 0") }) {
+        Input(InputType.Search) {
+            classes("input"); attr("style", "flex:1;min-width:220px"); attr("placeholder", "Buscar edital")
+            value(query); onInput { query = it.value }
+        }
+        Div({ classes("filter-chips") }) {
+            listOf("users" to "Mais usados", "missing" to "Menos cobertos", "recent" to "Uso recente").forEach { (k, label) ->
+                Button({ classes(*listOfNotNull("fchip", if (sort == k) "on" else null).toTypedArray()); onClick { sort = k } }) { Text(label) }
+            }
+        }
+        Btn("Atualizar", { items = null; attempt++ }, style = "ghost", small = true, icon = "refresh")
+    }
+    val q = query.trim().lowercase()
+    val shown = list.filter { q.isEmpty() || q in it.title.lowercase() || q in it.details.lowercase() }.let { rows ->
+        when (sort) {
+            "missing" -> rows.sortedWith(compareBy<InUse> { it.readyPercent ?: -1 }.thenByDescending { it.users })
+            "recent" -> rows.sortedByDescending { it.lastActive.orEmpty() }
+            else -> rows
+        }
+    }
+    Card {
+        Div({ classes("stack") }) {
+            shown.take(300).forEach { item ->
+                Button({ classes("pick-row", "flat"); onClick { item.catalogId?.let(onOpenCatalog) } }) {
+                    Span({ classes("grow") }) {
+                        B { Text(item.title) }
+                        Span({ classes("hint") }) {
+                            Text(listOfNotNull(
+                                item.details.ifBlank { null },
+                                "${item.topicCount} tópicos",
+                                "${item.studiedPercent}% estudado em média",
+                                item.lastActive?.takeIf { it.length >= 10 }?.let { "último uso ${it.substring(8, 10)}/${it.substring(5, 7)}" },
+                            ).joinToString(" · "))
+                        }
+                    }
+                    Span({ attr("style", "min-width:150px;text-align:right") }) {
+                        B { Text("${item.users} ${if (item.users == 1) "pessoa" else "pessoas"}") }
+                        Span({ classes("hint"); attr("style", "display:block") }) {
+                            Text(listOfNotNull("${item.primaryUsers} principal", item.paidUsers.takeIf { it > 0 }?.let { "$it pagante${if (it == 1) "" else "s"}" }).joinToString(" · "))
+                        }
+                    }
+                    item.readyPercent?.let { p -> Span({ classes("chip", if (p >= 90) "green" else if (p >= 60) "primary" else "red") }) { Text("$p%") } }
+                        ?: Span({ classes("chip") }) { Text("PDF") }
+                }
+            }
+            if (shown.isEmpty()) P({ classes("muted") }) { Text("Nenhum edital em uso ainda.") }
+            (totals["unreadable"] ?: 0).takeIf { it > 0 }?.let { P({ classes("xs", "muted") }) { Text("$it conta(s) com a cópia ilegível ficaram de fora.") } }
+        }
     }
 }

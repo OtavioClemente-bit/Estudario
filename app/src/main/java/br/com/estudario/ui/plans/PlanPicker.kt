@@ -339,7 +339,6 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         RuleRow("Adiantar o plano", if (free) "com anúncio curto" else "livre", tone)
         RuleRow("Matérias novas por dia", if (free) "até 3" else "no seu ritmo", tone)
         RuleRow("Matérias fora do plano", if (free) "nos planos pagos" else "pelo saldo do mês", tone)
-        RuleRow("Tópico novo, ainda sem matéria", if (free) "a equipe prepara" else "pronto na hora", tone)
         // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
         // Grátis é só o teto interno; as regras dele estão acima).
         rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 && !(free && feature == "CONTENT_GENERATION") }.forEach { (feature, label) ->

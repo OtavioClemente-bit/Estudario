@@ -618,7 +618,6 @@ private fun comparisonGroups(info: PlanInfo): List<Pair<String, List<Compare>>> 
             Compare("Adiantar o plano", "Estudar hoje a matéria de amanhã.") { if (it == "FREE") "Com anúncio curto" else "Livre" },
             Compare("Matérias novas por dia", "Quantas matérias novas o plano traz em cada dia.") { if (it == "FREE") "Até 3" else "No seu ritmo" },
             Compare("Matérias fora do plano", "Qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") "—" else perMonth(quota(it, "CONTENT_GENERATION")) },
-            Compare("Tópico novo, ainda sem matéria", "Algum assunto bem específico do seu edital que a biblioteca ainda não tem.") { if (it == "FREE") "A equipe prepara" else "Pronto na hora" },
         ),
         "Treinar" to listOf(
             Compare("Questões em cada matéria", "Comentadas, no estilo da sua banca.") { "${info.limitOf(it, "CONTENT_GENERATION")?.maxPerRequest ?: if (it == "FREE") 10 else 20}" },
@@ -640,14 +639,12 @@ private val everyPlan = listOf(
     "style" to "Flashcards e caderno de erros",
     "timer" to "Modo foco e desempenho",
     "devices" to "No app e no site, na mesma conta",
-    "auto_stories" to "Biblioteca com mais de 1.200 matérias",
 )
 
 private val faq = listOf(
     "Como eu assino?" to "Pelo app do Estudário no celular, com a Google Play. O plano vale na hora na sua conta, no app e aqui no site.",
     "Posso cancelar quando quiser?" to "Sim. A assinatura é da Google Play e você cancela por lá, sem multa. O plano continua até o fim do período pago.",
     "O que é matéria fora do plano?" to "O plano marca o que estudar em cada dia. Fora do plano é qualquer outro tópico do seu edital que você queira estudar antes, na hora que quiser: isso é do Essencial e do Pro. No Grátis, você estuda o que o plano traz e pode adiantar as próximas.",
-    "E se um tópico ainda não tiver matéria?" to "No Grátis, a nossa equipe prepara e ele entra no seu plano assim que fica pronto. No Essencial e no Pro, a matéria fica pronta na hora.",
     "O que acontece com o que eu já estudei se eu mudar de plano?" to "Nada se perde: matérias, questões, revisões e o seu histórico continuam iguais em qualquer plano.",
 )
 
