@@ -339,9 +339,22 @@ private fun QuotaMeter(q: Quota, what: String) {
 private fun FreeMixedNotice() {
     var offer by remember { mutableStateOf(false) }
     Div({ classes("free-mixed") }) {
-        B { Text("Questões misturadas") }
-        P({ classes("small", "muted") }) { Text("Fáceis, médias e difíceis, de múltipla escolha e de Certo ou Errado, sempre no assunto do tópico.") }
-        Span({ classes("small", "strong", "link"); attr("role", "button"); attr("tabindex", "0"); onClick { offer = true } }) { Text("Escolher só um nível ou só um formato é do Essencial e do Pro.") }
+        Icon("shuffle")
+        Div {
+            B { Text("Questões misturadas") }
+            P({ classes("small", "muted") }) { Text("Fáceis, médias e difíceis, de múltipla escolha e de Certo ou Errado.") }
+        }
     }
-    if (offer) UpgradeModal(UpgradeReason.GENERIC) { offer = false }
+    // o convite para o upgrade, chamativo: clicar abre a oferta dos planos
+    Button({ classes("pro-invite"); onClick { offer = true } }) {
+        Span({ classes("pro-tag") }) { Text("ESSENCIAL · PRO") }
+        B({ classes("pro-title") }) { Text("Treine do jeito que a sua prova cobra") }
+        org.jetbrains.compose.web.dom.Ul {
+            org.jetbrains.compose.web.dom.Li { Icon("check_circle", filled = true); Text("Escolha o nível: só fáceis, médias ou difíceis") }
+            org.jetbrains.compose.web.dom.Li { Icon("check_circle", filled = true); Text("Escolha o formato: múltipla escolha ou Certo ou Errado") }
+            org.jetbrains.compose.web.dom.Li { Icon("check_circle", filled = true); Text("Mais lotes de questões no estilo da sua banca") }
+        }
+        Span({ classes("pro-cta") }) { Text("Fazer upgrade do plano"); Icon("arrow_forward") }
+    }
+    if (offer) UpgradeModal(UpgradeReason.QUESTION_STYLE) { offer = false }
 }

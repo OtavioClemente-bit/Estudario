@@ -71,6 +71,7 @@ enum class UpgradeReason(val title: String, val body: String) {
     QUESTIONS("Seus lotes de questões acabaram", "Mais questões comentadas no estilo da banca, para treinar o tópico até ele ficar firme."),
     EDITAIS("Você chegou ao limite de editais salvos", "No Grátis você guarda até 5 editais. No Essencial são 15, e no Pro não há limite."),
     PLANS("Mais planos de estudo", "No Grátis você tem um plano e pode ajustá-lo quando quiser. Com o Essencial ou o Pro, dá para montar planos novos todo mês."),
+    QUESTION_STYLE("Questões do seu jeito", "Com o Essencial e o Pro, você escolhe o nível (fácil, médio ou difícil) e o formato (múltipla escolha ou Certo ou Errado) de cada lote e treina exatamente o que a sua prova cobra."),
     GENERIC("Estude sem parar no meio", "Os planos Essencial e Pro liberam mais materiais, questões, simulados e o edital pelo seu PDF."),
     EXTRAS("Esta matéria ainda não está no seu plano", "No Grátis, você estuda as matérias que o seu plano traz a cada dia e pode adiantar as próximas. Com o Essencial, você abre qualquer matéria do edital, na hora que quiser, e adianta o plano sem anúncio."),
     ADVANCE("Adiante o seu plano", "No Grátis, um anúncio curto libera a próxima matéria do plano (até 2 por dia e 5 por mês). Com o Essencial, você adianta quantas quiser, sem anúncio."),

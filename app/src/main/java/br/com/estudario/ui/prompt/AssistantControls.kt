@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.WorkspacePremium
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Remove
@@ -365,23 +368,53 @@ fun durationText(minutes: Int): String = when {
 @Composable
 fun FreeMixedQuestionsNotice() {
     var offer by remember { mutableStateOf(false) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text("Questões misturadas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        Text(
-            "Fáceis, médias e difíceis, de múltipla escolha e de Certo ou Errado, sempre no assunto do tópico.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            "Escolher só um nível ou só um formato é do Essencial e do Pro.",
-            style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { offer = true },
-        )
+    val gold = androidx.compose.ui.graphics.Color(0xFFFFD66B)
+    val ink = androidx.compose.ui.graphics.Color(0xFF3A2206)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // o que vem no Grátis, discreto
+        Row(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(androidx.compose.material.icons.Icons.Outlined.Shuffle, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f)) {
+                Text("Questões misturadas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Fáceis, médias e difíceis, de múltipla escolha e de Certo ou Errado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        // o convite para o upgrade, chamativo: tocar abre a oferta dos planos
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFF6B5CFF), androidx.compose.ui.graphics.Color(0xFF3A2BC4), androidx.compose.ui.graphics.Color(0xFF1E1670))))
+                .clickable { offer = true }.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "ESSENCIAL · PRO", Modifier.background(gold, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
+                    color = ink, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall,
+                )
+                Icon(androidx.compose.material.icons.Icons.Outlined.WorkspacePremium, null, Modifier.size(20.dp), tint = gold)
+            }
+            Text("Treine do jeito que a sua prova cobra", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+            listOf(
+                "Escolha o nível: só fáceis, médias ou difíceis",
+                "Escolha o formato: múltipla escolha ou Certo ou Errado",
+                "Mais lotes de questões no estilo da sua banca",
+            ).forEach { line ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(androidx.compose.material.icons.Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = androidx.compose.ui.graphics.Color(0xFF7EE0B8))
+                    Text(line, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.92f))
+                }
+            }
+            Row(
+                Modifier.padding(top = 4.dp).background(gold, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Fazer upgrade do plano", color = ink, fontWeight = FontWeight.Black)
+                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(18.dp), tint = ink)
+            }
+        }
     }
-    if (offer) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.GENERIC, onDismiss = { offer = false })
+    if (offer) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.QUESTION_STYLE, onDismiss = { offer = false })
 }
