@@ -159,7 +159,7 @@ private fun Screen(route: Route) {
         Route.Simulations -> SimulationsScreen()
         is Route.Simulation -> SimulationScreen(route.id)
         Route.Notebook -> NotebookScreen()
-        is Route.Flashcards -> FlashcardsScreen(route.topicId)
+        is Route.Flashcards -> FlashcardsScreen(route.topicId, route.saved, route.deckId)
         Route.Reviews -> ReviewsScreen()
         is Route.ReviewSession -> ReviewSessionScreen(route.id)
         Route.Errors -> ErrorsScreen()

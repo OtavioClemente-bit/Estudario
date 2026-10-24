@@ -18,7 +18,16 @@ sealed class Route(val path: String) {
     data object Simulations : Route("treinar/simulados")
     data class Simulation(val id: Long) : Route("treinar/simulados/$id")
     data object Notebook : Route("caderno")
-    data class Flashcards(val topicId: Long?) : Route(if (topicId == null) "caderno/flashcards" else "caderno/flashcards/$topicId")
+    /** [saved]: só os cartões guardados no Caderno (baralhos marcados e perguntas com estrela), como no app. */
+    /** [deckId]: só aquele baralho (o "Praticar" de um baralho no Caderno). */
+    data class Flashcards(val topicId: Long?, val saved: Boolean = false, val deckId: Long? = null) : Route(
+        when {
+            deckId != null -> "caderno/baralho/$deckId"
+            saved -> "caderno/praticar/${topicId ?: -1}"
+            topicId == null -> "caderno/flashcards"
+            else -> "caderno/flashcards/$topicId"
+        },
+    )
     data object Reviews : Route("caderno/revisoes")
     data class ReviewSession(val id: Long) : Route("caderno/revisoes/$id")
     data object Errors : Route("caderno/erros")
@@ -66,6 +75,8 @@ sealed class Route(val path: String) {
                 }
                 "caderno" -> when (second) {
                     "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
+                    "praticar" -> Flashcards(parts.getOrNull(2)?.toLongOrNull()?.takeIf { it >= 0 }, saved = true)
+                    "baralho" -> parts.getOrNull(2)?.toLongOrNull()?.let { Flashcards(null, saved = true, deckId = it) } ?: Notebook
                     "revisoes" -> parts.getOrNull(2)?.toLongOrNull()?.let(::ReviewSession) ?: Reviews
                     "erros" -> Errors
                     else -> Notebook

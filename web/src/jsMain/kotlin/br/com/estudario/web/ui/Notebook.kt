@@ -170,7 +170,7 @@ fun NotebookScreen() {
             Div({ classes("row", "wrap"); attr("style", "gap:8px;margin-top:14px") }) {
                 val cards = bagCards(bag)
                 if (cards.isNotEmpty()) Btn("Revisar este tópico, um por um", { reviewing = topicName(opened) to cards }, style = "primary", icon = "play_arrow")
-                if (bag.cards.isNotEmpty() || bag.decks.isNotEmpty()) Btn("Praticar flashcards", { Router.go(Route.Flashcards(opened.takeIf { it >= 0 })) }, style = "outline", icon = "style")
+                if (bag.cards.isNotEmpty() || bag.decks.isNotEmpty()) Btn("Praticar flashcards", { Router.go(Route.Flashcards(opened.takeIf { it >= 0 }, saved = true)) }, style = "outline", icon = "style")
                 if (bag.questions.isNotEmpty() && opened >= 0) Btn("Treinar questões salvas", { Router.go(Route.Quiz("m-favorites~s--1~t-$opened~b-all~d-all~n-200")) }, style = "outline", icon = "quiz")
                 if (opened >= 0) Btn("Abrir conteúdo", { Router.go(Route.Topic(opened)) }, style = "ghost", icon = "menu_book")
                 Btn("Anotar", { creatingFor = opened.takeIf { it >= 0 }; creating = true }, style = "ghost", icon = "edit_note")
@@ -210,7 +210,7 @@ fun NotebookScreen() {
                 key("d${d.id}") {
                     Div({ classes("saved-item") }) {
                         Div({ classes("grow") }) { B { Text("Baralho · ${d.title.ifBlank { "Flashcards" }}") }; Div({ classes("small", "muted") }) { Text("${deckCards(d.markdown).size} cartões") } }
-                        Btn("Praticar", { Router.go(Route.Flashcards(d.topicId)) }, style = "tonal", small = true, icon = "style")
+                        Btn("Praticar", { Router.go(Route.Flashcards(d.topicId, saved = true, deckId = d.id)) }, style = "tonal", small = true, icon = "style")
                         IconButton("bookmark", "Tirar do Caderno") { Store.update { Actions.toggleSummaryFavorite(it, d.id) } }
                     }
                 }

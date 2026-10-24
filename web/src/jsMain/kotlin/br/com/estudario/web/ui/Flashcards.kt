@@ -23,10 +23,11 @@ data class FlashCard(val topicId: Long, val front: String, val back: String)
 
 /**
  * Os mesmos cartões do app: a "Revisão rápida" do tópico guarda um cartão por seção (### frente,
- * verso no corpo) e as perguntas de memorização viram cartões de pergunta e resposta.
+ * verso no corpo) e as perguntas de memorização viram cartões de pergunta e resposta. [saved]: só o
+ * que está no Caderno (baralhos marcados e perguntas com estrela), como o praticar do Caderno do app.
  */
-fun flashcardsOf(data: Snapshot, topicId: Long?): List<FlashCard> {
-    val summaries = data.summaries.filter { it.kind == "RAPIDO" && (topicId == null || it.topicId == topicId) }
+fun flashcardsOf(data: Snapshot, topicId: Long?, saved: Boolean = false, deckId: Long? = null): List<FlashCard> {
+    val summaries = data.summaries.filter { it.kind == "RAPIDO" && (deckId == null || it.id == deckId) && (topicId == null || it.topicId == topicId) && (!saved || it.favorite) }
     val fromDecks = summaries.flatMap { summary ->
         summary.markdown.split(Regex("^### ", RegexOption.MULTILINE)).drop(1).mapNotNull { section ->
             val front = section.substringBefore('\n').trim()
@@ -34,29 +35,39 @@ fun flashcardsOf(data: Snapshot, topicId: Long?): List<FlashCard> {
             if (front.isBlank() || back.isBlank()) null else FlashCard(summary.topicId, front, back)
         }
     }
-    val fromRecall = data.snippets.filter { it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() && (topicId == null || it.topicId == topicId) }
+    val fromRecall = data.snippets.filter { it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() && (topicId == null || it.topicId == topicId) && (!saved || it.favorite) }
         .map { FlashCard(it.topicId, it.text, it.answer!!) }
-    return fromDecks + fromRecall
+    return if (deckId != null) fromDecks else fromDecks + fromRecall
 }
 
 @Composable
-fun FlashcardsScreen(topicId: Long?) {
+fun FlashcardsScreen(topicId: Long?, saved: Boolean = false, deckId: Long? = null) {
     val data = Store.data
-    val all = remember(topicId, data) { flashcardsOf(data, topicId) }
+    val all = remember(topicId, saved, deckId, data) { flashcardsOf(data, topicId, saved, deckId) }
+    val deckTitle = deckId?.let { id -> data.summaries.firstOrNull { it.id == id } }?.let { d -> d.title.ifBlank { null } ?: data.topics.firstOrNull { it.id == d.topicId }?.title }
     val topics = data.topics.associateBy { it.id }
-    var deck by remember(topicId) { mutableStateOf(all.shuffled(Random(topicId ?: 7))) }
-    var index by remember(topicId) { mutableStateOf(0) }
-    var flipped by remember(topicId) { mutableStateOf(false) }
-    var knew by remember(topicId) { mutableStateOf(0) }
-    var again by remember(topicId) { mutableStateOf(listOf<FlashCard>()) }
+    var deck by remember(topicId, saved, deckId) { mutableStateOf(all.shuffled(Random(topicId ?: 7))) }
+    var index by remember(topicId, saved, deckId) { mutableStateOf(0) }
+    var flipped by remember(topicId, saved, deckId) { mutableStateOf(false) }
+    var knew by remember(topicId, saved, deckId) { mutableStateOf(0) }
+    var again by remember(topicId, saved, deckId) { mutableStateOf(listOf<FlashCard>()) }
 
     Div({ classes("row") }) {
-        Btn(if (topicId != null) "Tópico" else "Treinar", { if (topicId != null) Router.go(Route.Topic(topicId)) else Router.go(Route.Train) }, style = "ghost", small = true, icon = "arrow_back")
+        when {
+            saved -> Btn("Caderno", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "arrow_back")
+            topicId != null -> Btn("Tópico", { Router.go(Route.Topic(topicId)) }, style = "ghost", small = true, icon = "arrow_back")
+            else -> Btn("Treinar", { Router.go(Route.Train) }, style = "ghost", small = true, icon = "arrow_back")
+        }
     }
-    PageHead("Flashcards", topicId?.let { topics[it]?.title } ?: "Revisão rápida de todos os tópicos")
+    PageHead(
+        if (saved) "Flashcards do Caderno" else "Flashcards",
+        if (saved) (deckTitle?.let { "Baralho: $it" } ?: topicId?.let { topics[it]?.title }?.let { "Os cartões que você guardou de $it" } ?: "Os cartões que você guardou")
+        else topicId?.let { topics[it]?.title } ?: "Revisão rápida de todos os tópicos",
+    )
 
     if (all.isEmpty()) {
-        Card { Empty("style", "Nenhum flashcard ainda", "Gere o material de um tópico com IA: a revisão rápida vira um baralho aqui.", action = { Btn("Ir para o Edital", { Router.go(Route.Edital) }, icon = "checklist") }) }
+        if (saved) Card { Empty("style", "Nada guardado aqui ainda", "Na revisão rápida de um tópico, guarde o baralho ou as perguntas de memorização com a estrela: eles aparecem no Caderno e dá para praticar só eles.", action = { Btn("Voltar ao Caderno", { Router.go(Route.Notebook) }, icon = "arrow_back") }) }
+        else Card { Empty("style", "Nenhum flashcard ainda", "Estude a matéria de um tópico: a revisão rápida dele vira um baralho aqui.", action = { Btn("Ir para o Edital", { Router.go(Route.Edital) }, icon = "checklist") }) }
         return
     }
 
