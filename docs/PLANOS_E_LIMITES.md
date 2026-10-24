@@ -36,6 +36,8 @@ Matérias do Grátis, conferidas na criação do pedido (`_shared/free-allowance
 
 A cota `CONTENT_GENERATION` do Grátis (120/mês) virou só o teto de segurança da soma.
 
+Nos pagos, matéria do plano de hoje (`PLAN_DAY`) e adiantada (`ADVANCE`) que sai pronta da biblioteca devolve a cota (`ai_refund_plan_day_quota`): adiantar é livre e as 25/40 do mês ficam para o que é fora do plano.
+
 O plano do Grátis só leva tópicos com matéria pronta: o app e o site perguntam à função
 `library-ready` (mesma regra do gerador: apelido direto ou rota completa guardada) e deixam os
 outros de fora (`LibraryGaps` → `PlannerSnapshotBuilder.excludedTopicIds`). Quando a matéria é

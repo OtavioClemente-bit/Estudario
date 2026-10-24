@@ -319,7 +319,7 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
     val look = tierLook(plan.planTier)
     val free = plan.planTier == "FREE"
     val rows = listOf(
-        "CONTENT_GENERATION" to "Matérias extras (qualquer do edital)",
+        "CONTENT_GENERATION" to "Matérias fora do plano",
         "QUESTION_BATCH" to "Lotes de questões",
         "SIMULATION_GENERATION" to "Simulados",
         "SYLLABUS_GENERATION" to "Edital pelo PDF",
@@ -336,11 +336,9 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         FolhaTalking(56.dp, look.folha)
         // Em todos: a matéria do plano de hoje não gasta nada. No Grátis, as regras dele em texto.
         RuleRow("Matéria do plano de hoje", "livre", tone)
-        if (free) {
-            RuleRow("Matérias fora do plano", "10 por mês", tone)
-            RuleRow("Adiantar o plano", "anúncio · 2/dia", tone)
-            RuleRow("Matéria escrita na hora pela IA", "só nos pagos", MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        RuleRow("Adiantar o plano", if (free) "com anúncio curto" else "livre", tone)
+        if (free) RuleRow("Matérias fora do plano", "10 por mês", tone)
+        RuleRow("Tópico novo, ainda sem matéria", if (free) "a equipe prepara" else "pronto na hora", tone)
         // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
         // Grátis é só o teto interno; as regras dele estão acima).
         rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 && !(free && feature == "CONTENT_GENERATION") }.forEach { (feature, label) ->

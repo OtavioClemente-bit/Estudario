@@ -231,7 +231,7 @@ fun ProfileScreen() {
                 ProfileLink("fact_check", "Histórico e fontes", "De onde veio o seu material", Route.Sources)
                 ProfileLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
                 ProfileLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
-                ProfileLink("workspace_premium", "Planos e uso", "Limites de IA do seu plano", Route.PlanLimits)
+                ProfileLink("workspace_premium", "Planos e uso", "Seu plano, seu mês e a comparação", Route.PlanLimits)
                 ProfileLink("tune", "Ajustes", "Aparência, sons, questões por dia e sincronização", Route.Settings)
             }
             Card(extra = "pad-lg") {
@@ -580,19 +580,75 @@ suspend fun materialQuestionLimit(): Int? {
     return info.plans.firstOrNull { it.first == info.tier }?.second?.firstOrNull { it.feature == "CONTENT_GENERATION" }?.maxPerRequest
 }
 
-@Composable
-private fun FreeLine(icon: String, title: String, detail: String, value: String) {
-    Div({ classes("row") }) {
-        Span({ classes("mini-medal") }) { Icon(icon) }
-        Div({ classes("grow") }) {
-            Div({ classes("row", "between") }) {
-                B({ classes("small") }) { Text(title) }
-                Span({ classes("small", "strong") }) { Text(value) }
-            }
-            Span({ classes("xs", "muted") }) { Text(detail) }
-        }
-    }
+/** Limite de um recurso num plano, como está no banco (ai_plan_limits). */
+private fun PlanInfo.limitOf(tier: String, feature: String): PlanLimit? = plans.firstOrNull { it.first == tier }?.second?.firstOrNull { it.feature == feature }
+
+/** Cor de cada plano (a mesma do app e dos cartões de oferta). */
+private fun tierClass(tier: String) = "tier-" + tier.lowercase()
+
+/**
+ * Na demonstração (sem conta), a página mostra o plano Grátis com os números de verdade dos planos,
+ * para quem está conhecendo o Estudário ver tudo o que cada um tem.
+ */
+private fun demoPlanInfo(): PlanInfo {
+    fun l(feature: String, period: String, quota: Int, perRequest: Int? = null) = PlanLimit(feature, period, quota, perRequest)
+    val plans = listOf(
+        "FREE" to listOf(l("CONTENT_GENERATION", "MONTHLY", 120, 10), l("QUESTION_BATCH", "MONTHLY", 3), l("SIMULATION_GENERATION", "LIFETIME", 1), l("SYLLABUS_GENERATION", "LIFETIME", 0), l("SAVED_EDITAIS", "LIFETIME", 5), l("PLAN_GENERATION", "LIFETIME", 1)),
+        "ESSENCIAL" to listOf(l("CONTENT_GENERATION", "MONTHLY", 25, 20), l("QUESTION_BATCH", "MONTHLY", 10), l("SIMULATION_GENERATION", "MONTHLY", 3), l("SYLLABUS_GENERATION", "MONTHLY", 2), l("SAVED_EDITAIS", "LIFETIME", 15), l("PLAN_GENERATION", "MONTHLY", 3)),
+        "PRO" to listOf(l("CONTENT_GENERATION", "MONTHLY", 40, 30), l("QUESTION_BATCH", "MONTHLY", 25), l("SIMULATION_GENERATION", "MONTHLY", 6), l("SYLLABUS_GENERATION", "MONTHLY", 5), l("SAVED_EDITAIS", "LIFETIME", 1000), l("PLAN_GENERATION", "MONTHLY", 10)),
+    )
+    val pricing = mapOf(
+        "FREE" to Pricing("Grátis", "Para conhecer o Estudário", 0, 0, false),
+        "ESSENCIAL" to Pricing("Essencial", "Para estudar todo dia, matéria por matéria", 2490, 24900, true),
+        "PRO" to Pricing("Pro", "Para a reta final, com folga para estudar tudo", 4990, 49900, false),
+    )
+    val usage = listOf(Usage("QUESTION_BATCH", 3, 1, 2, null), Usage("SIMULATION_GENERATION", 1, 0, 1, null))
+    return PlanInfo("FREE", null, plans, usage, pricing, false, FreeInfo(1, 3, 3, 10, 0, 1))
 }
+
+/** Uma linha da comparação: o nome, uma explicação curta e o valor em cada plano. */
+private class Compare(val label: String, val hint: String, val value: (String) -> String)
+
+private fun comparisonGroups(info: PlanInfo): List<Pair<String, List<Compare>>> {
+    fun quota(tier: String, feature: String) = info.limitOf(tier, feature)?.quota ?: 0
+    fun perMonth(n: Int) = if (n == 1) "1 por mês" else "$n por mês"
+    return listOf(
+        "Estudar todo dia" to listOf(
+            Compare("Matéria do plano de hoje", "Teoria, resumo, flashcards e questões do que o seu plano marcou para hoje.") { "Livre" },
+            Compare("Adiantar o plano", "Estudar hoje a matéria de amanhã.") { if (it == "FREE") "Com anúncio curto" else "Livre" },
+            Compare("Matérias fora do plano", "Qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") perMonth(10) else perMonth(quota(it, "CONTENT_GENERATION")) },
+            Compare("Tópico novo, ainda sem matéria", "Algum assunto bem específico do seu edital que a biblioteca ainda não tem.") { if (it == "FREE") "A equipe prepara" else "Pronto na hora" },
+        ),
+        "Treinar" to listOf(
+            Compare("Questões em cada matéria", "Comentadas, no estilo da sua banca.") { "${info.limitOf(it, "CONTENT_GENERATION")?.maxPerRequest ?: if (it == "FREE") 10 else 20}" },
+            Compare("Mais 10 questões", "Para treinar o tópico até ficar firme.") { if (it == "FREE") "3 por mês" else perMonth(quota(it, "QUESTION_BATCH")) },
+            Compare("Simulados da sua banca", "Com cronômetro e nota por matéria, no formato da prova.") { if (it == "FREE") "1 diagnóstico" else perMonth(quota(it, "SIMULATION_GENERATION")) },
+        ),
+        "Organizar" to listOf(
+            Compare("Edital pelo seu PDF", "Para concurso que não está no nosso catálogo: as matérias e os tópicos saem organizados.") { if (quota(it, "SYLLABUS_GENERATION") == 0) "—" else perMonth(quota(it, "SYLLABUS_GENERATION")) },
+            Compare("Editais salvos", "Concursos que você acompanha ao mesmo tempo.") { quota(it, "SAVED_EDITAIS").let { n -> if (n >= 1000) "Sem limite" else "Até $n" } },
+            Compare("Planos de estudo", "Plano montado para a sua rotina e a data da prova.") { if (it == "FREE") "1" else perMonth(quota(it, "PLAN_GENERATION")) },
+            Compare("Anúncios", "No Grátis, só quando você escolhe adiantar.") { if (it == "FREE") "Só se você quiser" else "Nenhum" },
+        ),
+    )
+}
+
+/** O que vem em todos os planos, inclusive o Grátis. */
+private val everyPlan = listOf(
+    "event_repeat" to "Revisões no tempo certo",
+    "style" to "Flashcards e caderno de erros",
+    "timer" to "Modo foco e desempenho",
+    "devices" to "No app e no site, na mesma conta",
+    "auto_stories" to "Biblioteca com mais de 1.200 matérias",
+)
+
+private val faq = listOf(
+    "Como eu assino?" to "Pelo app do Estudário no celular, com a Google Play. O plano vale na hora na sua conta, no app e aqui no site.",
+    "Posso cancelar quando quiser?" to "Sim. A assinatura é da Google Play e você cancela por lá, sem multa. O plano continua até o fim do período pago.",
+    "O que é matéria fora do plano?" to "O plano marca o que estudar em cada dia. Fora do plano é qualquer outro tópico do seu edital que você queira estudar antes, na hora que quiser.",
+    "E se um tópico ainda não tiver matéria?" to "No Grátis, a nossa equipe prepara e ele entra no seu plano assim que fica pronto. No Essencial e no Pro, a matéria fica pronta na hora.",
+    "O que acontece com o que eu já estudei se eu mudar de plano?" to "Nada se perde: matérias, questões, revisões e o seu histórico continuam iguais em qualquer plano.",
+)
 
 @Composable
 fun PlanLimitsScreen() {
@@ -601,7 +657,7 @@ fun PlanLimitsScreen() {
     var attempt by remember { mutableStateOf(0) }
     LaunchedEffect(attempt) {
         error = null
-        if (Store.demo) { error = "Entre com sua conta para ver o uso do seu plano."; return@LaunchedEffect }
+        if (Store.demo) { info = demoPlanInfo(); return@LaunchedEffect }
         val token = Auth.accessToken() ?: run { error = "Sua sessão expirou. Entre de novo."; return@LaunchedEffect }
         val response = runCatching {
             httpRequest("GET", "${WebConfig.SUPABASE_URL}/functions/v1/ai-plan", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Accept" to "application/json", "x-estudario-client" to "web"))
@@ -610,115 +666,167 @@ fun PlanLimitsScreen() {
         info = runCatching { parsePlan(response.body) }.getOrNull() ?: run { error = "Resposta inesperada do servidor."; null }
     }
     BackToProfile()
-    PageHead("Planos e uso", "Seu plano, o que ainda tem no mês e a comparação")
     val current = info
     if (current == null) {
+        PageHead("Planos e uso", "")
         if (error != null) Card {
             FolhaSays("thinking") { B { Text(error!!) } }
-            if (!Store.demo) Btn("Tentar de novo", { attempt++ }, style = "outline", icon = "refresh", small = true)
+            Btn("Tentar de novo", { attempt++ }, style = "outline", icon = "refresh", small = true)
         } else CenterMessage { Folha("thinking", 80); Text("Carregando seu plano…") }
         return
     }
-    Div({ classes("profile-hero") }) {
-        Div({ classes("grow") }) {
-            Div({ classes("eyebrow"); attr("style", "color:inherit;opacity:.8") }) { Text("SEU PLANO") }
-            H2 { Text(planName(current.tier)) }
-            P({ classes("small"); attr("style", "opacity:.85") }) { Text(planTagline(current.tier) + (shortIso(current.renewsAt)?.let { " · renova em $it" } ?: "")) }
-        }
-        Folha("wink", 88, "margin:-8px 0 -14px")
-    }
-    // Grátis: as regras de matéria (o teto de matérias do banco é só interno e não aparece).
-    current.free?.let { f ->
-        Card {
-            CardHead("Seu Grátis")
-            P({ classes("small", "muted") }) { Text("As matérias saem prontas da biblioteca do Estudário, conferidas pela equipe.") }
-            Div({ classes("stack") }) {
-                FreeLine("event_repeat", "Matéria do plano de hoje", "livre todo dia", "${f.planDayUsed} de ${f.planDayLimit} hoje")
-                FreeLine("menu_book", "Matérias fora do plano", "qualquer do edital, neste mês", "${(f.extrasLimit - f.extrasUsed).coerceAtLeast(0)} de ${f.extrasLimit} restantes")
-                FreeLine("fast_forward", "Adiantar o plano", "no site, 1 por semana; no app, anúncio curto (2 por dia)", if (f.weeklyUsed < f.weeklyLimit) "1 livre nesta semana" else "usado nesta semana")
-            }
-        }
-    }
-    Card {
-        CardHead("Uso deste período")
-        Div({ classes("stack") }) {
-            current.usage.filter { it.feature in visibleFeatures && it.limit > 0 && !(current.free != null && it.feature == "CONTENT_GENERATION") }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { u ->
-                key(u.feature) {
-                    Div({ classes("row") }) {
-                        Span({ classes("mini-medal") }) { Icon(featureIcon(u.feature)) }
-                        Div({ classes("grow") }) {
-                            Div({ classes("row", "between") }) {
-                                B({ classes("small") }) { Text(featureLabel(u.feature)) }
-                                Span({ classes("small", "muted") }) { Text("${u.used} de ${u.limit}") }
-                            }
-                            ProgressBar(if (u.limit == 0) 0.0 else u.used.toDouble() / u.limit, if (u.remaining == 0) "red" else null)
-                            Span({ classes("xs", "muted") }) { Text(if (u.remaining == 0) "Acabou" + (shortIso(u.resetAt)?.let { " · volta em $it" } ?: "") else "Restam ${u.remaining}" + (shortIso(u.resetAt)?.let { " · renova em $it" } ?: "")) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // A escolha do plano, como no app: os três lado a lado nas cores de cada um; clicar escolhe, o
-    // escolhido sobe com a borda viva girando e a comparação mostra o que ele inclui.
-    val tiers = current.plans.sortedBy { listOf("FREE", "ESSENCIAL", "PRO").indexOf(it.first).let { i -> if (i < 0) 9 else i } }
-    var chosen by remember { mutableStateOf(if (current.tier == "FREE") (current.pricing.entries.firstOrNull { it.value.featured }?.key ?: "ESSENCIAL") else current.tier) }
+    val tiers = listOf("FREE", "ESSENCIAL", "PRO").filter { t -> current.plans.any { it.first == t } }
     var yearly by remember { mutableStateOf(false) }
-    val chosenPaid = (current.pricing[chosen]?.monthCents ?: 0) > 0
-    if (chosenPaid) Div({ classes("segmented", "period-toggle") }) {
-        Button({ classes(*listOfNotNull(if (!yearly) "on" else null).toTypedArray()); onClick { yearly = false } }) { Text("Mensal") }
-        Button({ classes(*listOfNotNull(if (yearly) "on" else null).toTypedArray()); onClick { yearly = true } }) { Text("Anual · 2 meses grátis") }
+
+    // ---------- seu plano
+    Div({ classes("pl-hero", tierClass(current.tier)) }) {
+        Div({ classes("pl-hero-glow") })
+        Div({ classes("pl-hero-text") }) {
+            Span({ classes("pl-eyebrow") }) { Text("SEU PLANO") }
+            org.jetbrains.compose.web.dom.H1 { Text(current.pricing[current.tier]?.name?.ifBlank { null } ?: planName(current.tier)) }
+            P { Text(current.pricing[current.tier]?.tagline?.ifBlank { null } ?: planTagline(current.tier)) }
+            Span({ classes("pl-status") }) {
+                Icon(if (current.tier == "FREE") "favorite" else "verified", filled = true)
+                Text(when {
+                    Store.demo -> "Demonstração · entre com sua conta para ver o seu uso"
+                    current.tier == "FREE" -> "Grátis para sempre"
+                    else -> shortIso(current.renewsAt)?.let { "Ativo · renova em $it" } ?: "Ativo"
+                })
+            }
+        }
+        Folha(if (current.tier == "FREE") "wave" else "proud", 120, "margin:-12px -6px -22px 0")
     }
-    Div({ classes("tier-row") }) {
-        tiers.forEach { (tier, _) ->
+
+    // ---------- seu mês
+    Div({ classes("pl-section-head") }) {
+        org.jetbrains.compose.web.dom.H2 { Text("Seu mês") }
+        current.usage.firstNotNullOfOrNull { shortIso(it.resetAt) }?.let { Span({ classes("pl-muted") }) { Text("renova em $it") } }
+    }
+    Div({ classes("pl-usage") }) {
+        val free = current.free
+        if (free != null) {
+            UsageCard("today", "Matéria do plano de hoje", "Livre", "${free.planDayUsed} estudada${if (free.planDayUsed == 1) "" else "s"} hoje", null, "green")
+            UsageCard("menu_book", "Matérias fora do plano", "${(free.extrasLimit - free.extrasUsed).coerceAtLeast(0)}", "de ${free.extrasLimit} restantes no mês", (free.extrasLimit - free.extrasUsed).coerceAtLeast(0).toDouble() / free.extrasLimit.coerceAtLeast(1), null)
+            UsageCard("fast_forward", "Adiantar o plano", if (free.weeklyUsed < free.weeklyLimit) "1" else "0", "livre nesta semana · no app, mais 2 por dia com anúncio curto", null, null)
+        } else {
+            UsageCard("today", "Plano de hoje e adiantar", "Livre", "estude e adiante o seu plano à vontade", null, "green")
+            current.usage.firstOrNull { it.feature == "CONTENT_GENERATION" }?.let { u ->
+                UsageCard("menu_book", "Matérias fora do plano", "${u.remaining}", "de ${u.limit} restantes no mês", u.remaining.toDouble() / u.limit.coerceAtLeast(1), null)
+            }
+        }
+        current.usage.firstOrNull { it.feature == "QUESTION_BATCH" && it.limit > 0 }?.let { u ->
+            UsageCard("quiz", "Mais 10 questões", "${u.remaining}", "de ${u.limit} restantes no mês", u.remaining.toDouble() / u.limit.coerceAtLeast(1), null)
+        }
+        current.usage.firstOrNull { it.feature == "SIMULATION_GENERATION" && it.limit > 0 }?.let { u ->
+            UsageCard("workspace_premium", if (current.tier == "FREE") "Simulado diagnóstico" else "Simulados", "${u.remaining}", if (current.tier == "FREE") (if (u.remaining > 0) "disponível para você" else "já feito") else "de ${u.limit} restantes no mês", u.remaining.toDouble() / u.limit.coerceAtLeast(1), null)
+        }
+        current.usage.firstOrNull { it.feature == "SYLLABUS_GENERATION" && it.limit > 0 }?.let { u ->
+            UsageCard("description", "Edital pelo seu PDF", "${u.remaining}", "de ${u.limit} restantes no mês", u.remaining.toDouble() / u.limit.coerceAtLeast(1), null)
+        }
+        current.limitOf(current.tier, "SAVED_EDITAIS")?.let { l ->
+            val saved = Store.data.competitions.size
+            UsageCard("bookmarks", "Editais salvos", "$saved", if (l.quota >= 1000) "sem limite" else "de ${l.quota}", if (l.quota >= 1000) null else (l.quota - saved).coerceAtLeast(0).toDouble() / l.quota.coerceAtLeast(1), null)
+        }
+    }
+
+    // ---------- os planos
+    Div({ classes("pl-section-head") }) {
+        org.jetbrains.compose.web.dom.H2 { Text("Escolha o seu ritmo") }
+        Div({ classes("pl-period") }) {
+            Button({ classes(*listOfNotNull(if (!yearly) "on" else null).toTypedArray()); onClick { yearly = false } }) { Text("Mensal") }
+            Button({ classes(*listOfNotNull(if (yearly) "on" else null).toTypedArray()); onClick { yearly = true } }) { Text("Anual"); Span({ classes("pl-save") }) { Text("2 meses grátis") } }
+        }
+    }
+    Div({ classes("pl-cards") }) {
+        tiers.forEach { tier ->
             key(tier) {
                 val price = current.pricing[tier]
                 val paid = (price?.monthCents ?: 0) > 0
-                Button({
-                    classes(*listOfNotNull("tier-card", "tier-" + tier.lowercase(), if (tier == chosen) "on" else null).toTypedArray())
-                    onClick { chosen = tier }
-                }) {
-                    Div({ classes("tier-in") }) {
-                        Icon(when (tier) { "PRO" -> "diamond"; "ESSENCIAL" -> "star"; else -> "menu_book" }, extraClass = "tier-glyph")
-                        B({ classes("tier-name") }) { Text(price?.name?.ifBlank { null } ?: planName(tier)) }
-                        Span({ classes("tier-tag") }) { Text(price?.tagline?.ifBlank { null } ?: planTagline(tier)) }
-                        B({ classes("tier-price") }) { Text(if (!paid) "R$ 0" else brl(if (yearly) price!!.yearCents else price!!.monthCents)) }
-                        Span({ classes("tier-unit") }) { Text(if (!paid) "para sempre" else if (yearly) "por ano · " + brl(price!!.yearCents / 12) + " por mês" else "por mês") }
-                        if (tier == current.tier) Span({ classes("tier-badge", "mine") }) { Text("Seu plano agora") }
-                        else if (price?.featured == true) Span({ classes("tier-badge") }) { Text("Mais escolhido") }
+                val mine = tier == current.tier
+                Div({ classes(*listOfNotNull("pl-card", tierClass(tier), if (price?.featured == true) "featured" else null, if (mine) "mine" else null).toTypedArray()) }) {
+                    if (mine) Span({ classes("pl-ribbon") }) { Text("Seu plano") } else if (price?.featured == true) Span({ classes("pl-ribbon") }) { Text("Mais escolhido") }
+                    Div({ classes("pl-card-top") }) {
+                        Span({ classes("pl-card-icon") }) { Icon(when (tier) { "PRO" -> "diamond"; "ESSENCIAL" -> "star"; else -> "menu_book" }, filled = true) }
+                        B({ classes("pl-card-name") }) { Text(price?.name?.ifBlank { null } ?: planName(tier)) }
+                        Span({ classes("pl-card-tag") }) { Text(price?.tagline?.ifBlank { null } ?: planTagline(tier)) }
+                    }
+                    Div({ classes("pl-price") }) {
+                        B { Text(if (!paid) "R$ 0" else if (yearly) brl(price!!.yearCents / 12) else brl(price!!.monthCents)) }
+                        Span { Text(if (!paid) "para sempre" else "por mês") }
+                    }
+                    Span({ classes("pl-price-note") }) { Text(if (!paid) "Sem cartão, sem prazo" else if (yearly) "${brl(price!!.yearCents)} cobrados uma vez por ano" else "ou ${brl(price!!.yearCents)} por ano") }
+                    Div({ classes("pl-highlights") }) {
+                        val highlights = when (tier) {
+                            "FREE" -> listOf("Matéria do plano de hoje, todo dia", "10 matérias fora do plano por mês", "Adiantar com anúncio curto", "Simulado diagnóstico")
+                            else -> listOf("Plano de hoje e adiantar à vontade", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias fora do plano por mês", "Qualquer tópico do edital, pronto na hora", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês, sem anúncios")
+                        }
+                        highlights.forEach { h -> Div({ classes("pl-hl") }) { Icon("check_circle", filled = true); Span { Text(h) } } }
+                    }
+                    when {
+                        mine -> Span({ classes("pl-cta", "ghost") }) { Text("Você está aqui") }
+                        !paid -> Span({ classes("pl-cta", "ghost") }) { Text("Já incluso na sua conta") }
+                        else -> A(href = PLAY_URL, { attr("target", "_blank"); attr("rel", "noopener"); classes("pl-cta") }) { Text("Assinar o ${price?.name?.ifBlank { null } ?: planName(tier)}") }
                     }
                 }
             }
         }
     }
-    val chosenLimits = tiers.firstOrNull { it.first == chosen }?.second.orEmpty()
-    Card(extra = "tier-compare") {
-        CardHead("O que o " + (current.pricing[chosen]?.name?.ifBlank { null } ?: planName(chosen)) + " inclui")
-        Div({ classes("stack") }) {
-            Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Matéria do plano de hoje") }; Span({ classes("small", "strong") }) { Text("livre") } }
-            if (chosen == "FREE") {
-                Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Matérias fora do plano") }; Span({ classes("small", "strong") }) { Text("10 por mês") } }
-                Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Adiantar o plano") }; Span({ classes("small", "strong") }) { Text("anúncio no app · 1/semana no site") } }
-                Div({ classes("row", "between") }) { B({ classes("small") }) { Text("Matéria escrita na hora pela IA") }; Span({ classes("small", "muted") }) { Text("só nos pagos") } }
+    P({ classes("pl-fine") }) { Text("A assinatura é feita no app, pela Google Play, e vale na hora na mesma conta, no celular e aqui no site.") }
+
+    // ---------- a comparação completa
+    Div({ classes("pl-section-head") }) { org.jetbrains.compose.web.dom.H2 { Text("Tudo o que cada plano tem") } }
+    Div({ classes("pl-table-wrap") }) {
+        Div({ classes("pl-table") }) {
+            Div({ classes("pl-row", "pl-head") }) {
+                Div({ classes("pl-cell", "pl-label") })
+                tiers.forEach { t -> Div({ classes("pl-cell", "pl-col-head", tierClass(t), *listOfNotNull(if (t == current.tier) "mine" else null).toTypedArray()) }) { B { Text(current.pricing[t]?.name?.ifBlank { null } ?: planName(t)) } } }
             }
-            chosenLimits.filter { it.feature in visibleFeatures && it.quota > 0 && !(chosen == "FREE" && it.feature == "CONTENT_GENERATION") }.sortedBy { visibleFeatures.indexOf(it.feature) }.forEach { l ->
-                key(l.feature) {
-                    val max = tiers.mapNotNull { (_, limits) -> limits.firstOrNull { it.feature == l.feature }?.quota }.maxOrNull()?.coerceAtLeast(1) ?: 1
-                    Div({ classes("stack", "tight") }) {
-                        Div({ classes("row", "between") }) {
-                            B({ classes("small") }) { Text(featureLabel(l.feature)) }
-                            Span({ classes("small", "strong") }) { Text(limitCopy(l)) }
+            comparisonGroups(current).forEach { (group, rows) ->
+                Div({ classes("pl-row", "pl-group") }) { Div({ classes("pl-cell") }) { Text(group) } }
+                rows.forEach { row ->
+                    Div({ classes("pl-row") }) {
+                        Div({ classes("pl-cell", "pl-label") }) { B { Text(row.label) }; Span { Text(row.hint) } }
+                        tiers.forEach { t ->
+                            val v = row.value(t)
+                            Div({ classes("pl-cell", "pl-val", tierClass(t), *listOfNotNull(if (t == current.tier) "mine" else null, if (v == "—") "none" else null, if (v == "Livre" || v == "Pronto na hora" || v == "Sem limite" || v == "Nenhum") "strong" else null).toTypedArray()) }) { Text(v) }
                         }
-                        Div({ classes("tier-bar", "tier-" + chosen.lowercase()) }) { Span({ attr("style", "width:${(l.quota.coerceAtMost(max) * 100 / max).coerceAtLeast(4)}%") }) }
                     }
                 }
             }
-            P({ classes("xs", "muted") }) { Text("Plano de estudo, revisões, treino e caderno em todos os planos. Teoria, flashcards, dicas e questões comentadas em todo material.") }
+            Div({ classes("pl-row", "pl-group") }) { Div({ classes("pl-cell") }) { Text("Em todos os planos") } }
+            everyPlan.forEach { (icon, label) ->
+                Div({ classes("pl-row") }) {
+                    Div({ classes("pl-cell", "pl-label", "with-icon") }) { Icon(icon); B { Text(label) } }
+                    tiers.forEach { t -> Div({ classes("pl-cell", "pl-val", tierClass(t), *listOfNotNull(if (t == current.tier) "mine" else null).toTypedArray()) }) { Icon("check", extraClass = "pl-check") } }
+                }
+            }
         }
-        if (chosenPaid && chosen != current.tier) Div({ classes("stack", "tight"); attr("style", "margin-top:14px") }) {
-            A(href = PLAY_URL, { attr("target", "_blank"); attr("rel", "noopener"); classes("btn", "primary", "block", "shine") }) { Icon("smartphone"); Text("Assinar o " + (current.pricing[chosen]?.name?.ifBlank { null } ?: planName(chosen)) + " no app") }
-            Span({ classes("xs", "muted"); attr("style", "text-align:center") }) { Text("Pela Google Play, na mesma conta. Vale aqui na hora. Cancela quando quiser.") }
+    }
+
+    // ---------- perguntas rápidas
+    Div({ classes("pl-section-head") }) { org.jetbrains.compose.web.dom.H2 { Text("Perguntas rápidas") } }
+    Div({ classes("pl-faq") }) {
+        faq.forEach { (q, a) ->
+            key(q) {
+                var open by remember { mutableStateOf(false) }
+                Div({ classes(*listOfNotNull("pl-q", if (open) "open" else null).toTypedArray()) }) {
+                    Button({ classes("pl-q-head"); attr("aria-expanded", "$open"); onClick { open = !open } }) { B { Text(q) }; Icon(if (open) "remove" else "add") }
+                    if (open) P { Text(a) }
+                }
+            }
         }
+    }
+}
+
+/** Um cartão do "Seu mês": ícone, o que é, o número grande, a frase e, quando tem limite, a barra. */
+@Composable
+private fun UsageCard(icon: String, title: String, big: String, line: String, left: Double?, tone: String?) {
+    val low = left != null && left <= 0.0
+    Div({ classes(*listOfNotNull("pl-use", tone, if (low) "empty" else null).toTypedArray()) }) {
+        Div({ classes("pl-use-top") }) { Span({ classes("pl-use-icon") }) { Icon(icon) }; Span({ classes("pl-use-title") }) { Text(title) } }
+        B({ classes("pl-use-big") }) { Text(big) }
+        Span({ classes("pl-use-line") }) { Text(line) }
+        if (left != null) Div({ classes("pl-use-bar") }) { Span({ attr("style", "width:${(left * 100).coerceIn(0.0, 100.0).toInt()}%") }) }
     }
 }
 

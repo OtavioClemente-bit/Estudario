@@ -856,8 +856,8 @@ export async function processSyllabusJob(
       if (cached) {
         await dependencies.jobs.finalizeSuccess(job.id, lease, cached, cached.warnings, null);
         await refundCompensation(dependencies, job);
-        // Matéria do plano de hoje saiu pronta: não gasta a cota (o banco confere que foi sem IA).
-        if (job.requestPayload?.purpose === "PLAN_DAY") await dependencies.jobs.refundPlanDayQuota?.(job.id).catch(() => undefined);
+        // Matéria do plano (de hoje ou adiantada) saiu pronta: não gasta a cota (o banco confere que foi sem IA).
+        if (job.requestPayload?.purpose === "PLAN_DAY" || job.requestPayload?.purpose === "ADVANCE") await dependencies.jobs.refundPlanDayQuota?.(job.id).catch(() => undefined);
         return true;
       }
       // O Grátis nunca chama a IA, em nenhum recurso (matéria, questões, simulado, plano, edital): só
