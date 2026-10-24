@@ -71,11 +71,14 @@ check(playIntegrityCloudProjectNumber.isEmpty() || playIntegrityCloudProjectNumb
     "estudario.playIntegrity.cloudProjectNumber must contain only digits."
 }
 
-// AdMob (anúncio premiado do Grátis, para adiantar uma matéria do plano). Os ids do app e do bloco
-// premiado vêm do AdMob, em ~/.gradle/gradle.properties; sem eles, ficam os de teste do Google (que só
-// mostram anúncio de teste). O botão só aparece quando o servidor liga (AD_REWARDS_ENABLED).
-val admobAppId = providers.gradleProperty("estudario.admob.appId").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-3940256099942544~3347511713"
-val admobRewardedUnit = providers.gradleProperty("estudario.admob.rewardedUnit").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-3940256099942544/5224354917"
+// AdMob (anúncio premiado do Grátis, para adiantar uma matéria do plano). Os ids não são segredo (vão
+// no app). Só a versão da loja (release) usa os reais; debug e o "Estudário Teste" usam os de teste do
+// Google, para ninguém gerar tráfego inválido testando. O botão só aparece quando o servidor liga
+// (AD_REWARDS_ENABLED). Dá para trocar os reais por ~/.gradle/gradle.properties.
+val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
+val admobTestRewardedUnit = "ca-app-pub-3940256099942544/5224354917"
+val admobAppId = providers.gradleProperty("estudario.admob.appId").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-6794476146182030~3847727077"
+val admobRewardedUnit = providers.gradleProperty("estudario.admob.rewardedUnit").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-6794476146182030/9507247864"
 
 val signingProperties = Properties()
 val propertiesFile = rootProject.file("keystore.properties")
@@ -91,16 +94,16 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 137
-        versionName = "3.3.109"
+        versionCode = 138
+        versionName = "3.3.110"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", supabasePublishableKey.toBuildConfigLiteral())
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.toBuildConfigLiteral())
         buildConfigField("long", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "${playIntegrityCloudProjectNumber.ifEmpty { "0" }}L")
-        buildConfigField("String", "ADMOB_REWARDED_UNIT", admobRewardedUnit.toBuildConfigLiteral())
-        manifestPlaceholders["admobAppId"] = admobAppId
+        buildConfigField("String", "ADMOB_REWARDED_UNIT", admobTestRewardedUnit.toBuildConfigLiteral())
+        manifestPlaceholders["admobAppId"] = admobTestAppId
     }
 
     buildFeatures {
@@ -129,6 +132,8 @@ extensions.configure<ApplicationExtension> {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
+            buildConfigField("String", "ADMOB_REWARDED_UNIT", admobRewardedUnit.toBuildConfigLiteral())
+            manifestPlaceholders["admobAppId"] = admobAppId
         }
         // "Estudário Teste": instala ao lado da versão da Play Store (outro pacote e outro nome),
         // para testar no celular sem desinstalar e sem perder os dados do app oficial.

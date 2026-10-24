@@ -58,8 +58,8 @@ assinada pelo Google, e só então o crédito existe (`ad_reward_credits`). Para
 1. No AdMob, crie o app (Android, br.com.estudario) e um bloco **Premiado**.
 2. No bloco: **Verificação do lado do servidor** → URL
    `https://gaqqilzhmvkxfpvivwwv.supabase.co/functions/v1/ad-reward-ssv`.
-3. Em `~/.gradle/gradle.properties`: `estudario.admob.appId=ca-app-pub-...~...` e
-   `estudario.admob.rewardedUnit=ca-app-pub-.../...` (sem eles o app usa os de teste do Google).
+3. Os ids reais (app `ca-app-pub-6794476146182030~3847727077`, bloco premiado `ca-app-pub-6794476146182030/9507247864`)
+   estão em `app/build.gradle.kts` e valem só na versão da loja; debug e o "Estudário Teste" usam os de teste do Google.
 4. Play Console: declarar que o app **contém anúncios** e atualizar a **Segurança dos dados**
    (ID de publicidade).
 5. Ligar no servidor: `supabase secrets set AD_REWARDS_ENABLED=true`. Antes disso o botão nem aparece.
