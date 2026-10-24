@@ -106,6 +106,20 @@ private fun DayPlanView(
     val minutesByDate = loadByDate.mapValues { (_, tasks) -> tasks.plannedLoadMinutes() }
     val doneDates = loadByDate.filterValues { tasks -> tasks.all { it.entity.status == PlanTaskStatus.CONCLUIDA } }.keys
 
+    // Dia do plano concluído: de vez em quando (AppReview.shouldInvite), o Folha pergunta se a pessoa está curtindo.
+    val reviewContext = androidx.compose.ui.platform.LocalContext.current
+    val dayDone = state.todayTasks.isNotEmpty() && state.todayTasks.none { it.entity.status == PlanTaskStatus.PLANEJADA || it.entity.status == PlanTaskStatus.EM_ANDAMENTO } &&
+        state.todayTasks.any { it.entity.status == PlanTaskStatus.CONCLUIDA }
+    var reviewInvite by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(dayDone) {
+        if (dayDone && br.com.estudario.ui.AppReview.shouldInvite(reviewContext)) {
+            kotlinx.coroutines.delay(1_200)
+            br.com.estudario.ui.AppReview.markInvited(reviewContext)
+            reviewInvite = true
+        }
+    }
+    if (reviewInvite) br.com.estudario.ui.components.ReviewInvite { reviewInvite = false }
+
     PlanList(header) {
         // Calendário Interativo
         item {

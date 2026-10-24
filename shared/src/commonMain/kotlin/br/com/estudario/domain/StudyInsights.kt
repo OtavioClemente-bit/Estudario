@@ -121,6 +121,11 @@ object StudyInsights {
         return sorted[sorted.size / 2]
     }
 
-    /** O lembrete chega um pouco antes do horário de costume, entre 7h e 22h. */
-    fun reminderMinute(usualStart: Int): Int = (usualStart - 15).coerceIn(7 * 60, 22 * 60)
+    /**
+     * O lembrete chega um pouco antes (15 min) do horário de costume, entre 5h e 22h, e nunca depois
+     * dele. Quem costuma começar antes das 5h (madrugada) fica com o horário fixo: null. Antes o piso
+     * era 7h, e quem começava às 5h recebia o aviso às 7h, já estudando.
+     */
+    fun reminderMinute(usualStart: Int): Int? =
+        if (usualStart < 5 * 60) null else minOf((usualStart - 15).coerceIn(5 * 60, 22 * 60), usualStart)
 }

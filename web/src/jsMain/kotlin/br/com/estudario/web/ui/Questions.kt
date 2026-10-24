@@ -258,6 +258,11 @@ fun QuizScreen(scope: String) {
     val initial = remember(scope) { pickQuestions(Store.data, scope) }
     val sessionId = remember(scope) { Actions.newSessionId() }
     val startedAt = remember(scope) { Date.now().toLong() }
+    // O cronômetro da bateria, como no app: corre enquanto há questão e o tempo vai para o Desempenho.
+    var elapsed by remember(scope) { mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(scope) {
+        while (true) { elapsed = (Date.now().toLong() - startedAt) / 1000; kotlinx.coroutines.delay(1000) }
+    }
     var index by remember(scope) { mutableStateOf(0) }
     var selected by remember(scope) { mutableStateOf<String?>(null) }
     // Como no app: clicar só marca a alternativa; a resposta vale ao confirmar.
@@ -382,6 +387,9 @@ fun QuizScreen(scope: String) {
         Btn("Sair", { scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }?.let { Router.go(Route.Topic(it)) } ?: Router.go(Route.Train) }, style = "ghost", small = true, icon = "close")
         Span({ classes("strong", "muted") }) { Text("${index + 1} de ${initial.size}") }
         Div({ classes("row") }) {
+            Span({ classes("chip", "quiz-timer"); attr("title", "Tempo desta bateria") }) {
+                Icon("timer"); Text("${(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}")
+            }
             // Os contadores saltam quando mudam (a chave nova recria o elemento e a animação roda).
             androidx.compose.runtime.key("ok-" + results.count { it }) { Span({ classes("chip", "green", "q-bump") }) { Icon("check"); Text("${results.count { it }}") } }
             androidx.compose.runtime.key("no-" + results.count { !it }) { Span({ classes("chip", "red", "q-bump") }) { Icon("close"); Text("${results.count { !it }}") } }

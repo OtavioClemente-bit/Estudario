@@ -163,7 +163,7 @@ private val GameLine = Color(0x17FFFFFF)
 private val GameMute = Color(0x9EFFFFFF)
 private val Mint = Color(0xFF7EE0B8)
 private val GoldG = Color(0xFFF5B83D)
-private fun rarityColor(r: FolhaRarity) = when (r) {
+internal fun rarityColor(r: FolhaRarity) = when (r) {
     FolhaRarity.COMUM -> Color(0xFFB9B6C9); FolhaRarity.RARA -> Color(0xFF4C9BFF); FolhaRarity.EPICA -> Color(0xFFA46BFF); FolhaRarity.LENDARIA -> GoldG
 }
 
@@ -548,7 +548,7 @@ private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, summary: P
 
 /** O Folha vestindo uma peça (o resto do visual como está), em imagem parada. */
 @Composable
-private fun PieceThumb(item: FolhaItem, sizeDp: Int, open: Boolean) {
+internal fun PieceThumb(item: FolhaItem, sizeDp: Int, open: Boolean) {
     val px = with(LocalDensity.current) { sizeDp.dp.roundToPx() }
     val thumb = remember(item.slot, item.id, px, FolhaLook.pieces()) {
         br.com.estudario.ui.assistant.folhaBitmap(px, showcaseMood(item.slot), FolhaStyle(pieces = FolhaLook.pieces() + (item.slot.key to item.id), plain = true), focus(item.slot)).asImageBitmap()

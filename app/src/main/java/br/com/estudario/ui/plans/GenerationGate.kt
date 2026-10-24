@@ -184,3 +184,20 @@ private fun QualityOverQuantityDialog(gate: GenerationGate.OverDailyPlan, onCont
         }
     }
 }
+
+/**
+ * A conta está no Grátis? Começa pela marcação do aparelho (LibraryGaps, instantânea) e confirma com o
+ * servidor logo em seguida: a marcação podia estar velha (ex.: app aberto antes da última consulta) e
+ * aí o assistente mostrava as escolhas que o Grátis não tem.
+ */
+@Composable
+fun rememberFreeTier(): Boolean {
+    val context = LocalContext.current
+    var free by remember { mutableStateOf(br.com.estudario.data.planner.LibraryGaps.free(context)) }
+    LaunchedEffect(Unit) {
+        val app = context.applicationContext as? EstudarioApplication ?: return@LaunchedEffect
+        val summary = (app.aiPlanRepository.load() as? AiPlanLoadResult.Available)?.summary ?: return@LaunchedEffect
+        free = summary.planTier == "FREE"
+    }
+    return free
+}

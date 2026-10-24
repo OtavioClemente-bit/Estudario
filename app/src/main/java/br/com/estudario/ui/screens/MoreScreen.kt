@@ -72,7 +72,6 @@ fun MoreScreen(
     onAgenda: () -> Unit = {},
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
-    val timer by viewModel.questionTimer.collectAsState()
     val defaultCount by viewModel.defaultQuestionCount.collectAsState()
     val showExplanation by viewModel.showExplanation.collectAsState()
     val reviewIntervals by viewModel.reviewIntervals.collectAsState()
@@ -133,7 +132,6 @@ fun MoreScreen(
 
         item {
             Group("Questões") {
-                ToggleRow(Icons.Outlined.Timer, "Cronômetro nas questões", "Mostra e registra o tempo de cada sessão.", timer, viewModel::setQuestionTimer)
                 HorizontalDivider()
                 ToggleRow(Icons.Outlined.Visibility, "Explicação logo após responder", "Desligue para fazer tudo e ver as explicações só no final.", showExplanation, viewModel::setShowExplanation)
                 HorizontalDivider()

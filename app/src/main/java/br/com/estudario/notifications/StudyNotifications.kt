@@ -104,8 +104,7 @@ object StudyNotificationCoordinator {
 
     /** O horário do lembrete: o aprendido (um pouco antes do horário de costume) ou o fixo escolhido. */
     suspend fun reminderTime(context: Context, preferences: AppPreferences): Pair<Int, Int> {
-        if (preferences.smartReminderEnabled.first()) usualStudyMinute(context)?.let { usual ->
-            val m = br.com.estudario.domain.StudyInsights.reminderMinute(usual)
+        if (preferences.smartReminderEnabled.first()) usualStudyMinute(context)?.let(br.com.estudario.domain.StudyInsights::reminderMinute)?.let { m ->
             return m / 60 to m % 60
         }
         return preferences.reminderHour.first() to preferences.reminderMinute.first()

@@ -177,6 +177,8 @@ private fun BadgeRow(row: BadgeProgress, onOpen: () -> Unit) {
                     if (row.earned) Icon(Icons.Outlined.CheckCircle, "Conquistado", Modifier.size(15.dp), tint = tierColor(row.badge.tier))
                 }
                 Text(row.badge.requirement, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // A peça do armário que esta conquista libera (todo emblema libera alguma).
+                br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.badgeId == row.badge.id }?.let { piece -> PieceReward(piece, row.earned, 34) }
                 if (!row.earned) {
                     LinearProgressIndicator({ row.percent }, Modifier.fillMaxWidth().clip(RoundedCornerShape(50)))
                     Text(
@@ -244,6 +246,18 @@ private fun MedalDetailDialog(item: BadgeProgress, all: List<BadgeProgress>, onP
                 )
                 Text(b.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
                 Text(b.requirement, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                br.com.estudario.domain.FolhaWardrobe.items.firstOrNull { it.badgeId == b.id }?.let { piece ->
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(rarityColor(piece.rarity).copy(alpha = 0.12f)).padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(if (item.earned) "VOCÊ GANHOU" else "ESTA CONQUISTA LIBERA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp)
+                        PieceThumb(piece, 96, item.earned)
+                        Text(piece.name, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        Text("${piece.rarity.label} · ${piece.slot.label}", style = MaterialTheme.typography.labelMedium, color = rarityColor(piece.rarity), fontWeight = FontWeight.Bold)
+                    }
+                }
                 if (item.earned) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp), tint = Color(0xFF1FA65C))
                     Text("Conquistado", fontWeight = FontWeight.Bold, color = Color(0xFF1FA65C))
@@ -305,5 +319,21 @@ private fun MedalShine(u: Float, tier: Int, modifier: Modifier) {
             val x = center.x - r * 1.6f + u * r * 3.2f
             drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.55f), Color.Transparent), start = Offset(x - r * 0.35f, center.y - r), end = Offset(x + r * 0.35f, center.y + r)))
         }
+    }
+}
+
+/** "Libera: Capacete de bombeiro · Rara", com o Folha vestindo a peça (apagada até ganhar). */
+@Composable
+private fun PieceReward(piece: br.com.estudario.domain.FolhaItem, earned: Boolean, sizeDp: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(sizeDp.dp).clip(RoundedCornerShape(10.dp)).background(rarityColor(piece.rarity).copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+            PieceThumb(piece, sizeDp - 4, earned)
+        }
+        Text(
+            (if (earned) "Ganhou: " else "Libera: ") + piece.name + " · " + piece.rarity.label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (earned) rarityColor(piece.rarity) else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

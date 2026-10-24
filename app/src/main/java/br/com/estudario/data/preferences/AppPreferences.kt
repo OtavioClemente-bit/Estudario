@@ -77,7 +77,8 @@ class AppPreferences(private val context: Context) {
     val reminderHour: Flow<Int> = context.dataStore.data.map { it[reminderHourKey] ?: 19 }
     val reminderMinute: Flow<Int> = context.dataStore.data.map { it[reminderMinuteKey] ?: 0 }
     val themeMode: Flow<String> = context.dataStore.data.map { it[themeModeKey] ?: if (it[darkKey] == true) "DARK" else "SYSTEM" }
-    val questionTimer: Flow<Boolean> = context.dataStore.data.map { it[questionTimerKey] ?: true }
+    /** O cronômetro das questões fica sempre ligado: é ele que leva o tempo de cada bateria ao Desempenho. */
+    val questionTimer: Flow<Boolean> = kotlinx.coroutines.flow.flowOf(true)
     val defaultQuestionCount: Flow<Int> = context.dataStore.data.map { it[defaultQuestionCountKey] ?: 10 }
     val showExplanation: Flow<Boolean> = context.dataStore.data.map { it[showExplanationKey] ?: true }
     val reviewIntervals: Flow<List<Long>> = context.dataStore.data.map { prefs -> prefs[reviewIntervalsKey]?.split(",")?.mapNotNull(String::toLongOrNull)?.takeIf { it.isNotEmpty() } ?: listOf(1, 7, 30) }

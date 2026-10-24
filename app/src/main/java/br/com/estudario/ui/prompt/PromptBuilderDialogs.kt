@@ -279,10 +279,11 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         questions.filter { it.question.topicId in ids }.mapNotNull { it.question.board }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
     }
     // Grátis: questões sempre misturadas (o servidor força o mesmo); escolher é do Essencial e do Pro.
-    val freeTier = remember { br.com.estudario.data.planner.LibraryGaps.free(context) }
+    val freeTier = br.com.estudario.ui.plans.rememberFreeTier()
     var options by remember(subjectBoard) {
         mutableStateOf(ContentPromptOptions(board = subjectBoard).let { if (freeTier) it.copy(difficulty = QuestionDifficulty.MIXED, style = QuestionStyle.MIXED) else it })
     }
+    LaunchedEffect(freeTier) { if (freeTier) options = options.copy(difficulty = QuestionDifficulty.MIXED, style = QuestionStyle.MIXED) }
     // Matéria sem questões ainda: a banca vem do edital (perfil da prova ou catálogo).
     LaunchedEffect(competition?.id, subjectBoard) {
         val c = competition ?: return@LaunchedEffect
@@ -525,18 +526,18 @@ private fun ServerContentGenerationDialog(topicTitle: String, taskId: String, on
         onDone(ready.result)
     }
     val failed = status as? br.com.estudario.ui.ai.BackgroundAiTasks.Status.Failed
-    // Primeira geração: pede (uma vez) para avisar quando ficar pronto. É o momento em que o pedido
-    // faz sentido para a pessoa, que vai esperar alguns minutos e pode sair do app.
+    // Primeira geração: o Folha explica (uma vez) para que servem os avisos e só então o Android
+    // pergunta. É o momento em que o pedido faz sentido: a pessoa vai esperar e pode sair do app.
     val context = LocalContext.current
-    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    LaunchedEffect(Unit) {
+    var inviteNotifications by remember {
         val prefs = context.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
         val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (android.os.Build.VERSION.SDK_INT >= 33 && !granted && !prefs.getBoolean("asked_ai_notifications", false)) {
-            prefs.edit().putBoolean("asked_ai_notifications", true).apply()
-            askNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
+        mutableStateOf(android.os.Build.VERSION.SDK_INT >= 33 && !granted && !prefs.getBoolean("asked_ai_notifications", false))
     }
+    if (inviteNotifications) br.com.estudario.ui.components.NotificationInvite(onDone = {
+        context.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE).edit().putBoolean("asked_ai_notifications", true).apply()
+        inviteNotifications = false
+    })
     androidx.compose.ui.window.Dialog(
         // Voltar ou fechar durante a geração não perde nada: ela segue em segundo plano.
         onDismissRequest = { if (failed != null) onClose() else onBackground() },
@@ -640,7 +641,7 @@ fun AdditionalQuestionPromptBuilderDialog(
     }
     val questionsContext = LocalContext.current
     // Grátis: questões sempre misturadas (o servidor força o mesmo); escolher é do Essencial e do Pro.
-    val freeTier = remember { br.com.estudario.data.planner.LibraryGaps.free(questionsContext) }
+    val freeTier = br.com.estudario.ui.plans.rememberFreeTier()
     var options by remember(subjectBoard) {
         mutableStateOf(
             ContentPromptOptions(
@@ -652,6 +653,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             ),
         )
     }
+    LaunchedEffect(freeTier) { if (freeTier) options = options.copy(difficulty = QuestionDifficulty.MIXED, style = QuestionStyle.MIXED) }
     LaunchedEffect(competition?.id, subjectBoard) {
         val c = competition ?: return@LaunchedEffect
         if (options.board.isBlank()) br.com.estudario.data.catalog.editalBoardOf(questionsContext, c.id, c.name).takeIf(String::isNotBlank)?.let { b ->

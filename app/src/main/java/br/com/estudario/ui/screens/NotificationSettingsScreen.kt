@@ -122,7 +122,9 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
                         Text(
                             when {
                                 !smart -> "Desligado: o lembrete chega no horário fixo abaixo."
-                                u != null -> "Você costuma começar por volta das ${hhmm(u)}. O lembrete chega às ${hhmm(br.com.estudario.domain.StudyInsights.reminderMinute(u))}, um pouco antes."
+                                u != null -> br.com.estudario.domain.StudyInsights.reminderMinute(u)?.let { r ->
+                                    "Você costuma começar por volta das ${hhmm(u)}. O lembrete chega às ${hhmm(r)}, um pouco antes."
+                                } ?: "Você costuma estudar de madrugada (por volta das ${hhmm(u)}). Para não acordar ninguém, vale o horário fixo abaixo."
                                 else -> "Ainda aprendendo seu horário (precisa de 4 dias de estudo). Até lá, vale o horário fixo abaixo."
                             },
                         )
