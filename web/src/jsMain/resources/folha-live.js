@@ -317,7 +317,6 @@
 
     const lookP = s.look || resolveLook(null);
     drawFloorAura(g, t, lookP.aura, small);
-    drawPet(g, t, lookP.pet, mood, small, s.burst || 0);
     g.save();
     g.translate(0, hop);
     g.translate(50, 88); g.scale(squashX / Math.sqrt(stretch), squashY * stretch); g.translate(-50, -88);
@@ -353,6 +352,8 @@
     if (mood === "relieved" && !small) drawRelief(g, s.tm || 0);
     if (look.atRisk && mood === "idle" && !small) drawSweat(g, t);
     g.restore();
+    // o companheiro na frente de tudo o que fica atrás do Folha (mochila, manto, toga...)
+    drawPet(g, t, lookP.pet, mood, small, s.burst || 0);
     if (!small && look.morning && /^(idle|talking|thinking|focus|wave|point|proud)$/.test(mood)) drawMug(g, t);
     if (!small && look.night && /^(idle|sleepy|focus|thinking)$/.test(mood)) drawMoon(g, t);
     if (mood === "happy") drawCelebration(g, t, small);

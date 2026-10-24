@@ -200,6 +200,9 @@ fun WardrobeScreen() {
     var slot by remember { mutableStateOf(FolhaSlot.CHAPEU) }
     var showCollections by remember { mutableStateOf(false) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
+    // a coleção inteira no palco (nome e peças), para ver como fica antes de ter
+    var tryingSet by remember { mutableStateOf<Pair<String, List<FolhaItem>>?>(null) }
+    LaunchedEffect(trying, slot, showCollections) { if (trying != null || !showCollections) tryingSet = null }
     var cheer by remember { mutableIntStateOf(0) }
     var mood by remember { mutableStateOf("wave") }
     var testMood by remember { mutableStateOf<String?>(null) }
@@ -260,12 +263,21 @@ fun WardrobeScreen() {
                                 attr("size", if (window.innerWidth < 860) "150" else "210")
                                 attr("clickable", "")
                                 attr("noscene", "")
+                                tryingSet?.second?.forEach { attr(it.slot.key, it.id) }
                                 if (t != null) attr(t.slot.key, t.id)
                             },
                             content = null,
                         )
                     }
-                    if (t != null) {
+                    val ts = tryingSet
+                    if (t == null && ts != null) {
+                        Div({ classes("wdg-try", "r-lendaria") }) {
+                            Span({ classes("wdg-try-tag") }) { Icon("visibility", filled = true); Text("Provando a coleção") }
+                            B { Text(ts.first) }
+                            Span({ classes("wdg-try-req") }) { Text("Assim o Folha fica com as peças e a recompensa.") }
+                            Button({ type(ButtonType.Button); classes("wdg-btn", "ghost", "small"); onClick { tryingSet = null } }) { Icon("undo"); Text("Voltar ao meu visual") }
+                        }
+                    } else if (t != null) {
                         Div({ classes("wdg-try", rarityClass(t.rarity)) }) {
                             Span({ classes("wdg-try-tag") }) { Icon("lock", filled = true); Text("Experimentando · ${t.rarity.label}") }
                             B { Text(t.name) }
@@ -312,7 +324,7 @@ fun WardrobeScreen() {
                 if (showCollections) {
                     P({ classes("wdg-hint") }) { Text("Toque numa peça para o Folha experimentar. Com as peças de uma coleção, a recompensa exclusiva é sua.") }
                     Div({ classes("wd-crows") }) {
-                        FolhaWardrobe.collections.forEach { c -> key(c.id) { CollectionRow(c, progress, trying, onDress = { items -> FolhaLook.chooseAll(items); trying = null; cheer++ }, onTry = { trying = if (trying?.let { t -> t.slot == it.slot && t.id == it.id } == true) null else it }) } }
+                        FolhaWardrobe.collections.forEach { c -> key(c.id) { CollectionRow(c, progress, trying, onDress = { items -> FolhaLook.chooseAll(items); trying = null; cheer++ }, onTry = { trying = if (trying?.let { t -> t.slot == it.slot && t.id == it.id } == true) null else it }, onTrySet = { set -> trying = null; tryingSet = if (tryingSet?.first == c.name) null else c.name to set }, tryingAll = tryingSet?.first == c.name) } }
                     }
                 } else {
                     Div({ classes("wdg-strip"); attr("role", "tablist"); attr("aria-label", "Partes do visual") }) {
@@ -406,7 +418,7 @@ private fun ItemCard(item: FolhaItem, progress: ProgressEngine.ProgressSummary, 
  * experimentar no palco, que fica à vista). Completa, veste o conjunto inteiro num toque.
  */
 @Composable
-private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, progress: ProgressEngine.ProgressSummary, trying: FolhaItem?, onDress: (List<FolhaItem>) -> Unit, onTry: (FolhaItem) -> Unit) {
+private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, progress: ProgressEngine.ProgressSummary, trying: FolhaItem?, onDress: (List<FolhaItem>) -> Unit, onTry: (FolhaItem) -> Unit, onTrySet: (List<FolhaItem>) -> Unit, tryingAll: Boolean) {
     val pieces = FolhaWardrobe.piecesOf(c)
     val reward = FolhaWardrobe.rewardOf(c) ?: return
     val have = pieces.count { FolhaWardrobe.unlocked(it, progress) }
@@ -417,6 +429,7 @@ private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, progress: 
             B { Text(c.name) }
             Span({ classes("wd-crow-n") }) { if (complete) Icon("check_circle", filled = true); Text("$have/${pieces.size}") }
             if (complete) Button({ type(ButtonType.Button); classes("wdg-btn", "small", "wd-crow-dress"); onClick { onDress(pieces + reward) } }) { Icon("checkroom"); Text("Vestir") }
+            else Button({ type(ButtonType.Button); classes(*listOfNotNull("wdg-btn", "ghost", "small", "wd-crow-dress", if (tryingAll) "on" else null).toTypedArray()); attr("title", "Ver o Folha com a coleção inteira"); onClick { onTrySet(pieces + reward) } }) { Icon("visibility"); Text(if (tryingAll) "Provando" else "Provar") }
         }
         P({ classes("wd-crow-desc"); attr("title", c.description) }) { Text(c.description) }
         Div({ classes("wd-crow-row") }) {

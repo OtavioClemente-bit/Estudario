@@ -231,6 +231,9 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
     var slot by remember { mutableStateOf(FolhaSlot.CHAPEU) }
     var showCollections by remember { mutableStateOf(false) }
     var trying by remember { mutableStateOf<FolhaItem?>(null) }
+    // a coleção inteira no palco (nome e peças), para ver como fica antes de ter
+    var tryingSet by remember { mutableStateOf<Pair<String, List<FolhaItem>>?>(null) }
+    LaunchedEffect(trying, slot, showCollections) { if (trying != null || !showCollections) tryingSet = null }
     var cheer by remember { mutableIntStateOf(0) }
     var mood by remember { mutableStateOf(FolhaMood.WAVE) }
     var testMood by remember { mutableStateOf<FolhaMood?>(null) }
@@ -304,11 +307,22 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                         Box(Modifier.padding(bottom = 16.dp, start = 30.dp)) {
                             Folha(
                                 128.dp, mood = testMood ?: if (t != null) (if (showcaseMood(t.slot) == FolhaMood.PRESENT) FolhaMood.PRESENT else FolhaMood.PROUD) else if (mood == FolhaMood.IDLE) showcaseMood(slot) else mood, onClick = {},
-                                style = FolhaStyle(pieces = t?.let { mapOf(it.slot.key to it.id) } ?: emptyMap(), noScene = true),
+                                style = FolhaStyle(pieces = (tryingSet?.second?.associate { it.slot.key to it.id } ?: emptyMap()) + (t?.let { mapOf(it.slot.key to it.id) } ?: emptyMap()), noScene = true),
                             )
                         }
                     }
-                    if (t != null) {
+                    val ts = tryingSet
+                    if (t == null && ts != null) {
+                        Column(
+                            Modifier.width(138.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x99100C30)).border(1.dp, GoldG.copy(alpha = 0.6f), RoundedCornerShape(16.dp)).padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text("PROVANDO A COLEÇÃO", color = GoldG, fontSize = 8.5.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                            Text(ts.first, color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp, textAlign = TextAlign.Center)
+                            Text("Com as peças e a recompensa.", color = GameMute, fontSize = 10.sp, textAlign = TextAlign.Center, lineHeight = 13.sp)
+                            Text("Voltar ao meu visual", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { tryingSet = null }.padding(2.dp))
+                        }
+                    } else if (t != null) {
                         val rc = rarityColor(t.rarity)
                         Column(
                             Modifier.width(138.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x99100C30)).border(1.dp, rc.copy(alpha = 0.6f), RoundedCornerShape(16.dp)).padding(8.dp),
@@ -352,7 +366,8 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                     item { Text("Toque numa peça para o Folha experimentar. Com as peças de uma coleção, a recompensa exclusiva é sua.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     items(FolhaWardrobe.collections, key = { "col-" + it.id }) { c ->
                         CollectionRow(c, summary, trying, onDress = { items -> FolhaWardrobePrefs.write(context, items); trying = null; cheer++ },
-                            onTry = { item -> trying = if (trying?.let { it.slot == item.slot && it.id == item.id } == true) null else item })
+                            onTry = { item -> trying = if (trying?.let { it.slot == item.slot && it.id == item.id } == true) null else item },
+                            onTrySet = { set -> trying = null; tryingSet = if (tryingSet?.first == c.name) null else c.name to set }, tryingAll = tryingSet?.first == c.name)
                     }
                 }
             } else {
@@ -476,7 +491,7 @@ private fun AutoDetail(icon: ImageVector, title: String, text: String) {
  * experimentar no palco, que fica à vista). Completa, veste o conjunto inteiro num toque.
  */
 @Composable
-private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, summary: ProgressEngine.ProgressSummary, trying: FolhaItem?, onDress: (List<FolhaItem>) -> Unit, onTry: (FolhaItem) -> Unit) {
+private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, summary: ProgressEngine.ProgressSummary, trying: FolhaItem?, onDress: (List<FolhaItem>) -> Unit, onTry: (FolhaItem) -> Unit, onTrySet: (List<FolhaItem>) -> Unit, tryingAll: Boolean) {
     val pieces = FolhaWardrobe.piecesOf(c)
     val reward = FolhaWardrobe.rewardOf(c) ?: return
     val have = pieces.count { FolhaWardrobe.unlocked(it, summary) }
@@ -494,6 +509,8 @@ private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, summary: P
             Spacer(Modifier.weight(1f))
             if (complete) Text("Vestir", color = Color(0xFF1D1670), fontWeight = FontWeight.Black, fontSize = 12.sp,
                 modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFFFFB421)).clickable { onDress(pieces + reward) }.padding(horizontal = 12.dp, vertical = 5.dp))
+            else Text(if (tryingAll) "Provando" else "Provar", color = if (tryingAll) Color(0xFF0F3B2B) else Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp,
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (tryingAll) Mint else Color.White.copy(alpha = 0.1f)).border(1.dp, GameLine, RoundedCornerShape(10.dp)).clickable { onTrySet(pieces + reward) }.padding(horizontal = 12.dp, vertical = 5.dp))
         }
         Text(c.description, color = GameMute, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {

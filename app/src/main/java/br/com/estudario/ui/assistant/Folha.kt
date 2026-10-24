@@ -1020,7 +1020,6 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
             drawCircle(Brush.radialGradient(listOf(Ink.copy(alpha = 0.30f * clamp(1f - lift / 6f, 0.3f, 1f)), Color.Transparent), center = Offset(50f, 95f), radius = 26f), 26f, Offset(50f, 95f))
         }
         drawFloorAura(t, f.look.aura, small)
-        drawPet(t, f.look.pet, mood, small, f.burst)
         translate(0f, p.hop) {
             scale(squashX / sqrt(stretch), squashY * stretch, pivot = Offset(50f, 88f)) {
                 rotate(p.tilt, pivot = Offset(50f, 80f)) {
@@ -1060,6 +1059,8 @@ private fun DrawScope.drawFolha(f: FolhaFrame) {
             }
         }
         val look = f.look
+        // o companheiro na frente de tudo o que fica atrás do Folha (mochila, manto, toga...)
+        drawPet(t, f.look.pet, mood, small, f.burst)
         if (!small && look.morning && mood in MUG_MOODS) drawMug(t)
         if (!small && look.night && mood in MOON_MOODS) drawMoon(t)
         when (mood) {
