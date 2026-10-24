@@ -35,6 +35,14 @@ object LibraryGaps {
     /** A conta estava no Grátis na última consulta: o plano segue as regras dele (PlannerSnapshotBuilder.Input.freeRules). */
     fun free(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(FREE, false)
 
+    /** Plano pago já confirmado pelo servidor. Sem resposta ainda, não é: as escolhas dos pagos ficam escondidas. */
+    fun knownPaid(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).let { it.contains(FREE) && !it.getBoolean(FREE, true) }
+
+    fun rememberTier(context: Context, planTier: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(FREE, planTier == "FREE").apply()
+    }
+
     /** Pergunta ao servidor o que está pronto. Sem conta ou sem resposta, fica a lista de antes. */
     suspend fun refresh(app: EstudarioApplication): Set<Long> {
         val summary = (app.aiPlanRepository.load() as? AiPlanLoadResult.Available)?.summary ?: return excluded(app)

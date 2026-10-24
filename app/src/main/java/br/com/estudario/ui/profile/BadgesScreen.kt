@@ -290,8 +290,11 @@ private fun MedalDetailDialog(item: BadgeProgress, all: List<BadgeProgress>, onP
 
 /** A luz atrás da medalha conquistada: brilho na cor do nível e raios girando devagar. */
 @Composable
-private fun MedalGlow(tier: Int) {
-    val c = tierColor(tier)
+private fun MedalGlow(tier: Int) = RaysGlow(tierColor(tier))
+
+/** Brilho com raios girando devagar, na cor dada (medalhas e o selo do nível no Perfil). */
+@Composable
+internal fun RaysGlow(c: Color) {
     val turn by rememberInfiniteTransition(label = "raios").animateFloat(0f, 360f, infiniteRepeatable(tween(40_000, easing = LinearEasing)), label = "giro")
     Canvas(Modifier.fillMaxSize()) {
         val ctr = center; val r = size.minDimension / 2

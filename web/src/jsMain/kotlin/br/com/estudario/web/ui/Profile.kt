@@ -121,7 +121,7 @@ fun ProfileScreen() {
     // ---- o cabeçalho: avatar no anel do nível, nome, progresso e o Folha comentando
     Div({ classes("pf-hero", "rise") }) {
         Div({ classes("pf-id") }) {
-            Div({ classes("pf-avatar"); attr("style", "--p:${(progress.levelProgress * 100).toInt()}"); attr("title", "${(progress.levelProgress * 100).toInt()}% do nível ${progress.level}") }) {
+            Div({ classes("pf-avatar"); attr("style", "--p:${(progress.levelProgress * 100).toInt()};--ray:${levelRay(progress.level)}"); attr("title", "${(progress.levelProgress * 100).toInt()}% do nível ${progress.level}") }) {
                 Span({ classes("pf-photo") }) {
                     val photo = session?.avatarUrl
                     if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
@@ -143,7 +143,7 @@ fun ProfileScreen() {
 
     // ---- os números do caminho
     Div({ classes("pf-kpis") }) {
-        Kpi("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia seguido" else "dias seguidos", "Recorde: ${streak.best}")
+        Kpi("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia seguido" else "dias seguidos", "Recorde: ${streak.best}", extra = if (streak.current > 0) "fire" else null)
         Kpi("bolt", "#8B7CFF", "${progress.totalXp}", "XP no total", if (progress.xpToday > 0) "+${progress.xpToday} hoje" else "${progress.xpThisWeek} XP esta semana", good = progress.xpToday > 0)
         Kpi("military_tech", "#F5B83D", "${progress.earnedBadges.size}", "de ${progress.badges.size} emblemas", progress.nextBadges.firstOrNull()?.let { "Próximo: ${it.badge.name}" } ?: "Coleção completa")
         A(href = "#/${Route.Stats.path}", { classes("pf-kpi", "goal") }) {
@@ -243,10 +243,15 @@ fun ProfileScreen() {
     }
 }
 
+/** A cor dos raios do nível, no metal da faixa: bronze até o 9, prata, ouro, safira, rubi e esmeralda no 50. */
+private fun levelRay(level: Int) = when ((level / 10).coerceIn(0, 5)) {
+    0 -> "#E8925A"; 1 -> "#CFD8E3"; 2 -> "#FFC94D"; 3 -> "#6F9BFF"; 4 -> "#FF5A7A"; else -> "#2FD39A"
+}
+
 /** Um número do perfil com o ícone colorido e uma linha de contexto. */
 @Composable
-private fun Kpi(icon: String, color: String, value: String, label: String, sub: String, good: Boolean = false) {
-    Div({ classes("pf-kpi"); attr("style", "--k:$color") }) {
+private fun Kpi(icon: String, color: String, value: String, label: String, sub: String, good: Boolean = false, extra: String? = null) {
+    Div({ classes(*listOfNotNull("pf-kpi", extra).toTypedArray()); attr("style", "--k:$color") }) {
         Span({ classes("pf-kpi-ic") }) { Icon(icon, filled = true) }
         Div({ classes("grow"); attr("style", "min-width:0") }) {
             Div({ classes("pf-kpi-value") }) { B { Text(value) }; Span { Text(label) } }

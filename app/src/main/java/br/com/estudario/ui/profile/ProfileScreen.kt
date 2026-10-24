@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material3.*
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
@@ -269,10 +270,14 @@ private fun ProfileContent(
                         ),
                     ).padding(vertical = EstudarioSpacing.large, horizontal = EstudarioSpacing.medium),
                 ) {
-                    ProfileHeader(profile, progress?.level, progress?.levelTitle, onEditName, onChangePhoto, onRemovePhoto)
+                    ProfileHeader(profile, progress, onEditName, onChangePhoto, onRemovePhoto)
                 }
             }
             item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
+            if (progress != null && streak != null) {
+                item { ProfileKpis(progress, streak, onBadges) }
+                item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
+            }
 
             item {
                 val current = progress
@@ -365,15 +370,14 @@ private fun Divider() {
 @Composable
 private fun ProfileHeader(
     profile: UserProfile,
-    level: Int?,
-    levelTitle: String?,
+    progress: ProgressEngine.ProgressSummary?,
     onEditName: () -> Unit,
     onChangePhoto: () -> Unit,
     onRemovePhoto: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
         Box(contentAlignment = Alignment.BottomEnd) {
-            ProfileAvatar(profile.photoPath, profile.initials, 108.dp, ring = true)
+            LevelAvatar(progress, 108.dp) { ProfileAvatar(profile.photoPath, profile.initials, 108.dp) }
             Box(
                 Modifier
                     .size(34.dp)
@@ -387,6 +391,11 @@ private fun ProfileHeader(
             Text(profile.displayName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
             IconButton(onClick = onEditName, modifier = Modifier.size(28.dp)) { Icon(Icons.Outlined.Edit, "Editar nome", Modifier.size(17.dp)) }
         }
+        if (progress != null) Text(
+            "NÍVEL ${progress.level} · ${progress.levelTitle.uppercase()}",
+            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary, letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
+        )
         Text(
             if (profile.signedIn) profile.email else "Sem conta, o progresso fica só neste celular.",
             style = MaterialTheme.typography.bodySmall,
@@ -416,30 +425,9 @@ private fun LevelBand(summary: ProgressEngine.ProgressSummary) {
     val proximo = ProgressEngine.nextTitle(summary.level)
     Band {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // O selo do nível: hexágono com o número, no gradiente da marca.
-            Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
-                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                    val r = size.minDimension / 2
-                    val c = center
-                    fun hex(radius: Float) = androidx.compose.ui.graphics.Path().apply {
-                        repeat(6) { i ->
-                            val a = Math.toRadians(-90.0 + i * 60.0)
-                            val x = c.x + radius * kotlin.math.cos(a).toFloat()
-                            val y = c.y + radius * kotlin.math.sin(a).toFloat()
-                            if (i == 0) moveTo(x, y) else lineTo(x, y)
-                        }
-                        close()
-                    }
-                    drawPath(hex(r), androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color(0xFF8B6CFF).copy(alpha = 0.55f), Color.Transparent), c, r))
-                    drawPath(hex(r * 0.86f), androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF5B3FD6), Color(0xFF0E9F7A)), Offset(0f, 0f), Offset(size.width, size.height)))
-                    drawPath(hex(r * 0.86f), Color(0xFFE6DCFF).copy(alpha = 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("NÍVEL", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
-                    Text("${summary.level}", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
-                }
-            }
-            Spacer(Modifier.width(EstudarioSpacing.medium))
+            // O selo do nível: hexágono no metal da faixa (bronze, prata, ouro...), com os raios das medalhas.
+            LevelSeal(summary.level, 104.dp)
+            Spacer(Modifier.width(EstudarioSpacing.small))
             Column(Modifier.weight(1f)) {
                 Text(summary.levelTitle, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 Text("${"%,d".format(summary.totalXp).replace(',', '.')} XP no total", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -524,8 +512,10 @@ private fun StreakBand(summary: StreakSummary) {
         Text("SEQUÊNCIA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(EstudarioSpacing.tight))
         Row(verticalAlignment = Alignment.CenterVertically) {
+            StreakFlame(lit = summary.current > 0, size = 72.dp)
+            Spacer(Modifier.width(EstudarioSpacing.small))
             Column {
-                Text("${summary.current}", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onSurface)
+                Text("${summary.current}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = if (summary.current > 0) Color(0xFFFF8A3D) else MaterialTheme.colorScheme.onSurface)
                 Text(
                     if (summary.current == 1) "dia de sequência" else "dias de sequência",
                     style = MaterialTheme.typography.bodyMedium,
@@ -540,7 +530,7 @@ private fun StreakBand(summary: StreakSummary) {
         }
         Spacer(Modifier.height(EstudarioSpacing.comfortable))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            summary.week.forEach { day -> WeekDot(if (day.protected) day.copy(done = true) else day, colors.completed) }
+            summary.week.forEach { day -> WeekDot(if (day.protected) day.copy(done = true) else day, Color(0xFFFF7A2F)) }
         }
         Spacer(Modifier.height(EstudarioSpacing.tight))
         // Marca-página do Folha: a cada 7 dias seguidos ele guarda um (até 2) e salva um dia sem estudo.
@@ -589,7 +579,7 @@ private fun WeekDot(day: StreakDay, completedColor: Color) {
             Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(if (day.done) completedColor else if (day.future) Color.Transparent else idle)
+                .background(if (day.done) androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFFFFB347), completedColor)) else androidx.compose.ui.graphics.SolidColor(if (day.future) Color.Transparent else idle))
                 .then(
                     when {
                         day.partial -> Modifier.border(2.5.dp, completedColor, CircleShape)
@@ -600,7 +590,7 @@ private fun WeekDot(day: StreakDay, completedColor: Color) {
             contentAlignment = Alignment.Center,
         ) {
             when {
-                day.done -> Icon(Icons.Rounded.Check, null, Modifier.size(16.dp), tint = Color.White)
+                day.done -> Icon(Icons.Rounded.LocalFireDepartment, null, Modifier.size(18.dp), tint = Color.White)
                 day.partial -> Box(Modifier.size(8.dp).clip(CircleShape).background(completedColor))
             }
         }
