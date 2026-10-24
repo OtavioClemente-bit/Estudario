@@ -224,7 +224,7 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     TOPIC_BATCH_LIMIT: "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais.",
     PLAN_FEATURE_LOCKED: "No plano grátis, o simulado é só o diagnóstico. Assine para montar outros simulados.",
     FREE_PLAN_DAY_LIMIT: "As matérias do plano de hoje já saíram. Amanhã tem mais, ou adiante um dia.",
-    FREE_EXTRA_LIMIT: "As 10 matérias fora do plano deste mês já foram usadas. Assine para estudar qualquer matéria.",
+    FREE_EXTRA_LIMIT: "No Grátis você estuda as matérias do seu plano. Para estudar qualquer matéria do edital, assine o Essencial.",
     FREE_ADVANCE_NEEDS_AD: "Para adiantar mais um dia no plano grátis, assista a um anúncio (ou assine para adiantar à vontade).",
     DEVICE_QUOTA_EXHAUSTED: "The free allowance of this device has been used",
     DEVICE_REQUIRED: "Device identification is required",

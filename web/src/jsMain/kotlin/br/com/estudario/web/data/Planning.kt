@@ -158,6 +158,8 @@ object Planning {
                 zone = Queries.zone,
                 // No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps).
                 excludedTopicIds = LibraryGaps.excluded(),
+                // Grátis: até 3 matérias novas por dia e o dia de hoje não muda ao replanejar.
+                freeRules = LibraryGaps.free(),
             )
 
     /** StudyPlanApplicationService.replan + applyProposal. */

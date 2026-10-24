@@ -15,9 +15,8 @@ Deno.test("dia do plano: até 3 por dia, sem gastar as extras", () => {
   assertEquals(decideFreeContent("PLAN_DAY", { ...none, planDayToday: 3 }), { ok: false, code: "FREE_PLAN_DAY_LIMIT" });
 });
 
-Deno.test("extras: 10 por mês", () => {
-  assertEquals(decideFreeContent("EXTRA", { ...none, extrasMonth: 9 }).ok, true);
-  assertEquals(decideFreeContent("EXTRA", { ...none, extrasMonth: 10 }), { ok: false, code: "FREE_EXTRA_LIMIT" });
+Deno.test("fora do plano não é do Grátis", () => {
+  assertEquals(decideFreeContent("EXTRA", none), { ok: false, code: "FREE_EXTRA_LIMIT" });
 });
 
 Deno.test("adiantar: crédito de anúncio, senão 1 por semana", () => {

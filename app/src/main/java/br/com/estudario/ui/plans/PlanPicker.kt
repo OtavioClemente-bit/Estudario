@@ -93,7 +93,7 @@ internal data class TierLook(val color: Color, val deep: Color, val accent: Colo
 internal fun tierLook(tier: String): TierLook = when (tier) {
     "PRO" -> TierLook(Color(0xFF7C3AED), Color(0xFF4C1D95), Color(0xFFF5B83D), Glyph.Gem, "Reta final? O Pro tem folga para gerar tudo o que você precisar, sem contar material.")
     "ESSENCIAL" -> TierLook(Color(0xFF4F46E5), Color(0xFF2E2799), Color(0xFF22C59A), Glyph.Star, "O Essencial dá conta de um tópico novo por dia, com questões e simulados todo mês.")
-    else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? No Grátis, a matéria do seu plano de hoje é sempre livre, pronta da biblioteca, e você ainda estuda 10 matérias extras por mês.")
+    else -> TierLook(Color(0xFF16A37F), Color(0xFF0B6B53), Color(0xFFF5B83D), Glyph.Books, "Começando? No Grátis, a matéria do seu plano de hoje é sempre livre, pronta da biblioteca, e você adianta as próximas com um anúncio curto.")
 }
 
 /** Ordem do carrossel: do grátis ao mais completo. */
@@ -337,7 +337,8 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         // Em todos: a matéria do plano de hoje não gasta nada. No Grátis, as regras dele em texto.
         RuleRow("Matéria do plano de hoje", "livre", tone)
         RuleRow("Adiantar o plano", if (free) "com anúncio curto" else "livre", tone)
-        if (free) RuleRow("Matérias fora do plano", "10 por mês", tone)
+        RuleRow("Matérias novas por dia", if (free) "até 3" else "no seu ritmo", tone)
+        RuleRow("Matérias fora do plano", if (free) "nos planos pagos" else "pelo saldo do mês", tone)
         RuleRow("Tópico novo, ainda sem matéria", if (free) "a equipe prepara" else "pronto na hora", tone)
         // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
         // Grátis é só o teto interno; as regras dele estão acima).

@@ -17,6 +17,7 @@ import kotlinx.serialization.json.put
  */
 object LibraryGaps {
     private const val KEY = "estudario.lacunas"
+    private const val FREE = "estudario.gratis"
     private const val PATH = "/functions/v1/library-ready"
 
     fun excluded(): Set<Long> =
@@ -24,9 +25,13 @@ object LibraryGaps {
 
     private fun save(ids: Set<Long>) { runCatching { localStorage.setItem(KEY, ids.joinToString(",")) } }
 
+    /** A conta estava no Grátis na última consulta: o plano segue as regras dele (PlannerSnapshotBuilder.Input.freeRules). */
+    fun free(): Boolean = runCatching { localStorage.getItem(FREE) }.getOrNull() == "1"
+
     /** [free]: a conta está no Grátis (null quando não deu para saber: fica a lista de antes). */
     suspend fun refresh(data: Snapshot, free: Boolean?) {
         if (free == null) return
+        runCatching { localStorage.setItem(FREE, if (free) "1" else "0") }
         if (!free) { save(emptySet()); return }
         val token = Auth.accessToken() ?: return
         val withTheory = data.theories.mapTo(hashSetOf()) { it.topicId }

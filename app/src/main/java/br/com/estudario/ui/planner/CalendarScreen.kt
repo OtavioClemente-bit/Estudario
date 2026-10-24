@@ -249,6 +249,23 @@ private fun DayPlanView(
                     isOverdue = false
                 )
             }
+            // Hoje feito: o próximo dia aparece logo abaixo, com "Adiantar" em cada matéria.
+            val todayDone = selectedDate == state.today && tasksForSelectedDate.none { it.entity.status == PlanTaskStatus.PLANEJADA || it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
+            if (todayDone && state.nextStudyDay != null && state.nextDayTasks.isNotEmpty()) {
+                item {
+                    androidx.compose.foundation.layout.Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Dia concluído! Quer adiantar?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Estas são as matérias de ${dayLabelPtBr(state.nextStudyDay!!, state.today)}. Adiantando agora, o plano segue daqui.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                items(state.nextDayTasks.theoryFirst(), key = { "advance_${it.entity.id}" }) { taskUi ->
+                    MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) }, isOverdue = false)
+                }
+            }
         }
 
     }

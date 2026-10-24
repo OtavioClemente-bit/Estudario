@@ -287,6 +287,17 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     val application = context.applicationContext as EstudarioApplication
 
     if (subject == null || competition == null) { LaunchedEffect(Unit) { onDismiss() }; return }
+    // Grátis: só as matérias do plano (as de hoje e as que adianta). Fora dele, nem o assistente
+    // abre: aparece a oferta explicando o que o Grátis faz e o que os planos liberam. O servidor
+    // confere de novo (FREE_EXTRA_LIMIT).
+    val freeOutsidePlan = remember(initialTopicIds) {
+        br.com.estudario.data.planner.LibraryGaps.free(context) &&
+            (initialTopicIds?.singleOrNull()?.let(viewModel::contentPurposeFor) ?: "EXTRA") == "EXTRA"
+    }
+    if (freeOutsidePlan) {
+        br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.EXTRAS, onDismiss = onDismiss)
+        return
+    }
     val selectedIds = selected.toSet()
     val prompt = remember(options, selectedIds, topics, subject, competition) {
         // O órgão decide qual estatuto/lei vale; em vez de perguntar, usa o próprio concurso.
@@ -405,7 +416,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         server = ServerGenerationOption(
-            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. A matéria do plano de hoje não gasta nada; fora do plano, usa 1 do seu saldo.",
+            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. As matérias do seu plano (de hoje e adiantadas) não gastam nada; fora do plano, usa 1 do seu saldo.",
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
                 singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."

@@ -151,7 +151,11 @@ class EstudarioApplication : Application() {
         preferences = AppPreferences(this)
         planRepository = StudyPlanRepository(database)
         calendarSyncService = br.com.estudario.data.planner.CalendarSyncService(this)
-        planService = StudyPlanApplicationService(database, StudyPlannerEngine(), calendarSyncService) { br.com.estudario.data.planner.LibraryGaps.excluded(this) }
+        planService = StudyPlanApplicationService(
+            database, StudyPlannerEngine(), calendarSyncService,
+            excludedTopics = { br.com.estudario.data.planner.LibraryGaps.excluded(this) },
+            freeRules = { br.com.estudario.data.planner.LibraryGaps.free(this) },
+        )
         executionService = StudyExecutionService(database, planService)
         planTransferService = StudyPlanTransferService(database)
         aiSyllabusRepository

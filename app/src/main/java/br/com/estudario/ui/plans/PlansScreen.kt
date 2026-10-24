@@ -225,7 +225,7 @@ fun PlansDialog(onDismiss: () -> Unit, onSignIn: (() -> Unit)? = null) {
                                 onYearly = { yearly = it },
                                 onSelected = { selectedTier = it },
                             )
-                            current.summary.freeAllowance?.let { FreeSection(it, onAdvanced = { reload++ }) }
+                            current.summary.freeAllowance?.let { FreeSection(it) }
                             UsageSection(current.summary.usage.filter { current.summary.freeAllowance == null || it.feature != "CONTENT_GENERATION" })
                             EveryPlanHas()
                         }
@@ -394,21 +394,21 @@ private fun Notice(title: String, body: String, actionLabel: String?, onAction: 
     }
 }
 
-/** Grátis: as regras de matéria à vista (dia do plano, extras, adiantar com anúncio). */
+/**
+ * Grátis: as regras de matéria à vista (plano de hoje e adiantar). O anúncio não fica aqui: ele só
+ * aparece quando a pessoa tenta adiantar uma matéria do plano.
+ */
 @Composable
-private fun FreeSection(free: br.com.estudario.data.ai.AiFreeAllowance, onAdvanced: () -> Unit) {
+private fun FreeSection(free: br.com.estudario.data.ai.AiFreeAllowance) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SectionTitle("Seu Grátis", "As matérias saem prontas da biblioteca do Estudário, conferidas pela equipe.")
         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Column(Modifier.padding(vertical = 8.dp)) {
                 FreeRow(Icons.Outlined.EventRepeat, "Matéria do plano de hoje", "livre todo dia", "${free.planDay.used}", "de ${free.planDay.limit} hoje")
                 Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                FreeRow(Icons.Outlined.MenuBook, "Matérias fora do plano", "qualquer do edital, neste mês", "${free.extras.left}", "de ${free.extras.limit}")
-                Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                FreeRow(Icons.Outlined.OndemandVideo, "Adiantar com anúncio", "2 por dia, 10 por mês", "${free.adAdvances.today}", "de ${free.adAdvances.dailyLimit} hoje")
+                FreeRow(Icons.Outlined.OndemandVideo, "Adiantar o plano", "no plano, toque em Adiantar: um anúncio curto libera (2 por dia, 10 por mês)", "${free.adAdvances.today}", "de ${free.adAdvances.dailyLimit} hoje")
             }
         }
-        if (free.adAdvances.enabled) RewardedAdvanceCard(free.adAdvances, onCredit = onAdvanced)
     }
 }
 

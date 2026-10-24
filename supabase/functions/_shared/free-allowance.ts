@@ -5,8 +5,8 @@
 //   PLAN_DAY  a matéria do plano de hoje: até PLAN_DAY_PER_DAY por dia, sem gastar as extras;
 //   ADVANCE   adiantar o próximo dia do plano: um crédito de anúncio confirmado pelo Google
 //             (ad-reward-ssv, até 2 por dia e 10 por mês) ou, sem anúncio, 1 por semana;
-//   EXTRA     qualquer outra matéria do edital: até EXTRAS_PER_MONTH por mês.
-// App antigo não manda o motivo: vale como EXTRA (o mesmo limite de 10 de antes).
+//   EXTRA     qualquer outra matéria do edital: não é do Grátis (extrasPerMonth 0); o app mostra
+//             os planos. App antigo não manda o motivo: vale como EXTRA.
 // O plano de estudo mora no aparelho, então o servidor não confere se o tópico é mesmo "do dia";
 // por isso o teto diário: quem burlar o app ganha no máximo isso, e só matéria pronta (custo zero).
 
@@ -14,7 +14,8 @@ export type ContentPurpose = "PLAN_DAY" | "ADVANCE" | "EXTRA";
 
 export const FREE_RULES = {
   planDayPerDay: 3,
-  extrasPerMonth: 10,
+  /** Matéria fora do plano é dos planos pagos: o Grátis estuda o plano dele (e adianta). */
+  extrasPerMonth: 0,
   adAdvancesPerDay: 2,
   adAdvancesPerMonth: 10,
   freeAdvancesPerWeek: 1,

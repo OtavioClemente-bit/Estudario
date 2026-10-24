@@ -150,6 +150,13 @@ data class PlannerPolicy(
     val weaknessThresholdPercent: Int = 65,
     val weaknessMinimumSample: Int = 10,
     val weaknessWeeklyCapMinutes: Int = 90,
+    /**
+     * Teto de tópicos com teoria (matéria nova) por dia; null = sem teto. No Grátis, mais horas no
+     * dia não viram mais matérias: o tempo que sobra vai para questões e revisões.
+     */
+    val maxTheoryTopicsPerDay: Int? = null,
+    /** O dia de hoje fica como está ao replanejar (Grátis): mudar edital ou horas não troca a matéria do dia. */
+    val keepTodayTasks: Boolean = false,
 ) {
     init {
         require(version > 0)

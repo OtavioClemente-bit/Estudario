@@ -163,6 +163,17 @@ fun PlanScreen() {
                 Div({ classes("stack") }) {
                     dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task) { completing = task } } }
                 }
+                // Hoje feito: o próximo dia aparece logo abaixo, com "Adiantar" em cada matéria.
+                val next = planTasks.filter { it.day > todayEpoch && it.status == "PLANEJADA" }.minOfOrNull { it.day }
+                if (dayOffset == 0 && next != null && dayTasks.none { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }) {
+                    Div({ classes("advance-head") }) {
+                        org.jetbrains.compose.web.dom.H3 { Text("Dia concluído! Quer adiantar?") }
+                        P({ classes("small", "muted") }) { Text("Estas são as matérias de ${dayTitle(next, todayEpoch).lowercase()}. Adiantando agora, o plano segue daqui.") }
+                    }
+                    Div({ classes("stack") }) {
+                        Queries.tasksOn(data, plan.id, next).forEach { task -> androidx.compose.runtime.key("adiantar-" + task.id) { TaskRow(task) { completing = task } } }
+                    }
+                }
             }
         }
         PlanView.WEEK -> {

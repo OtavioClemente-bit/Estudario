@@ -70,7 +70,7 @@ object AiJobs {
         "TOPIC_BATCH_LIMIT" -> "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais: o lote extra é do seu plano pago."
         "PLAN_FEATURE_LOCKED" -> "Este recurso é dos planos Essencial e Pro. No Grátis, o simulado é só o diagnóstico."
         "PLAN_AI_MATERIAL_LIMIT" -> "Esta matéria está em produção pela nossa equipe."
-        "FREE_EXTRA_LIMIT" -> "As 10 matérias fora do plano deste mês já foram usadas."
+        "FREE_EXTRA_LIMIT" -> "No Grátis você estuda as matérias do seu plano."
         "FREE_ADVANCE_NEEDS_AD" -> "No site, você adianta 1 matéria do plano por semana. No app, um anúncio curto adianta até 2 por dia."
         "FREE_PLAN_DAY_LIMIT" -> "As matérias do plano de hoje já saíram. Amanhã tem mais."
         "DEVICE_QUOTA_EXHAUSTED" -> "O saldo grátis já foi usado neste navegador ou nesta rede."

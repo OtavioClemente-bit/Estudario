@@ -616,7 +616,8 @@ private fun comparisonGroups(info: PlanInfo): List<Pair<String, List<Compare>>> 
         "Estudar todo dia" to listOf(
             Compare("Matéria do plano de hoje", "Teoria, resumo, flashcards e questões do que o seu plano marcou para hoje.") { "Livre" },
             Compare("Adiantar o plano", "Estudar hoje a matéria de amanhã.") { if (it == "FREE") "Com anúncio curto" else "Livre" },
-            Compare("Matérias fora do plano", "Qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") perMonth(10) else perMonth(quota(it, "CONTENT_GENERATION")) },
+            Compare("Matérias novas por dia", "Quantas matérias novas o plano traz em cada dia.") { if (it == "FREE") "Até 3" else "No seu ritmo" },
+            Compare("Matérias fora do plano", "Qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") "—" else perMonth(quota(it, "CONTENT_GENERATION")) },
             Compare("Tópico novo, ainda sem matéria", "Algum assunto bem específico do seu edital que a biblioteca ainda não tem.") { if (it == "FREE") "A equipe prepara" else "Pronto na hora" },
         ),
         "Treinar" to listOf(
@@ -645,7 +646,7 @@ private val everyPlan = listOf(
 private val faq = listOf(
     "Como eu assino?" to "Pelo app do Estudário no celular, com a Google Play. O plano vale na hora na sua conta, no app e aqui no site.",
     "Posso cancelar quando quiser?" to "Sim. A assinatura é da Google Play e você cancela por lá, sem multa. O plano continua até o fim do período pago.",
-    "O que é matéria fora do plano?" to "O plano marca o que estudar em cada dia. Fora do plano é qualquer outro tópico do seu edital que você queira estudar antes, na hora que quiser.",
+    "O que é matéria fora do plano?" to "O plano marca o que estudar em cada dia. Fora do plano é qualquer outro tópico do seu edital que você queira estudar antes, na hora que quiser: isso é do Essencial e do Pro. No Grátis, você estuda o que o plano traz e pode adiantar as próximas.",
     "E se um tópico ainda não tiver matéria?" to "No Grátis, a nossa equipe prepara e ele entra no seu plano assim que fica pronto. No Essencial e no Pro, a matéria fica pronta na hora.",
     "O que acontece com o que eu já estudei se eu mudar de plano?" to "Nada se perde: matérias, questões, revisões e o seu histórico continuam iguais em qualquer plano.",
 )
@@ -706,7 +707,6 @@ fun PlanLimitsScreen() {
         val free = current.free
         if (free != null) {
             UsageCard("today", "Matéria do plano de hoje", "Livre", "${free.planDayUsed} estudada${if (free.planDayUsed == 1) "" else "s"} hoje", null, "green")
-            UsageCard("menu_book", "Matérias fora do plano", "${(free.extrasLimit - free.extrasUsed).coerceAtLeast(0)}", "de ${free.extrasLimit} restantes no mês", (free.extrasLimit - free.extrasUsed).coerceAtLeast(0).toDouble() / free.extrasLimit.coerceAtLeast(1), null)
             UsageCard("fast_forward", "Adiantar o plano", if (free.weeklyUsed < free.weeklyLimit) "1" else "0", "livre nesta semana · no app, mais 2 por dia com anúncio curto", null, null)
         } else {
             UsageCard("today", "Plano de hoje e adiantar", "Livre", "estude e adiante o seu plano à vontade", null, "green")
@@ -757,7 +757,7 @@ fun PlanLimitsScreen() {
                     Span({ classes("pl-price-note") }) { Text(if (!paid) "Sem cartão, sem prazo" else if (yearly) "${brl(price!!.yearCents)} cobrados uma vez por ano" else "ou ${brl(price!!.yearCents)} por ano") }
                     Div({ classes("pl-highlights") }) {
                         val highlights = when (tier) {
-                            "FREE" -> listOf("Matéria do plano de hoje, todo dia", "10 matérias fora do plano por mês", "Adiantar com anúncio curto", "Simulado diagnóstico")
+                            "FREE" -> listOf("Matéria do plano de hoje, todo dia", "Até 3 matérias novas por dia", "Adiantar com anúncio curto", "Simulado diagnóstico")
                             else -> listOf("Plano de hoje e adiantar à vontade", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias fora do plano por mês", "Qualquer tópico do edital, pronto na hora", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês, sem anúncios")
                         }
                         highlights.forEach { h -> Div({ classes("pl-hl") }) { Icon("check_circle", filled = true); Span { Text(h) } } }

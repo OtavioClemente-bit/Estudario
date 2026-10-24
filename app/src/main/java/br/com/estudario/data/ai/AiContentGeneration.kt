@@ -36,8 +36,8 @@ sealed interface AiContentProgress {
 /** Saldo do plano esgotado: a tela reconhece esta frase e mostra a oferta de plano no lugar do erro. */
 const val QUOTA_ENDED_MESSAGE = "O saldo do seu plano para isto acabou neste mês."
 
-/** Grátis: as 10 matérias fora do plano do mês acabaram (a tela mostra a oferta). */
-const val FREE_EXTRAS_ENDED_MESSAGE = "As 10 matérias fora do plano deste mês já foram usadas."
+/** Grátis: matéria fora do plano é dos planos pagos (a tela mostra a oferta). */
+const val FREE_EXTRAS_ENDED_MESSAGE = "No Grátis você estuda as matérias do seu plano."
 /** Grátis: adiantar mais um dia pede um anúncio (a tela oferece o anúncio e os planos). */
 const val FREE_ADVANCE_AD_MESSAGE = "Para adiantar mais um dia, assista a um anúncio curto."
 /** Grátis: as matérias do plano de hoje já saíram. */

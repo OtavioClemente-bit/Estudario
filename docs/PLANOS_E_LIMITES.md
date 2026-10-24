@@ -32,9 +32,16 @@ Matérias do Grátis, conferidas na criação do pedido (`_shared/free-allowance
 |---|---|
 | `PLAN_DAY` matéria do plano de hoje | livre, até 3 por dia |
 | `ADVANCE` adiantar o próximo dia do plano | 1 crédito de anúncio confirmado pelo Google (até 2 por dia, 10 por mês) ou 1 por semana sem anúncio |
-| `EXTRA` qualquer outra matéria do edital (e app antigo, sem o campo) | 10 por mês |
+| `EXTRA` qualquer outra matéria do edital (e app antigo, sem o campo) | não é do Grátis (`FREE_EXTRA_LIMIT`); o app e o site nem abrem o assistente, mostram a oferta |
 
 A cota `CONTENT_GENERATION` do Grátis (120/mês) virou só o teto de segurança da soma.
+
+O plano do Grátis segue duas regras no motor (`PlannerSnapshotBuilder.Input.freeRules`, ligado por
+`LibraryGaps.free`): no máximo 3 tópicos com teoria por dia, por mais horas que a pessoa ponha (o
+resto do tempo vai para questões e revisões), e, se hoje já tem estudo, replanejar (trocar edital,
+horas ou matérias) não mexe no dia de hoje. O Grátis também não apaga plano. Adiantar é pelo botão
+**Adiantar** nas tarefas dos próximos dias (e na seção que aparece quando o dia termina); o anúncio
+só é oferecido nessa hora.
 
 Nos pagos, matéria do plano de hoje (`PLAN_DAY`) e adiantada (`ADVANCE`) que sai pronta da biblioteca devolve a cota (`ai_refund_plan_day_quota`): adiantar é livre e as 25/40 do mês ficam para o que é fora do plano.
 

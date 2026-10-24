@@ -72,9 +72,11 @@ class StudyPlanApplicationService(
     private val calendarSync: CalendarSyncService? = null,
     /** No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps). */
     excludedTopics: () -> Set<Long> = { emptySet() },
+    /** Conta no Grátis (LibraryGaps.free): teto de matérias por dia e hoje fixo ao replanejar. */
+    freeRules: () -> Boolean = { false },
 ) {
     private val planner = db.plannerDao()
-    private val snapshotFactory = StudyPlanSnapshotFactory(db, excludedTopics)
+    private val snapshotFactory = StudyPlanSnapshotFactory(db, excludedTopics, freeRules)
 
     /** Entradas do motor para a previsão (PlanProjection). */
     suspend fun plannerInput(planId: String): br.com.estudario.domain.planner.PlannerSnapshotBuilder.Input = snapshotFactory.input(planId)

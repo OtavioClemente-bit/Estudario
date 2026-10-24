@@ -17,6 +17,8 @@ class StudyPlanSnapshotFactory(
     private val db: AppDatabase,
     /** No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps). */
     private val excludedTopics: () -> Set<Long> = { emptySet() },
+    /** Conta no Grátis: até 3 matérias novas por dia e o dia de hoje não muda ao replanejar. */
+    private val freeRules: () -> Boolean = { false },
 ) {
     suspend fun create(planId: String, today: LocalDate = today()): StudyPlannerSnapshot = PlannerSnapshotBuilder.build(input(planId, today))
 
@@ -53,6 +55,7 @@ class StudyPlanSnapshotFactory(
                 today = today,
                 zone = TimeZone.currentSystemDefault(),
                 excludedTopicIds = excludedTopics(),
+                freeRules = freeRules(),
             )
     }
 }

@@ -110,6 +110,13 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     val title = if (questionsOnly) "Mais questões" else "Gerar material"
     val close = { if (progress is AiContent.Progress.Done || progress is AiContent.Progress.Failed) Generation.clear(topicId); onClose() }
 
+    // Grátis: só as matérias do plano (as de hoje e as que adianta). Fora dele, nem o assistente
+    // abre: aparece a oferta dos planos. O servidor confere de novo (FREE_EXTRA_LIMIT).
+    if (!questionsOnly && progress == null && br.com.estudario.web.data.LibraryGaps.free() && AiContent.purposeFor(Store.data, topicId) == "EXTRA") {
+        UpgradeModal(UpgradeReason.EXTRAS) { onClose() }
+        return
+    }
+
     // Janela em três partes: cabeçalho e rodapé fixos, o meio rola. Larga, com respiro nas bordas.
     Modal(onDismiss = close, wide = true, extraClass = "gen-modal") {
         when (val p = progress) {

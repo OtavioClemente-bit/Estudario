@@ -76,7 +76,12 @@ object PlannerSnapshotBuilder {
          * Tópico já estudado continua (revisões e questões dele seguem).
          */
         val excludedTopicIds: Set<Long> = emptySet(),
+        /** Regras do Grátis no plano: até FREE_TOPICS_PER_DAY matérias novas por dia e hoje não muda ao replanejar. */
+        val freeRules: Boolean = false,
     )
+
+    /** O mesmo teto diário do servidor para a matéria do plano no Grátis (free-allowance.ts, planDayPerDay). */
+    const val FREE_TOPICS_PER_DAY = 3
 
     fun build(input: Input): StudyPlannerSnapshot = with(input) {
         val config = plan.config
@@ -213,6 +218,8 @@ object PlannerSnapshotBuilder {
             // O rodízio já é decidido no blueprint; o que segura o dia é o teto diário escolhido.
             maxFlexibleSharePercent = 100,
             dailySubjectSharePercent = if (activeSubjectCount > 1) config.dailySubjectSharePercent else 100,
+            maxTheoryTopicsPerDay = FREE_TOPICS_PER_DAY.takeIf { freeRules },
+            keepTodayTasks = freeRules,
         )
 
         val blueprint = StudyPlanBlueprint.build(

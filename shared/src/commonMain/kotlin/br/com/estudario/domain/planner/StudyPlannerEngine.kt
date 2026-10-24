@@ -11,11 +11,17 @@ class StudyPlannerEngine(
     fun plan(snapshot: StudyPlannerSnapshot, reason: ReplanReason): PlanningProposal {
         val dates = (0 until snapshot.policy.horizonDays).map { snapshot.today.plusDays(it.toLong()) }
         val rawCapacity = dates.associateWith { date -> capacityFor(snapshot, date) }
+        // Grátis: se hoje já tem estudo, hoje fica como está (trocar edital, horas ou matérias não
+        // muda a matéria do dia); o replanejamento vale de amanhã em diante.
+        val keepToday = snapshot.policy.keepTodayTasks && reason != ReplanReason.INITIAL && snapshot.tasks.any {
+            it.date == snapshot.today && it.status !in terminalInactiveStatuses
+        }
         val fixedTasks = snapshot.tasks.filter { task ->
             task.status == PlanTaskStatus.CONCLUIDA ||
                 task.locked ||
                 snapshot.dayOverrides[task.date]?.locked == true ||
-                task.subjectId == null
+                task.subjectId == null ||
+                (keepToday && task.date == snapshot.today)
         }
         // Tarefa concluída continua ocupando o tempo do dia dela. Sem isso, cada conclusão "liberava"
         // o dia de novo e o replanejamento puxava as matérias de amanhã: o dia nunca terminava.
@@ -31,7 +37,7 @@ class StudyPlannerEngine(
             .groupBy { it.date }
             .mapValues { (_, tasks) -> tasks.sumOf { task -> minOf(task.plannedMinutes, executionsByTask[task.id].orEmpty().sumOf { it.minutes }) } }
         val allocatableByDate = rawCapacity.mapValues { (date, minutes) ->
-            if (snapshot.dayOverrides[date]?.locked == true) 0
+            if (snapshot.dayOverrides[date]?.locked == true || (keepToday && date == snapshot.today)) 0
             else (minutes - lockedUsage.getOrElse(date) { 0 } - partialUsage.getOrElse(date) { 0 }).coerceAtLeast(0)
         }
         val freeByDate = allocatableByDate.toMutableMap()
@@ -94,6 +100,16 @@ class StudyPlannerEngine(
 
         val usedBySubjectPerDate = mutableMapOf<Pair<LocalDate, Long>, Int>()
         val dailyShare = snapshot.policy.dailySubjectSharePercent
+        // Tópicos com teoria em cada dia (os que já ficam e os novos), para o teto de matérias por dia.
+        val topicCap = snapshot.policy.maxTheoryTopicsPerDay
+        val theoryTopicsByDate = mutableMapOf<LocalDate, MutableSet<Long>>()
+        fixedTasks.filter { it.type == PlanTaskType.THEORY && it.topicId != null && (it.status == PlanTaskStatus.CONCLUIDA || it.status !in terminalInactiveStatuses) }
+            .forEach { theoryTopicsByDate.getOrPut(it.date) { mutableSetOf() } += it.topicId!! }
+        fun topicFits(demand: TaskDemand, date: LocalDate): Boolean {
+            if (topicCap == null || demand.type != PlanTaskType.THEORY || demand.topicId == null) return true
+            val day = theoryTopicsByDate[date] ?: return true
+            return demand.topicId in day || day.size < topicCap
+        }
         // Teto por dia e por matéria: evita quatro horas seguidas da mesma coisa. Quando nenhum dia
         // aceita a matéria, a segunda passada roda sem o teto para não desperdiçar capacidade.
         fun dateFor(demand: TaskDemand, respectShare: Boolean): LocalDate? {
@@ -101,6 +117,7 @@ class StudyPlannerEngine(
             val window = if (from == null) dates else dates.filterNot { it.isBefore(from) }.ifEmpty { dates }
             return window.firstOrNull { date ->
                 if (freeByDate.getValue(date) <= 0) return@firstOrNull false
+                if (!topicFits(demand, date)) return@firstOrNull false
                 if (!respectShare || dailyShare >= 100) return@firstOrNull true
                 val capacity = rawCapacity.getValue(date)
                 val cap = (capacity * dailyShare / 100).coerceAtLeast(snapshot.policy.preferredBlockMinutes)
@@ -165,6 +182,7 @@ class StudyPlannerEngine(
                     )
                 }
                 freeByDate[date] = (free - chunk).coerceAtLeast(0)
+                if (demand.type == PlanTaskType.THEORY) demand.topicId?.let { theoryTopicsByDate.getOrPut(date) { mutableSetOf() } += it }
                 usedBySubjectPerDate[date to demand.subjectId] = usedBySubjectPerDate.getOrElse(date to demand.subjectId) { 0 } + chunk
                 remaining[demand.id] = minuteLeftBefore - chunk
                 remainingQuestions[demand.id] = questionLeft - chunkQuestions

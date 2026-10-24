@@ -22,6 +22,7 @@ import org.json.JSONObject
 object LibraryGaps {
     private const val PREFS = "biblioteca_lacunas"
     private const val KEY = "fora_do_plano"
+    private const val FREE = "gratis"
     private const val PATH = "/functions/v1/library-ready"
 
     fun excluded(context: Context): Set<Long> =
@@ -31,9 +32,13 @@ object LibraryGaps {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, ids.mapTo(hashSetOf()) { it.toString() }).apply()
     }
 
+    /** A conta estava no Grátis na última consulta: o plano segue as regras dele (PlannerSnapshotBuilder.Input.freeRules). */
+    fun free(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(FREE, false)
+
     /** Pergunta ao servidor o que está pronto. Sem conta ou sem resposta, fica a lista de antes. */
     suspend fun refresh(app: EstudarioApplication): Set<Long> {
         val summary = (app.aiPlanRepository.load() as? AiPlanLoadResult.Available)?.summary ?: return excluded(app)
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(FREE, summary.planTier == "FREE").apply()
         if (summary.planTier != "FREE") { save(app, emptySet()); return emptySet() }
         val token = app.supabaseAuthRepository.accessToken() ?: return excluded(app)
         val config = app.supabaseClientConfig

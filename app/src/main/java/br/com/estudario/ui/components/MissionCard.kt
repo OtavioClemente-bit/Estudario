@@ -53,6 +53,9 @@ fun MissionCard(
     // "Não realizada" também é pendente: antes caía no botão genérico, que dizia Reprogramar mas abria a tarefa.
     val pending = task.status == PlanTaskStatus.PLANEJADA || task.status == PlanTaskStatus.EM_ANDAMENTO || task.status == PlanTaskStatus.NAO_REALIZADA || task.status == PlanTaskStatus.REPROGRAMADA
     val isOverdue = pending && (isOverdue || task.scheduledEpochDay < java.time.LocalDate.now().toEpochDay())
+    // Tarefa de um dia que ainda vem: o botão é "Adiantar" (no Grátis, adiantar pede um anúncio curto,
+    // oferecido só quando a pessoa toca aqui).
+    val isFuture = pending && !isOverdue && task.scheduledEpochDay > java.time.LocalDate.now().toEpochDay()
     val statusColor = when (task.status) {
         PlanTaskStatus.CONCLUIDA -> Color(0xFF087F5B)
         PlanTaskStatus.EM_ANDAMENTO -> MaterialTheme.colorScheme.primary
@@ -229,7 +232,11 @@ fun MissionCard(
                         Button(
                             onClick = onStart,
                         ) {
-                            Text(completionActionPtBr(task.status))
+                            if (isFuture) {
+                                Icon(Icons.Outlined.FastForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Adiantar")
+                            } else Text(completionActionPtBr(task.status))
                         }
                         if (onSkip != null) {
                             TextButton(onClick = { onSkip.invoke() }) {
