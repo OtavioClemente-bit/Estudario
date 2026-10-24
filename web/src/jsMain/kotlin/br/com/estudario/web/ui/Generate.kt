@@ -86,9 +86,12 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     // Uma consulta só: o saldo do mês (medidor no topo) e o teto de questões ao criar a matéria.
     var quota by remember { mutableStateOf<Quota?>(null) }
     var free by remember { mutableStateOf<FreeInfo?>(null) }
+    // O saldo é conferido assim que a janela abre, antes do primeiro passo (ver o bloqueio abaixo).
+    var checked by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         free = freeAllowance()
         quota = quotaFor(if (questionsOnly) "QUESTION_BATCH" else "CONTENT_GENERATION")
+        checked = true
         if (!questionsOnly) quota?.maxPerRequest?.takeIf { it >= 1 }?.let { maxQuestions = it }
     }
     var upgradeSeen by remember { mutableStateOf(false) }
@@ -115,6 +118,29 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     if (!questionsOnly && progress == null && br.com.estudario.web.data.LibraryGaps.free() && AiContent.purposeFor(Store.data, topicId) == "EXTRA") {
         UpgradeModal(UpgradeReason.EXTRAS) { onClose() }
         return
+    }
+    // Saldo conferido antes do assistente: sem saldo, a oferta aparece no lugar dele, e não no fim
+    // dos passos. O servidor confere de novo ao criar o pedido.
+    if (progress == null) {
+        if (!checked) {
+            Modal(onDismiss = onClose) { CenterMessage { Folha("thinking", 64); Text("Conferindo o seu saldo…") } }
+            return
+        }
+        val f = free
+        val q = quota
+        val blocked = when {
+            questionsOnly -> UpgradeReason.QUESTIONS.takeIf { q != null && q.limit > 0 && q.remaining == 0 }
+            f != null -> when (AiContent.purposeFor(Store.data, topicId)) {
+                "PLAN_DAY" -> UpgradeReason.PLAN_DAY.takeIf { f.planDayUsed >= f.planDayLimit }
+                "ADVANCE" -> UpgradeReason.ADVANCE.takeIf { f.weeklyUsed >= f.weeklyLimit }
+                else -> UpgradeReason.EXTRAS
+            }
+            else -> UpgradeReason.CONTENT.takeIf { q != null && q.limit > 0 && q.remaining == 0 }
+        }
+        if (blocked != null) {
+            UpgradeModal(blocked) { onClose() }
+            return
+        }
     }
 
     // Janela em três partes: cabeçalho e rodapé fixos, o meio rola. Larga, com respiro nas bordas.

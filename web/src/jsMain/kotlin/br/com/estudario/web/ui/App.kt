@@ -134,6 +134,7 @@ fun App() {
     }
     if (Store.load == LoadState.Ready) GenerationBanner()
     if (Store.load == LoadState.Ready) ReprogramHost()
+    if (Store.load == LoadState.Ready) AdvanceGenerateHost()
     CelebrationHost()
     GenerationPreview()
     ReportHost()

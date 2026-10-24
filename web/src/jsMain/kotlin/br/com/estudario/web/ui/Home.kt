@@ -551,7 +551,7 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
                 if (done) Span({ classes("done-pill") }) { Icon("check_circle"); Text("Concluída") }
                 else if (task.status != "NAO_REALIZADA") {
                     // Tarefa de um dia que ainda vem: "Adiantar" (no Grátis, adiantar segue a regra dele, mostrada ao tocar).
-                    if (task.status == "PLANEJADA" && task.day > todayEpoch) Btn("Adiantar", { openTask(task) }, small = true, style = "primary", icon = "fast_forward")
+                    if (task.status == "PLANEJADA" && task.day > todayEpoch) Btn("Adiantar", { advanceTask(task) }, small = true, style = "primary", icon = "fast_forward")
                     else Btn(if (task.status == "EM_ANDAMENTO") "Continuar" else if (overdue) "Fazer agora" else "Começar", { openTask(task) }, small = true, style = "primary")
                     Btn("Concluir", { latest.value() }, small = true, style = "tonal", icon = "check")
                     if (!task.locked && !Store.demo) Btn("Reprogramar", { Reprogram.task = task }, small = true, style = if (overdue) "outline" else "ghost", icon = "event_repeat")
@@ -674,6 +674,22 @@ fun taskTitle(task: PlanTask): String {
 
 /** A tarefa a reprogramar (qualquer tela abre a mesma janela, montada no App). */
 object Reprogram { var task by androidx.compose.runtime.mutableStateOf<PlanTask?>(null) }
+
+/** Adiantar um tópico ainda sem matéria: a geração abre direto, com o saldo conferido na frente. */
+object AdvanceGenerate { var topicId by androidx.compose.runtime.mutableStateOf<Long?>(null) }
+
+@Composable
+fun AdvanceGenerateHost() {
+    val id = AdvanceGenerate.topicId ?: return
+    GenerateDialog(id) { AdvanceGenerate.topicId = null }
+}
+
+/** Tocar em Adiantar: sem matéria no aparelho, abre a geração (com a checagem); com matéria, abre a tarefa. */
+fun advanceTask(task: PlanTask) {
+    val topicId = task.topicId
+    if (topicId != null && task.type == "THEORY" && Store.data.theories.none { it.topicId == topicId }) AdvanceGenerate.topicId = topicId
+    else openTask(task)
+}
 
 /**
  * Para onde levar uma tarefa: três caminhos claros, como o ReprogramDialog do app. O que já foi

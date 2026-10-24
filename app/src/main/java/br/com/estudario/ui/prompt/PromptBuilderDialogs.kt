@@ -287,17 +287,10 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
     val application = context.applicationContext as EstudarioApplication
 
     if (subject == null || competition == null) { LaunchedEffect(Unit) { onDismiss() }; return }
-    // Grátis: só as matérias do plano (as de hoje e as que adianta). Fora dele, nem o assistente
-    // abre: aparece a oferta explicando o que o Grátis faz e o que os planos liberam. O servidor
-    // confere de novo (FREE_EXTRA_LIMIT).
-    val freeOutsidePlan = remember(initialTopicIds) {
-        br.com.estudario.data.planner.LibraryGaps.free(context) &&
-            (initialTopicIds?.singleOrNull()?.let(viewModel::contentPurposeFor) ?: "EXTRA") == "EXTRA"
-    }
-    if (freeOutsidePlan) {
-        br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.EXTRAS, onDismiss = onDismiss)
-        return
-    }
+    // O saldo é conferido no toque, antes do assistente: sem saldo, a oferta; no Grátis, fora do
+    // plano a oferta e, ao adiantar sem crédito, o anúncio. O servidor confere de novo ao criar.
+    val purpose = remember(initialTopicIds) { initialTopicIds?.singleOrNull()?.let(viewModel::contentPurposeFor) ?: "EXTRA" }
+    if (!br.com.estudario.ui.plans.generationAllowed(purpose, questionsOnly = false, onDismiss = onDismiss)) return
     val selectedIds = selected.toSet()
     val prompt = remember(options, selectedIds, topics, subject, competition) {
         // O órgão decide qual estatuto/lei vale; em vez de perguntar, usa o próprio concurso.
@@ -600,6 +593,8 @@ fun AdditionalQuestionPromptBuilderDialog(
     onDismiss: () -> Unit,
     onPickFile: () -> Unit,
 ) {
+    // Lotes de questões do mês conferidos no toque: sem saldo, a oferta aparece antes do assistente.
+    if (!br.com.estudario.ui.plans.generationAllowed(purpose = "EXTRA", questionsOnly = true, onDismiss = onDismiss)) return
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val allTopics by viewModel.topics.collectAsState()

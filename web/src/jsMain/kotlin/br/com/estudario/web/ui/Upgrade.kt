@@ -30,7 +30,7 @@ enum class UpgradeReason(val title: String, val body: String) {
     PLANS("Mais planos de estudo", "No Grátis você tem um plano e pode ajustá-lo quando quiser. Com o Essencial ou o Pro, dá para montar planos novos todo mês."),
     GENERIC("Estude sem parar no meio", "Os planos Essencial e Pro liberam mais materiais, questões, simulados e o edital pelo seu PDF."),
     EXTRAS("Esta matéria ainda não está no seu plano", "No Grátis, você estuda as matérias que o seu plano traz a cada dia e pode adiantar as próximas. Com o Essencial, você abre qualquer matéria do edital, na hora que quiser, e adianta o plano sem anúncio."),
-    ADVANCE("Adiante seu plano", "No site, o Grátis adianta 1 matéria por semana; no app, um anúncio curto adianta até 2 por dia. Com um plano, você adianta quantos dias quiser, sem anúncio."),
+    ADVANCE("Adiante o seu plano", "Seu adiantamento grátis desta semana já foi usado. No app do Estudário, um anúncio curto libera a próxima matéria (até 2 por dia). Com o Essencial, você adianta quantas quiser, sem anúncio."),
     PLAN_DAY("O plano de hoje já está com você", "As matérias de hoje já saíram. Amanhã chegam as próximas. Com um plano, você estuda no seu ritmo."),
     NOT_READY("Esta matéria está em produção", "Nossa equipe está preparando esta matéria, e ela aparece aqui assim que ficar pronta. Com o Essencial, o Estudário escreve agora mesmo, com fontes oficiais."),
 }

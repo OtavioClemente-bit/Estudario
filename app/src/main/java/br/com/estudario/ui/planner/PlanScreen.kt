@@ -79,6 +79,13 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     var reprogram by remember { mutableStateOf<PlannerTaskUi?>(null) }
     var skip by remember { mutableStateOf<PlannerTaskUi?>(null) }
     var missingQuestionsTask by remember { mutableStateOf<PlanTaskEntity?>(null) }
+    // Adiantar um tópico que ainda não tem matéria no aparelho: a geração abre direto, com o saldo
+    // conferido na frente (no Grátis sem crédito, o anúncio aparece já no toque).
+    var advanceTopic by remember { mutableStateOf<br.com.estudario.data.local.TopicEntity?>(null) }
+    val theories by appViewModel.theories.collectAsState()
+    advanceTopic?.let { topic ->
+        br.com.estudario.ui.prompt.ContentPromptBuilderDialog(appViewModel, topic.subjectId, setOf(topic.id), onDismiss = { advanceTopic = null }, onPickFile = {})
+    }
     var questionLaunchError by remember { mutableStateOf<String?>(null) }
     var pendingExport by remember { mutableStateOf<String?>(null) }
     var pendingContext by remember { mutableStateOf<String?>(null) }
@@ -215,13 +222,19 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                                     .onFailure { error -> questionLaunchError = error.message ?: "Confira se a tarefa continua disponível no plano." }
                             }
                         } else {
-                            if (row.entity.status == PlanTaskStatus.PLANEJADA) viewModel.start(row.entity.id)
                             val topicId = row.entity.topicId
-                            if (topicId != null) {
+                            val future = row.entity.scheduledEpochDay > java.time.LocalDate.now().toEpochDay()
+                            val missing = topicId != null && theories.none { it.topicId == topicId }
+                            val toGenerate = if (future && missing) topics.firstOrNull { it.id == topicId } else null
+                            if (toGenerate != null) {
+                                advanceTopic = toGenerate
+                            } else if (topicId != null) {
+                                if (row.entity.status == PlanTaskStatus.PLANEJADA) viewModel.start(row.entity.id)
                                 // Mesmo ajuste da tela inicial: começar leva para o tópico (onde está o
                                 // conteúdo), não direto para um cronômetro em branco.
                                 onOpenTopicTask(topicId, row.entity.id)
                             } else {
+                                if (row.entity.status == PlanTaskStatus.PLANEJADA) viewModel.start(row.entity.id)
                                 appViewModel.startFocus(
                                     title = listOfNotNull(row.entity.subjectNameSnapshot, row.entity.topicNameSnapshot).joinToString(" › ").ifBlank { "Tarefa do plano" },
                                     topicId = null,
