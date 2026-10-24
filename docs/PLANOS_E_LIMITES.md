@@ -30,8 +30,8 @@ Matérias do Grátis, conferidas na criação do pedido (`_shared/free-allowance
 
 | Motivo (o app manda em `purpose`) | Regra |
 |---|---|
-| `PLAN_DAY` matéria do plano de hoje | livre, até 3 por dia |
-| `ADVANCE` adiantar o próximo dia do plano | 1 crédito de anúncio confirmado pelo Google (até 2 por dia, 10 por mês) ou 1 por semana sem anúncio |
+| `PLAN_DAY` matéria do plano de hoje | livre, até 2 por dia |
+| `ADVANCE` adiantar o próximo dia do plano | 1 crédito de anúncio confirmado pelo Google (até 2 por dia, 5 por mês) ou 1 por semana sem anúncio |
 | `EXTRA` qualquer outra matéria do edital (e app antigo, sem o campo) | não é do Grátis (`FREE_EXTRA_LIMIT`); o app e o site nem abrem o assistente, mostram a oferta |
 
 A cota `CONTENT_GENERATION` do Grátis (120/mês) virou só o teto de segurança da soma.
@@ -43,7 +43,7 @@ horas ou matérias) não mexe no dia de hoje. O Grátis também não apaga plano
 **Adiantar** nas tarefas dos próximos dias (e na seção que aparece quando o dia termina); o anúncio
 só é oferecido nessa hora.
 
-Nos pagos, matéria do plano de hoje (`PLAN_DAY`) e adiantada (`ADVANCE`) que sai pronta da biblioteca devolve a cota (`ai_refund_plan_day_quota`): adiantar é livre e as 25/40 do mês ficam para o que é fora do plano.
+Nos pagos, matéria do plano de hoje (`PLAN_DAY`) e adiantada (`ADVANCE`) que sai pronta da biblioteca devolve a cota (`ai_refund_plan_day_quota`), até 4 por dia (`ai_plan_materials_today`); da 5ª em diante, e sempre que a IA escreve, gasta a cota do mês (o app mostra o aviso do Folha antes). Sem cota no mês, a matéria do plano ainda sai se estiver pronta (pedido `libraryOnly`, sem IA). O plano traz no máximo 4 matérias novas por dia nos pagos e 2 no Grátis (`PlannerSnapshotBuilder.topicsPerDay`), por mais horas que a pessoa ponha.
 
 O plano do Grátis só leva tópicos com matéria pronta: o app e o site perguntam à função
 `library-ready` (mesma regra do gerador: apelido direto ou rota completa guardada) e deixam os

@@ -16,6 +16,8 @@ data class AiPlanSummary(
     val billing: AiBillingInfo = AiBillingInfo(),
     /** Só no Grátis: o uso das regras de matéria (dia do plano, extras, adiantar com anúncio). */
     val freeAllowance: AiFreeAllowance? = null,
+    /** Só nos pagos: matérias do plano recebidas hoje sem gastar a cota (até 4; depois gastam). */
+    val planToday: AiFreeCount? = null,
 ) {
     fun pricingOf(tier: String): AiPlanPricing? = pricing.firstOrNull { it.planTier == tier }
 }

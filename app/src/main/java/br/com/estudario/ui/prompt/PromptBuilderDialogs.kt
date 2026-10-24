@@ -409,7 +409,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         returnFileLabel = "Abrir arquivo .estudo",
         attachment = attachment.takeIf { options.source == MaterialSource.ATTACHED },
         server = ServerGenerationOption(
-            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. As matérias do seu plano (de hoje e adiantadas) não gastam nada; fora do plano, usa 1 do seu saldo.",
+            description = "Pesquisa em fontes oficiais, confere a versão vigente das leis, escreve o material do tópico e mostra tudo, com as fontes, para você revisar antes de salvar. As matérias do seu plano que já estão prontas não gastam nada (até 4 por dia); as demais usam 1 do seu saldo.",
             enabled = singleTopic != null && options.source != MaterialSource.ATTACHED,
             disabledReason = when {
                 singleTopic == null -> "O Estudário gera um tópico por vez. Escolha um tópico."

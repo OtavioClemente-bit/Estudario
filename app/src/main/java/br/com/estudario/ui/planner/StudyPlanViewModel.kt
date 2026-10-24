@@ -155,7 +155,8 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             }.getOrNull()
         }
         fun build(end: KDate, hasExam: Boolean, projected: br.com.estudario.domain.planner.PlanProjection.Result?) =
-            br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics, projected)
+            br.com.estudario.domain.planner.EditalRoadmap.build(today, end, hasExam, profile, weeklyCapacity, subjects, topics, projected,
+                maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(br.com.estudario.data.planner.LibraryGaps.free(app)))
         val exam = plan.examEpochDay?.let { KDate.fromEpochDays(it) }?.takeIf { it.isAfter(today) }
         if (exam != null) {
             val roadmap = build(exam, hasExam = true, project(exam, withExam = true))

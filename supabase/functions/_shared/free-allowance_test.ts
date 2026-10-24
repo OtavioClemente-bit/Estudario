@@ -10,9 +10,9 @@ Deno.test("app antigo sem motivo vale como extra", () => {
   assertEquals(parsePurpose("PLAN_DAY"), "PLAN_DAY");
 });
 
-Deno.test("dia do plano: até 3 por dia, sem gastar as extras", () => {
-  assertEquals(decideFreeContent("PLAN_DAY", { ...none, planDayToday: 2, extrasMonth: 10 }).ok, true);
-  assertEquals(decideFreeContent("PLAN_DAY", { ...none, planDayToday: 3 }), { ok: false, code: "FREE_PLAN_DAY_LIMIT" });
+Deno.test("dia do plano: até 2 por dia", () => {
+  assertEquals(decideFreeContent("PLAN_DAY", { ...none, planDayToday: 1 }).ok, true);
+  assertEquals(decideFreeContent("PLAN_DAY", { ...none, planDayToday: 2 }), { ok: false, code: "FREE_PLAN_DAY_LIMIT" });
 });
 
 Deno.test("fora do plano não é do Grátis", () => {
@@ -25,10 +25,10 @@ Deno.test("adiantar: crédito de anúncio, senão 1 por semana", () => {
   assertEquals(decideFreeContent("ADVANCE", { ...none, weeklyAdvances: 1 }), { ok: false, code: "FREE_ADVANCE_NEEDS_AD" });
 });
 
-Deno.test("anúncio vira crédito até 2 por dia e 10 por mês", () => {
-  assertEquals(adCreditAllowed({ adCreditsToday: 1, adCreditsMonth: 9 }), true);
+Deno.test("anúncio vira crédito até 2 por dia e 5 por mês", () => {
+  assertEquals(adCreditAllowed({ adCreditsToday: 1, adCreditsMonth: 4 }), true);
   assertEquals(adCreditAllowed({ adCreditsToday: 2, adCreditsMonth: 3 }), false);
-  assertEquals(adCreditAllowed({ adCreditsToday: 0, adCreditsMonth: 10 }), false);
+  assertEquals(adCreditAllowed({ adCreditsToday: 0, adCreditsMonth: 5 }), false);
 });
 
 Deno.test("contagem pelo horário de Brasília e crédito vencido não conta", () => {

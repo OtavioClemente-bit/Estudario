@@ -81,7 +81,16 @@ object PlannerSnapshotBuilder {
     )
 
     /** O mesmo teto diário do servidor para a matéria do plano no Grátis (free-allowance.ts, planDayPerDay). */
-    const val FREE_TOPICS_PER_DAY = 3
+    const val FREE_TOPICS_PER_DAY = 2
+
+    /**
+     * Nos pagos, matérias novas por dia no plano, por mais horas que a pessoa ponha: quantidade não
+     * vence qualidade, o resto do tempo vai para questões e revisões. É também quantas matérias do
+     * plano por dia não gastam a cota do mês (ai_plan_materials_today no servidor).
+     */
+    const val PAID_TOPICS_PER_DAY = 4
+
+    fun topicsPerDay(free: Boolean): Int = if (free) FREE_TOPICS_PER_DAY else PAID_TOPICS_PER_DAY
 
     fun build(input: Input): StudyPlannerSnapshot = with(input) {
         val config = plan.config
@@ -218,7 +227,7 @@ object PlannerSnapshotBuilder {
             // O rodízio já é decidido no blueprint; o que segura o dia é o teto diário escolhido.
             maxFlexibleSharePercent = 100,
             dailySubjectSharePercent = if (activeSubjectCount > 1) config.dailySubjectSharePercent else 100,
-            maxTheoryTopicsPerDay = FREE_TOPICS_PER_DAY.takeIf { freeRules },
+            maxTheoryTopicsPerDay = topicsPerDay(freeRules),
             keepTodayTasks = freeRules,
         )
 

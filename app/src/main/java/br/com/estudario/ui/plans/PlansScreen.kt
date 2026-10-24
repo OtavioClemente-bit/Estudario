@@ -406,7 +406,7 @@ private fun FreeSection(free: br.com.estudario.data.ai.AiFreeAllowance) {
             Column(Modifier.padding(vertical = 8.dp)) {
                 FreeRow(Icons.Outlined.EventRepeat, "Matéria do plano de hoje", "livre todo dia", "${free.planDay.used}", "de ${free.planDay.limit} hoje")
                 Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                FreeRow(Icons.Outlined.OndemandVideo, "Adiantar o plano", "no plano, toque em Adiantar: um anúncio curto libera (2 por dia, 10 por mês)", "${free.adAdvances.today}", "de ${free.adAdvances.dailyLimit} hoje")
+                FreeRow(Icons.Outlined.OndemandVideo, "Adiantar o plano", "no plano, toque em Adiantar: um anúncio curto libera (2 por dia, 5 por mês)", "${free.adAdvances.today}", "de ${free.adAdvances.dailyLimit} hoje")
             }
         }
     }

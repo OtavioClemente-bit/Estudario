@@ -337,7 +337,7 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         // Em todos: a matéria do plano de hoje não gasta nada. No Grátis, as regras dele em texto.
         RuleRow("Matéria do plano de hoje", "livre", tone)
         RuleRow("Adiantar o plano", if (free) "com anúncio curto" else "livre", tone)
-        RuleRow("Matérias novas por dia", if (free) "até 3" else "no seu ritmo", tone)
+        RuleRow("Matérias novas por dia", if (free) "até 2" else "até 4, e mais se quiser", tone)
         RuleRow("Matérias fora do plano", if (free) "nos planos pagos" else "pelo saldo do mês", tone)
         // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
         // Grátis é só o teto interno; as regras dele estão acima).

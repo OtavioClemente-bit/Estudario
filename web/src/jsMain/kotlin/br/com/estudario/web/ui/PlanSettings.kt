@@ -1,5 +1,6 @@
 package br.com.estudario.web.ui
 
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -115,6 +116,7 @@ fun PlanSettingsScreen() {
         CardHead("Concursos neste plano")
         P({ classes("small", "muted"); attr("style", "margin:-8px 0 12px") }) { Text("Marque os concursos que este plano cobre. As matérias de cada um entram no rodízio e o tempo é dividido pelo peso delas. Dá para pausar matérias logo abaixo.") }
         val inPlan = Planning.competitionsOf(data, plan.id)
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
         Div({ classes("stack", "tight") }) {
             data.competitions.forEach { c ->
                 androidx.compose.runtime.key(c.id) {
@@ -126,8 +128,13 @@ fun PlanSettingsScreen() {
                         }
                         if (locked) Chip("Principal", tone = "green") else Switch(c.id in inPlan, "Incluir ${c.name}") { on ->
                             val next = if (on) inPlan + c.id else inPlan - c.id
-                            Store.update { Planning.setCompetitions(it, plan.id, next) }
-                            Toast.show(if (on) "${c.name} entrou no plano." else "${c.name} saiu do plano.")
+                            scope.launch {
+                                // No Grátis, o edital que entra passa antes pela biblioteca: tópico sem matéria
+                                // pronta fica fora do plano (LibraryGaps), como no assistente.
+                                if (on) runCatching { br.com.estudario.web.data.LibraryGaps.refresh(Store.data, isFreeTier()) }
+                                Store.update { Planning.setCompetitions(it, plan.id, next) }
+                                Toast.show(if (on) "${c.name} entrou no plano." else "${c.name} saiu do plano.")
+                            }
                         }
                     }
                 }

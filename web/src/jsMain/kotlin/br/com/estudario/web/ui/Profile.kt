@@ -470,7 +470,7 @@ fun NotificationsScreen() {
 private class Usage(val feature: String, val limit: Int, val used: Int, val remaining: Int, val resetAt: String?)
 private class PlanLimit(val feature: String, val periodKind: String, val quota: Int, val maxPerRequest: Int?)
 private class Pricing(val name: String, val tagline: String, val monthCents: Int, val yearCents: Int, val featured: Boolean)
-private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<Pair<String, List<PlanLimit>>>, val usage: List<Usage>, val pricing: Map<String, Pricing>, val playEnabled: Boolean, val free: FreeInfo? = null)
+private class PlanInfo(val tier: String, val renewsAt: String?, val plans: List<Pair<String, List<PlanLimit>>>, val usage: List<Usage>, val pricing: Map<String, Pricing>, val playEnabled: Boolean, val free: FreeInfo? = null, val planToday: Pair<Int, Int>? = null)
 
 private fun brl(cents: Int): String = "R$ " + (cents / 100).toString().reversed().chunked(3).joinToString(".").reversed() + "," + (cents % 100).toString().padStart(2, '0')
 
@@ -537,12 +537,14 @@ private fun parsePlan(body: String): PlanInfo {
     val free = (root["freeAllowance"] as? JsonObject)?.let { f ->
         fun count(k: String) = f[k] as? JsonObject
         FreeInfo(
-            count("planDay")?.i("used") ?: 0, count("planDay")?.i("limit") ?: 3,
-            count("extras")?.i("used") ?: 0, count("extras")?.i("limit") ?: 10,
+            count("planDay")?.i("used") ?: 0, count("planDay")?.i("limit") ?: 2,
+            count("extras")?.i("used") ?: 0, count("extras")?.i("limit") ?: 0,
             count("weeklyAdvance")?.i("used") ?: 0, count("weeklyAdvance")?.i("limit") ?: 1,
         )
     }
-    return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled, free)
+    // Pagos: matérias do plano recebidas hoje sem gastar a cota (usadas, limite).
+    val planToday = (root["planToday"] as? JsonObject)?.let { (it.i("used") ?: 0) to (it.i("limit") ?: 4) }
+    return PlanInfo(root.s("planTier") ?: "FREE", root.s("planRenewsAt"), plans, usage, pricing, playEnabled, free, planToday)
 }
 
 /** As regras de matéria do Grátis, contadas no servidor (dia do plano, extras, adiantar). */
@@ -553,6 +555,9 @@ suspend fun isFreeTier(): Boolean? = fetchPlanInfo()?.tier?.let { it == "FREE" }
 
 /** O uso do Grátis; null em plano pago, na demonstração ou se não deu para ler. */
 suspend fun freeAllowance(): FreeInfo? = fetchPlanInfo()?.free
+
+/** Pagos: matérias do plano de hoje que não gastaram a cota (usadas, limite); null no Grátis ou sem resposta. */
+suspend fun planToday(): Pair<Int, Int>? = fetchPlanInfo()?.planToday
 
 /** O saldo de um recurso no plano da conta, como o medidor do app (AiGenerationScreen). */
 class Quota(val remaining: Int, val limit: Int, val monthly: Boolean, val resetLabel: String?, val maxPerRequest: Int?)
@@ -616,7 +621,7 @@ private fun comparisonGroups(info: PlanInfo): List<Pair<String, List<Compare>>> 
         "Estudar todo dia" to listOf(
             Compare("Matéria do plano de hoje", "Teoria, resumo, flashcards e questões do que o seu plano marcou para hoje.") { "Livre" },
             Compare("Adiantar o plano", "Estudar hoje a matéria de amanhã.") { if (it == "FREE") "Com anúncio curto" else "Livre" },
-            Compare("Matérias novas por dia", "Quantas matérias novas o plano traz em cada dia.") { if (it == "FREE") "Até 3" else "No seu ritmo" },
+            Compare("Matérias novas por dia", "Quantas matérias novas o plano traz em cada dia.") { if (it == "FREE") "Até 2" else "Até 4, e mais se quiser" },
             Compare("Matérias fora do plano", "Qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") "—" else perMonth(quota(it, "CONTENT_GENERATION")) },
         ),
         "Treinar" to listOf(
@@ -754,7 +759,7 @@ fun PlanLimitsScreen() {
                     Span({ classes("pl-price-note") }) { Text(if (!paid) "Sem cartão, sem prazo" else if (yearly) "${brl(price!!.yearCents)} cobrados uma vez por ano" else "ou ${brl(price!!.yearCents)} por ano") }
                     Div({ classes("pl-highlights") }) {
                         val highlights = when (tier) {
-                            "FREE" -> listOf("Matéria do plano de hoje, todo dia", "Até 3 matérias novas por dia", "Adiantar com anúncio curto", "Simulado diagnóstico")
+                            "FREE" -> listOf("Matéria do plano de hoje, todo dia", "Até 2 matérias novas por dia", "Adiantar com anúncio curto", "Simulado diagnóstico")
                             else -> listOf("Plano de hoje e adiantar à vontade", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias fora do plano por mês", "Qualquer tópico do edital, pronto na hora", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês, sem anúncios")
                         }
                         highlights.forEach { h -> Div({ classes("pl-hl") }) { Icon("check_circle", filled = true); Span { Text(h) } } }

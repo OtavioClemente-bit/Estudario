@@ -49,6 +49,8 @@ sealed interface GenerationGate {
     data object Go : GenerationGate
     data class NeedsAd(val ads: AiFreeAdAdvances) : GenerationGate
     data class Blocked(val reason: UpgradeReason) : GenerationGate
+    /** Pagos: já foram as matérias do plano livres de hoje; esta gasta 1 das [remaining] do mês. */
+    data class OverDailyPlan(val limit: Int, val remaining: Int) : GenerationGate
 }
 
 /** [purpose]: PLAN_DAY, ADVANCE ou EXTRA (AppViewModel.contentPurposeFor). */
@@ -56,7 +58,7 @@ fun generationGate(summary: AiPlanSummary, purpose: String, questionsOnly: Boole
     fun remaining(feature: String) = summary.usage.firstOrNull { it.feature == feature }?.remaining
     if (questionsOnly) return if (remaining("QUESTION_BATCH") == 0) GenerationGate.Blocked(UpgradeReason.QUESTIONS) else GenerationGate.Go
     val free = summary.freeAllowance
-        ?: return if (remaining("CONTENT_GENERATION") == 0) GenerationGate.Blocked(UpgradeReason.CONTENT) else GenerationGate.Go
+        ?: return paidGate(summary, purpose, remaining("CONTENT_GENERATION"))
     return when (purpose) {
         "PLAN_DAY" -> if (free.planDay.left == 0) GenerationGate.Blocked(UpgradeReason.PLAN_DAY) else GenerationGate.Go
         // Adiantar: crédito de anúncio já confirmado ou o adiantamento grátis da semana seguem; sem
@@ -68,6 +70,18 @@ fun generationGate(summary: AiPlanSummary, purpose: String, questionsOnly: Boole
         }
         else -> GenerationGate.Blocked(UpgradeReason.EXTRAS)
     }
+}
+
+/**
+ * Pagos. Fora do plano gasta a cota do mês. A matéria do plano (do dia ou adiantada) não gasta, até
+ * 4 por dia; mesmo sem cota no mês ela sai, se estiver pronta na biblioteca (o servidor confere).
+ * Da 5ª em diante, gasta a cota: o Folha avisa antes e a pessoa escolhe.
+ */
+private fun paidGate(summary: AiPlanSummary, purpose: String, contentLeft: Int?): GenerationGate {
+    if (purpose != "PLAN_DAY" && purpose != "ADVANCE") return if (contentLeft == 0) GenerationGate.Blocked(UpgradeReason.CONTENT) else GenerationGate.Go
+    val today = summary.planToday ?: return GenerationGate.Go
+    if (today.used < today.limit) return GenerationGate.Go
+    return if (contentLeft == 0) GenerationGate.Blocked(UpgradeReason.CONTENT) else GenerationGate.OverDailyPlan(today.limit, contentLeft ?: 0)
 }
 
 /**
@@ -94,6 +108,7 @@ fun generationAllowed(purpose: String, questionsOnly: Boolean, onDismiss: () -> 
         GenerationGate.Go -> return true
         is GenerationGate.Blocked -> UpgradeDialog(current.reason, onDismiss = onDismiss)
         is GenerationGate.NeedsAd -> AdvanceWithAdDialog(current.ads, onCredit = { gate = GenerationGate.Go }, onDismiss = onDismiss)
+        is GenerationGate.OverDailyPlan -> QualityOverQuantityDialog(current, onContinue = { gate = GenerationGate.Go }, onDismiss = onDismiss)
     }
     return false
 }
@@ -137,6 +152,35 @@ private fun AdvanceWithAdDialog(ads: AiFreeAdAdvances, onCredit: () -> Unit, onD
                 UpgradeCta(UpgradeReason.ADVANCE, label = "Adiantar sem anúncio com o Essencial")
                 TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Agora não", color = Color.White.copy(alpha = 0.8f)) }
             }
+        }
+    }
+}
+
+/**
+ * Pagos, da 5ª matéria do plano no dia em diante: o Folha lembra que quantidade não vence
+ * qualidade. Dá para seguir, mas essa matéria gasta 1 das do mês.
+ */
+@Composable
+private fun QualityOverQuantityDialog(gate: GenerationGate.OverDailyPlan, onContinue: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            br.com.estudario.ui.assistant.Folha(104.dp, mood = br.com.estudario.ui.assistant.FolhaMood.THINKING)
+            Text("Respira um pouco!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+            Text(
+                "Você já estudou ${gate.limit} matérias novas hoje. Quantidade não vence qualidade: o que fica é o que você revisa e treina com questões. " +
+                    "Que tal fechar o dia revisando?",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+            )
+            Text(
+                "Se quiser seguir, esta matéria usa 1 das ${gate.remaining} que ainda restam no seu mês.",
+                style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+            )
+            br.com.estudario.ui.brand.Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Deixar para amanhã") }
+            TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Seguir mesmo assim (usa 1 do mês)") }
         }
     }
 }

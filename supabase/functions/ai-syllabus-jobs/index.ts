@@ -35,7 +35,7 @@ import {
 } from "../_shared/text-job-input.ts";
 import { effectivePlanTier, SupabaseAccessDataSource } from "../_shared/access-policy.ts";
 import { parseSimulationJobInput } from "../_shared/simulation.ts";
-import { decideFreeContent, type FreeAllowanceStore, parsePurpose, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
+import { decideFreeContent, type FreeAllowanceStore, PAID_PLAN_PER_DAY, parsePurpose, planMaterialsToday, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
 
 const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
 const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH"]);
@@ -80,6 +80,8 @@ export interface AiSyllabusJobsDependencies {
   webGuard?: WebGuard;
   /** Regras de matéria do Grátis (dia do plano, adiantar, extras). Ausente = não confere (testes). */
   freeAllowance?: FreeAllowanceStore;
+  /** Nos pagos: matérias do plano recebidas hoje sem gastar a cota (ai_plan_materials_today). */
+  planMaterialsToday?: (userId: string) => Promise<number>;
 }
 
 export interface NetworkQuota {
@@ -566,6 +568,12 @@ async function createTextJob(
         freeTag = { ...freeTag, adCredit: credit };
       }
     }
+    // Nos pagos, o motivo também vai no pedido: matéria do plano (do dia ou adiantada) que sai pronta
+    // da biblioteca não gasta a cota, até PAID_PLAN_PER_DAY por dia (o banco confere ao devolver).
+    if (feature === "CONTENT_GENERATION" && rules.tier !== "FREE") {
+      const purpose = parsePurpose(rawPurpose);
+      if (purpose !== "EXTRA") freeTag = { purpose };
+    }
   }
   // Matéria que saiu com menos questões que o pedido (a IA entrega até 10): os lotes até completar
   // não gastam cota. O worker devolve a cota quando o lote marcado dá certo.
@@ -584,17 +592,29 @@ async function createTextJob(
     }
     if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
   }
-  const payload = { feature, input, ...(compensated ? { compensated: true } : {}), ...freeTag } satisfies Record<string, unknown>;
-  const fingerprint = await requestFingerprint(payload);
+  let payload: Record<string, unknown> = { feature, input, ...(compensated ? { compensated: true } : {}), ...freeTag };
+  const create = async () => await dependencies.jobs.createOrGet({
+    userId: user.userId,
+    feature,
+    idempotencyKey: key,
+    requestFingerprint: await requestFingerprint(payload),
+    requestPayload: payload,
+  });
   let created;
   try {
-    created = await dependencies.jobs.createOrGet({
-      userId: user.userId,
-      feature,
-      idempotencyKey: key,
-      requestFingerprint: fingerprint,
-      requestPayload: payload,
-    });
+    try {
+      created = await create();
+    } catch (error) {
+      // Assinante sem matérias no mês, pedindo a matéria do plano dentro das 4 do dia: segue só pela
+      // biblioteca (libraryOnly). O worker nunca chama a IA nesse pedido; se o tópico não estiver
+      // pronto, falha e nada é gasto.
+      const planPurpose = freeTag.purpose === "PLAN_DAY" || freeTag.purpose === "ADVANCE";
+      if (!(error instanceof JobStoreError) || error.code !== "AI_QUOTA_EXHAUSTED" || !planPurpose || !dependencies.planMaterialsToday) throw error;
+      const today = await dependencies.planMaterialsToday(user.userId).catch(() => PAID_PLAN_PER_DAY);
+      if (today >= PAID_PLAN_PER_DAY) throw error;
+      payload = { ...payload, libraryOnly: true };
+      created = await create();
+    }
   } catch (error) {
     // O pedido não virou job: o crédito do anúncio volta para a pessoa.
     if (freeCredit) await dependencies.freeAllowance?.releaseCredit(freeCredit).catch(() => undefined);
@@ -836,6 +856,7 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     networkQuota: serviceNetworkQuota(supabaseUrl, serviceRoleKey),
     webGuard: turnstileGuard(Deno.env.get("TURNSTILE_SECRET_KEY")?.trim()),
     freeAllowance: new SupabaseFreeAllowance(supabaseUrl, serviceRoleKey),
+    planMaterialsToday: (userId) => planMaterialsToday(supabaseUrl, serviceRoleKey, userId),
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
     },

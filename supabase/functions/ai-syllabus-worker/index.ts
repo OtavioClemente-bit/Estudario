@@ -874,6 +874,12 @@ export async function processSyllabusJob(
           return true;
         }
       }
+      // Pedido só da biblioteca (assinante sem cota no mês pedindo a matéria do plano): não estava
+      // pronta, então não há o que entregar sem a IA. Falha e a reserva volta; nada é gasto.
+      if (job.requestPayload?.libraryOnly === true) {
+        await finalizeFailure(dependencies, job, lease, "AI_QUOTA_EXHAUSTED", "FAILED", false);
+        return true;
+      }
       // Teto de gasto da plataforma inteira em 24 horas (AI_DAILY_TOKEN_BUDGET, em tokens): última
       // barreira se algum furo desconhecido aparecer. Passou do teto, a IA espera; a cota volta.
       const dailyBudget = environmentNumber("AI_DAILY_TOKEN_BUDGET", 0);

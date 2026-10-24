@@ -88,9 +88,13 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var free by remember { mutableStateOf<FreeInfo?>(null) }
     // O saldo é conferido assim que a janela abre, antes do primeiro passo (ver o bloqueio abaixo).
     var checked by remember { mutableStateOf(false) }
+    var today by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // Pagos: passou das matérias do plano livres de hoje e a pessoa escolheu seguir (gasta 1 do mês).
+    var overDailyOk by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         free = freeAllowance()
         quota = quotaFor(if (questionsOnly) "QUESTION_BATCH" else "CONTENT_GENERATION")
+        if (!questionsOnly && free == null) today = planToday()
         checked = true
         if (!questionsOnly) quota?.maxPerRequest?.takeIf { it >= 1 }?.let { maxQuestions = it }
     }
@@ -135,10 +139,32 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 "ADVANCE" -> UpgradeReason.ADVANCE.takeIf { f.weeklyUsed >= f.weeklyLimit }
                 else -> UpgradeReason.EXTRAS
             }
-            else -> UpgradeReason.CONTENT.takeIf { q != null && q.limit > 0 && q.remaining == 0 }
+            else -> {
+                val planPurpose = AiContent.purposeFor(Store.data, topicId).let { it == "PLAN_DAY" || it == "ADVANCE" }
+                val overToday = today?.let { (used, limit) -> used >= limit } == true
+                val monthOver = q != null && q.limit > 0 && q.remaining == 0
+                // Matéria do plano dentro das do dia sai mesmo sem cota no mês (se estiver pronta).
+                UpgradeReason.CONTENT.takeIf { monthOver && (!planPurpose || overToday) }
+            }
         }
         if (blocked != null) {
             UpgradeModal(blocked) { onClose() }
+            return
+        }
+        val overToday = f == null && !questionsOnly && today?.let { (used, limit) -> used >= limit } == true &&
+            AiContent.purposeFor(Store.data, topicId).let { it == "PLAN_DAY" || it == "ADVANCE" }
+        if (overToday && !overDailyOk) {
+            Modal(onDismiss = onClose) {
+                FolhaSays("thinking", 80) {
+                    B { Text("Respira um pouco!") }
+                    P { Text("Você já estudou ${today!!.second} matérias novas hoje. Quantidade não vence qualidade: o que fica é o que você revisa e treina com questões. Que tal fechar o dia revisando?") }
+                    P({ classes("small", "strong") }) { Text("Se quiser seguir, esta matéria usa 1 das ${q?.remaining ?: 0} que ainda restam no seu mês.") }
+                }
+                Div({ classes("row", "end", "wrap"); attr("style", "gap:8px;margin-top:12px") }) {
+                    Btn("Seguir mesmo assim (usa 1 do mês)", { overDailyOk = true }, style = "ghost")
+                    Btn("Deixar para amanhã", onClose, style = "primary")
+                }
+            }
             return
         }
     }

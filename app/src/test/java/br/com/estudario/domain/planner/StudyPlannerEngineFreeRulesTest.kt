@@ -7,30 +7,31 @@ import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import br.com.estudario.time.*
 
-/** Regras do Grátis no motor: até 3 matérias novas por dia e o dia de hoje não muda ao replanejar. */
+/** Teto de matérias novas por dia (Grátis 2, pagos 4) e, no Grátis, o dia de hoje não muda ao replanejar. */
 class StudyPlannerEngineFreeRulesTest {
     private val engine = StudyPlannerEngine()
     private val monday = LocalDate(2026, 9, 14)
-    private val free = PlannerPolicy(horizonDays = 7, maxFlexibleSharePercent = 100, preferredBlockMinutes = 60, maxTheoryTopicsPerDay = 3, keepTodayTasks = true)
-    private val paid = free.copy(maxTheoryTopicsPerDay = null, keepTodayTasks = false)
+    private val free = PlannerPolicy(horizonDays = 7, maxFlexibleSharePercent = 100, preferredBlockMinutes = 60, maxTheoryTopicsPerDay = PlannerSnapshotBuilder.FREE_TOPICS_PER_DAY, keepTodayTasks = true)
+    private val paid = free.copy(maxTheoryTopicsPerDay = PlannerSnapshotBuilder.PAID_TOPICS_PER_DAY, keepTodayTasks = false)
 
     @Test
-    fun `many hours in a free day still bring at most three new topics`() {
+    fun `many hours in a free day still bring at most two new topics`() {
         val demands = (1..10).map { theory(it.toLong()) }
         val proposal = engine.plan(snapshot(policy = free, dailyMinutes = 600, demands = demands), ReplanReason.INITIAL)
 
         val perDay = proposal.newTasks.filter { it.type == PlanTaskType.THEORY }.groupBy { it.date }.mapValues { (_, t) -> t.mapNotNull { it.topicId }.toSet().size }
-        assertTrue(perDay.values.all { it <= 3 })
-        assertEquals(3, perDay.getValue(monday))
+        assertTrue(perDay.values.all { it <= 2 })
+        assertEquals(2, perDay.getValue(monday))
         assertEquals(10, proposal.newTasks.mapNotNull { it.topicId }.toSet().size)
     }
 
     @Test
-    fun `paid plans keep filling the day with as many topics as fit`() {
+    fun `paid plans bring at most four new topics a day, however many hours`() {
         val demands = (1..10).map { theory(it.toLong()) }
         val proposal = engine.plan(snapshot(policy = paid, dailyMinutes = 600, demands = demands), ReplanReason.INITIAL)
 
-        assertEquals(10, proposal.newTasks.filter { it.date == monday }.mapNotNull { it.topicId }.toSet().size)
+        assertEquals(4, proposal.newTasks.filter { it.date == monday }.mapNotNull { it.topicId }.toSet().size)
+        assertEquals(10, proposal.newTasks.mapNotNull { it.topicId }.toSet().size)
     }
 
     @Test

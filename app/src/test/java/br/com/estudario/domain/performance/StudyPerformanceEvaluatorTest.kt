@@ -138,6 +138,8 @@ class StudyPerformanceEvaluatorTest {
         val result = StudyPerformanceEvaluator.evaluate(
             StudyPerformanceInput(
                 studySessions = listOf(PerformanceSession(now, 3_660), PerformanceSession(now, -60)),
+                // O tempo estudado vem dos trechos (foco + questões sem contar a sobreposição duas vezes).
+                studySpans = listOf(br.com.estudario.domain.StudyTime.Span(now.toEpochMilliseconds() - 3_660_000, now.toEpochMilliseconds())),
                 questionSessions = listOf(PerformanceSession(now, 1_200)),
                 executions = listOf(PerformanceExecution("active", now, 17)),
                 activePlanIds = setOf("active"),

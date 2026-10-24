@@ -93,6 +93,8 @@ object EditalRoadmap {
          * tópico é visto; a conta por fatias abaixo fica só como reserva.
          */
         projected: PlanProjection.Result? = null,
+        /** Teto de matérias novas por dia do plano (PlannerSnapshotBuilder.topicsPerDay); só a conta reserva usa. */
+        maxTopicsPerDay: Int = PlannerSnapshotBuilder.PAID_TOPICS_PER_DAY,
     ): EditalRoadmapResult {
         val safeEnd = if (end.isAfter(today)) end else today.plusDays(1)
         val phases = StudyMethod.phases(today, safeEnd, profile)
@@ -133,11 +135,15 @@ object EditalRoadmap {
             val share = StudyMethod.phaseAt(phases, day).mix.theoryPercent / 100.0
             contentCapacityDays += share
             budget += dailyCapacity * share
-            while (current != null && budget >= current.theoryMinutes.coerceAtLeast(1)) {
+            var newTopics = 0
+            while (current != null && newTopics < maxTopicsPerDay && budget >= current.theoryMinutes.coerceAtLeast(1)) {
                 budget -= current.theoryMinutes.coerceAtLeast(1)
                 assignedOn[current.id] = day
                 current = nextTopic()
+                newTopics++
             }
+            // Bateu o teto do dia: o tempo que sobra vai para questões e revisões, não para amanhã.
+            if (newTopics >= maxTopicsPerDay) budget = 0.0
             day = day.plusDays(1)
         }
         val leftOut = pending.filter { it.id !in assignedOn }

@@ -4,7 +4,7 @@
 // provedor). Por cima disso, cada pedido de matéria diz para que é:
 //   PLAN_DAY  a matéria do plano de hoje: até PLAN_DAY_PER_DAY por dia, sem gastar as extras;
 //   ADVANCE   adiantar o próximo dia do plano: um crédito de anúncio confirmado pelo Google
-//             (ad-reward-ssv, até 2 por dia e 10 por mês) ou, sem anúncio, 1 por semana;
+//             (ad-reward-ssv, até 2 por dia e 5 por mês) ou, sem anúncio, 1 por semana;
 //   EXTRA     qualquer outra matéria do edital: não é do Grátis (extrasPerMonth 0); o app mostra
 //             os planos. App antigo não manda o motivo: vale como EXTRA.
 // O plano de estudo mora no aparelho, então o servidor não confere se o tópico é mesmo "do dia";
@@ -13,11 +13,11 @@
 export type ContentPurpose = "PLAN_DAY" | "ADVANCE" | "EXTRA";
 
 export const FREE_RULES = {
-  planDayPerDay: 3,
+  planDayPerDay: 2,
   /** Matéria fora do plano é dos planos pagos: o Grátis estuda o plano dele (e adianta). */
   extrasPerMonth: 0,
   adAdvancesPerDay: 2,
-  adAdvancesPerMonth: 10,
+  adAdvancesPerMonth: 5,
   freeAdvancesPerWeek: 1,
   /** Crédito de anúncio vale por este tempo (assistiu, tem esse prazo para adiantar). */
   creditTtlMs: 6 * 3_600_000,
@@ -151,4 +151,23 @@ export class SupabaseFreeAllowance implements FreeAllowanceStore {
     const r = await this.rest(`ad_reward_credits?id=eq.${encodeURIComponent(creditId)}`, { method: "PATCH", body: JSON.stringify({ used_job_id: jobId }) });
     await r.body?.cancel().catch(() => {});
   }
+}
+
+/**
+ * Nos pagos, matérias do plano (do dia e adiantadas) por dia que saem sem gastar a cota do mês,
+ * quando vêm prontas da biblioteca. Da 5ª em diante no dia, gastam a cota (o app avisa antes). O
+ * mesmo número fica no plano (PlannerSnapshotBuilder.PAID_TOPICS_PER_DAY) e no banco
+ * (ai_refund_plan_day_quota).
+ */
+export const PAID_PLAN_PER_DAY = 4;
+
+/** Quantas matérias do plano a conta já recebeu hoje sem gastar a cota (ai_plan_materials_today). */
+export async function planMaterialsToday(url: string, serviceKey: string, userId: string): Promise<number> {
+  const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/rpc/ai_plan_materials_today`, {
+    method: "POST",
+    headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ p_user_id: userId }),
+  });
+  if (!response.ok) throw new Error("PLAN_TODAY_UNAVAILABLE");
+  return Number(await response.json()) || 0;
 }

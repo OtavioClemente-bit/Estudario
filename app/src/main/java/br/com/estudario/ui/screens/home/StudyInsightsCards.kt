@@ -201,7 +201,7 @@ private fun WeekReport(answers: List<StudyInsights.Answer>, streak: StreakSummar
             WeekStat("${week.days}", if (week.days == 1) "dia" else "dias", delta(week.days - week.prevDays), Modifier.weight(1f))
             WeekStat(hm(week.minutes), "estudo", delta(week.minutes - week.prevMinutes, ::hm), Modifier.weight(1f))
             WeekStat("${week.questions}", "questões", delta(week.questions - week.prevQuestions), Modifier.weight(1f))
-            WeekStat(week.accuracy?.let { "$it%" } ?: "–", "acerto", week.accuracyDelta?.let { d -> delta(d) { "$it pts" } }, Modifier.weight(1f))
+            WeekStat(week.accuracy?.let { "$it%" } ?: "-", "acerto", week.accuracyDelta?.let { d -> delta(d) { "$it pts" } }, Modifier.weight(1f))
         }
         week.best?.let { (name, acc) -> Text("Mais forte: $name ($acc%)", style = MaterialTheme.typography.labelMedium, color = Color(0xFF1FA65C), fontWeight = FontWeight.Bold) }
         week.worst?.let { (name, acc) -> Text("Pede atenção: $name ($acc%)", style = MaterialTheme.typography.labelMedium, color = Color(0xFFD93A2B), fontWeight = FontWeight.Bold) }

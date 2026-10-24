@@ -109,7 +109,7 @@ object RewardedAds {
 }
 
 /**
- * Cartão "Adiantar com um anúncio": os limites à vista (2 por dia, 10 por mês) e o botão. Depois do
+ * Cartão "Adiantar com um anúncio": os limites à vista (2 por dia, 5 por mês) e o botão. Depois do
  * anúncio, espera o crédito confirmado e chama [onCredit] para pedir a matéria de novo.
  */
 @Composable

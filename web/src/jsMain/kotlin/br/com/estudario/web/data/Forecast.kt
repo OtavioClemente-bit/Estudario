@@ -65,7 +65,7 @@ object Forecast {
         fun project(end: LocalDate, withExam: Boolean) = input?.let {
             runCatching { PlanProjection.project(if (withExam) it else it.copy(plan = it.plan.copy(examEpochDay = null)), end) }.getOrNull()
         }
-        fun build(end: LocalDate, hasExam: Boolean, projected: PlanProjection.Result?) = EditalRoadmap.build(today, end, hasExam, profile, weekly, subjects, topics, projected)
+        fun build(end: LocalDate, hasExam: Boolean, projected: PlanProjection.Result?) = EditalRoadmap.build(today, end, hasExam, profile, weekly, subjects, topics, projected, maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(LibraryGaps.free()))
         val exam = plan.exam?.let { LocalDate.fromEpochDays(it.toInt()) }?.takeIf { it > today }
         if (exam != null) {
             val roadmap = build(exam, hasExam = true, project(exam, withExam = true))

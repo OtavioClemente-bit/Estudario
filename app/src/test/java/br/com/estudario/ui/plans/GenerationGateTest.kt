@@ -15,9 +15,9 @@ class GenerationGateTest {
         planTier = "FREE",
         usage = listOf(usage("QUESTION_BATCH", batches)),
         freeAllowance = AiFreeAllowance(
-            planDay = AiFreeCount(planDayUsed, 3),
+            planDay = AiFreeCount(planDayUsed, 2),
             weeklyAdvance = AiFreeCount(weeklyUsed, 1),
-            adAdvances = AiFreeAdAdvances(enabled = true, today = adsToday, dailyLimit = 2, month = adsToday, monthlyLimit = 10, available = credits),
+            adAdvances = AiFreeAdAdvances(enabled = true, today = adsToday, dailyLimit = 2, month = adsToday, monthlyLimit = 5, available = credits),
         ),
     )
 
@@ -35,8 +35,8 @@ class GenerationGateTest {
     }
 
     @Test fun `free plan day and outside the plan`() {
-        assertEquals(GenerationGate.Go, generationGate(free(planDayUsed = 2), "PLAN_DAY", false))
-        assertEquals(GenerationGate.Blocked(UpgradeReason.PLAN_DAY), generationGate(free(planDayUsed = 3), "PLAN_DAY", false))
+        assertEquals(GenerationGate.Go, generationGate(free(planDayUsed = 1), "PLAN_DAY", false))
+        assertEquals(GenerationGate.Blocked(UpgradeReason.PLAN_DAY), generationGate(free(planDayUsed = 2), "PLAN_DAY", false))
         assertEquals(GenerationGate.Blocked(UpgradeReason.EXTRAS), generationGate(free(), "EXTRA", false))
     }
 
@@ -45,5 +45,22 @@ class GenerationGateTest {
         val paid = AiPlanSummary(planTier = "ESSENCIAL", usage = listOf(usage("CONTENT_GENERATION", 0), usage("QUESTION_BATCH", 4)))
         assertEquals(GenerationGate.Blocked(UpgradeReason.CONTENT), generationGate(paid, "EXTRA", false))
         assertEquals(GenerationGate.Go, generationGate(paid, "EXTRA", true))
+    }
+
+    private fun paid(contentLeft: Int, planToday: Int) = AiPlanSummary(
+        planTier = "ESSENCIAL",
+        usage = listOf(usage("CONTENT_GENERATION", contentLeft)),
+        planToday = AiFreeCount(planToday, 4),
+    )
+
+    @Test fun `paid plan materials are free up to four a day, even with the month used up`() {
+        assertEquals(GenerationGate.Go, generationGate(paid(contentLeft = 5, planToday = 3), "PLAN_DAY", false))
+        assertEquals(GenerationGate.Go, generationGate(paid(contentLeft = 0, planToday = 3), "ADVANCE", false))
+    }
+
+    @Test fun `paid fifth plan material asks first and spends the month, none left means the offer`() {
+        assertEquals(GenerationGate.OverDailyPlan(4, 5), generationGate(paid(contentLeft = 5, planToday = 4), "PLAN_DAY", false))
+        assertEquals(GenerationGate.Blocked(UpgradeReason.CONTENT), generationGate(paid(contentLeft = 0, planToday = 4), "ADVANCE", false))
+        assertEquals(GenerationGate.Blocked(UpgradeReason.CONTENT), generationGate(paid(contentLeft = 0, planToday = 0), "EXTRA", false))
     }
 }

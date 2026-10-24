@@ -8,7 +8,7 @@ import {
   authenticateSupabaseRequest,
   AuthError,
 } from "../_shared/auth.ts";
-import { FREE_RULES, type FreeUsage, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
+import { FREE_RULES, type FreeUsage, PAID_PLAN_PER_DAY, planMaterialsToday, SupabaseFreeAllowance } from "../_shared/free-allowance.ts";
 
 /**
  * GET  /ai-plan             -> plano efetivo, catálogo dos planos e uso atual (somente leitura).
@@ -27,6 +27,8 @@ export interface AiPlanHandlerDependencies {
   freeUsage?: (user: AuthenticatedUser) => Promise<FreeUsage>;
   /** Anúncio premiado ligado (bloco do AdMob com a verificação do servidor configurada). */
   adsEnabled?: () => boolean;
+  /** Nos pagos: matérias do plano recebidas hoje sem gastar a cota (teto PAID_PLAN_PER_DAY). */
+  planToday?: (user: AuthenticatedUser) => Promise<number>;
 }
 
 /** O que o app mostra do Grátis: quanto já usou de cada regra e os limites. */
@@ -108,7 +110,10 @@ export function createAiPlanHandler(
       const free = summary.planTier === "FREE" && dependencies.freeUsage
         ? await dependencies.freeUsage(user).then((usage) => freeAllowanceView(usage, dependencies.adsEnabled?.() === true)).catch(() => null)
         : null;
-      return jsonResponse({ ...summary, ...(free ? { freeAllowance: free } : {}), pricing: await dependencies.pricing(user), billing: { playEnabled: dependencies.playEnabled() } });
+      const planToday = summary.planTier !== "FREE" && dependencies.planToday
+        ? await dependencies.planToday(user).then((used) => ({ used, limit: PAID_PLAN_PER_DAY })).catch(() => null)
+        : null;
+      return jsonResponse({ ...summary, ...(free ? { freeAllowance: free } : {}), ...(planToday ? { planToday } : {}), pricing: await dependencies.pricing(user), billing: { playEnabled: dependencies.playEnabled() } });
     } catch {
       return safeError("AI_PLAN_UNAVAILABLE", 503);
     }
@@ -184,6 +189,11 @@ async function handleAiPlan(request: Request): Promise<Response> {
       return new SupabaseFreeAllowance(url, key).usage(user.userId);
     },
     adsEnabled: () => Deno.env.get("AD_REWARDS_ENABLED")?.trim() === "true",
+    planToday: (user) => {
+      const url = Deno.env.get("SUPABASE_URL")?.trim(), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+      if (!url || !key) return Promise.reject(new Error("PLAN_TODAY_UNAVAILABLE"));
+      return planMaterialsToday(url, key, user.userId);
+    },
   })(request);
 }
 
