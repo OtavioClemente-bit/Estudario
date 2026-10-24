@@ -137,6 +137,8 @@ object ProgressEngine {
         val topicsTotal: Int,
         /** XP de tarefas de planos já apagados, guardado na hora da exclusão. */
         val retiredPlanXp: Int = 0,
+        /** Contagens dos emblemas de foco, caderno, erros e especiais. */
+        val extras: BadgeExtras = BadgeExtras(),
     )
 
     data class XpSource(val label: String, val xp: Int)

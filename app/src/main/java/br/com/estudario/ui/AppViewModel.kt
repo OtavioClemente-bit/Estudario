@@ -324,9 +324,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         scoped.size to scoped.count { it.status != TopicStatus.NAO_ESTUDADO }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0 to 0)
 
+    /** As contagens dos emblemas de foco, caderno, erros e horário (Madrugador e Coruja). */
+    private val badgeExtras: StateFlow<br.com.estudario.domain.BadgeExtras> = combine(
+        combine(app.database.dao().theoryMarks(), app.database.dao().notes(), app.database.dao().errors()) { marks, notes, errors -> Triple(marks.size + notes.size, errors.count { it.entry.retryCorrectCount > 0 }, 0) },
+        focusSessions, attempts, studySessions, reviewHistory,
+    ) { counts, focus, answers, sessions, history ->
+        val (early, late) = br.com.estudario.domain.BadgeExtras.hourDays(answers.map { it.answeredAt } + focus.map { it.startedAt } + sessions.map { it.startedAt } + history.map { it.reviewedAt })
+        br.com.estudario.domain.BadgeExtras(focusSessions = focus.size, marks = counts.first, errorsFixed = counts.second, earlyDays = early, lateDays = late)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, br.com.estudario.domain.BadgeExtras())
+
     /** XP, nível e emblemas. Tudo recalculado do histórico, nada guardado, backup devolve o nível. */
     val progress: StateFlow<ProgressEngine.ProgressSummary?> =
-        combine(activity, streak, planTaskTypes, syllabus, app.preferences.retiredPlanXp) { bundle, streakSummary, types, counts, retiredXp ->
+        combine(combine(activity, streak, planTaskTypes, syllabus, app.preferences.retiredPlanXp) { b, st, ty, co, rx -> listOf(b, st, ty, co, rx) }, badgeExtras) { packed, extras ->
+            @Suppress("UNCHECKED_CAST") val bundle = packed[0] as ActivityBundle?
+            val streakSummary = packed[1] as StreakSummary?
+            @Suppress("UNCHECKED_CAST") val types = packed[2] as List<br.com.estudario.data.local.planner.PlanTaskTypeRow>
+            @Suppress("UNCHECKED_CAST") val counts = packed[3] as Pair<Int, Int>
+            val retiredXp = packed[4] as Int
             if (bundle == null || streakSummary == null) return@combine null
             val typeById = types.associate { it.id to it.type }
             val zone = ZoneId.systemDefault()
@@ -357,6 +371,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     topicsStudied = counts.second,
                     topicsTotal = counts.first,
                     retiredPlanXp = retiredXp,
+                    extras = extras.copy(streakSaves = streakSummary.protectedDays.size),
                 ),
             )
         }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)

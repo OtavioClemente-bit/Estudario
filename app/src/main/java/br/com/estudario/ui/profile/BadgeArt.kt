@@ -83,6 +83,7 @@ private fun shapeOf(category: BadgeCategory): BadgeShape = when (category) {
     BadgeCategory.REVISOES -> BadgeShape.SCALLOP
     BadgeCategory.SIMULADOS -> BadgeShape.SQUARE
     BadgeCategory.MARATONA -> BadgeShape.HEX_FLAT
+    BadgeCategory.FLASHCARDS, BadgeCategory.CADERNO, BadgeCategory.FOCO, BadgeCategory.ERROS, BadgeCategory.ESPECIAIS -> BadgeShape.HEX_FLAT
 }
 
 /** Esmalte de cada categoria (claro, escuro): a cor que a pessoa associa àquele tipo de conquista. */
@@ -97,6 +98,7 @@ private fun enamelOf(category: BadgeCategory): Pair<Color, Color> = when (catego
     BadgeCategory.REVISOES -> Color(0xFFFF9CCB) to Color(0xFFBE185D)
     BadgeCategory.SIMULADOS -> Color(0xFF9FB0C8) to Color(0xFF334155)
     BadgeCategory.MARATONA -> Color(0xFF67E8F9) to Color(0xFF0E7490)
+    BadgeCategory.FLASHCARDS, BadgeCategory.CADERNO, BadgeCategory.FOCO, BadgeCategory.ERROS, BadgeCategory.ESPECIAIS -> Color(0xFFB995F5) to Color(0xFF5B3FC4)
 }
 
 private fun polygon(c: Offset, r: Float, sides: Int, rotationDeg: Float): Path = Path().apply {

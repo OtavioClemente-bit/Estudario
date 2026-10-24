@@ -41,6 +41,10 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.DirectionsRun
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.GpsFixed
@@ -76,6 +80,11 @@ internal fun categoryIcon(category: BadgeCategory): ImageVector = when (category
     BadgeCategory.REVISOES -> Icons.Outlined.EventRepeat
     BadgeCategory.SIMULADOS -> Icons.Outlined.Timer
     BadgeCategory.MARATONA -> Icons.Outlined.DirectionsRun
+    BadgeCategory.FLASHCARDS -> Icons.Outlined.Style
+    BadgeCategory.CADERNO -> Icons.Outlined.EditNote
+    BadgeCategory.FOCO -> Icons.Outlined.Timer
+    BadgeCategory.ERROS -> Icons.Outlined.TaskAlt
+    BadgeCategory.ESPECIAIS -> Icons.Outlined.AutoAwesome
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

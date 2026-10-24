@@ -64,6 +64,16 @@ object Progress {
                 reviewsCompleted = data.reviewHistory.size,
                 topicsStudied = leaves.count(Queries::isStudied),
                 topicsTotal = leaves.size,
+                extras = run {
+                    val (early, late) = br.com.estudario.domain.BadgeExtras.hourDays(data.attempts.map { it.answeredAt } + data.focusSessions.map { it.startedAt } + data.sessions.map { it.startedAt } + data.reviewHistory.map { it.reviewedAt })
+                    br.com.estudario.domain.BadgeExtras(
+                        focusSessions = data.focusSessions.size,
+                        marks = data.theoryMarks.size + data.notes.size,
+                        errorsFixed = data.errors.count { it.retryCorrectCount > 0 },
+                        streakSaves = streak.protectedDays.size,
+                        earlyDays = early, lateDays = late,
+                    )
+                },
             ),
         )
         return ProgressView(streak, progress).also { lastData = data; lastGoal = goalQuestions; last = it }

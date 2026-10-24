@@ -133,14 +133,14 @@ object FolhaWardrobe {
         item("farda", FolhaSlot.CAPA, "Farda azul-marinho", R, level = 21),
         item("quepe", FolhaSlot.CHAPEU, "Quepe", R, badge = "seq-60"),
         item("distintivo", FolhaSlot.PESCOCO, "Distintivo", E, badge = "quest-5000"),
-        item("radio", FolhaSlot.MAO, "Rádio da viatura", E, level = 23),
+        item("radio", FolhaSlot.MAO, "Rádio da viatura", E, badge = "foco-50"),
         item("lousa", FolhaSlot.CAPA, "Lousa verde", R, level = 25),
-        item("cracha", FolhaSlot.PESCOCO, "Crachá de professor", R, badge = "topico-150"),
+        item("cracha", FolhaSlot.PESCOCO, "Crachá de professor", R, badge = "caderno-100"),
         item("maca", FolhaSlot.MAO, "Maçã do professor", R, badge = "revisao-400"),
         item("chumbo", FolhaSlot.CAPA, "Risca de giz", R, level = 27),
         item("viseira", FolhaSlot.CHAPEU, "Viseira de contador", R, badge = "plano-500"),
         item("caneta", FolhaSlot.PESCOCO, "Caneta-tinteiro", E, badge = "acerto-90"),
-        item("calculadora", FolhaSlot.MAO, "Calculadora", R, level = 29),
+        item("calculadora", FolhaSlot.MAO, "Calculadora", R, badge = "erros-100"),
 
         // peças que eram de coleção e agora saem por nível
         item("tweed", FolhaSlot.CAPA, "Tweed de detetive", E, level = 22),
