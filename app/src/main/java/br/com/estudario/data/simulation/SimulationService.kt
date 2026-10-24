@@ -356,7 +356,8 @@ class SimulationService(
         val catalog = ExamCatalogProvider.get(context)
         if (!catalog.isConfigured) return null
         val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return null
-        return runCatching { catalog.officialSimulation(catalogId) }.getOrNull()
+        val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken()
+        return runCatching { catalog.officialSimulation(catalogId, token) }.getOrNull()
     }
 
     /**

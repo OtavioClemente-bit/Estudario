@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { adCreditAllowed, decideFreeContent, type FreeUsage, parsePurpose, usageFrom } from "./free-allowance.ts";
-import { derToRaw, verifyRewardCall } from "../ad-reward-ssv/index.ts";
+import { derToRaw, isOurAdUnit, verifyRewardCall } from "../ad-reward-ssv/index.ts";
 
 const none: FreeUsage = { planDayToday: 0, extrasMonth: 0, weeklyAdvances: 0, adCreditsToday: 0, adCreditsMonth: 0, adCreditsAvailable: 0 };
 
@@ -78,4 +78,11 @@ Deno.test("assinatura do anúncio: vale só a do Google, sem alteração", async
   assertEquals(await verifyRewardCall(query.replace("user_id=1111", "user_id=9999"), keys), false);
   assertEquals(await verifyRewardCall(query.replace("key_id=42", "key_id=7"), keys), false);
   assertEquals(await verifyRewardCall(content, keys), false);
+});
+
+Deno.test("anúncio premiado: só o bloco do Estudário vira crédito", () => {
+  assertEquals(isOurAdUnit("9507247864", "9507247864"), true);
+  assertEquals(isOurAdUnit("ca-app-pub-6794476146182030/9507247864", "9507247864"), true);
+  assertEquals(isOurAdUnit("1234567890", "9507247864"), false);
+  assertEquals(isOurAdUnit(null, "9507247864"), false);
 });

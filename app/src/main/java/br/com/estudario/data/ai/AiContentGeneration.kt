@@ -110,6 +110,8 @@ class AiContentGenerator(
                     when (job.optString("errorCode")) {
                         // Grátis num tópico sem matéria pronta: o servidor não chama a IA.
                         "PLAN_AI_MATERIAL_LIMIT" -> NOT_READY_MESSAGE
+                        // Teto diário da plataforma: espera algumas horas, sem gastar a cota.
+                        "AI_DAILY_BUDGET" -> "O Estudário está com muita procura agora. Tente de novo em algumas horas; sua cota não foi usada."
                         else -> "Não consegui gerar um material confiável desta vez. Sua cota não foi usada; tente de novo."
                     },
                 ))

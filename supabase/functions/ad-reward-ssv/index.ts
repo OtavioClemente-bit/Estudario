@@ -76,6 +76,14 @@ export async function verifyRewardCall(rawQuery: string, keys: Map<string, Crypt
   }
 }
 
+/** Bloco premiado do Estudário (só o número final do id do AdMob). ADMOB_REWARDED_AD_UNIT troca. */
+const AD_UNIT = (Deno.env.get("ADMOB_REWARDED_AD_UNIT")?.trim() || "ca-app-pub-6794476146182030/9507247864").split("/").pop()!;
+
+export function isOurAdUnit(adUnit: string | null, expected = AD_UNIT): boolean {
+  const unit = (adUnit ?? "").trim().split("/").pop() ?? "";
+  return unit !== "" && unit === expected;
+}
+
 function text(body: string, status = 200): Response {
   return new Response(body, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
 }
@@ -96,8 +104,11 @@ async function handle(request: Request): Promise<Response> {
   const timestamp = Number(params.get("timestamp"));
   // O teste de URL do próprio AdMob vem sem conta: confere a assinatura e responde que está tudo certo.
   if (!UUID.test(userId) || !transaction) return text("ok");
-  // Anúncio de mais de um dia atrás não vira crédito (repetição tardia).
-  if (Number.isFinite(timestamp) && Date.now() - timestamp > 86_400_000) return text("ok");
+  // Sem horário, ou de mais de um dia atrás, não vira crédito (repetição tardia).
+  if (!Number.isFinite(timestamp) || Date.now() - timestamp > 86_400_000) return text("ok");
+  // Só o nosso bloco premiado: o Google assina o retorno de qualquer app AdMob, e alguém poderia
+  // apontar o bloco de outro app para cá.
+  if (!isOurAdUnit(params.get("ad_unit"))) return text("ok");
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim(), serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
   if (!supabaseUrl || !serviceKey) return text("unavailable", 503);

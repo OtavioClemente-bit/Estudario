@@ -191,6 +191,8 @@ export interface SyllabusWorkerStore {
   aiMaterialsThisMonth?(userId: string): Promise<{ tier: string; used: number }>;
   /** Plano efetivo da conta ("FREE" se o pago venceu). Usado na trava que impede o Grátis de chamar a IA. */
   planTierOf?(userId: string): Promise<string>;
+  /** Tokens de IA gastos nas últimas 24 horas, somando todas as contas (teto AI_DAILY_TOKEN_BUDGET). */
+  tokensLastDay?(): Promise<number>;
   /** Devolve a cota da matéria do plano de hoje que saiu pronta, sem IA (ai_refund_plan_day_quota). */
   refundPlanDayQuota?(jobId: string): Promise<void>;
   /** Devolve 1 da cota de um lote de compensação que deu certo (uma vez só; ver ai_refund_job_quota). */
@@ -872,6 +874,16 @@ export async function processSyllabusJob(
           return true;
         }
       }
+      // Teto de gasto da plataforma inteira em 24 horas (AI_DAILY_TOKEN_BUDGET, em tokens): última
+      // barreira se algum furo desconhecido aparecer. Passou do teto, a IA espera; a cota volta.
+      const dailyBudget = environmentNumber("AI_DAILY_TOKEN_BUDGET", 0);
+      if (dailyBudget > 0 && dependencies.jobs.tokensLastDay) {
+        const spent = await dependencies.jobs.tokensLastDay().catch(() => null);
+        if (spent === null || spent >= dailyBudget) {
+          await finalizeFailure(dependencies, job, lease, "AI_DAILY_BUDGET", "FAILED", false);
+          return true;
+        }
+      }
       // Ex.: Grátis que já usou as matérias pela IA do mês. A IA nem é chamada; a cota volta.
       const blocked = spec.beforeProvider ? await spec.beforeProvider(job, dependencies).catch(() => null) : null;
       if (blocked) {
@@ -1064,7 +1076,12 @@ export function authorizeWorkerRequest(
     /^Bearer\s+/i,
     "",
   ).trim();
-  return Boolean(expectedToken && bearer && bearer === expectedToken);
+  if (!expectedToken || !bearer) return false;
+  // Comparação em tempo constante: o tempo da resposta não revela quantos caracteres batem.
+  const a = new TextEncoder().encode(bearer), b = new TextEncoder().encode(expectedToken);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
 }
 
 function row(value: unknown): Record<string, unknown> {
@@ -1387,6 +1404,11 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     // Mesma regra de effectivePlanTier: plano pago vencido vale como Grátis.
     const paidActive = row?.plan_tier && row.plan_tier !== "FREE" && (!row.plan_renews_at || Date.parse(row.plan_renews_at) > Date.now());
     return paidActive ? row!.plan_tier! : "FREE";
+  }
+  async tokensLastDay(): Promise<number> {
+    const response = await this.rest("rpc/ai_tokens_last_day", { method: "POST", body: "{}" });
+    if (!response.ok) throw new Error("TOKENS_UNAVAILABLE");
+    return Number(await response.json()) || 0;
   }
   async aiMaterialsThisMonth(userId: string): Promise<{ tier: string; used: number }> {
     const user = encodeURIComponent(userId);

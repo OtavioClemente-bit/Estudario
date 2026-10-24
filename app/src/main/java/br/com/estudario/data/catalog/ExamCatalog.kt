@@ -233,11 +233,15 @@ class ExamCatalogRepository(
         return subjects
     }
 
-    /** A prova oficial do edital (o simulado nº 1), ou null quando o edital não tem prova pronta. */
-    suspend fun officialSimulation(catalogId: String): OfficialSimulation? {
+    /**
+     * A prova oficial do edital (o simulado nº 1), ou null quando o edital não tem prova pronta. A
+     * prova só é lida com conta ([accessToken]): sem login, o servidor não entrega.
+     */
+    suspend fun officialSimulation(catalogId: String, accessToken: String?): OfficialSimulation? {
+        if (accessToken == null) return null
         val encoded = URLEncoder.encode(catalogId, StandardCharsets.UTF_8.name())
         val body = try {
-            http("${baseUrl.trimEnd('/')}/rest/v1/exam_simulation?select=id,catalog_id,board,format,structure,item_count,questions&catalog_id=eq.$encoded&status=eq.PUBLISHED&order=number.asc&limit=1")
+            defaultGet("${baseUrl.trimEnd('/')}/rest/v1/exam_simulation?select=id,catalog_id,board,format,structure,item_count,questions&catalog_id=eq.$encoded&status=eq.PUBLISHED&order=number.asc&limit=1", apiKey, accessToken)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -281,13 +285,13 @@ class ExamCatalogRepository(
         private const val PAGE_SIZE = 1000
         private const val TIMEOUT_MILLIS = 15_000
 
-        private suspend fun defaultGet(url: String, apiKey: String): String = withContext(Dispatchers.IO) {
+        private suspend fun defaultGet(url: String, apiKey: String, bearer: String = apiKey): String = withContext(Dispatchers.IO) {
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = TIMEOUT_MILLIS
                 readTimeout = TIMEOUT_MILLIS
                 setRequestProperty("apikey", apiKey)
-                setRequestProperty("Authorization", "Bearer $apiKey")
+                setRequestProperty("Authorization", "Bearer $bearer")
                 setRequestProperty("Accept", "application/json")
             }
             try {

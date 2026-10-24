@@ -194,12 +194,15 @@ export class SupabaseAiJobStore implements AiJobStore {
   constructor(private readonly environment: SupabaseJobEnvironment) {}
 
   async createOrGet(input: CreateAiJobInput): Promise<CreatedAiJob> {
-    const response = await this.rpc("create_or_get_ai_job_and_reserve_quota", {
+    // Só o servidor cria pedido (create_ai_job_for_user, chave interna): o conteúdo do pedido
+    // (motivo, compensação, entrada já conferida) não pode vir direto do app.
+    const response = await this.rpc("create_ai_job_for_user", {
+      p_user_id: input.userId,
       p_feature: input.feature,
       p_idempotency_key: input.idempotencyKey,
       p_request_fingerprint: input.requestFingerprint,
       p_request_payload: input.requestPayload,
-    });
+    }, this.adminHeaders());
     const row = firstRow(response);
     const jobId = stringField(row, "job_id");
     const job = await this.getJob(input.userId, jobId);

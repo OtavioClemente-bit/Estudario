@@ -102,8 +102,11 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
   },
   validate: async (raw, expected, job, dependencies) => {
     const result = await validateContent(raw, expected, job, dependencies);
-    // Guarda para o próximo pedido igual; falha aqui nunca derruba a entrega.
+    // Guarda para o próximo pedido igual; falha aqui nunca derruba a entrega. Pedido com "questões a
+    // evitar" não entra: essa lista vai para a IA mas fica fora da chave, e um texto escrito nela
+    // poderia mudar o material que outras pessoas recebem do mesmo tópico.
     const input = inputOf<ContentJobInput>(job, parseContentJobInput);
+    if (input.avoidStatements.length > 0) return result;
     await contentCacheKey(input)
       .then((key) => dependencies.jobs.storeContent?.(key, CONTENT_PROMPT_VERSION, job.userId, job.id, result as unknown as Record<string, unknown>))
       .catch(() => undefined);

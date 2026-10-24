@@ -120,7 +120,9 @@ object Catalog {
             ?: all.filter { it.shortName.equals(competitionName, true) }.singleOrNull()
             ?: return null
         val fields = "id,catalog_id,board,format,structure,item_count,questions"
-        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_simulation?select=$fields&catalog_id=eq.${js("encodeURIComponent")(entry.id)}&status=eq.PUBLISHED&order=number.asc&limit=1", headers)
+        // A prova oficial só sai com conta (o servidor não entrega sem login).
+        val token = Auth.accessToken() ?: return null
+        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_simulation?select=$fields&catalog_id=eq.${js("encodeURIComponent")(entry.id)}&status=eq.PUBLISHED&order=number.asc&limit=1", headers + ("Authorization" to "Bearer $token"))
         if (!response.ok) return null
         snapshotJson.decodeFromString(ListSerializer(OfficialSimulation.serializer()), response.body).firstOrNull()?.takeIf { it.questions.isNotEmpty() }
     }.getOrNull()
