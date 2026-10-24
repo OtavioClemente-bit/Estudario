@@ -24,7 +24,7 @@
   const GOLD = "#F5B83D", MINT = "#7EE0B8", MINT_DARK = "#3FBF8F", CHEEK = "#F4A6C0", SPARK = "#FFE07A";
   const PAPER = "#FFFDF8", PAPER_MID = "#F7F4EE", PAPER_EDGE = "#E9E4DA", PAPER_EDGE_DARK = "#CFC8BC", GUTTER = "#3A3170";
   const PI = Math.PI, sin = Math.sin, cos = Math.cos, abs = Math.abs;
-  const MARGIN = 18;                          // % de sobra do canvas para cada lado da caixa
+  const MARGIN = 22;                          // % de sobra do canvas para cada lado da caixa (cabe o companheiro e o item na mão)
   const SMALL = 72;                           // abaixo disso (px), desenho simplificado
 
   const reduceMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
@@ -776,7 +776,7 @@
     const party = /^(happy|ecstatic|proud|wave|present)$/.test(mood), sleepy = mood === "sleepy", sad = mood === "sad";
     const hop = party ? -abs(sin(t * 5.2 + 0.8)) * 3 : burst > 0 ? -sin(PI * (1 - burst)) * 4 : sad ? 0.3 : -abs(sin(t * 1.3)) * 0.4;
     const blink = sleepy || (t % 3.7) < 0.13;
-    const x = sad ? -5 : -9, base = 95, k = 1.45;
+    const x = sad ? -3 : -6, base = 95, k = 1.45;
     g.save(); g.translate(x, base); g.scale(1, 0.22); circle(g, rgba(INK, 0.2), (7 + hop * 0.3) * k, 0, 0); g.restore();
     g.save(); g.translate(x, base + hop * k); g.scale(k, k);
     let tearAt = null;
@@ -877,21 +877,46 @@
       circle(g, rgba(CHEEK, 0.6), 0.8, -2.8, -10.4); circle(g, rgba(CHEEK, 0.6), 0.8, 2.8, -10.4);
       for (const s of [-1, 1]) { g.beginPath(); g.ellipse(s * 2.1, -0.5, 1.6, 0.9, 0, 0, 2 * PI); g.fillStyle = "#F6F2FF"; g.fill(); }
     } else if (kind === "dragao") {
-      // dragãozinho: asas batendo, rabo com espinho e baforada de fogo quando comemora
-      const flap = sin(t * (party ? 10 : 3)) * 0.35;
-      for (const s of [-1, 1]) { g.save(); g.translate(-1 + s * 1.5, -9); g.rotate(-0.6 * s + flap * s); const w = new Path2D(); w.moveTo(0, 0); w.quadraticCurveTo(s * -6, -5, s * -7, 1); w.quadraticCurveTo(s * -4, 0, s * -3.5, 2.4); w.quadraticCurveTo(s * -2, 1, 0, 2); w.closePath(); g.fillStyle = "#9563FF"; g.fill(w); g.restore(); }
-      const tail = new Path2D(); tail.moveTo(-3.5, -2); tail.quadraticCurveTo(-9, -1, -10.5, -5 + sin(t * 2) * 0.8); stroke(g, tail, "#1F9E75", 1.6);
-      const spike = new Path2D(); spike.moveTo(-11.6, -5.6 + sin(t * 2) * 0.8); spike.lineTo(-9.6, -6.4 + sin(t * 2) * 0.8); spike.lineTo(-10.6, -3.8 + sin(t * 2) * 0.8); spike.closePath(); g.fillStyle = "#9563FF"; g.fill(spike);
-      const body = new Path2D(); body.ellipse(0, -5.2, 4.8, 5, 0, 0, 2 * PI); g.fillStyle = vGrad(g, ["#4FD3A2", "#1F9E75"], -10, 0); g.fill(body);
-      g.beginPath(); g.ellipse(0.6, -4, 2.6, 3.2, 0, 0, 2 * PI); g.fillStyle = "#D9FBEE"; g.fill();
-      circle(g, "#36C897", 4, 2.2, -12);
-      g.beginPath(); g.ellipse(5.4, -11.2, 2.4, 1.7, 0, 0, 2 * PI); g.fillStyle = "#36C897"; g.fill();
-      circle(g, INK, 0.3, 6.6, -11.6); circle(g, INK, 0.3, 6.2, -10.6);
-      for (const hx of [0.4, 2.8]) { const h = new Path2D(); h.moveTo(hx, -15.2); h.lineTo(hx + 0.6, -17.6); h.lineTo(hx + 1.4, -15.2); h.closePath(); g.fillStyle = "#F5B83D"; g.fill(h); }
-      eye(3.2, -13, 0.8); circle(g, rgba(CHEEK, 0.6), 0.8, 1.2, -11);
+      // dragãozinho bebê, virado para o Folha: corpo gordinho com a barriga de placas, espinhos dourados nas
+      // costas, asas de morcego com nervuras que batem (rápido na festa), rabo enrolado com a ponta de espada,
+      // focinho com narinas, chifrinhos e o dentinho no sorriso; na festa ele solta fogo
+      const flap = sin(t * (party ? 10 : 2.6)) * (party ? 0.45 : 0.22), sw = sin(t * 1.8) * 0.6, OL = "rgba(14,86,62,0.55)";
+      // asas (atrás)
+      for (const s of [-1, 1]) {
+        g.save(); g.translate(-1.2 + s * 0.6, -9.6); g.rotate(-0.35 - s * 0.25 + flap * (s < 0 ? 1 : 0.7)); if (s > 0) g.scale(0.82, 0.82);
+        const w = new Path2D(); w.moveTo(0, 0); w.quadraticCurveTo(-4, -7.5, -9.4, -6.6); w.quadraticCurveTo(-8.4, -4.2, -9, -2.4); w.quadraticCurveTo(-7, -2.8, -6.6, -0.6); w.quadraticCurveTo(-4.6, -1.4, -3.8, 1.4); w.quadraticCurveTo(-2, 0.6, 0, 1.6); w.closePath();
+        g.fillStyle = vGrad(g, s < 0 ? ["#B995F5", "#7B4FE0"] : ["#9E7AE8", "#6A3FCC"], -7, 2); g.fill(w); stroke(g, w, "rgba(60,30,130,0.55)", 0.35);
+        for (const [x, y] of [[-9.4, -6.6], [-9, -2.4], [-3.8, 1.4]]) line(g, "rgba(70,35,150,0.7)", 0, 0, x * 0.92, y * 0.92, 0.35);
+        g.restore();
+      }
+      // rabo enrolado com a ponta de espada
+      const tail = new Path2D(); tail.moveTo(-3, -2.2); tail.bezierCurveTo(-9, -1, -11.4, -4.6, -9.6 + sw * 0.3, -8.2); tail.quadraticCurveTo(-8.6, -9.8, -7.4 + sw * 0.4, -8.8);
+      stroke(g, tail, "#1A8A66", 2.4); stroke(g, tail, "#3CC795", 1.3);
+      const tp = new Path2D(); const tx = -7.4 + sw * 0.4, ty = -8.8; tp.moveTo(tx - 0.6, ty + 0.4); tp.lineTo(tx + 1.4, ty - 2.2); tp.lineTo(tx + 1.6, ty + 0.9); tp.closePath(); g.fillStyle = "#9563FF"; g.fill(tp);
+      // pezinhos
+      for (const fx of [-2.2, 2.4]) { g.beginPath(); g.ellipse(fx, -0.6, 2, 1.1, 0, 0, 2 * PI); g.fillStyle = "#1F9E75"; g.fill(); for (const c of [-0.8, 0, 0.8]) circle(g, "#F6FFF9", 0.28, fx + 0.8 + c, -0.2); }
+      // corpo e barriga de placas
+      const body = new Path2D(); body.moveTo(0, -11); body.bezierCurveTo(4.6, -11, 5.6, -4.6, 4.6, -1.6); body.quadraticCurveTo(3.4, 0.2, 0, 0.2); body.quadraticCurveTo(-3.6, 0.2, -4.8, -1.8); body.bezierCurveTo(-5.6, -5, -4.4, -11, 0, -11); body.closePath();
+      const bg = g.createRadialGradient(-1.4, -7.4, 0.4, 0, -5, 7); bg.addColorStop(0, "#6FE6B8"); bg.addColorStop(0.6, "#36C897"); bg.addColorStop(1, "#1A8A66"); g.fillStyle = bg; g.fill(body); stroke(g, body, OL, 0.35);
+      const belly = new Path2D(); belly.ellipse(1.2, -4.4, 2.7, 3.7, 0.1, 0, 2 * PI); g.fillStyle = vGrad(g, ["#FFF6D6", "#F3E3A8"], -8, -0.8); g.fill(belly);
+      g.save(); g.clip(belly); for (let i = 0; i < 4; i++) { const p = new Path2D(); p.moveTo(-1.6, -6.8 + i * 1.6); p.quadraticCurveTo(1.2, -5.8 + i * 1.6, 4, -6.8 + i * 1.6); stroke(g, p, "rgba(190,150,60,0.55)", 0.28); } g.restore();
+      // espinhos dourados nas costas
+      for (const [x, y, a] of [[-4.2, -8.6, -1.9], [-4.9, -6, -1.75], [-5, -3.4, -1.6]]) { g.save(); g.translate(x, y); g.rotate(a); const sp = new Path2D(); sp.moveTo(-0.9, 0); sp.lineTo(0, -1.8); sp.lineTo(0.9, 0); sp.closePath(); g.fillStyle = "#F5B83D"; g.fill(sp); g.restore(); }
+      // cabeça
+      const hx = 2.6, hy = -14;
+      for (const [x, a] of [[hx - 2.2, -0.5], [hx + 0.6, -0.15]]) { g.save(); g.translate(x, hy - 3.6); g.rotate(a); const h = new Path2D(); h.moveTo(-0.8, 0.6); h.quadraticCurveTo(-0.7, -1.6, 0.6, -2.8); h.quadraticCurveTo(0.4, -1, 0.9, 0.6); h.closePath(); g.fillStyle = vGrad(g, ["#FFE59A", "#E9A82B"], -2.8, 0.6); g.fill(h); g.restore(); }
+      const fin = new Path2D(); fin.moveTo(hx - 3.6, hy - 0.6); fin.lineTo(hx - 6, hy - 2.2); fin.lineTo(hx - 3.8, hy + 1.2); fin.closePath(); g.fillStyle = "#9563FF"; g.fill(fin);
+      const head = new Path2D(); head.ellipse(hx, hy, 4.4, 4, 0, 0, 2 * PI);
+      const hg = g.createRadialGradient(hx - 1.4, hy - 1.8, 0.3, hx, hy, 5); hg.addColorStop(0, "#7AEBC0"); hg.addColorStop(0.65, "#3CC795"); hg.addColorStop(1, "#1F9E75"); g.fillStyle = hg; g.fill(head); stroke(g, head, OL, 0.35);
+      const snout = new Path2D(); snout.ellipse(hx + 3.6, hy + 1.2, 2.6, 1.9, 0.1, 0, 2 * PI); g.fillStyle = vGrad(g, ["#6FE6B8", "#36C897"], hy - 0.7, hy + 3.1); g.fill(snout); stroke(g, snout, OL, 0.3);
+      circle(g, "#0E563E", 0.32, hx + 4.8, hy + 0.5); circle(g, "#0E563E", 0.32, hx + 5.4, hy + 1.3);
+      const sm = new Path2D(); sm.moveTo(hx + 1.4, hy + 2.2); sm.quadraticCurveTo(hx + 3, hy + (party ? 3.6 : 3), hx + 4.8, hy + 2.4); stroke(g, sm, INK, 0.4);
+      const fang = new Path2D(); fang.moveTo(hx + 3.2, hy + 2.9); fang.lineTo(hx + 3.7, hy + 3.9); fang.lineTo(hx + 4.1, hy + 2.8); fang.closePath(); g.fillStyle = "#FFFFFF"; g.fill(fang);
+      eye(hx + 0.6, hy - 0.8, 1); circle(g, rgba(CHEEK, 0.7), 0.9, hx + 1.2, hy + 1.6);
       if (party) {
-        const k = 0.6 + 0.4 * abs(sin(t * 8)), f = new Path2D(); f.moveTo(7.6, -11.6); f.quadraticCurveTo(10 + 2 * k, -14, 12 + 2.5 * k, -11.2); f.quadraticCurveTo(10 + 2 * k, -9, 7.6, -10.6); f.closePath();
-        g.fillStyle = hGrad(g, ["#FFE07A", "#FF9F3A", "#F2552C"], 7.6, 13); g.fill(f);
+        const k = 0.6 + 0.4 * abs(sin(t * 8)), x0 = hx + 6, y0 = hy + 1.2;
+        const f = new Path2D(); f.moveTo(x0, y0 - 0.6); f.quadraticCurveTo(x0 + 2.4 + 2 * k, y0 - 3, x0 + 4.6 + 2.5 * k, y0); f.quadraticCurveTo(x0 + 2.4 + 2 * k, y0 + 2.2, x0, y0 + 0.6); f.closePath();
+        g.fillStyle = hGrad(g, ["#FFE07A", "#FF9F3A", "#F2552C"], x0, x0 + 6); g.fill(f);
       }
     }
     // ---- reage ao Folha (à direita dele)
@@ -1390,7 +1415,15 @@
   }
 
   // ---- pescoço / peito (embaixo da boca, no pé das páginas)
+  // As peças do peito no tamanho certo: os broches e medalhas ficam presos sempre no mesmo lugar (lado
+  // esquerdo, abaixo do olho) e maiores, para lerem de longe; gravatas e laços no meio, logo abaixo da boca.
+  const NECK_ZOOM = { borboleta: [50, 83.4, 1.35], medalha: [25.6, 73.2, 1.4], roseta: [24.5, 78.4, 1.45], "medalha-militar": [25, 71.6, 1.4], balanca: [24.8, 72.4, 1.5], broche: [23.5, 79.6, 1.55], flor: [76.5, 79.6, 1.45], caneta: [26, 70, 1.3] };
   function drawNeckwear(g, t, small, kind) {
+    const z = NECK_ZOOM[kind];
+    if (!z) { drawNeckwearRaw(g, t, small, kind); return; }
+    g.save(); g.translate(z[0], z[1]); g.scale(z[2], z[2]); g.translate(-z[0], -z[1]); drawNeckwearRaw(g, t, small, kind); g.restore();
+  }
+  function drawNeckwearRaw(g, t, small, kind) {
     if (!kind || kind === "nenhum") return;
     if (kind === "borboleta") {
       const x = 50, y = 83.4, red = "#E0475E", dk = "#A8233A";
@@ -1449,35 +1482,45 @@
       g.save(); g.beginPath(); g.arc(0, my, R, 0, 2 * PI); g.clip(); const k = (t * 0.35) % 1.6; line(g, "rgba(255,255,255,0.6)", -6 + k * 9, my - 6, -8 + k * 9, my + 6, 1.3); g.restore();
       g.restore();
     } else if (kind === "distintivo") {
-      // distintivo da polícia: estrela de seis pontas dourada, com o centro esmaltado, num porta-distintivo de couro
-      const px = 25, py = 74, sw = sin(t * 1.6) * 0.04;
+      // distintivo da polícia preso no peito: estrela de seis pontas em ouro chanfrado (metade clara, metade
+      // sombra), as bolinhas nas pontas, o anel com pontinhos gravados e o centro azul com a estrela; um
+      // brilho passa de tempos em tempos
+      const px = 25, py = 76.5, R = 6, sw = sin(t * 1.6) * 0.03;
       g.save(); g.translate(px, py); g.rotate(sw);
-      const lt = new Path2D(); lt.roundRect(-5, -6, 10, 12.4, 2.2); g.fillStyle = vGrad(g, ["#3A2A1E", "#1C130C"], -6, 6.4); g.fill(lt);
-      g.save(); g.setLineDash([0.6, 0.5]); const st = new Path2D(); st.roundRect(-4.2, -5.2, 8.4, 10.8, 1.6); stroke(g, st, "rgba(230,190,130,0.55)", 0.22); g.restore();
-      const star6 = (r) => { const p = new Path2D(); for (let i = 0; i < 12; i++) { const a = -PI / 2 + i * PI / 6, rr = i % 2 ? r * 0.55 : r; i ? p.lineTo(cos(a) * rr, sin(a) * rr + 0.2) : p.moveTo(cos(a) * rr, sin(a) * rr + 0.2); } p.closePath(); return p; };
-      g.save(); g.translate(0.3, 0.4); g.fillStyle = "rgba(0,0,0,0.35)"; g.fill(star6(4.2)); g.restore();
-      g.fillStyle = vGrad(g, ["#FFF4CC", "#F5C451", "#B57A0C"], -4.2, 4.4); g.fill(star6(4.2)); stroke(g, star6(4.2), "rgba(110,70,0,0.6)", 0.25);
-      for (let i = 0; i < 6; i++) { const a = -PI / 2 + i * PI / 3; circle(g, "#FFE9A8", 0.45, cos(a) * 4.2, sin(a) * 4.2 + 0.2); }
-      circle(g, "#B57A0C", 2.2, 0, 0.2); circle(g, "#22306A", 1.8, 0, 0.2); g.fillStyle = "#FFD877"; g.fill(star5(g, 0, 0.3, 1));
-      const k = Math.max(0, sin(t * 1.1 + 2)) ** 10; if (k > 0.02) star4(g, 2.8, -3.2, 2.4 * k, `rgba(255,255,255,${k})`);
+      const star6 = (r, dx = 0, dy = 0) => { const p = new Path2D(); for (let i = 0; i < 12; i++) { const a = -PI / 2 + i * PI / 6, rr = i % 2 ? r * 0.56 : r; i ? p.lineTo(dx + cos(a) * rr, dy + sin(a) * rr) : p.moveTo(dx + cos(a) * rr, dy + sin(a) * rr); } p.closePath(); return p; };
+      g.fillStyle = "rgba(40,25,0,0.35)"; g.fill(star6(R, 0.45, 0.6));
+      g.fillStyle = vGrad(g, ["#FFF4CC", "#F5C451", "#B57A0C"], -R, R); g.fill(star6(R));
+      // chanfro: cada ponta com o lado da sombra
+      for (let i = 0; i < 6; i++) { const a = -PI / 2 + i * PI / 3, b = a + PI / 6; const f = new Path2D(); f.moveTo(0, 0); f.lineTo(cos(a) * R, sin(a) * R); f.lineTo(cos(b) * R * 0.56, sin(b) * R * 0.56); f.closePath(); g.fillStyle = "rgba(150,95,10,0.28)"; g.fill(f); }
+      stroke(g, star6(R), "rgba(110,70,0,0.65)", 0.3);
+      for (let i = 0; i < 6; i++) { const a = -PI / 2 + i * PI / 3; circle(g, "#B57A0C", 0.75, cos(a) * R, sin(a) * R); circle(g, "#FFE9A8", 0.5, cos(a) * R - 0.12, sin(a) * R - 0.12); }
+      circle(g, "#B57A0C", 3.3, 0, 0); circle(g, "#F5C451", 3, 0, 0);
+      for (let i = 0; i < 16; i++) { const a = i * PI / 8; circle(g, "rgba(120,75,5,0.75)", 0.18, cos(a) * 2.45, sin(a) * 2.45); }
+      circle(g, "#1A2660", 1.95, 0, 0); g.fillStyle = vGrad(g, ["#FFF1BF", "#E9AE34"], -1.2, 1.2); g.fill(star5(g, 0, 0.1, 1.25));
+      g.save(); g.clip(star6(R)); const k = (t * 0.3) % 1.8; line(g, "rgba(255,255,255,0.7)", -8 + k * 12, -8, -11 + k * 12, 8, 1.6); g.restore();
       g.restore();
+
     } else if (kind === "cracha") {
-      // crachá de professor: cordão menta saindo do pescoço, presilha de metal e o cartão com a foto do Folha
-      const sw = sin(t * 1.7) * 0.06;
-      const s1 = new Path2D(); s1.moveTo(33.6, 72.6); s1.quadraticCurveTo(30.6, 77, 30, 80.4);
-      const s2 = new Path2D(); s2.moveTo(42, 73.6); s2.quadraticCurveTo(33, 77, 30.6, 80.4);
-      for (const p of [s1, s2]) { stroke(g, p, "#1E8A5A", small ? 2 : 1.5); stroke(g, p, "#5FE3B5", small ? 0.8 : 0.5); }
-      g.save(); g.translate(30.2, 80.6); g.rotate(sw);
-      const clip = new Path2D(); clip.roundRect(-1, -0.6, 2, 2.4, 0.5); g.fillStyle = hGrad(g, ["#8E92A6", "#E3E6F0", "#8E92A6"], -1, 1); g.fill(clip);
-      const card = new Path2D(); card.roundRect(-4.6, 1.6, 9.2, 11.6, 1.2); g.fillStyle = "#FFFFFF"; g.fill(card); stroke(g, card, "rgba(40,40,80,0.4)", 0.3);
+      // crachá de professor: o cordão menta vem dos dois ombros e se encontra na presilha; o cartão pende no
+      // meio do peito, com a faixa índigo, a foto do Folha, as linhas do nome e o código de barras
+      const sw = sin(t * 1.7) * 0.05, cx = 50, cy = 83;
+      for (const p of [(() => { const q = new Path2D(); q.moveTo(14, 66); q.quadraticCurveTo(26, 86, cx - 0.8, cy); return q; })(), (() => { const q = new Path2D(); q.moveTo(86, 66); q.quadraticCurveTo(74, 86, cx + 0.8, cy); return q; })()]) {
+        stroke(g, p, "rgba(10,60,40,0.2)", small ? 2.8 : 2.3); stroke(g, p, "#1E8A5A", small ? 2.2 : 1.7); stroke(g, p, "#5FE3B5", small ? 0.9 : 0.6);
+      }
+      g.save(); g.translate(cx, cy); g.rotate(sw); g.scale(1.25, 1.25);
+      const clip = new Path2D(); clip.roundRect(-1.1, -0.8, 2.2, 2.8, 0.5); g.fillStyle = hGrad(g, ["#8E92A6", "#E3E6F0", "#8E92A6"], -1.1, 1.1); g.fill(clip);
+      g.fillStyle = "rgba(20,20,60,0.25)"; g.beginPath(); g.roundRect(-4.3, 2.1, 9.2, 11.6, 1.2); g.fill();
+      const card = new Path2D(); card.roundRect(-4.6, 1.6, 9.2, 11.6, 1.2); g.fillStyle = "#FFFFFF"; g.fill(card); stroke(g, card, "rgba(40,40,80,0.4)", 0.25);
       g.save(); g.clip(card); g.fillStyle = vGrad(g, ["#3A2FC4", "#2A209E"], 1.6, 4.6); g.fillRect(-5, 1.6, 10, 3); g.restore();
-      const ph = new Path2D(); ph.roundRect(-3.4, 5.4, 4, 4.6, 0.6); g.fillStyle = "#FFF6E0"; g.fill(ph); stroke(g, ph, "rgba(40,40,80,0.3)", 0.2);
-      circle(g, "#1D1670", 0.35, -2.2, 7.2); circle(g, "#1D1670", 0.35, -0.6, 7.2);
-      const sm = new Path2D(); sm.moveTo(-2.2, 8.4); sm.quadraticCurveTo(-1.4, 9.1, -0.6, 8.4); stroke(g, sm, "#1D1670", 0.25);
-      for (const [y, w] of [[6, 3.2], [7.4, 2.4], [8.8, 2.8]]) line(g, "rgba(60,60,100,0.45)", 1.2, y, 1.2 + w * 0.8, y, 0.35);
-      line(g, "rgba(255,255,255,0.8)", -3.6, 2.6, 2, 2.6, 0.4);
-      line(g, "#5FE3B5", -3.4, 11.6, 3.4, 11.6, 0.6);
+      line(g, "rgba(255,255,255,0.85)", -3.4, 3.1, 0.6, 3.1, 0.45); circle(g, "#5FE3B5", 0.55, 3.2, 3.1);
+      const ph = new Path2D(); ph.roundRect(-3.6, 5.4, 3.8, 4.4, 0.6); g.fillStyle = "#FFF6E0"; g.fill(ph); stroke(g, ph, "rgba(40,40,80,0.3)", 0.2);
+      g.fillStyle = "#2A209E"; g.fillRect(-3.4, 5.6, 3.4, 1.1);
+      circle(g, "#1D1670", 0.32, -2.4, 7.7); circle(g, "#1D1670", 0.32, -0.9, 7.7);
+      const sm = new Path2D(); sm.moveTo(-2.4, 8.7); sm.quadraticCurveTo(-1.65, 9.3, -0.9, 8.7); stroke(g, sm, "#1D1670", 0.22);
+      for (const [y, w] of [[6, 3.4], [7.3, 2.4], [8.6, 2.9]]) line(g, "rgba(60,60,100,0.5)", 1, y, 1 + w, y, 0.4);
+      for (let i = 0; i < 12; i++) g.fillRect(-3.4 + i * 0.6, 10.6, i % 3 ? 0.25 : 0.4, 1.6);
       g.restore();
+
     } else if (kind === "caneta") {
       // caneta-tinteiro de laca preta com clipe dourado e uma lapiseira menta, num bolsinho de couro
       const px = 26, py = 70;
@@ -1515,21 +1558,24 @@
       const k = Math.max(0, sin(t * 1.3 + 1)) ** 8; if (k > 0.02) star4(g, 2.6, sy - 3, 2.2 * k, `rgba(255,255,255,${k})`);
       g.restore();
     } else if (kind === "estetoscopio") {
-      // estetoscópio em volta do pescoço: o tubo passa por trás, as duas pontas descem pelo peito; de um
-      // lado as olivas (hastes de metal com as pontinhas pretas), do outro o diafragma prateado balançando
-      const sw = sin(t * 2) * 0.5, TUBE = "#24526E", TUBE_L = "#3B7EA3";
-      const tube = (p) => { stroke(g, p, TUBE, small ? 2.2 : 1.7); stroke(g, p, TUBE_L, small ? 1 : 0.7); };
-      const collar = new Path2D(); collar.moveTo(31.6, 73.4); collar.bezierCurveTo(36, 86.4, 64, 86.4, 68.4, 73.4); tube(collar);
-      const left = new Path2D(); left.moveTo(31.6, 73.4); left.bezierCurveTo(29.6, 76.4, 28.8, 79.6, 29.4 + sw * 0.4, 81.4); tube(left);
-      // olivas: um "Y" de metal com as pontas pretas
-      for (const s of [-1, 1]) { line(g, "#AEB6C4", 29.4 + sw * 0.4, 81.4, 29.4 + s * 2.2 + sw * 0.4, 84.6, 0.8); circle(g, "#1E1B2E", 0.75, 29.4 + s * 2.2 + sw * 0.4, 85); }
-      circle(g, "#C9D0DC", 0.75, 29.4 + sw * 0.4, 81.4);
-      const right = new Path2D(); right.moveTo(68.4, 73.4); right.bezierCurveTo(70.6, 76.4, 71.2, 79.6, 70.6 + sw, 81.4); tube(right);
-      const dx = 70.6 + sw, dy = 83.8;
-      line(g, "#AEB6C4", dx, 81.2, dx, 81.8, 0.9);
-      g.beginPath(); g.arc(dx, dy, 2.8, 0, 2 * PI); g.fillStyle = vGrad(g, ["#F3F6FA", "#AEB6C4", "#6E7588"], dy - 2.8, dy + 2.8); g.fill();
-      g.beginPath(); g.arc(dx, dy, 1.9, 0, 2 * PI); g.fillStyle = vGrad(g, ["#D5DBE5", "#F7F9FC"], dy - 1.9, dy + 1.9); g.fill();
-      g.beginPath(); g.arc(dx, dy, 2.8, PI * 1.1, PI * 1.5); g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 0.4; g.stroke();
+      // estetoscópio pendurado nos ombros: o tubo desce em U por baixo da boca e as duas pontas caem pelos lados,
+      // de um as olivas (as hastes de metal com as pontinhas pretas), do outro o diafragma prateado balançando
+      const sw = sin(t * 2) * 0.6, TUBE = "#1F4A66", TUBE_L = "#3B86AE", w = small ? 2.6 : 2.1;
+      const tube = (p) => { stroke(g, p, "rgba(10,30,50,0.25)", w + 0.9); stroke(g, p, TUBE, w); stroke(g, p, TUBE_L, w * 0.42); };
+      const collar = new Path2D(); collar.moveTo(14, 66); collar.bezierCurveTo(19, 93, 81, 93, 86, 66); tube(collar);
+      const left = new Path2D(); left.moveTo(14, 66); left.bezierCurveTo(10.6, 71, 11 + sw * 0.3, 77, 13 + sw * 0.4, 80.6); tube(left);
+      const ex = 13 + sw * 0.4, ey = 80.6;
+      for (const s of [-1, 1]) { const arm = new Path2D(); arm.moveTo(ex, ey); arm.quadraticCurveTo(ex + s * 2.8, ey + 1.6, ex + s * 2.6, ey + 5.4); stroke(g, arm, "#7C8598", 1.1); stroke(g, arm, "#DDE3EC", 0.45); circle(g, "#1E1B2E", 1, ex + s * 2.6, ey + 5.8); circle(g, "rgba(255,255,255,0.4)", 0.35, ex + s * 2.6 - 0.3, ey + 5.5); }
+      circle(g, "#C9D0DC", 1.1, ex, ey); circle(g, "#FFFFFF", 0.4, ex - 0.3, ey - 0.3);
+      const right = new Path2D(); right.moveTo(86, 66); right.bezierCurveTo(89.4, 71, 89 + sw, 77, 87 + sw, 80.4); tube(right);
+      const dx = 87 + sw, dy = 84.6, R = 3.6;
+      line(g, "#9AA3B4", dx, 80.2, dx, 81.4, 1.3);
+      circle(g, "rgba(20,30,50,0.3)", R + 0.3, dx + 0.4, dy + 0.5);
+      g.beginPath(); g.arc(dx, dy, R, 0, 2 * PI); g.fillStyle = vGrad(g, ["#F3F6FA", "#AEB6C4", "#6E7588"], dy - R, dy + R); g.fill();
+      g.beginPath(); g.arc(dx, dy, R * 0.7, 0, 2 * PI); g.fillStyle = vGrad(g, ["#C9D0DA", "#F7F9FC"], dy - R, dy + R); g.fill();
+      g.beginPath(); g.arc(dx, dy, R * 0.7, 0, 2 * PI); g.strokeStyle = "rgba(90,100,120,0.5)"; g.lineWidth = 0.3; g.stroke();
+      g.beginPath(); g.arc(dx, dy, R, PI * 1.1, PI * 1.55); g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 0.5; g.stroke();
+
     } else if (kind === "balanca") {
       // broche da balança da Justiça, em ouro: coluna, travessão que oscila devagar e os dois pratos
       const x = 24.8, y = 72.4, tilt = sin(t * 1.2) * 0.1;
