@@ -331,8 +331,8 @@ private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressS
     val missing = progress.xpForNextLevel - progress.xpIntoLevel
     Div({ classes("lvl-card"); attr("role", "button"); attr("tabindex", "0"); onClick { Router.go(Route.Profile) } }) {
         Div({ classes("lvl-top") }) {
-            Div({ classes("lvl-seal") }) {
-                org.jetbrains.compose.web.dom.Img(src = levelSealSvg(progress.level), alt = "", attrs = { attr("aria-hidden", "true") })
+            Div({ classes("lvl-seal"); attr("style", "--ray:${levelMetal(progress.level).second}") }) {
+                org.jetbrains.compose.web.dom.Img(src = levelCrestSvg(progress.level), alt = "", attrs = { attr("aria-hidden", "true") })
             }
             Div({ classes("grow") }) {
                 Span({ classes("lvl-eyebrow") }) { Text("SEU NÍVEL") }
@@ -349,16 +349,47 @@ private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressS
     }
 }
 
-/** O selo do nível (estrela dourada com o número), igual ao da comemoração de subir de nível. */
-private fun levelSealSvg(level: Int): String {
-    val svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE38A"/><stop offset=".55" stop-color="#FFB421"/><stop offset="1" stop-color="#E08A00"/></linearGradient>
-<linearGradient id="r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7B6CFF"/><stop offset="1" stop-color="#3A2BC9"/></linearGradient></defs>
-<path d="M30 78 L22 112 L40 102 L50 116 L58 84 Z" fill="url(#r)"/><path d="M90 78 L98 112 L80 102 L70 116 L62 84 Z" fill="url(#r)"/>
-<path d="M60 6 L72 20 L90 16 L94 34 L110 44 L102 60 L110 76 L94 86 L90 104 L72 100 L60 114 L48 100 L30 104 L26 86 L10 76 L18 60 L10 44 L26 34 L30 16 L48 20 Z" fill="url(#g)" stroke="#B86E00" stroke-width="3" stroke-linejoin="round"/>
-<circle cx="60" cy="60" r="31" fill="#2A1F8F" stroke="#FFF1C2" stroke-width="3"/>
-<text x="60" y="${if (level >= 10) 72 else 74}" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="900" font-size="${if (level >= 100) 26 else if (level >= 10) 34 else 40}" fill="#FFD25A">$level</text>
-<path d="M38 26 q6 -6 14 -6" stroke="#FFFFFF" stroke-opacity=".6" stroke-width="4" fill="none" stroke-linecap="round"/></svg>"""
+/** O metal do nível (claro, médio, escuro), por faixa: bronze até o 9, prata, ouro, safira, rubi e esmeralda do 50 em diante. */
+internal fun levelMetal(level: Int): Triple<String, String, String> = when ((level / 10).coerceIn(0, 5)) {
+    0 -> Triple("#FFD9B3", "#C8743A", "#7A3F19")
+    1 -> Triple("#FFFFFF", "#AEB9C6", "#5B6572")
+    2 -> Triple("#FFF1B8", "#F2B320", "#9A6400")
+    3 -> Triple("#D6E6FF", "#5B8CFF", "#1F3FA8")
+    4 -> Triple("#FFD3DD", "#F0446A", "#8E1236")
+    else -> Triple("#C9FFE6", "#2FD39A", "#0B6E4C")
+}
+
+/**
+ * O brasão do nível, no estilo das medalhas das Conquistas: coroa de louros no metal da faixa,
+ * joia no alto, medalhão com o número e a fita "NÍVEL" embaixo. Os raios girando ficam no CSS.
+ */
+internal fun levelCrestSvg(level: Int): String {
+    val (light, mid, dark) = levelMetal(level)
+    val leaves = StringBuilder()
+    // um ramo de cada lado, subindo da fita até perto da joia
+    for (side in listOf(-1, 1)) for (i in 0 until 9) {
+        val deg = 112.0 + i * 16.0
+        val a = deg * kotlin.math.PI / 180
+        val x = (80 - side * kotlin.math.cos(a) * 60).toInt()
+        val y = (84 + kotlin.math.sin(a) * 60).toInt()
+        val rot = (if (side < 0) deg + 118 else -deg - 118).toInt()
+        val s = 1.0 - i * 0.035
+        leaves.append("""<ellipse cx="$x" cy="$y" rx="${(12 * s).toInt()}" ry="${(55 * s).toInt() / 10.0}" transform="rotate($rot $x $y)" fill="url(#m)" stroke="$dark" stroke-width="1.4"/>""")
+    }
+    val size = if (level >= 100) 26 else if (level >= 10) 34 else 40
+    val svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+<defs><linearGradient id="m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="$light"/><stop offset=".55" stop-color="$mid"/><stop offset="1" stop-color="$dark"/></linearGradient>
+<linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6A4CF0"/><stop offset="1" stop-color="#22187A"/></linearGradient>
+<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3D3AB8"/><stop offset="1" stop-color="#1D1670"/></linearGradient></defs>
+$leaves
+<circle cx="80" cy="80" r="42" fill="url(#m)" stroke="$dark" stroke-width="3"/>
+<circle cx="80" cy="80" r="33" fill="url(#c)" stroke="$light" stroke-width="2.5"/>
+<path d="M80 22 L91 34 L80 46 L69 34 Z" fill="$mid" stroke="$dark" stroke-width="2.5" stroke-linejoin="round"/><path d="M80 26 L86 34 L80 34 Z" fill="#fff" fill-opacity=".7"/>
+<path d="M26 118 L44 112 L44 136 L32 132 Z" fill="#141058"/><path d="M134 118 L116 112 L116 136 L128 132 Z" fill="#141058"/>
+<path d="M40 110 Q80 122 120 110 L120 134 Q80 146 40 134 Z" fill="url(#f)" stroke="$mid" stroke-width="2"/>
+<text x="80" y="134" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="900" font-size="12" letter-spacing="2" fill="$light">NÍVEL</text>
+<text x="80" y="${if (level >= 10) 92 else 94}" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="900" font-size="$size" fill="#FFFFFF">$level</text>
+<path d="M58 64 q8 -10 20 -11" stroke="#FFFFFF" stroke-opacity=".5" stroke-width="4" fill="none" stroke-linecap="round"/></svg>"""
     return "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(svg) as String
 }
 

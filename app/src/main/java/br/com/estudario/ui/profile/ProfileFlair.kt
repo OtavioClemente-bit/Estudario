@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -60,7 +61,7 @@ import br.com.estudario.ui.brand.Icon
 /** A faixa do selo pelo nível: bronze até o 9, prata do 10, ouro do 20, safira, rubi e esmeralda no 50. */
 internal fun levelTier(level: Int): Int = (level / 10 + 1).coerceIn(1, 6)
 
-/** Selo do nível: hexágono no metal da faixa, com brilho e raios girando em volta, como as medalhas. */
+/** Selo do nível: coroa de louros e joia no metal da faixa, hexágono com o número e raios girando em volta, como as medalhas. */
 @Composable
 internal fun LevelSeal(level: Int, size: Dp = 112.dp) {
     val palette = tierPalette(levelTier(level))
@@ -69,6 +70,7 @@ internal fun LevelSeal(level: Int, size: Dp = 112.dp) {
     )
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         RaysGlow(palette.dark)
+        Laurels(palette.light, palette.dark, palette.rim, Modifier.fillMaxSize())
         Canvas(Modifier.size(size * 0.68f).graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
             val r = this.size.minDimension / 2
             val c = center
@@ -100,7 +102,37 @@ internal fun LevelSeal(level: Int, size: Dp = 112.dp) {
     }
 }
 
-/** O avatar dentro do anel do nível: o arco cheio é o quanto já andou para o próximo. */
+/** Dois ramos de louro subindo dos lados e a joia no alto, no metal da faixa. */
+@Composable
+private fun Laurels(light: Color, dark: Color, rim: Color, modifier: Modifier) {
+    Canvas(modifier) {
+        val c = center
+        val r = size.minDimension * 0.4f
+        val leaf = Brush.verticalGradient(listOf(light, dark))
+        for (side in listOf(-1f, 1f)) for (i in 0 until 8) {
+            val deg = 115.0 + i * 17.0
+            val a = Math.toRadians(deg)
+            val x = c.x - side * kotlin.math.cos(a).toFloat() * r
+            val y = c.y - kotlin.math.sin(a - Math.PI).toFloat() * r
+            val s = 1f - i * 0.04f
+            val w = size.minDimension * 0.13f * s
+            val h = w * 0.45f
+            val rot = if (side < 0) (deg + 118).toFloat() else (-deg - 118).toFloat()
+            rotate(rot, Offset(x, y)) {
+                drawOval(leaf, Offset(x - w / 2, y - h / 2), androidx.compose.ui.geometry.Size(w, h))
+                drawOval(rim, Offset(x - w / 2, y - h / 2), androidx.compose.ui.geometry.Size(w, h), style = Stroke(1.dp.toPx()))
+            }
+        }
+        // a joia no alto
+        val g = size.minDimension * 0.07f
+        val top = c.y - size.minDimension * 0.42f
+        val gem = Path().apply { moveTo(c.x, top - g); lineTo(c.x + g, top); lineTo(c.x, top + g); lineTo(c.x - g, top); close() }
+        drawPath(gem, Brush.verticalGradient(listOf(light, dark), top - g, top + g))
+        drawPath(gem, rim, style = Stroke(1.5.dp.toPx()))
+    }
+}
+
+/** O avatar dentro do anel do nível: o arco sai de baixo (do número do nível) e dá a volta até ele. */
 @Composable
 internal fun LevelAvatar(progress: ProgressEngine.ProgressSummary?, size: Dp, content: @Composable () -> Unit) {
     val fraction by animateFloatAsState(progress?.levelProgress ?: 0f, tween(900, easing = FastOutSlowInEasing), label = "anel-nivel")
@@ -115,8 +147,8 @@ internal fun LevelAvatar(progress: ProgressEngine.ProgressSummary?, size: Dp, co
             val arcSize = androidx.compose.ui.geometry.Size(this.size.width - stroke, this.size.height - stroke)
             drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
             drawArc(
-                Brush.sweepGradient(listOf(primary, Color(0xFF22C59A), tierColor, primary)),
-                -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round),
+                Brush.sweepGradient(listOf(Color(0xFFFFB421), primary, Color(0xFF22C59A), tierColor, Color(0xFFFFB421))),
+                90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round),
             )
         }
         content()
