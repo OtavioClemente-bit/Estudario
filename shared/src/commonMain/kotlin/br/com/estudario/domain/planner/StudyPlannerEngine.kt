@@ -59,14 +59,21 @@ class StudyPlannerEngine(
             val remainingMinutes = (task.plannedMinutes - executedMinutes).coerceAtLeast(0)
             // Feita quase toda (falta menos que um bloco mínimo): não volta como caco de poucos minutos.
             val leftover = executedMinutes > 0 && remainingMinutes < snapshot.policy.minimumBlockMinutes
-            remainingMinutes.takeIf { it > 0 && !leftover }?.let {
+            // Questões que sobram, até o que o tópico tem salvo (a tarefa antiga podia pedir 20 de 10).
+            val leftQuestions = (task.plannedQuestions - executedQuestions).coerceAtLeast(0)
+            val cap = task.topicId?.let { snapshot.questionCapByTopic[it] }
+            val questions = if (cap != null && task.type in cappedTypes) minOf(leftQuestions, (cap - executedQuestions).coerceAtLeast(0)) else leftQuestions
+            val minutes = if (questions < leftQuestions && leftQuestions > 0) {
+                (remainingMinutes * questions / leftQuestions).coerceAtLeast(snapshot.policy.minimumBlockMinutes)
+            } else remainingMinutes
+            remainingMinutes.takeIf { it > 0 && !leftover && !(questions == 0 && leftQuestions > 0) }?.let {
                 TaskDemand(
                     id = "replan:${task.id}",
                     subjectId = task.subjectId ?: return@mapNotNull null,
                     topicId = task.topicId,
                     type = task.type,
-                    minutes = remainingMinutes,
-                    questions = (task.plannedQuestions - executedQuestions).coerceAtLeast(0),
+                    minutes = minutes,
+                    questions = questions,
                     priority = task.priority,
                     deadline = task.deadline,
                     subjectPosition = task.subjectPosition,
@@ -346,6 +353,8 @@ class StudyPlannerEngine(
     }
 
     private companion object {
+        /** Tarefas cujo tamanho vem de questões do tópico (e por isso respeitam questionCapByTopic). */
+        val cappedTypes = setOf(PlanTaskType.QUESTIONS, PlanTaskType.ACTIVE_RECALL)
         val dayKeepingReasons = setOf(ReplanReason.TASK_COMPLETED, ReplanReason.TASK_PARTIAL, ReplanReason.TASK_SKIPPED)
         val terminalInactiveStatuses = setOf(
             PlanTaskStatus.CONCLUIDA,

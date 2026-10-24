@@ -92,6 +92,9 @@ object PlannerSnapshotBuilder {
 
     fun topicsPerDay(free: Boolean): Int = if (free) FREE_TOPICS_PER_DAY else PAID_TOPICS_PER_DAY
 
+    /** Questões que a matéria do Grátis traz ao ser gerada (o teto do Grátis por pedido). */
+    const val FREE_NEW_TOPIC_QUESTIONS = 10
+
     fun build(input: Input): StudyPlannerSnapshot = with(input) {
         val config = plan.config
         val subjectIds = planSubjects.mapTo(hashSetOf()) { it.subjectId }
@@ -189,6 +192,11 @@ object PlannerSnapshotBuilder {
                 need = subjectNeeds[subject.subjectId],
             )
         }
+        // Teto de questões numa tarefa: as salvas no tópico; sem nenhuma ainda (matéria não gerada), no
+        // Grátis o que a geração entrega. Antes o plano pedia 15 ou 20 de um tópico com 10 salvas.
+        val questionCap = topics.associate { topic ->
+            topic.id to (questionsByTopic[topic.id]?.size?.takeIf { it > 0 } ?: FREE_NEW_TOPIC_QUESTIONS.takeIf { freeRules })
+        }.filterValues { it != null }.mapValues { it.value!! }
         val blueprintTopics = topics.map { topic ->
             val row = performanceById[topic.id]
             BlueprintTopic(
@@ -203,6 +211,7 @@ object PlannerSnapshotBuilder {
                 accuracyPercent = row?.takeIf { it.answered > 0 }?.let { it.correct * 100 / it.answered },
                 evidence = topicEvidence.getValue(topic.id),
                 need = topicNeeds[topic.id],
+                questionCap = questionCap[topic.id],
             )
         }
         val reviewDemands = pendingReviews.mapNotNull { review ->
@@ -272,6 +281,7 @@ object PlannerSnapshotBuilder {
             recurringReservedMinutes = planSubjects.sumOf { it.minimumMaintenanceMinutes },
             policy = policy,
             notes = blueprint.notes,
+            questionCapByTopic = questionCap,
         )
     }
 }

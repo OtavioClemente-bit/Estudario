@@ -44,13 +44,14 @@ private sealed interface Celebration {
 }
 
 /**
- * Uma rodada de estudo em andamento (bateria de questões, revisão, flashcards, simulado) ou o modo foco
- * contando: as comemorações (sequência, emblema, nível, peça nova) esperam o fim dela, para não
- * interromper o estudo no meio. Quem está numa rodada chama [HoldCelebrations].
+ * Uma rodada de estudo em andamento (bateria de questões, revisão, flashcards, simulado) ou a leitura
+ * da teoria com o foco contando: as comemorações (sequência, emblema, nível, peça nova) esperam o fim
+ * dela, para não interromper o estudo no meio. Quem está numa rodada chama [HoldCelebrations].
+ * O foco sozinho não segura: antes, com o foco ligado e esquecido, nenhuma comemoração aparecia.
  */
 object StudyFlow {
     var holds by mutableStateOf(0)
-    val busy: Boolean get() = holds > 0 || TopicFocus.running
+    val busy: Boolean get() = holds > 0 || (TopicFocus.running && Router.current is Route.Topic)
 }
 
 /** Segura as comemorações enquanto este pedaço da tela estiver aberto. */
@@ -113,15 +114,16 @@ fun CelebrationHost() {
         // página com o dia já cumprido gastava o dia sem mostrar nada, e depois só vinha o emblema).
         if (!ready || !todayDone || last == today) return@LaunchedEffect
         write(KEY_DAY, today)
-        // Só comemora o dia que acabou de ser cumprido aqui: se a primeira atividade de hoje foi há
-        // mais tempo (no app, chegada pela sincronização), ele já foi comemorado lá.
+        // Só comemora o dia que acabou de ser cumprido aqui: se a última atividade de hoje (a que fechou
+        // o dia) foi há mais tempo, ela chegou do celular pela sincronização e foi comemorada lá. Antes a
+        // conta usava a primeira atividade: quem estudava mais de 15 minutos aqui nunca via a do dia.
         val start = Queries.startOfToday()
-        val first = listOfNotNull(
-            Store.data.attempts.filter { it.answeredAt >= start }.minOfOrNull { it.answeredAt },
-            Store.data.reviewHistory.filter { it.reviewedAt >= start }.minOfOrNull { it.reviewedAt },
-            Store.data.executions.filter { it.completedAt >= start }.minOfOrNull { it.completedAt },
-        ).minOrNull()
-        if (first != null && kotlin.js.Date.now() - first > 15 * 60_000.0) return@LaunchedEffect
+        val lastActivity = listOfNotNull(
+            Store.data.attempts.filter { it.answeredAt >= start }.maxOfOrNull { it.answeredAt },
+            Store.data.reviewHistory.filter { it.reviewedAt >= start }.maxOfOrNull { it.reviewedAt },
+            Store.data.executions.filter { it.completedAt >= start }.maxOfOrNull { it.completedAt },
+        ).maxOrNull()
+        if (lastActivity != null && kotlin.js.Date.now() - lastActivity > 15 * 60_000.0) return@LaunchedEffect
         val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
         val week = view.streak.week.filter { !it.future }.takeLast(7).map { letters[it.date.dayOfWeek.ordinal] to it.done }
         // A sequência vem antes dos emblemas; se algo já está na tela, ela entra logo depois dele.

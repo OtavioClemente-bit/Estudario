@@ -45,6 +45,18 @@ class StudyPlannerEngineFreeRulesTest {
         assertTrue(proposal.newTasks.none { it.date == monday })
     }
 
+    @Test
+    fun `a question task never asks more than the topic has saved`() {
+        val old = task("questoes", 1L).copy(date = monday.plusDays(1), type = PlanTaskType.QUESTIONS, plannedMinutes = 40, plannedQuestions = 20)
+        val proposal = engine.plan(
+            snapshot(policy = paid, dailyMinutes = 120, demands = emptyList(), tasks = listOf(old)).copy(questionCapByTopic = mapOf(1L to 10)),
+            ReplanReason.AVAILABILITY_CHANGED,
+        )
+        val replanned = proposal.newTasks.filter { it.replannedFromTaskId == "questoes" }
+        assertEquals(10, replanned.sumOf { it.plannedQuestions })
+        assertEquals(20, replanned.sumOf { it.plannedMinutes })
+    }
+
     private fun theory(topic: Long) = TaskDemand(
         id = "t$topic", subjectId = 10L, topicId = topic, type = PlanTaskType.THEORY, minutes = 60, priority = PlanPriority.CRITICAL, topicPosition = topic.toInt(),
     )

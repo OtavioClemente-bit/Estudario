@@ -34,6 +34,8 @@ data class BlueprintTopic(
     val evidence: StudyEvidence = StudyEvidence.EMPTY,
     /** Necessidade do tópico; na falta dela, herda a da matéria. */
     val need: StudyNeed? = null,
+    /** Teto de questões numa tarefa deste tópico (as salvas, ou o que a geração entrega); null = sem teto. */
+    val questionCap: Int? = null,
 )
 
 data class BlueprintInput(
@@ -215,7 +217,7 @@ object StudyPlanBlueprint {
                 // A quantidade não é fixa, sai do alocador, que cruza maturidade e necessidade.
                 if (config.questionsPerTopic > 0 && (topic.topicId to PlanTaskType.QUESTIONS) !in input.occupied) {
                     val topicNeed = topic.need ?: subject.need
-                    val quantidade = if (topicNeed == null) config.questionsPerTopic else {
+                    val planned = if (topicNeed == null) config.questionsPerTopic else {
                         QuestionAllocator.allocate(
                             baseQuestions = config.questionsPerTopic,
                             need = topicNeed,
@@ -223,6 +225,8 @@ object StudyPlanBlueprint {
                             covered = topic.studied,
                         ).questions
                     }
+                    // Nunca mais questões do que o tópico tem: com 10 salvas, a tarefa pede 10.
+                    val quantidade = topic.questionCap?.let { minOf(planned, it) } ?: planned
                     val minutos = quantidade * config.minutesPerQuestion
                     unit += TaskDemand(
                         id = "topic-questions:${topic.topicId}",
@@ -280,7 +284,7 @@ object StudyPlanBlueprint {
                 topicId = topic.topicId,
                 type = PlanTaskType.ACTIVE_RECALL,
                 minutes = questionsPerTopicMinutes,
-                questions = config.questionsPerTopic,
+                questions = topic.questionCap?.let { minOf(config.questionsPerTopic, it) } ?: config.questionsPerTopic,
                 priority = subject.priority,
                 subjectPosition = subject.position,
                 topicPosition = topic.position,

@@ -189,6 +189,11 @@ data class StudyPlannerSnapshot(
     val policy: PlannerPolicy = PlannerPolicy(),
     /** Explicações do método que montou as demandas; viram o "por que este plano" na tela. */
     val notes: List<String> = emptyList(),
+    /**
+     * Teto de questões por tópico numa tarefa: as que a pessoa tem salvas no tópico (ou, no Grátis,
+     * as que ele recebe ao gerar a matéria). A tarefa reprogramada também respeita.
+     */
+    val questionCapByTopic: Map<Long, Int> = emptyMap(),
 ) {
     init {
         require(revision >= 0)
