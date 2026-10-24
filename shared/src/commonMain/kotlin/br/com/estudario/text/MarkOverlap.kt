@@ -6,9 +6,12 @@ package br.com.estudario.text
  * ficar um grifo velho do lado. O site e o app usam a mesma regra.
  */
 object MarkOverlap {
-    /** Texto para comparar: sem marcação de Markdown, espaços juntos, minúsculo. */
+    /**
+     * Texto para comparar: sem marcação de Markdown, espaços juntos, minúsculo. Todo colchete escapado:
+     * no site (Kotlin/JS) a expressão roda no modo Unicode, que recusa "]" solto e derrubava o grifo.
+     */
     fun plain(s: String): String = s
-        .replace(Regex("""!?\[([^\]]*)]\([^)]*\)"""), "$1")
+        .replace(Regex("""!?\[([^\]]*)\]\([^)]*\)"""), "$1")
         .replace(Regex("""[*_`#>|~]"""), "")
         .replace(Regex("""\s+"""), " ")
         .trim()

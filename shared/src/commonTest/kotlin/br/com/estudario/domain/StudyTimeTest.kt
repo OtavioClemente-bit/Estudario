@@ -41,5 +41,7 @@ class StudyTimeTest {
         assertTrue(MarkOverlap.overlaps(block, "rescrição atinge a pretensã", "A prescrição atinge a pretensão"))
         assertTrue(MarkOverlap.overlaps(block, "prescrição atinge", "atinge a pretensão"))
         assertFalse(MarkOverlap.overlaps(block, "A prescrição", "a decadência"))
+        // A expressão do link roda também no site (modo Unicode do JS), onde "]" solto quebrava o grifo.
+        assertEquals("veja o art. 5", MarkOverlap.plain("Veja o [art. 5](https://www.planalto.gov.br)"))
     }
 }
