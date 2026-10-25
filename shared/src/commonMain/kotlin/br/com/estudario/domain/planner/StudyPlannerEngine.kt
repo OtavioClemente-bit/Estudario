@@ -23,6 +23,9 @@ class StudyPlannerEngine(
                 task.subjectId == null ||
                 (keepToday && task.date == snapshot.today)
         }
+        // Por id: a previsão roda o motor semana a semana com centenas de tarefas, e procurar cada uma
+        // na lista (comparando campo a campo) travava o Início do site por segundos.
+        val fixedIds = fixedTasks.mapTo(hashSetOf()) { it.id }
         // Tarefa concluída continua ocupando o tempo do dia dela. Sem isso, cada conclusão "liberava"
         // o dia de novo e o replanejamento puxava as matérias de amanhã: o dia nunca terminava.
         val lockedUsage = fixedTasks
@@ -33,7 +36,7 @@ class StudyPlannerEngine(
         // O que já foi estudado numa tarefa em andamento também gastou o dia dela; só o que falta
         // volta para o replanejamento.
         val partialUsage = if (reason == ReplanReason.INITIAL) emptyMap() else snapshot.tasks
-            .filter { it !in fixedTasks && it.status == PlanTaskStatus.EM_ANDAMENTO && it.date in rawCapacity.keys }
+            .filter { it.id !in fixedIds && it.status == PlanTaskStatus.EM_ANDAMENTO && it.date in rawCapacity.keys }
             .groupBy { it.date }
             .mapValues { (_, tasks) -> tasks.sumOf { task -> minOf(task.plannedMinutes, executionsByTask[task.id].orEmpty().sumOf { it.minutes }) } }
         val allocatableByDate = rawCapacity.mapValues { (date, minutes) ->
@@ -42,7 +45,7 @@ class StudyPlannerEngine(
         }
         val freeByDate = allocatableByDate.toMutableMap()
         val replanCandidates = if (reason == ReplanReason.INITIAL) emptyList() else snapshot.tasks.filter { task ->
-            task !in fixedTasks && task.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+            task.id !in fixedIds && task.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
         }
         // Concluir, pular ou fazer parte de uma tarefa não traz matéria nova para hoje: o dia fica com
         // o que já estava nele. Sem isso, cada conclusão abria espaço e o plano puxava as de amanhã,

@@ -1,6 +1,7 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -241,14 +242,21 @@ private fun PaceCard(data: Snapshot, planId: String?, exam: Long?) {
     val todayEpoch = Queries.todayEpoch()
     val pending = if (planId == null) emptyList() else data.tasks.filter { it.planId == planId && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
     // Previsão do edital inteiro (como no app); as tarefas marcadas só cobrem as próximas 4 semanas.
-    val projection = data.plans.firstOrNull { it.id == planId }?.let { br.com.estudario.web.data.Forecast.of(data, it) }
+    // A previsão roda o motor do plano semana a semana até a prova (centenas de milissegundos): o
+    // Início aparece primeiro e ela é calculada logo depois, em vez de travar a página ao abrir.
+    val plan = data.plans.firstOrNull { it.id == planId }
+    var ready by remember(data, plan) { mutableStateOf(plan == null || br.com.estudario.web.data.Forecast.isReady(data, plan)) }
+    LaunchedEffect(data, plan) { if (!ready) { kotlinx.coroutines.delay(60); ready = true } }
+    val projection = if (ready) plan?.let { br.com.estudario.web.data.Forecast.of(data, it) } else null
     val forecast = when {
+        !ready -> null
         projection == null -> pending.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: pending.maxOfOrNull { it.day }
         projection.remainingTopics == 0 -> null
         else -> projection.date?.toEpochDays()?.toLong() ?: pending.maxOfOrNull { it.day }
     }
     val (tone, title, detail) = when {
         planId == null -> Triple("var(--faint)", "Sem previsão ainda.", "Monte seu plano e o Estudário calcula quando o edital fecha.")
+        !ready -> Triple("var(--faint)", "Calculando a previsão…", "Conferindo quando o seu plano fecha o edital.")
         forecast == null -> Triple("var(--green)", "Conteúdo previsto coberto.", "Daqui para frente o plano vira revisão e questões.")
         exam == null -> Triple("var(--primary)", "Edital coberto até ${Queries.dayLabel(LocalDate.fromEpochDays(forecast))}.", "Cadastre a data da prova no plano para ver quanto tempo sobra para revisão.")
         exam - forecast >= 14 -> Triple("var(--green)", "Bom ritmo.", "Nesse ritmo, o edital fecha ${exam - forecast} dias antes da prova, em ${Queries.dayLabel(LocalDate.fromEpochDays(forecast))}.")
@@ -326,13 +334,13 @@ private fun PerformanceAndStanding(data: Snapshot, streakDays: Int, best: Int) {
 
 @Composable
 private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressSummary) {
-    // Com a cara da comemoração de subir de nível: o selo dourado com o número, o título e a barra que enche.
+    // O livro evolui em cores, detalhes e gestos com o nível, como no perfil do app.
     val pct = (progress.levelProgress * 100).toInt().coerceIn(0, 100)
     val missing = progress.xpForNextLevel - progress.xpIntoLevel
     Div({ classes("lvl-card"); attr("role", "button"); attr("tabindex", "0"); onClick { Router.go(Route.Profile) } }) {
         Div({ classes("lvl-top") }) {
-            Div({ classes("lvl-seal"); attr("style", "--ray:${levelMetal(progress.level).second}") }) {
-                org.jetbrains.compose.web.dom.Img(src = levelCrestSvg(progress.level), alt = "", attrs = { attr("aria-hidden", "true") })
+            Div({ classes("lvl-seal", "lvl-book") }) {
+                ProfileArt("level", size = 84, level = progress.level)
             }
             Div({ classes("grow") }) {
                 Span({ classes("lvl-eyebrow") }) { Text("SEU NÍVEL") }
@@ -349,60 +357,18 @@ private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressS
     }
 }
 
-/** O metal do nível (claro, médio, escuro), por faixa: bronze até o 9, prata, ouro, safira, rubi e esmeralda do 50 em diante. */
-internal fun levelMetal(level: Int): Triple<String, String, String> = when ((level / 10).coerceIn(0, 5)) {
-    0 -> Triple("#FFD9B3", "#C8743A", "#7A3F19")
-    1 -> Triple("#FFFFFF", "#AEB9C6", "#5B6572")
-    2 -> Triple("#FFF1B8", "#F2B320", "#9A6400")
-    3 -> Triple("#D6E6FF", "#5B8CFF", "#1F3FA8")
-    4 -> Triple("#FFD3DD", "#F0446A", "#8E1236")
-    else -> Triple("#C9FFE6", "#2FD39A", "#0B6E4C")
-}
-
-/**
- * O brasão do nível, no estilo das medalhas das Conquistas: coroa de louros no metal da faixa,
- * joia no alto, medalhão com o número e a fita "NÍVEL" embaixo. Os raios girando ficam no CSS.
- */
-internal fun levelCrestSvg(level: Int): String {
-    val (light, mid, dark) = levelMetal(level)
-    val leaves = StringBuilder()
-    // um ramo de cada lado, subindo da fita até perto da joia
-    for (side in listOf(-1, 1)) for (i in 0 until 9) {
-        val deg = 112.0 + i * 16.0
-        val a = deg * kotlin.math.PI / 180
-        val x = (80 - side * kotlin.math.cos(a) * 60).toInt()
-        val y = (84 + kotlin.math.sin(a) * 60).toInt()
-        val rot = (if (side < 0) deg + 118 else -deg - 118).toInt()
-        val s = 1.0 - i * 0.035
-        leaves.append("""<ellipse cx="$x" cy="$y" rx="${(12 * s).toInt()}" ry="${(55 * s).toInt() / 10.0}" transform="rotate($rot $x $y)" fill="url(#m)" stroke="$dark" stroke-width="1.4"/>""")
-    }
-    val size = if (level >= 100) 26 else if (level >= 10) 34 else 40
-    val svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
-<defs><linearGradient id="m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="$light"/><stop offset=".55" stop-color="$mid"/><stop offset="1" stop-color="$dark"/></linearGradient>
-<linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6A4CF0"/><stop offset="1" stop-color="#22187A"/></linearGradient>
-<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3D3AB8"/><stop offset="1" stop-color="#1D1670"/></linearGradient></defs>
-$leaves
-<circle cx="80" cy="80" r="42" fill="url(#m)" stroke="$dark" stroke-width="3"/>
-<circle cx="80" cy="80" r="33" fill="url(#c)" stroke="$light" stroke-width="2.5"/>
-<path d="M80 22 L91 34 L80 46 L69 34 Z" fill="$mid" stroke="$dark" stroke-width="2.5" stroke-linejoin="round"/><path d="M80 26 L86 34 L80 34 Z" fill="#fff" fill-opacity=".7"/>
-<path d="M26 118 L44 112 L44 136 L32 132 Z" fill="#141058"/><path d="M134 118 L116 112 L116 136 L128 132 Z" fill="#141058"/>
-<path d="M40 110 Q80 122 120 110 L120 134 Q80 146 40 134 Z" fill="url(#f)" stroke="$mid" stroke-width="2"/>
-<text x="80" y="134" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="900" font-size="12" letter-spacing="2" fill="$light">NÍVEL</text>
-<text x="80" y="${if (level >= 10) 92 else 94}" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="900" font-size="$size" fill="#FFFFFF">$level</text>
-<path d="M58 64 q8 -10 20 -11" stroke="#FFFFFF" stroke-opacity=".5" stroke-width="4" fill="none" stroke-linecap="round"/></svg>"""
-    return "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(svg) as String
-}
 
 /**
  * A semana da sequência: cada dia feito é uma chama (a fênix), o dia salvo é o marca-página do Folha.
  * Embaixo, os marca-páginas guardados (até 2) e quanto falta para ganhar o próximo.
  */
 @Composable
-private fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
+internal fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
     val todayIndex = Queries.todayDate().isoDayOfWeek - 1
-    Div({ classes("sw-card") }) {
+    val frozen = streak.current == 0 && streak.best > 0
+    Div({ classes(*listOfNotNull("sw-card", if (frozen) "sw-frozen" else null).toTypedArray()) }) {
         Div({ classes("sw-head") }) {
-            org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(FLAME_SVG) as String, alt = "", attrs = { classes("sw-flame-big"); attr("aria-hidden", "true") })
+            ProfileArt("flame", size = 72, lit = streak.current > 0, frozen = frozen)
             Div({ classes("grow") }) {
                 Span({ classes("sw-eyebrow") }) { Text("SEQUÊNCIA DA FÊNIX") }
                 B({ classes("sw-count") }) { Text(if (streak.current == 0) "Comece hoje" else "${streak.current} ${if (streak.current == 1) "dia" else "dias"}") }
@@ -423,7 +389,7 @@ private fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
                     Span({ classes("sw-letter") }) { Text(Queries.weekdayShort[i].take(1).uppercase()) }
                     Div({ classes("sw-token") }) {
                         when (state) {
-                            "fire" -> org.jetbrains.compose.web.dom.Img(src = "data:image/svg+xml;charset=utf-8," + js("encodeURIComponent")(FLAME_SVG) as String, alt = "")
+                            "fire" -> Icon("local_fire_department", filled = true)
                             "ice" -> org.jetbrains.compose.web.dom.Img(src = bookmarkSrc(), alt = "")
                             else -> Unit
                         }
@@ -454,7 +420,6 @@ private fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
     }
 }
 
-private const val FLAME_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="f" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FF4D2E"/><stop offset=".55" stop-color="#FF9A1F"/><stop offset="1" stop-color="#FFD84A"/></linearGradient><linearGradient id="i" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFB13B"/><stop offset="1" stop-color="#FFF4B8"/></linearGradient></defs><path d="M33 4c3 10 15 16 15 31a16 16 0 0 1-32 0c0-8 4-12 7-16 1 5 3 8 6 9-2-9 0-17 4-24z" fill="url(#f)"/><path d="M32 30c2 5 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 2 5 3 5-1-5 0-9 1-12z" fill="url(#i)"/></svg>"""
 
 
 /** Pedindo atenção: revisões, erros, tarefas atrasadas e o tópico mais fraco. Só o que existe. */

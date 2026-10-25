@@ -33,6 +33,9 @@ object Forecast {
     private var lastPlan: String? = null
     private var last: Result? = null
 
+    /** Já calculada para estes dados? (sem calcular: a conta leva centenas de milissegundos) */
+    fun isReady(data: Snapshot, plan: StudyPlan): Boolean = lastData === data && lastPlan == plan.id
+
     fun of(data: Snapshot, plan: StudyPlan): Result? {
         if (lastData === data && lastPlan == plan.id) return last
         val result = runCatching { compute(data, plan) }.getOrNull()
