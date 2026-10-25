@@ -94,9 +94,13 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     var style by remember { mutableStateOf("MIXED") }
     var difficulty by remember { mutableStateOf("MEDIUM") }
     var board by remember { mutableStateOf("") }
+    // As escolhas de nível e formato só aparecem com o plano pago confirmado pelo servidor: sem
+    // resposta (rede ruim, demonstração), fica como no Grátis, misturado.
+    var paid by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         free = freeAllowance()
-        if (free != null || br.com.estudario.web.data.LibraryGaps.free()) { style = "MIXED"; difficulty = "MIXED" }
+        paid = free == null && !br.com.estudario.web.data.LibraryGaps.free() && planTierOf()?.let { it != "FREE" } == true
+        if (!paid) { style = "MIXED"; difficulty = "MIXED" }
         // Matéria sem questões ainda: a banca vem do edital (perfil da prova ou catálogo), como no app.
         if (board.isBlank()) {
             val competition = Store.data.topics.firstOrNull { it.id == topicId }?.let { t -> Store.data.subjects.firstOrNull { it.id == t.subjectId } }
@@ -113,7 +117,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     }
     var upgradeSeen by remember { mutableStateOf(false) }
     // Grátis: questões sempre misturadas (o servidor força o mesmo); escolher é do Essencial e do Pro.
-    val freeTier = free != null || br.com.estudario.web.data.LibraryGaps.free()
+    val freeTier = !paid
     // A geração mora em Generation: fechar a janela não interrompe nada.
     val progress = Generation.state[topicId]
     val topic = Store.data.topics.firstOrNull { it.id == topicId }
