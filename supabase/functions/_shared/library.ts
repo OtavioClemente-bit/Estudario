@@ -62,6 +62,12 @@ export function inferFocus(material: Json, topicTitle: string | null | undefined
   const words = normalizeAlias(topicTitle).split(" ").filter((w) => w.length >= 3 && !FOCUS_STOPWORDS.has(w));
   const chapters = (material.chapters as Json[] | undefined) ?? [];
   if (words.length === 0 || chapters.length < 2) return null;
+  // A palavra do tópico já está no título da própria matéria ("Front-end: CSS3." na matéria de CSS3):
+  // o tópico é a matéria inteira, mesmo que um capítulo também cite a palavra.
+  // Só a primeira palavra do título conta: "HTML, CSS, HTTP e APIs REST" lista vários assuntos, e
+  // "HTTP e HTTPS." ali continua sendo um recorte.
+  const mainWord = normalizeAlias(String(material.title ?? "")).split(" ")[0] ?? "";
+  if (mainWord && words.some((w) => mainWord.startsWith(w))) return null;
   // "html" acha "html5" e "css" acha "css3": a palavra do tópico abre uma palavra do título.
   const picked = chapters.flatMap((chapter, i) => {
     const titleWords = normalizeAlias(String(chapter.title ?? "")).split(" ");
