@@ -643,10 +643,10 @@ fun openTask(task: PlanTask) {
         beginner && task.type == "QUESTIONS" && task.topicId != null -> Router.go(Route.Topic(task.topicId))
         // Tarefa de questões de um tópico abre as questões dele (antes abria só a página do tópico).
         task.type == "QUESTIONS" && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } ->
-            planQuiz(task, "topico-${task.topicId}-${task.questions.coerceAtLeast(5)}")
+            planQuestions(task)
         task.topicId != null -> Router.go(Route.Topic(task.topicId))
         task.type == "SIMULATION" -> Router.go(Route.Simulations)
-        task.type == "QUESTIONS" && task.subjectId != null -> planQuiz(task, "materia-${task.subjectId}-${task.questions.coerceAtLeast(5)}")
+        task.type == "QUESTIONS" && task.subjectId != null -> planQuestions(task)
         task.type == "REVIEW" -> Router.go(Route.Reviews)
         task.type == "FLASHCARDS" || task.type == "ACTIVE_RECALL" -> Router.go(Route.Flashcards(null))
         else -> Router.go(Route.Focus)
@@ -728,6 +728,22 @@ private fun ReprogramOption(color: String, icon: String, title: String, detail: 
 object PlanQuiz {
     var taskId: String? = null
     var scope: String? = null
+}
+
+/**
+ * A bateria da tarefa do plano, sem repetir acerto (planQuestionIds). Se não sobrou nada novo nem
+ * errado, o Folha avisa e oferece pular a tarefa em vez de refazer as mesmas.
+ */
+private fun planQuestions(task: PlanTask) {
+    val n = task.questions.coerceAtLeast(5)
+    if (planQuestionIds(Store.data, task.topicId, task.subjectId, n).isEmpty()) {
+        val name = task.topicName ?: task.subjectName.ifBlank { "este assunto" }
+        if (kotlinx.browser.window.confirm("Você já respondeu e acertou todas as questões de $name, e não há erro para refazer nesta matéria. Repetir as mesmas não treina nada.\n\nPular esta tarefa? O plano se reorganiza.")) {
+            Store.update { Actions.skipTask(it, task.id, "Sem questões novas nem erros para refazer") }
+        }
+        return
+    }
+    planQuiz(task, "plano-${task.topicId ?: 0}-${task.subjectId ?: 0}-$n")
 }
 
 /** Abre o treino com a quantidade que a tarefa pede (não as questões todas da pessoa). */

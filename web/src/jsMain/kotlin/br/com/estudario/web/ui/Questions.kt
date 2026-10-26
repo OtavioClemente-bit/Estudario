@@ -194,6 +194,22 @@ private fun TrainTile(icon: String, title: String, subtitle: String, highlight: 
 }
 
 /** Escolhe as questões conforme o endereço (#/treinar/questoes/...). */
+/**
+ * A bateria da tarefa do plano (Missão do Folha) sem repetir acerto: não respondidas do tópico, os
+ * erros para refazer e as não respondidas dos tópicos já começados da mesma matéria (PlanQuestionPool,
+ * a mesma regra do app). Vazia: não sobrou nada novo nem errado.
+ */
+fun planQuestionIds(data: Snapshot, topicId: Long?, subjectId: Long?, count: Int): List<Long> {
+    val topicsById = data.topics.associateBy { it.id }
+    val errorIds = data.errors.filter { it.status != "CORRIGIDO" }.mapTo(hashSetOf()) { it.questionId }
+    val candidates = Queries.visibleQuestions(data).filter { it.simulationId == null }.map {
+        br.com.estudario.domain.planner.PlanQuestionCandidate(it.id, it.topicId, topicsById[it.topicId]?.subjectId, it.answerCount > 0, it.id in errorIds)
+    }
+    val studied = data.topics.filter(Queries::isStudied).mapTo(hashSetOf()) { it.id }
+    val subject = subjectId ?: topicId?.let { topicsById[it]?.subjectId }
+    return br.com.estudario.domain.planner.PlanQuestionPool.pick(candidates, topicId, subject, studied, count)
+}
+
 fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List<Question> {
     val pool = Queries.visibleQuestions(data)
     val topicsById = data.topics.associateBy { it.id }
@@ -212,6 +228,12 @@ fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List
         "materia" -> return smart(pool.filter { topicsById[it.topicId]?.subjectId == legacy.getOrNull(1)?.toLongOrNull() }, legacy.getOrNull(2)?.toIntOrNull() ?: 10)
         "erros" -> return data.errors.filter { it.status != "CORRIGIDO" }.sortedBy { it.nextRetryAt ?: 0 }.mapNotNull { e -> pool.firstOrNull { it.id == e.questionId } }.take(legacy.getOrNull(1)?.toIntOrNull() ?: 20)
         "rapido" -> return smart(pool, legacy.getOrNull(1)?.toIntOrNull() ?: 10)
+        // plano-TÓPICO-MATÉRIA-N (0 = sem): a bateria da tarefa do plano, sem repetir acerto.
+        "plano" -> {
+            val ids = planQuestionIds(data, legacy.getOrNull(1)?.toLongOrNull()?.takeIf { it > 0 }, legacy.getOrNull(2)?.toLongOrNull()?.takeIf { it > 0 }, legacy.getOrNull(3)?.toIntOrNull()?.coerceAtLeast(1) ?: 10)
+            val byId = pool.associateBy { it.id }
+            return ids.mapNotNull(byId::get)
+        }
     }
     val params = scope.split('~').associate { part -> part.substringBefore('-') to part.substringAfter('-', "") }
     val mode = params["m"] ?: "smart"

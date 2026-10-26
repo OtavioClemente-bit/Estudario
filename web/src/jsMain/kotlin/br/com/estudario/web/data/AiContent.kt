@@ -46,10 +46,11 @@ object AiContent {
     /** Tópico com tarefa do plano hoje (ou atrasada) é o dia do plano; num dia que ainda vem, adiantar; fora do plano, extra. */
     fun purposeFor(data: Snapshot, topicId: Long): String {
         val today = Queries.todayEpoch()
-        val days = data.tasks.filter { it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }.map { it.day }
+        val tasks = data.tasks.filter { it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
         return when {
-            days.any { it <= today } -> "PLAN_DAY"
-            days.any { it > today } -> "ADVANCE"
+            tasks.any { it.day <= today } -> "PLAN_DAY"
+            // Adiantar é só para teoria (matéria nova); a bateria de questões usa as já salvas, sem gastar.
+            tasks.any { it.day > today && it.type == "THEORY" } -> "ADVANCE"
             else -> "EXTRA"
         }
     }

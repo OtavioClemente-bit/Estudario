@@ -169,6 +169,9 @@ fun HomeScreen(
             savePrefs.edit().putStringSet("streak_saved_seen", savedSeen).apply()
         }
     }
+    // Bateria do plano sem nada novo nem errado: avisa e oferece pular, em vez de repetir acertos.
+    var allDoneTask by remember { mutableStateOf<br.com.estudario.data.local.planner.PlanTaskEntity?>(null) }
+    allDoneTask?.let { task -> br.com.estudario.ui.planner.AllQuestionsDoneDialog(task, onSkip = { planViewModel.skip(task.id, "Sem questões novas nem erros para refazer"); allDoneTask = null }, onDismiss = { allDoneTask = null }) }
     val progress by viewModel.progress.collectAsState()
     val planState by planViewModel.state.collectAsState()
     val queue by viewModel.queue.collectAsState()
@@ -336,7 +339,9 @@ fun HomeScreen(
                                     val task = focusTask.entity
                                     scope.launch {
                                         val count = runCatching { planViewModel.startQuestionTask(task.id) }.getOrDefault(0)
-                                        if (count > 0) onPlanQuestions(task, count) else startTask(viewModel, focusTask, onStudyTask, onFocus)
+                                        if (count > 0) onPlanQuestions(task, count)
+                                        else if (count < 0) allDoneTask = task
+                                        else startTask(viewModel, focusTask, onStudyTask, onFocus)
                                     }
                                 } else startTask(viewModel, focusTask, onStudyTask, onFocus)
                             }

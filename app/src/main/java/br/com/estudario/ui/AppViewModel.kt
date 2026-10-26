@@ -795,10 +795,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun contentPurposeFor(topicId: Long): String {
         val pending = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
         val today = LocalDate.now().toEpochDay()
-        val days = allPlanTasks.value.filter { it.topicId == topicId && it.status in pending }.map { it.scheduledEpochDay }
+        val tasks = allPlanTasks.value.filter { it.topicId == topicId && it.status in pending }
+        // Adiantar é só para teoria (matéria nova): a bateria de questões usa as questões já salvas e
+        // adianta sem gastar nada.
+        val theoryAhead = tasks.any { it.scheduledEpochDay > today && it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY }
         return when {
-            days.any { it <= today } -> "PLAN_DAY"
-            days.any { it > today } -> "ADVANCE"
+            tasks.any { it.scheduledEpochDay <= today } -> "PLAN_DAY"
+            theoryAhead -> "ADVANCE"
             else -> "EXTRA"
         }
     }

@@ -207,11 +207,18 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun duplicate(id: String, name: String) = launch("Duplicando o plano") { service.duplicate(id, name) }
     fun generate() = _state.value.activePlan?.id?.let { id -> launch("Gerando as tarefas", "Montando a agenda a partir da sua disponibilidade…") { service.replan(id, ReplanReason.INITIAL) } }
     fun start(taskId: String) = launch { executions.start(taskId) }
+    /** Quantas questões a bateria terá: 0 = nenhuma salva; -1 = todas já feitas e certas, sem erro para refazer. */
     suspend fun startQuestionTask(taskId: String): Int {
         val task = repository.task(taskId) ?: error("A tarefa não está mais no plano ativo.")
         require(task.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) { "Esta tarefa não é uma bateria de questões." }
-        val available = savedQuestionsForPlanTask(task, app.database.dao().questionsOnce(), app.database.dao().topicsOnce()).size
-        if (available == 0) return 0
+        val dao = app.database.dao()
+        val questions = dao.questionsOnce()
+        val topics = dao.topicsOnce()
+        if (savedQuestionsForPlanTask(task, questions, topics).isEmpty()) return 0
+        // Sem repetir acerto: não respondidas, erros e não respondidas da matéria. Tudo feito e certo: -1.
+        val pendingErrors = dao.errorsOnce().filter { it.pending }.mapTo(hashSetOf()) { it.questionId }
+        val available = planTaskQuestionIds(task.topicId, task.subjectId, questions, topics, pendingErrors, Int.MAX_VALUE).size
+        if (available == 0) return -1
         when (task.status) {
             PlanTaskStatus.PLANEJADA -> executions.start(taskId)
             // Já concluída (ex.: questões feitas dentro do bloco de estudo) ou reprogramada: a

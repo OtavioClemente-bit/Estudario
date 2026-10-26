@@ -97,7 +97,13 @@ fun QuizScreen(
     }
     LaunchedEffect(config, eligible.map { it.question.id }) {
         if (questionIdsText.isNotBlank()) return@LaunchedEffect
-        val sorteadas = when (config.mode) {
+        val sorteadas = when {
+            // Bateria do plano (Missão do Folha): sem repetir o que já acertou (PlanQuestionPool).
+            config.planTaskId != null -> br.com.estudario.ui.planner.planTaskQuestionIds(
+                config.topicId, config.subjectId, allQuestions, topics,
+                errors.filter { it.entry.pending }.mapTo(hashSetOf()) { it.entry.questionId }, config.count,
+            )
+            else -> when (config.mode) {
             "smart", "daily" -> viewModel.smartQuestions(config.count).map { it.question.id }
             "most_errors" -> eligible.sortedByDescending { it.question.errorCount }.take(config.count).map { it.question.id }
             // Treinar erros respeita a escada de reencontro: primeiro o que já venceu (3, 10, 30
@@ -108,6 +114,7 @@ fun QuizScreen(
                     .take(config.count).map { it.question.id }
             }
             else -> eligible.shuffled().take(config.count).map { it.question.id }
+            }
         }
         if (sorteadas.isNotEmpty()) questionIdsText = sorteadas.joinToString(",")
     }

@@ -79,6 +79,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     var reprogram by remember { mutableStateOf<PlannerTaskUi?>(null) }
     var skip by remember { mutableStateOf<PlannerTaskUi?>(null) }
     var missingQuestionsTask by remember { mutableStateOf<PlanTaskEntity?>(null) }
+    var allDoneTask by remember { mutableStateOf<PlanTaskEntity?>(null) }
     // Adiantar um tópico que ainda não tem matéria no aparelho: a geração abre direto, com o saldo
     // conferido na frente (no Grátis sem crédito, o anúncio aparece já no toque).
     var advanceTopic by remember { mutableStateOf<br.com.estudario.data.local.TopicEntity?>(null) }
@@ -107,6 +108,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     LaunchedEffect(Unit) { viewModel.selectSection(PlanSection.TODAY) }
 
     state.message?.let { message -> AlertDialog(onDismissRequest = viewModel::consumeMessage, title = { Text("Plano") }, text = { Text(message) }, confirmButton = { TextButton(onClick = viewModel::consumeMessage) { Text("OK") } }) }
+    allDoneTask?.let { task -> AllQuestionsDoneDialog(task, onSkip = { viewModel.skip(task.id, "Sem questões novas nem erros para refazer"); allDoneTask = null }, onDismiss = { allDoneTask = null }) }
     missingQuestionsTask?.let { task ->
         AlertDialog(
             onDismissRequest = { missingQuestionsTask = null },
@@ -217,6 +219,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                                 runCatching { viewModel.startQuestionTask(row.entity.id) }
                                     .onSuccess { savedCount ->
                                         if (savedCount == 0) missingQuestionsTask = row.entity
+                                        else if (savedCount < 0) allDoneTask = row.entity
                                         else onStartQuestions(row.entity, savedCount)
                                     }
                                     .onFailure { error -> questionLaunchError = error.message ?: "Confira se a tarefa continua disponível no plano." }
