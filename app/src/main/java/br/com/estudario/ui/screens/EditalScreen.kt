@@ -180,12 +180,13 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
     }
 
     val selectedSubjects = subjects.filter { it.competitionId == selectedCompetitionId }
-    val contentTopicIds = remember(theories, summaries, snippets, questions) {
+    val contentTopicIds = remember(theories, summaries, snippets) {
         buildSet {
             theories.forEach { add(it.topicId) }
             summaries.forEach { add(it.topicId) }
             snippets.forEach { add(it.topicId) }
-            questions.forEach { add(it.question.topicId) }
+            // Questão sozinha não é material: ao apagar o material as respondidas ficam, e o botão
+            // Gerar sumia do tópico (o site faz igual, web/.../ui/Edital.kt).
         }
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {

@@ -50,7 +50,8 @@ fun EditalScreen() {
         data.theories.forEach { add(it.topicId) }
         data.summaries.forEach { add(it.topicId) }
         data.snippets.forEach { add(it.topicId) }
-        data.questions.forEach { add(it.topicId) }
+        // Questão sozinha não é material: as respondidas ficam ao apagar o material, e o botão Gerar
+        // sumia do edital (só dava para gerar de dentro do tópico).
     }
     val withContent = allTopics.count { it.id in contentIds }
     val studied = allTopics.count(Queries::isStudied)

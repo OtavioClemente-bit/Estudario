@@ -111,7 +111,9 @@ private fun nextUp(tasks: List<PlanTask>): PlanTask? =
     tasks.firstOrNull { it.status == "EM_ANDAMENTO" } ?: tasks.firstOrNull { it.status == "PLANEJADA" }
 
 private fun hasMaterial(data: Snapshot, topicId: Long): Boolean =
-    data.theories.any { it.topicId == topicId } || data.questions.any { it.topicId == topicId } || data.summaries.any { it.topicId == topicId }
+    // Material é teoria, resumo ou flashcards (como na tela do tópico). Questão sozinha não conta: ao
+    // apagar o material, as respondidas ficam e o tópico tem que voltar a oferecer "Gerar".
+    data.theories.any { it.topicId == topicId } || data.summaries.any { it.topicId == topicId } || data.snippets.any { it.topicId == topicId }
 
 /** O "Agora" do app: o Folha conversa com a pessoa e aponta a próxima coisa a fazer. */
 @Composable
