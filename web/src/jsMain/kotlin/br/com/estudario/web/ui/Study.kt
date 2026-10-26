@@ -11,6 +11,7 @@ import br.com.estudario.web.Router
 import br.com.estudario.web.data.Actions
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Review
+import br.com.estudario.web.data.Snapshot
 import br.com.estudario.web.data.Store
 import org.jetbrains.compose.web.dom.Div
 import org.jetbrains.compose.web.dom.H2
@@ -23,13 +24,22 @@ import kotlin.js.Date
 
 // ------------------------------------------------------------------ caderno de erros
 
+/**
+ * Os erros que o caderno mostra: do edital escolhido e com a questão ainda no banco. O aviso do Início
+ * conta estes; antes contava todos (outros editais, questões já apagadas) e o caderno abria "limpo".
+ */
+fun notebookErrors(data: Snapshot): List<br.com.estudario.web.data.ErrorEntry> {
+    val questions = data.questions.associateBy { it.id }
+    val scope = CompetitionFilter.topicIds(data)
+    return Queries.pendingErrors(data).filter { questions[it.questionId]?.topicId in scope }
+}
+
 @Composable
 fun ErrorsScreen() {
     val data = Store.data
     val questions = data.questions.associateBy { it.id }
     val topics = data.topics.associateBy { it.id }
-    val scope = CompetitionFilter.topicIds(data)
-    val pending = Queries.pendingErrors(data).filter { questions[it.questionId]?.topicId in scope }.sortedByDescending { it.lastErrorAt }
+    val pending = notebookErrors(data).sortedByDescending { it.lastErrorAt }
     val concepts = data.errorConcepts.filter { !it.mastered && it.errorCount > 0 }.sortedByDescending { it.errorCount }.take(8)
 
     PageHead("Caderno de erros", "As questões que você errou voltam em 3, 10 e 30 dias até você dominar") {

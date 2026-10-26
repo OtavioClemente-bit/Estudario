@@ -104,7 +104,9 @@ internal fun calculateHomeMetrics(
         subjects = subjectCoverage,
         pendingReviews = reviews.count { ReviewPolicy.status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) },
         pendingErrors = errors.count { it.entry.pending },
-        errorsDueToday = errors.count { item -> item.entry.nextRetryAt?.let { it <= now } == true },
+        // Só os que ainda estão para refazer (o mesmo "para hoje" do caderno): erro já corrigido
+        // mantém a data antiga e era contado, e o caderno abria sem nada para hoje.
+        errorsDueToday = errors.count { item -> item.entry.pending && item.entry.nextRetryAt?.let { it <= now } == true },
         answeredCount = attempts.size,
         weakTopicId = weakTopic?.id,
         weakTopicTitle = weakTopic?.title.orEmpty(),

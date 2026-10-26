@@ -2586,7 +2586,16 @@
       if ("IntersectionObserver" in window) {
         this._io = new IntersectionObserver((entries) => {
           this._visible = entries.some((e) => e.isIntersecting);
-          if (this._visible) { live.add(this); wake(); } else live.delete(this);
+          if (this._visible) { live.add(this); wake(); return; }
+          live.delete(this);
+          // "Fora da tela" às vezes chega no meio de uma animação (a reação da resposta crescendo) e o
+          // aviso de volta não vem: confere de novo logo depois e, se estiver na tela, volta a desenhar.
+          clearTimeout(this._recheck);
+          this._recheck = setTimeout(() => {
+            if (!this.isConnected || this._visible) return;
+            const r = this.getBoundingClientRect();
+            if (r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth) { this._visible = true; live.add(this); wake(); }
+          }, 400);
         });
         this._io.observe(this);
       }
@@ -2881,6 +2890,9 @@
       if (this._wasAsleep && mood !== "sleepy") { this._bounceAt = now; this._lastFid = null; }   // acordou num susto
       this._wasAsleep = mood === "sleepy" && this.mood === "idle";
       // saída: tchau por um instante, depois sobe sumindo
+      // A entrada conta do primeiro quadro desenhado, não de quando o elemento nasceu: sem quadros no
+      // meio (aba escondida, fora da tela) ele ficava com o canvas quase transparente até um toque.
+      if (this._enterAt && !this._entered) { this._enterAt = now; this._entered = true; }
       let fade = this._enterAt ? clamp((now - this._enterAt) / 160, 0, 1) : 1, rise = 0;
       if (this._leaveAt) {
         const el = now - this._leaveAt; mood = "wave";

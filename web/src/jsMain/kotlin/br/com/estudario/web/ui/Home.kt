@@ -426,7 +426,7 @@ internal fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
 @Composable
 private fun AttentionPanel(data: Snapshot, planId: String?) {
     val due = Queries.dueReviews(data)
-    val errors = Queries.pendingErrors(data)
+    val errors = notebookErrors(data)
     val todayEpoch = Queries.todayEpoch()
     val overdue = if (planId == null) emptyList() else data.tasks.filter { it.planId == planId && it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
     val questions = data.questions.associateBy { it.id }
