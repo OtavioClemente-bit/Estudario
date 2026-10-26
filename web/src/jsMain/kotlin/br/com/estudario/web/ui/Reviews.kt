@@ -165,7 +165,9 @@ private val RV_PRESETS = listOf(
 @Composable
 private fun ReviewTuner(config: br.com.estudario.domain.ReviewPracticeOptions, cards: Int, questions: Int, hasSummary: Boolean, hasHighlights: Boolean, onChange: (br.com.estudario.domain.ReviewPracticeOptions) -> Unit) {
     fun same(a: br.com.estudario.domain.ReviewPracticeOptions, b: br.com.estudario.domain.ReviewPracticeOptions) =
-        a.questionCount == b.questionCount && a.flashcardCount == b.flashcardCount && a.showSummary == b.showSummary && a.offerHighlights == b.offerHighlights
+        // compara pelo que o tópico tem: com 6 cartões, "Completa" (15) e 6 são a mesma escolha
+        minOf(a.questionCount, questions) == minOf(b.questionCount, questions) && minOf(a.flashcardCount, cards) == minOf(b.flashcardCount, cards) &&
+            a.showSummary == b.showSummary && a.offerHighlights == b.offerHighlights
     Div({ classes("rv-tuner") }) {
         Div({ classes("rv-tuner-head") }) {
             B { Text("Monte sua revisão") }
@@ -181,7 +183,7 @@ private fun ReviewTuner(config: br.com.estudario.domain.ReviewPracticeOptions, c
                 }) {
                     Icon(icon, filled = true)
                     B { Text(name) }
-                    Span { Text("${preset.flashcardCount} cartões · ${preset.questionCount} questões") }
+                    Span { Text("${minOf(preset.flashcardCount, cards)} ${if (minOf(preset.flashcardCount, cards) == 1) "cartão" else "cartões"} · ${minOf(preset.questionCount, questions)} ${if (minOf(preset.questionCount, questions) == 1) "questão" else "questões"}") }
                 }
             }
         }
@@ -340,7 +342,6 @@ fun ReviewSessionScreen(reviewId: Long) {
                 classes("rv-marks-btn"); attr("title", "Ler meus grifos (só leitura)")
                 onClick { ReviewPracticePanels.highlights = "Grifos · ${topic?.title.orEmpty()}" to highlights }
             }) { Icon("bookmarks", filled = true); B { Text("${highlights.size}") } }
-            IconButton("settings", "Configurar próximas revisões") { openSettings() }
         }
         Div({ classes("rv-progress"); attr("role", "progressbar"); attr("aria-valuenow", "$doneUnits"); attr("aria-valuemax", "$totalUnits") }) {
             Span({ attr("style", "width:${(doneUnits * 100 / totalUnits.coerceAtLeast(1))}%") })

@@ -210,7 +210,6 @@ fun ReviewSessionScreen(
                 if (highlights.isNotEmpty()) IconButton(onClick = { highlightsOpen = true }, modifier = Modifier.semantics { contentDescription = "Ler meus grifos (só leitura)" }) {
                     androidx.compose.material3.BadgedBox(badge = { androidx.compose.material3.Badge(containerColor = RvGold) { Text("${highlights.size}", color = Color(0xFF3B2300)) } }) { BrandIcon(Glyph.Bookmark, size = 24.dp) }
                 }
-                IconButton(onClick = { settingsOpen = true }, modifier = Modifier.semantics { contentDescription = "Configurar próximas revisões" }) { BrandIcon(Glyph.Gear) }
             }
         }
         item {
@@ -381,7 +380,9 @@ private val rvPresets = listOf(
 @Composable
 private fun ReviewTuner(config: ReviewPracticeOptions, cards: Int, questions: Int, hasSummary: Boolean, hasHighlights: Boolean, onChange: (ReviewPracticeOptions) -> Unit) {
     fun same(a: ReviewPracticeOptions, b: ReviewPracticeOptions) =
-        a.questionCount == b.questionCount && a.flashcardCount == b.flashcardCount && a.showSummary == b.showSummary && a.offerHighlights == b.offerHighlights
+        // compara pelo que o tópico tem: com 6 cartões, "Completa" (15) e 6 são a mesma escolha
+        minOf(a.questionCount, questions) == minOf(b.questionCount, questions) && minOf(a.flashcardCount, cards) == minOf(b.flashcardCount, cards) &&
+            a.showSummary == b.showSummary && a.offerHighlights == b.offerHighlights
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp)).padding(14.dp),
@@ -405,7 +406,7 @@ private fun ReviewTuner(config: ReviewPracticeOptions, cards: Int, questions: In
                 ) {
                     Icon(icon, null, tint = Color(0xFFC98A0B))
                     Text(name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyMedium)
-                    Text("${preset.flashcardCount} cartões · ${preset.questionCount} questões", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${minOf(preset.flashcardCount, cards)} ${if (minOf(preset.flashcardCount, cards) == 1) "cartão" else "cartões"} · ${minOf(preset.questionCount, questions)} ${if (minOf(preset.questionCount, questions) == 1) "questão" else "questões"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
