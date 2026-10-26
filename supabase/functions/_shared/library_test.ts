@@ -279,3 +279,12 @@ Deno.test("foco: o título da teoria acompanha os capítulos recortados", () => 
   const plain = assembleFromLibrary(m, null, { board: null, options: ALL, avoidStatements: [] }, "s", null)!;
   assertEquals(plain.theoryTitle, "Função do 1º grau: definição, gráfico, raiz e sinal");
 });
+
+Deno.test("matéria publicada sem título: o id dá o nome e o tópico amplo não é recortado num capítulo", async () => {
+  const { inferFocus } = await import("./library.ts");
+  // No banco o JSON da matéria não traz "title": antes, "…, coerência e coesão" saía só no capítulo de coerência.
+  const material = { chapters: [{ title: "1. Referenciação e substituição" }, { title: "2. Substituição lexical" }, { title: "3. Conectores e relações de sentido" }, { title: "4. Sequenciação, repetição e coerência" }, { title: "5. Reescrita coesa" }] };
+  const topic = "Articulação textual: expressões referenciais, nexos, operadores sequenciais, coerência e coesão.";
+  assertEquals(inferFocus(material, topic), { capitulos: [3], questoes: [] });
+  assertEquals(inferFocus(material, topic, "portugues.coesao-textual"), null);
+});

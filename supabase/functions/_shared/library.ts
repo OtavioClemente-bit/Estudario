@@ -58,7 +58,7 @@ const FOCUS_STOPWORDS = new Set([
  * HTML5." -> o capítulo de HTML5). Só recorta quando o tópico cobre no máximo metade dos capítulos;
  * se o nome é o do material inteiro, segue sem recorte.
  */
-export function inferFocus(material: Json, topicTitle: string | null | undefined): LibraryFocus | null {
+export function inferFocus(material: Json, topicTitle: string | null | undefined, topicId?: string | null): LibraryFocus | null {
   const words = normalizeAlias(topicTitle).split(" ").filter((w) => w.length >= 3 && !FOCUS_STOPWORDS.has(w));
   const chapters = (material.chapters as Json[] | undefined) ?? [];
   if (words.length === 0 || chapters.length < 2) return null;
@@ -66,7 +66,11 @@ export function inferFocus(material: Json, topicTitle: string | null | undefined
   // o tópico é a matéria inteira, mesmo que um capítulo também cite a palavra.
   // Só a primeira palavra do título conta: "HTML, CSS, HTTP e APIs REST" lista vários assuntos, e
   // "HTTP e HTTPS." ali continua sendo um recorte.
-  const mainWord = normalizeAlias(String(material.title ?? "")).split(" ")[0] ?? "";
+  // A matéria publicada no banco não traz "title" no JSON: sem o nome, a regra não valia em produção
+  // e "Articulação textual: …, coerência e coesão" (matéria Coesão textual) saía recortada só no
+  // capítulo de coerência. O id ("portugues.coesao-textual") sempre existe e dá o mesmo nome.
+  const materialName = String(material.title ?? "").trim() || String(topicId ?? material.id ?? "").split(".").pop()!.replace(/-/g, " ");
+  const mainWord = normalizeAlias(materialName).split(" ")[0] ?? "";
   if (mainWord && words.some((w) => mainWord.startsWith(w))) return null;
   // "html" acha "html5" e "css" acha "css3": a palavra do tópico abre uma palavra do título.
   const picked = chapters.flatMap((chapter, i) => {
@@ -680,7 +684,9 @@ function interleave<T>(lists: T[][]): T[] {
  * (questões insuficientes no estilo pedido): aí a IA gera, como antes.
  */
 /** Recorte com ao menos isto de cartões próprios fica só com eles. */
-const MIN_FOCUSED_FLASHCARDS = 4;
+/** Num recorte, o mínimo de cartões que o tópico recebe (completa com os mais próximos do assunto). Era 4: vinha magro. */
+const MIN_FOCUSED_FLASHCARDS = 8;
+const MIN_FOCUSED_RECALL = 5;
 
 export function assembleFromLibrary(
   material: Json,
@@ -840,20 +846,20 @@ export function assembleFromLibrary(
   // que mais tocam o assunto dos capítulos entregues (metade ou mais do vocabulário próprio deles),
   // nunca os de capítulo alheio.
   const ratio = wholeTheory ? null : chapterAffinityRatio(allChapters, allChapters.map((chapter, i) => focused.includes(chapter) ? i : -1).filter((i) => i >= 0));
-  const closest = (items: Json[]) => {
+  const closest = (items: Json[], min = MIN_FOCUSED_FLASHCARDS) => {
     const kept = inFocus(items);
-    if (ratio === null || kept.length >= MIN_FOCUSED_FLASHCARDS) return kept;
+    if (ratio === null || kept.length >= min) return kept;
     const near = items
       .filter((item) => !kept.includes(item) && !(outside.length > 0 && outside.some((term) => term.test(JSON.stringify(item)))) && !usesAbsent(item))
       .map((item) => ({ item, r: ratio(item) }))
       .filter(({ r }) => r >= 0.5)
       .sort((a, b) => b.r - a.r)
       .map(({ item }) => item);
-    const extra = new Set(near.slice(0, MIN_FOCUSED_FLASHCARDS - kept.length));
+    const extra = new Set(near.slice(0, min - kept.length));
     return items.filter((item) => kept.includes(item) || extra.has(item));
   };
   const cards = closest(material.flashcards as Json[]);
-  const recall = closest(material.activeRecall as Json[]);
+  const recall = closest(material.activeRecall as Json[], MIN_FOCUSED_RECALL);
 
   const content: Json = {
     schemaVersion: AI_TOPIC_CONTENT_SCHEMA_VERSION,

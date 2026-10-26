@@ -58,7 +58,7 @@ function candidatesFor(hit: SimulationLibraryHit, item: Pick<SimulationItem, "to
   const material = hit.material;
   const all = (material.questions as Json[] | undefined) ?? [];
   const chapters = (material.chapters as Json[] | undefined) ?? [];
-  const focus = hit.focus ?? inferFocus(material, item.topicPath.at(-1));
+  const focus = hit.focus ?? inferFocus(material, item.topicPath.at(-1), hit.topicId);
   const focusChapters = (focus?.capitulos ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < chapters.length);
   const direct = new Set((focus?.questoes ?? []).map((ref) => all[Number(String(ref).replace(/^q/i, "")) - 1]).filter(Boolean));
   const titles = new Set(focusChapters.map((i) => String(chapters[i].title).trim()));

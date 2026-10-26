@@ -165,8 +165,15 @@ for (const { path, value } of await jsonFiles("foco")) {
   const chapterCount = (material.chapters as unknown[]).length;
   const questionCount = (material.questions as unknown[]).length;
   for (const topic of (Array.isArray(value.topicos) ? value.topicos : []) as Json[]) {
-    if (topic.foco === "inteira") continue;
     const alias = normalizeAlias(String(topic.texto ?? ""));
+    // "inteira" (decidido à mão) vai explícito, sem capítulos: sem foco nenhum o servidor adivinhava
+    // pelo nome do tópico e recortava 4.030 desses tópicos num capítulo ou dois.
+    if (topic.foco === "inteira") {
+      const whole = { capitulos: [] as number[], questoes: [] as string[] };
+      if (aliasOwner.get(alias) === material.id) focusByAlias.set(alias, whole);
+      if (!focusByPlain.has(`${material.id}|${alias}`)) focusByPlain.set(`${material.id}|${alias}`, whole);
+      continue;
+    }
     const capitulos = ((topic.capitulos ?? []) as unknown[]).map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < chapterCount);
     const questoes = ((topic.questoes ?? []) as unknown[]).map(String).filter((q) => /^q\d+$/.test(q) && Number(q.slice(1)) >= 1 && Number(q.slice(1)) <= questionCount);
     if (capitulos.length === 0 && questoes.length === 0) continue;
@@ -229,7 +236,7 @@ for (const { path, value } of await jsonFiles("editais")) {
 }
 
 console.log(`Matérias: ${materials.size} · Recortes: ${notes.length} · Apelidos: ${aliasOwner.size} · Editais no catálogo: ${catalogRows.length}`);
-console.log(`Apelidos com foco (tópico estreito): ${focusByAlias.size}`);
+console.log(`Apelidos com foco: ${focusByAlias.size} (${[...focusByAlias.values()].filter((f) => f.capitulos.length === 0 && f.questoes.length === 0).length} da matéria inteira)`);
 if (ambiguous.size > 0) console.log(`Textos de edital ligados a matérias diferentes (ficam com a matéria da maioria): ${ambiguous.size}`);
 if (missing.length > 0) {
   console.log(`\nTópicos de edital ainda sem matéria (${missing.length}):`);

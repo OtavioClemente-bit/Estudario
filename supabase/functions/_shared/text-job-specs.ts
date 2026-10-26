@@ -183,7 +183,7 @@ async function libraryContent(
   const fresh = input.avoidStatements.length === 0;
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
   // Sem recorte cadastrado, o nome do tópico escolhe os capítulos (pedir "HTML5" traz só HTML5).
-  const focus = found.focus ?? inferFocus(found.material, input.topicPath[input.topicPath.length - 1]);
+  const focus = found.focus ?? inferFocus(found.material, input.topicPath[input.topicPath.length - 1], found.topicId);
   let content = assembleFromLibrary(found.material, found.note, input, `${job.id}:${job.userId}`, focus, true);
   // Grátis: nenhuma questão pronta no formato pedido (ex.: só Certo/Errado num tópico estreito): sai
   // com os formatos que houver, em vez de ir para a IA.
