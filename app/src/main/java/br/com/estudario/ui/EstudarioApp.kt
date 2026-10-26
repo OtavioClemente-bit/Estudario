@@ -441,7 +441,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         currentRoute == "sources" -> "Histórico e fontes"
                         currentRoute == "focus-history" -> "Histórico de foco"
                         currentRoute == "theory/{id}?block={block}" -> "Leitura"
-                        currentRoute == "notebook" -> "Caderno de estudo"
+                        currentRoute == "notebook" || currentRoute == "notebook/flip" || currentRoute == "notebook/page/{id}" -> "Caderno de estudo"
+                        currentRoute == "notebook/saved" -> "Grifos, notas e salvos"
                         currentRoute == "agenda" -> "Agenda"
                         else -> null
                     },
@@ -601,7 +602,29 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         initialBlock = backStack.arguments?.getInt("block")?.takeIf { it >= 0 },
                     ) { navController.popBackStack() }
                 }
+                // O Caderno que se escreve sozinho: a entrada (fichário), a Folheada do dia e a página
+                // de cada tópico estudado. O que a pessoa guardou continua em "notebook/saved".
                 composable("notebook") {
+                    NotebookHomeScreen(
+                        viewModel,
+                        onFlip = { navController.navigate("notebook/flip") },
+                        onPage = { navController.navigate("notebook/page/$it") },
+                        onSaved = { navController.navigate("notebook/saved") },
+                        onEdital = { navController.navigate("syllabus") },
+                    )
+                }
+                composable("notebook/flip") {
+                    NotebookFlipScreen(viewModel, onClose = { navController.popBackStack() }, onPage = { navController.navigate("notebook/page/$it") })
+                }
+                composable("notebook/page/{id}") { backStack ->
+                    NotebookPageScreen(
+                        viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0,
+                        onBack = { navController.popBackStack() },
+                        onTheory = { navController.navigate("topic/$it") },
+                        onTrain = { navController.navigate("quiz/5/$it/0/random/_/_") },
+                    )
+                }
+                composable("notebook/saved") {
                     StudyNotebookScreen(
                         viewModel,
                         onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },

@@ -18,6 +18,12 @@ sealed class Route(val path: String) {
     data object Simulations : Route("treinar/simulados")
     data class Simulation(val id: Long) : Route("treinar/simulados/$id")
     data object Notebook : Route("caderno")
+    /** A Folheada do dia: poucas páginas do que está esfriando. */
+    data object NotebookFlip : Route("caderno/folheada")
+    /** A página de um tópico estudado, no Caderno. */
+    data class NotebookPage(val topicId: Long) : Route("caderno/pagina/$topicId")
+    /** O que a pessoa guardou (grifos, notas, salvos): o Caderno de antes. */
+    data object NotebookSaved : Route("caderno/guardados")
     /** [saved]: só os cartões guardados no Caderno (baralhos marcados e perguntas com estrela), como no app. */
     /** [deckId]: só aquele baralho (o "Praticar" de um baralho no Caderno). */
     data class Flashcards(val topicId: Long?, val saved: Boolean = false, val deckId: Long? = null) : Route(
@@ -52,7 +58,7 @@ sealed class Route(val path: String) {
             is Topic, Setup -> Edital
             PlanSettings -> Plan
             is Quiz, Simulations, is Simulation -> Train
-            is Flashcards -> Notebook
+            is Flashcards, NotebookFlip, is NotebookPage, NotebookSaved -> Notebook
             is ReviewSession -> Reviews
             else -> this
         }
@@ -77,6 +83,9 @@ sealed class Route(val path: String) {
                     "flashcards" -> Flashcards(parts.getOrNull(2)?.toLongOrNull())
                     "praticar" -> Flashcards(parts.getOrNull(2)?.toLongOrNull()?.takeIf { it >= 0 }, saved = true)
                     "baralho" -> parts.getOrNull(2)?.toLongOrNull()?.let { Flashcards(null, saved = true, deckId = it) } ?: Notebook
+                    "folheada" -> NotebookFlip
+                    "pagina" -> parts.getOrNull(2)?.toLongOrNull()?.let(::NotebookPage) ?: Notebook
+                    "guardados" -> NotebookSaved
                     "revisoes" -> parts.getOrNull(2)?.toLongOrNull()?.let(::ReviewSession) ?: Reviews
                     "erros" -> Errors
                     else -> Notebook
