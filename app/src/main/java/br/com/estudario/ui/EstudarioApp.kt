@@ -605,13 +605,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 // O Caderno que se escreve sozinho: a entrada (fichário), a Folheada do dia e a página
                 // de cada tópico estudado. O que a pessoa guardou continua em "notebook/saved".
                 composable("notebook") {
-                    NotebookHomeScreen(
-                        viewModel,
-                        onFlip = { navController.navigate("notebook/flip") },
-                        onPage = { navController.navigate("notebook/page/$it") },
-                        onSaved = { navController.navigate("notebook/saved") },
-                        onEdital = { navController.navigate("syllabus") },
-                    )
+                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                        NotebookTabs(saved = false, onNotebook = {}, onSaved = { navController.navigate("notebook/saved") { launchSingleTop = true } }, viewModel = viewModel)
+                        androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+                            NotebookHomeScreen(
+                                viewModel,
+                                onFlip = { navController.navigate("notebook/flip") },
+                                onPage = { navController.navigate("notebook/page/$it") },
+                                onSaved = { navController.navigate("notebook/saved") },
+                                onEdital = { navController.navigate("syllabus") },
+                            )
+                        }
+                    }
                 }
                 composable("notebook/flip") {
                     NotebookFlipScreen(viewModel, onClose = { navController.popBackStack() }, onPage = { navController.navigate("notebook/page/$it") })
@@ -625,13 +630,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     )
                 }
                 composable("notebook/saved") {
-                    StudyNotebookScreen(
-                        viewModel,
-                        onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
-                        onOpenTopic = { navController.navigate("topic/$it") },
-                        onTrainFavorites = { navController.navigate("quiz/20/0/0/favorites/_/_") },
-                        onTrainTopicFavorites = { topicId -> navController.navigate("quiz/20/$topicId/0/favorites/_/_") },
-                    )
+                    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                        NotebookTabs(saved = true, onNotebook = { if (!navController.popBackStack("notebook", false)) navController.navigate("notebook") }, onSaved = {}, viewModel = viewModel)
+                        androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+                            StudyNotebookScreen(
+                                viewModel,
+                                onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
+                                onOpenTopic = { navController.navigate("topic/$it") },
+                                onTrainFavorites = { navController.navigate("quiz/20/0/0/favorites/_/_") },
+                                onTrainTopicFavorites = { topicId -> navController.navigate("quiz/20/$topicId/0/favorites/_/_") },
+                            )
+                        }
+                    }
                 }
                 composable("quiz/{count}/{topic}/{subject}/{mode}/{board}/{difficulty}") { backStack ->
                     val args = backStack.arguments

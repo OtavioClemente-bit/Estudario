@@ -281,7 +281,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     val cold = firm.count { it == StudyNotebook.Firmness.COLD }
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).border(2.dp, LineC, RoundedCornerShape(16.dp))) {
                         Row(Modifier.fillMaxWidth().clickable { open = if (open == subjectId) null else subjectId }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF1ECFF)), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase(), fontWeight = FontWeight.Black, color = Color(0xFF5B4BE8), fontSize = 18.sp) }
+                            br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(name), br.com.estudario.ui.components.subjectAccentColor(name, br.com.estudario.ui.theme.estudarioColors().subjectPalette), 42.dp)
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(name, fontWeight = FontWeight.Bold, color = Ink)
                                 Text("${list.size} ${if (list.size == 1) "tópico visto" else "tópicos vistos"} · ${firm.count { it == StudyNotebook.Firmness.FIRM }} firmes", fontSize = 12.sp, color = Muted)
@@ -298,11 +298,6 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                             }
                         }
                     }
-                }
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).clickable { onSaved() }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Outlined.Bookmarks, null, tint = Color(0xFFC98A0B))
-                    Column(Modifier.weight(1f)) { Text("Grifos, notas e salvos", fontWeight = FontWeight.Bold, color = Ink); Text("Tudo o que você guardou, por matéria", fontSize = 12.sp, color = Muted) }
-                    Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
                 }
             }
         }
@@ -517,5 +512,36 @@ private fun MiniCard(front: String, back: String) {
     ) {
         if (angle < 90f) Text(front, fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp, maxLines = 6, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         else Text(back, Modifier.graphicsLayer { rotationY = 180f }, color = Color.White, fontSize = 12.5.sp, maxLines = 7, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+}
+
+/**
+ * As abas do Caderno: o caderno que se escreve sozinho e o que a pessoa guardou (grifos, notas,
+ * questões e cartões salvos). Antes o segundo ficava num link no fim da página (o site faz igual).
+ */
+@Composable
+fun NotebookTabs(saved: Boolean, onNotebook: () -> Unit, onSaved: () -> Unit, viewModel: AppViewModel) {
+    val marks by viewModel.theoryMarks.collectAsState()
+    val notes by viewModel.notes.collectAsState()
+    val count = marks.size + notes.size
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(scheme.surfaceContainerHigh).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        @Composable
+        fun Tab(on: Boolean, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, badge: Int, onClick: () -> Unit) {
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (on) scheme.surface else Color.Transparent).clickable(enabled = !on, onClick = onClick).padding(vertical = 10.dp, horizontal = 8.dp),
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(icon, null, Modifier.size(18.dp), tint = if (on) Color(0xFFC98A0B) else scheme.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+                Text(label, fontWeight = FontWeight.Black, fontSize = 13.sp, color = if (on) scheme.onSurface else scheme.onSurfaceVariant, maxLines = 1)
+                if (badge > 0) { Spacer(Modifier.width(6.dp)); Text("$badge", Modifier.clip(RoundedCornerShape(50)).background(Gold).padding(horizontal = 6.dp, vertical = 1.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF3B2300)) }
+            }
+        }
+        Tab(!saved, "Caderno", Icons.Outlined.AutoStories, 0, onNotebook)
+        Tab(saved, "Grifos e salvos", Icons.Outlined.Bookmarks, count, onSaved)
     }
 }

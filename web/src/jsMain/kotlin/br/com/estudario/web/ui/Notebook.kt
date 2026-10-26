@@ -67,6 +67,7 @@ fun marksDueToday(marks: List<br.com.estudario.web.data.TheoryMark>): List<br.co
  */
 @Composable
 fun NotebookScreen() {
+    NotebookTabs(saved = true)
     val data = Store.data
     // Só o concurso em foco (aba no topo quando há mais de um).
     val scope = CompetitionFilter.topicIds(data)
@@ -232,7 +233,7 @@ fun NotebookScreen() {
     if (opened != null && bag == null) NotebookNav.topic = null
 
     // ============================== AS MATÉRIAS ==============================
-    PageHead("Caderno de estudo", "Escolha a matéria e o tópico: tudo o que você guardou dele está junto")
+    PageHead("Grifos, notas e salvos", "Tudo o que você guardou, por matéria e tópico")
     CompetitionTabs()
     val total = bags.sumOf { it.second.total }
     val subjectsWithItems = bags.mapNotNull { subjectOf(it.first)?.id }.distinct().size

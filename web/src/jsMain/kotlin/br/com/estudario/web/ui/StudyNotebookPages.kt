@@ -94,6 +94,7 @@ fun NotebookHome() {
     val last = readLocal(LAST_PAGE_KEY)?.toLongOrNull()?.let { id -> topics.firstOrNull { it.id == id } }
     val name = br.com.estudario.web.ui.FolhaFriend.firstName()
 
+    NotebookTabs(saved = false)
     CompetitionTabs()
     Div({ classes("cb-binder", "rise") }) {
         Div({ classes("cb-rings") }) { repeat(5) { org.jetbrains.compose.web.dom.I() } }
@@ -133,7 +134,7 @@ fun NotebookHome() {
                     val firm = list.map { StudyNotebook.firmness(it, now) }
                     val cold = firm.count { it == StudyNotebook.Firmness.COLD }
                     Div({ classes("cb-tab"); attr("style", "--c:${subjectColor(subjectName)}"); onClick { open = if (open == subjectId) null else subjectId } }) {
-                        Span({ classes("cb-ic") }) { Text(subjectName.take(1).uppercase()) }
+                        Span({ classes("hs-art", "subject-art", "cb-art"); attr("style", "--c:${subjectColor(subjectName)}") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(subjectName)) }
                         Div({ classes("cb-meta") }) {
                             B { Text(subjectName) }
                             Span { Text("${list.size} ${if (list.size == 1) "tópico visto" else "tópicos vistos"} · ${firm.count { it == StudyNotebook.Firmness.FIRM }} firmes") }
@@ -154,11 +155,6 @@ fun NotebookHome() {
                     }
                 }
             }
-        }
-        Div({ classes("cb-saved"); onClick { Router.go(Route.NotebookSaved) } }) {
-            Icon("bookmarks", filled = true)
-            Div { B { Text("Grifos, notas e salvos") }; Span { Text("Tudo o que você guardou, por matéria") } }
-            Icon("chevron_right")
         }
     }
 }
@@ -395,5 +391,24 @@ private fun MarkQuote(mark: StudyNotebook.Mark) {
         Div({ classes("cb-quote-in") }) { Markdown(md, compact = true) }
         if (long) Button({ classes("cb-link", "cb-quote-more"); onClick { open = !open } }) { Text(if (open) "recolher" else "ver o trecho inteiro") }
         if (mark.note.isNotBlank()) Div({ classes("cb-quote-note") }) { Span { Text("✎ sua nota") }; Text(mark.note) }
+    }
+}
+
+/**
+ * As abas do Caderno: o caderno que se escreve sozinho e o que a pessoa guardou (grifos, notas,
+ * questões e cartões salvos). Antes o segundo ficava num link no fim da página.
+ */
+@Composable
+internal fun NotebookTabs(saved: Boolean) {
+    val data = Store.data
+    val guardados = data.theoryMarks.size + data.notes.size
+    Div({ classes("cb-tabs"); attr("role", "tablist") }) {
+        Button({ classes(*listOfNotNull("cb-tabbtn", if (!saved) "on" else null).toTypedArray()); attr("role", "tab"); attr("aria-selected", (!saved).toString()); onClick { Router.go(Route.Notebook) } }) {
+            Icon("auto_stories", filled = true); Span { Text("Caderno") }
+        }
+        Button({ classes(*listOfNotNull("cb-tabbtn", if (saved) "on" else null).toTypedArray()); attr("role", "tab"); attr("aria-selected", saved.toString()); onClick { Router.go(Route.NotebookSaved) } }) {
+            Icon("bookmarks", filled = true); Span { Text("Grifos, notas e salvos") }
+            if (guardados > 0) B({ classes("cb-tabcount") }) { Text("$guardados") }
+        }
     }
 }
