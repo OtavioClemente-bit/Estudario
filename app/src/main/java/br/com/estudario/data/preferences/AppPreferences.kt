@@ -34,6 +34,7 @@ class AppPreferences(private val context: Context) {
     private val defaultQuestionCountKey = intPreferencesKey("default_question_count")
     private val showExplanationKey = booleanPreferencesKey("show_explanation")
     private val reviewIntervalsKey = stringPreferencesKey("review_intervals")
+    private val reviewPracticeKey = stringPreferencesKey("review_practice_v1")
     private val expandedEditalSubjectsKey = stringPreferencesKey("expanded_edital_subjects")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val seenToursKey = stringPreferencesKey("seen_tours")
@@ -43,6 +44,8 @@ class AppPreferences(private val context: Context) {
     private val dailyGoalKey = intPreferencesKey("daily_goal_questions")
     private val retiredPlanXpKey = intPreferencesKey("retired_plan_xp")
     private val goalHistoryKey = stringPreferencesKey("daily_goal_history")
+    /** Quando a meta mudou pela última vez (em qualquer aparelho); decide qual meta vale ao sincronizar. */
+    private val goalUpdatedAtKey = longPreferencesKey("daily_goal_updated_at")
     private val lastCelebratedDayKey = longPreferencesKey("last_celebrated_day")
     private val driveBackupAtKey = longPreferencesKey("drive_last_backup_at")
     private val earnedBadgesKey = stringPreferencesKey("earned_badges")
@@ -82,6 +85,9 @@ class AppPreferences(private val context: Context) {
     val defaultQuestionCount: Flow<Int> = context.dataStore.data.map { it[defaultQuestionCountKey] ?: 10 }
     val showExplanation: Flow<Boolean> = context.dataStore.data.map { it[showExplanationKey] ?: true }
     val reviewIntervals: Flow<List<Long>> = context.dataStore.data.map { prefs -> prefs[reviewIntervalsKey]?.split(",")?.mapNotNull(String::toLongOrNull)?.takeIf { it.isNotEmpty() } ?: listOf(1, 7, 30) }
+    val reviewPractice: Flow<br.com.estudario.domain.ReviewPracticeOptions> = context.dataStore.data.map {
+        br.com.estudario.domain.ReviewPracticeOptions.decode(it[reviewPracticeKey])
+    }
     val expandedEditalSubjects: Flow<Set<Long>> = context.dataStore.data.map { prefs ->
         prefs[expandedEditalSubjectsKey]?.split(",")?.mapNotNull(String::toLongOrNull)?.toSet().orEmpty()
     }
@@ -271,6 +277,22 @@ class AppPreferences(private val context: Context) {
             history += today to next
             prefs[goalHistoryKey] = history.sortedBy { it.first }.joinToString(",") { "${it.first}:${it.second}" }
             prefs[dailyGoalKey] = next
+            prefs[goalUpdatedAtKey] = System.currentTimeMillis()
+        }
+    }
+
+    /** A meta para a foto sincronizada: questões, histórico ("dia:questões,...") e quando mudou (0 = nunca). */
+    suspend fun syncedGoal(): Triple<Int, String, Long> = context.dataStore.data.map { prefs ->
+        Triple(prefs[dailyGoalKey] ?: 20, prefs[goalHistoryKey].orEmpty(), prefs[goalUpdatedAtKey] ?: 0L)
+    }.first()
+
+    /** Aplica a meta que veio de outro aparelho, se ela mudou depois da daqui. */
+    suspend fun applySyncedGoal(questions: Int, history: String, updatedAt: Long) {
+        context.dataStore.edit { prefs ->
+            if (updatedAt <= (prefs[goalUpdatedAtKey] ?: 0L)) return@edit
+            prefs[dailyGoalKey] = questions.coerceIn(5, 100)
+            prefs[goalHistoryKey] = history
+            prefs[goalUpdatedAtKey] = updatedAt
         }
     }
     suspend fun setLastCelebratedDay(epochDay: Long) { context.dataStore.edit { it[lastCelebratedDayKey] = epochDay } }
@@ -290,6 +312,7 @@ class AppPreferences(private val context: Context) {
     suspend fun setDefaultQuestionCount(value: Int) { context.dataStore.edit { it[defaultQuestionCountKey] = value } }
     suspend fun setShowExplanation(value: Boolean) { context.dataStore.edit { it[showExplanationKey] = value } }
     suspend fun setReviewIntervals(value: List<Long>) { context.dataStore.edit { it[reviewIntervalsKey] = value.joinToString(",") } }
+    suspend fun setReviewPractice(value: br.com.estudario.domain.ReviewPracticeOptions) { context.dataStore.edit { it[reviewPracticeKey] = value.encode() } }
     suspend fun setEditalSubjectExpanded(subjectId: Long, expanded: Boolean) {
         context.dataStore.edit { prefs ->
             val current = prefs[expandedEditalSubjectsKey]?.split(",")?.mapNotNull(String::toLongOrNull)?.toMutableSet() ?: mutableSetOf()

@@ -4,9 +4,28 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SnapshotMergeTest {
+    @Test
+    fun latestDifficultAttemptKeepsStagePendingAcrossSync() {
+        fun review(completed: Long?, due: Long, updated: Long) = JSONObject()
+            .put("id", 1).put("topicId", 10).put("stage", 1).put("dueAt", due)
+            .put("completedAt", completed ?: JSONObject.NULL).put("intervalDays", 1).put("updatedAt", updated)
+        fun state(row: JSONObject) = JSONObject().put("reviews", JSONArray(listOf(row)))
+        val base = state(review(null, 100, 0))
+        val latest = state(review(null, 300, 250))
+        val older = state(review(200, 100, 200))
+
+        for ((local, remote) in listOf(latest to older, older to latest)) {
+            val merged = SnapshotMerge.merge(base, local, remote).getJSONArray("reviews").getJSONObject(0)
+            assertTrue(merged.isNull("completedAt"))
+            assertEquals(300L, merged.getLong("dueAt"))
+            assertEquals(1L, merged.getLong("intervalDays"))
+        }
+    }
+
     private fun task(id: String, status: String, updatedAt: Long = 0) =
         JSONObject().put("id", id).put("planId", "p").put("status", status).put("updatedAt", updatedAt)
 
@@ -48,6 +67,19 @@ class SnapshotMergeTest {
         assertEquals("mago", SnapshotMerge.merge(base, site, phone).getJSONObject("folhaLook").getString("hat"))
         // só um lado tem visual: ele fica
         assertEquals("coroa", SnapshotMerge.merge(null, phone, JSONObject()).getJSONObject("folhaLook").getString("hat"))
+    }
+
+    @Test
+    fun metaMudadaPorUltimoValeEOQueFoiVistoNosDoisSeSoma() {
+        fun prefs(goal: Int, at: Long, vararg seen: String) = JSONObject().put("userPrefs", JSONObject()
+            .put("dailyGoal", goal).put("goalHistory", "0:$goal").put("goalUpdatedAt", at)
+            .put("wardrobeSeen", JSONArray(seen.toList())).put("celebratedPieces", JSONArray()).put("celebratedBadges", JSONArray(listOf("b1"))))
+
+        val merged = SnapshotMerge.merge(null, prefs(20, 10, "CHAPEU:a"), prefs(30, 99, "OCULOS:b")).getJSONObject("userPrefs")
+
+        assertEquals(30, merged.getInt("dailyGoal"))
+        assertEquals(listOf("CHAPEU:a", "OCULOS:b"), (0 until merged.getJSONArray("wardrobeSeen").length()).map { merged.getJSONArray("wardrobeSeen").getString(it) })
+        assertEquals(1, merged.getJSONArray("celebratedBadges").length())
     }
 
     @Test

@@ -143,7 +143,13 @@ fun HomeScreen(
     val savedRecently = streak?.protectedDays.orEmpty().filter { java.time.LocalDate.now().toEpochDay() - it.toEpochDays() <= 7 }.map { it.toString() }
     var savedSeen by remember { mutableStateOf(savePrefs.getStringSet("streak_saved_seen", emptySet()).orEmpty()) }
     val savedPending = savedRecently.filter { it !in savedSeen }
-    if (savedPending.isNotEmpty() && streak != null) {
+    // Só depois de conferir a conta: o dia "sem estudo" pode ter sido estudado no site e ainda não ter
+    // chegado aqui (antes a cena aparecia ao abrir e gastava o marca-página de um dia estudado).
+    val cloudSync = (androidx.compose.ui.platform.LocalContext.current.applicationContext as br.com.estudario.EstudarioApplication).cloudSync
+    val syncStatus by cloudSync.status.collectAsState()
+    val syncSettled = !cloudSync.enabled || syncStatus is br.com.estudario.data.sync.CloudSyncStatus.Done ||
+        syncStatus is br.com.estudario.data.sync.CloudSyncStatus.Failed || syncStatus is br.com.estudario.data.sync.CloudSyncStatus.SignedOut
+    if (savedPending.isNotEmpty() && streak != null && syncSettled) {
         val d = java.time.LocalDate.parse(savedPending.max())
         // os últimos 7 dias para os braseiros: 1 feito, 2 salvo pelo Folha, 0 sem estudo
         val s = streak!!

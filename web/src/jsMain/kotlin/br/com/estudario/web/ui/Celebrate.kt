@@ -100,11 +100,13 @@ fun CelebrationHost() {
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(4000); ready = true }
 
     LaunchedEffect(earned, ready) {
-        val known = readSet(KEY_BADGES)
+        // Comemorado em qualquer aparelho da conta não se repete aqui (emblema ganho no celular).
+        val known = readSet(KEY_BADGES)?.plus(br.com.estudario.web.data.Prefs.syncedSet("celebratedBadges"))
         if (known == null || !ready) { if (known == null || earned.containsAll(known)) write(KEY_BADGES, (earned + known.orEmpty()).sorted().joinToString(",")); return@LaunchedEffect }
         val fresh = earned - known
         if (fresh.isEmpty()) return@LaunchedEffect
         write(KEY_BADGES, (known + fresh).sorted().joinToString(","))
+        br.com.estudario.web.data.Prefs.addSynced("celebratedBadges", known + fresh)
         view.progress.earnedBadges.filter { it.badge.id in fresh }.sortedBy { it.badge.tier }.forEach { CelebrationQueue.items += Celebration.NewBadge(it.badge) }
     }
     LaunchedEffect(todayDone, ready) {
@@ -133,12 +135,13 @@ fun CelebrationHost() {
     val owned = br.com.estudario.domain.FolhaWardrobe.items.filter { br.com.estudario.domain.FolhaWardrobe.unlocked(it, view.progress) && (it.badgeId != null || it.level != null || it.collection != null) }
         .map { it.slot.name + ":" + it.id }.toSet()
     LaunchedEffect(owned, ready) {
-        val known = readSet(KEY_PIECES)
+        val known = readSet(KEY_PIECES)?.plus(br.com.estudario.web.data.Prefs.syncedSet("celebratedPieces"))
         // primeira vez neste navegador (ou ainda carregando): o que já estava liberado entra sem festa
         if (known == null || !ready) { if (known == null) write(KEY_PIECES, owned.sorted().joinToString(",")); return@LaunchedEffect }
         val fresh = owned - known
         if (fresh.isEmpty()) return@LaunchedEffect
         write(KEY_PIECES, (known + fresh).sorted().joinToString(","))
+        br.com.estudario.web.data.Prefs.addSynced("celebratedPieces", known + fresh)
         val pieces = br.com.estudario.domain.FolhaWardrobe.items.filter { (it.slot.name + ":" + it.id) in fresh }.sortedByDescending { it.rarity.ordinal }
         if (pieces.isNotEmpty()) CelebrationQueue.items += Celebration.NewPiece(pieces)
     }

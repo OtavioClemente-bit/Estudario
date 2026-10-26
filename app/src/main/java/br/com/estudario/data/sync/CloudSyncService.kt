@@ -157,9 +157,10 @@ class CloudSyncService(
         CloudSyncStatus.Done(now, action)
     }
 
-    // A foto leva também o visual do Folha (o armário), que não mora no banco.
+    // A foto leva também o visual do Folha (o armário), a meta diária e as peças vistas, que não moram no banco.
     private suspend fun canonicalSnapshot(): String = canonicalize(JSONObject(backup.export()).apply {
         br.com.estudario.data.FolhaLookStore.toJson(context)?.let { put(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY, it) }
+        put(SyncedPrefs.SNAPSHOT_KEY, SyncedPrefs.toJson(context))
     }.toString())
 
     private suspend fun isLocalEmpty(): Boolean =
@@ -193,6 +194,7 @@ class CloudSyncService(
         restoring = true
         try { backup.restore(merged.toString()) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
         br.com.estudario.data.FolhaLookStore.applyRemote(context, merged.optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
+        SyncedPrefs.applyRemote(context, merged.optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         val snapshot = canonicalSnapshot()
         upload(userId, snapshot, Sha256.digest(snapshot.encodeToByteArray()).toHex(), head.revision)
     }
@@ -258,6 +260,7 @@ class CloudSyncService(
         restoring = true
         try { backup.restore(text) } finally { restoring = false; lastRemoteApplyAt = System.currentTimeMillis() }
         br.com.estudario.data.FolhaLookStore.applyRemote(context, JSONObject(text).optJSONObject(br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY))
+        SyncedPrefs.applyRemote(context, JSONObject(text).optJSONObject(SyncedPrefs.SNAPSHOT_KEY))
         // A base é o que este aparelho exporta depois de restaurar (a ordem das linhas pode sair
         // diferente da foto recebida); assim a próxima rodada não confunde isso com uma edição.
         val restored = canonicalSnapshot()

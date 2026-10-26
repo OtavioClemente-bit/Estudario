@@ -42,6 +42,8 @@ object SnapshotMerge {
                 l is JSONArray && r is JSONArray -> out.put(key, mergeArray(key, b as? JSONArray, l, r, base == null))
                 // Visual do Folha: vale o trocado por último (em qualquer aparelho).
                 key == br.com.estudario.data.FolhaLookStore.SNAPSHOT_KEY -> out.put(key, br.com.estudario.data.FolhaLookStore.newer(l as? JSONObject, r as? JSONObject))
+                // Meta diária e peças vistas: a meta mudada por último, as peças vistas nos dois.
+                key == SyncedPrefs.SNAPSHOT_KEY -> out.put(key, SyncedPrefs.merge(l as? JSONObject, r as? JSONObject))
                 l == null -> out.put(key, r)
                 r == null -> out.put(key, l)
                 // Campo simples (formato, versão): fica o que mudou em relação à base; senão, o daqui.

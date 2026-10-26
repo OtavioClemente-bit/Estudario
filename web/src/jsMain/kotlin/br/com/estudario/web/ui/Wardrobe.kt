@@ -17,6 +17,7 @@ import br.com.estudario.domain.ProgressEngine
 import br.com.estudario.web.Route
 import br.com.estudario.web.data.Progress
 import br.com.estudario.web.data.ProgressView
+import br.com.estudario.web.data.Prefs
 import br.com.estudario.web.data.Store
 import kotlinx.browser.localStorage
 import kotlinx.browser.window
@@ -168,15 +169,22 @@ private object WardrobeSeen {
     var version by mutableIntStateOf(0)
         private set
     private fun key(item: FolhaItem) = item.slot.name + ":" + item.id
-    private fun read(): Set<String>? = runCatching { localStorage.getItem(KEY) }.getOrNull()?.split(",")?.filter { it.isNotBlank() }?.toSet()
-    private fun write(v: Set<String>) { runCatching { localStorage.setItem(KEY, v.sorted().joinToString(",")) }; version++ }
+    private fun local(): Set<String>? = runCatching { localStorage.getItem(KEY) }.getOrNull()?.split(",")?.filter { it.isNotBlank() }?.toSet()
+    /** Vistas aqui ou em qualquer aparelho da conta: peça vista no celular não volta como "NOVO" aqui. */
+    private fun read(): Set<String>? = local()?.let { it + Prefs.syncedSet("wardrobeSeen") } ?: Prefs.syncedSet("wardrobeSeen").takeIf { it.isNotEmpty() }
+    private fun write(v: Set<String>) {
+        val all = v + Prefs.syncedSet("wardrobeSeen")
+        runCatching { localStorage.setItem(KEY, all.sorted().joinToString(",")) }
+        Prefs.addSynced("wardrobeSeen", all)
+        version++
+    }
     fun isNew(item: FolhaItem, progress: ProgressEngine.ProgressSummary): Boolean {
         @Suppress("UNUSED_VARIABLE") val v = version
         val seen = read() ?: return false
         return FolhaWardrobe.unlocked(item, progress) && key(item) !in seen
     }
     /** Primeira vez neste navegador: tudo o que já está liberado entra como visto. */
-    fun init(progress: ProgressEngine.ProgressSummary) { if (read() == null) write(FolhaWardrobe.items.filter { FolhaWardrobe.unlocked(it, progress) }.map(::key).toSet()) }
+    fun init(progress: ProgressEngine.ProgressSummary) { if (local() == null) write(FolhaWardrobe.items.filter { FolhaWardrobe.unlocked(it, progress) }.map(::key).toSet()) }
     fun markSeen(items: List<FolhaItem>, progress: ProgressEngine.ProgressSummary) {
         val seen = read() ?: emptySet()
         val add = items.filter { FolhaWardrobe.unlocked(it, progress) }.map(::key).filter { it !in seen }

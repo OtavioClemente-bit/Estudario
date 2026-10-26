@@ -6,16 +6,77 @@ import br.com.estudario.domain.StreakEngine
 import br.com.estudario.domain.StreakSummary
 import br.com.estudario.domain.planner.PlanTaskType
 import kotlinx.browser.localStorage
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.longOrNull
 
 /** Preferências deste navegador (no app ficam em Ajustes). */
 object Prefs {
     private fun read(key: String): String? = runCatching { localStorage.getItem(key) }.getOrNull()
     private fun write(key: String, value: String) { runCatching { localStorage.setItem(key, value) } }
 
-    /** Meta diária de questões (a sequência conta o dia com essa meta, uma tarefa do plano ou uma revisão). */
+    /**
+     * Meta diária de questões (a sequência conta o dia com essa meta, uma tarefa do plano ou uma revisão).
+     * Vai na foto da conta (chave "userPrefs", a mesma do app, SyncedPrefs.kt) com o histórico das
+     * mudanças: com metas diferentes, o mesmo dia fechava aqui e não no celular, que gastava o
+     * marca-página num dia estudado. Vale a meta mudada por último, em qualquer aparelho.
+     */
     var dailyGoal: Int
-        get() = read("estudario.goal")?.toIntOrNull()?.coerceIn(DailyGoal.MIN, DailyGoal.MAX) ?: DailyGoal.DEFAULT.questions
-        set(value) = write("estudario.goal", value.coerceIn(DailyGoal.MIN, DailyGoal.MAX).toString())
+        get() = goal().questions
+        set(value) {
+            val next = value.coerceIn(DailyGoal.MIN, DailyGoal.MAX)
+            val old = goal()
+            val today = Queries.todayEpoch()
+            val history = (old.history.ifEmpty { listOf(0L to old.questions) }.filter { it.first != today } + (today to next)).sortedBy { it.first }
+            val at = kotlin.js.Date.now().toLong()
+            write("estudario.goal", next.toString())
+            write("estudario.goal.updatedAt", at.toString())
+            Store.update { it.withObject(SYNCED_KEY, synced(it).withGoal(next, history.joinToString(",") { (d, q) -> "$d:$q" }, at)) }
+        }
+
+    /** A meta com o histórico: a da conta, se mudou depois da deste navegador. */
+    fun goal(): DailyGoal {
+        val cloud = Store.data.obj(SYNCED_KEY)
+        val cloudAt = cloud?.long("goalUpdatedAt") ?: 0L
+        val localAt = read("estudario.goal.updatedAt")?.toLongOrNull() ?: 0L
+        if (cloud != null && cloud.long("dailyGoal") != null && cloudAt >= localAt) {
+            val history = (cloud["goalHistory"] as? JsonPrimitive)?.contentOrNull.orEmpty().split(',').mapNotNull { entry ->
+                val parts = entry.split(':')
+                val day = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+                val q = parts.getOrNull(1)?.toIntOrNull() ?: return@mapNotNull null
+                day to q
+            }.sortedBy { it.first }
+            return DailyGoal(cloud.long("dailyGoal")!!.toInt().coerceIn(DailyGoal.MIN, DailyGoal.MAX), history)
+        }
+        return DailyGoal(read("estudario.goal")?.toIntOrNull()?.coerceIn(DailyGoal.MIN, DailyGoal.MAX) ?: DailyGoal.DEFAULT.questions)
+    }
+
+    /** Chave da foto com a meta e as peças vistas do armário (a mesma do app). */
+    const val SYNCED_KEY = "userPrefs"
+
+    fun synced(data: Snapshot): JsonObject = data.obj(SYNCED_KEY) ?: JsonObject(emptyMap())
+
+    /**
+     * Uma lista do que já foi visto ou comemorado em qualquer aparelho da conta ("wardrobeSeen",
+     * "celebratedPieces", "celebratedBadges"; as mesmas do app). Só cresce.
+     */
+    fun syncedSet(name: String): Set<String> = (synced(Store.data)[name] as? kotlinx.serialization.json.JsonArray)
+        ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }?.toSet().orEmpty()
+
+    /** Soma [values] à lista da conta (o app recebe na próxima sincronização). */
+    fun addSynced(name: String, values: Set<String>) {
+        if (syncedSet(name).containsAll(values)) return
+        Store.update { data ->
+            val current = (synced(data)[name] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+            val list = kotlinx.serialization.json.JsonArray((current + values).filter { it.isNotBlank() }.distinct().sorted().map { JsonPrimitive(it) })
+            data.withObject(SYNCED_KEY, JsonObject(synced(data) + (name to list)))
+        }
+    }
+
+    private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
+    private fun JsonObject.withGoal(questions: Int, history: String, at: Long) =
+        JsonObject(this + mapOf("dailyGoal" to JsonPrimitive(questions), "goalHistory" to JsonPrimitive(history), "goalUpdatedAt" to JsonPrimitive(at)))
 
     /** Mostrar a explicação logo após responder (como no app). */
     var explanationRightAway: Boolean
@@ -35,13 +96,12 @@ data class ProgressView(
 /** XP, nível, sequência e emblemas: os mesmos ProgressEngine/StreakEngine do app, calculados uma vez por foto. */
 object Progress {
     private var lastData: Snapshot? = null
-    private var lastGoal: Int = -1
+    private var lastGoal: DailyGoal? = null
     private var last: ProgressView? = null
 
     fun of(data: Snapshot): ProgressView {
-        val goalQuestions = Prefs.dailyGoal
-        last?.let { if (lastData === data && lastGoal == goalQuestions) return it }
-        val goal = DailyGoal(goalQuestions)
+        val goal = Prefs.goal()
+        last?.let { if (lastData === data && lastGoal == goal) return it }
         val today = Queries.todayDate()
         val days = Queries.dailyActivity(data)
         val streak = StreakEngine.summarize(days, goal, today)
@@ -76,7 +136,7 @@ object Progress {
                 },
             ),
         )
-        return ProgressView(streak, progress).also { lastData = data; lastGoal = goalQuestions; last = it }
+        return ProgressView(streak, progress).also { lastData = data; lastGoal = goal; last = it }
     }
 
     /** XP que uma tarefa do plano rende (mostrado na tarefa, como no app). */
