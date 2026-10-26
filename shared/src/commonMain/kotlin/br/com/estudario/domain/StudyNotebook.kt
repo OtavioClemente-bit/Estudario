@@ -131,6 +131,25 @@ object StudyNotebook {
         return pages.take(count).sortedBy(rank)
     }
 
+    /**
+     * O trecho grifado como markdown legível. O grifo guarda o texto como estava na teoria, às vezes
+     * numa linha só: tabela com as linhas coladas ("| a | b | | --- | --- | | c | d |"), título
+     * ("### NGAV - Vai além...") e itens ("... - Atua na prevenção"). Aqui as linhas voltam a ser
+     * linhas, para a tabela virar tabela e a lista virar lista.
+     */
+    fun quoteMarkdown(quote: String): String {
+        var s = quote.trim()
+        // tabela colada: cada "| |" é a quebra entre duas linhas da tabela
+        if (Regex("""\|\s*-{3,}\s*\|""").containsMatchIn(s)) s = s.replace(Regex("""\|\s+\|"""), "|\n|")
+        // título no meio do texto vira linha própria (em negrito: título grande num grifo pesa demais)
+        s = s.replace(Regex("""\s*#{1,6}\s+([^\n]+?)(?=\s+-\s|\n|$)""")) { "\n\n**" + it.groupValues[1].trim() + "**\n" }
+        // item de lista colado depois de frase ou título
+        s = s.replace(Regex("""(?<=[.:!?*])\s+-\s+(?=\S)"""), "\n- ")
+        // citação colada
+        s = s.replace(Regex("""\s+>\s+(?=\S)"""), "\n\n> ")
+        return s.replace(Regex("""\n{3,}"""), "\n\n").trim()
+    }
+
     /** O texto de uma página (para não repetir a mesma na Folheada e para o "tem erro aqui"). */
     fun pageText(p: Page): String = when (p) {
         is Page.Key -> p.lines.joinToString(" ")

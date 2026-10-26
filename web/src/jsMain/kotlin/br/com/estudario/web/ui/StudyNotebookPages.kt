@@ -226,8 +226,7 @@ fun NotebookFlipScreen() {
                     }
                     is StudyNotebook.Page.MarkPage -> {
                         H3({ classes("cb-title") }) { Text("O que você destacou") }
-                        Div({ classes("cb-body") }) { P { Span({ classes("cb-hl") }) { Inline(page.mark.quote) } } }
-                        if (page.mark.note.isNotBlank()) Div({ classes("cb-postit") }) { Text(page.mark.note) }
+                        MarkQuote(page.mark)
                     }
                     is StudyNotebook.Page.Trap -> {
                         H3({ classes("cb-title") }) { Text("A banca tenta te pegar aqui") }
@@ -347,7 +346,7 @@ fun NotebookPageScreen(topicId: Long) {
         }
         if (quotes.isNotEmpty()) {
             H4 { Text("SEUS GRIFOS") }
-            Div({ classes("cb-body") }) { topic.marks.take(8).forEach { m -> P { Span({ classes("cb-hl") }) { Inline(m.quote) } }; if (m.note.isNotBlank()) Div({ classes("cb-postit") }) { Text(m.note) } } }
+            topic.marks.take(8).forEachIndexed { i, m -> key(i) { MarkQuote(m) } }
         }
         topic.notes.take(3).forEach { note -> Div({ classes("cb-postit") }) { Text(note) } }
         if (topic.tips.isNotEmpty()) {
@@ -379,5 +378,22 @@ private fun MiniCard(front: String, back: String) {
             Div({ classes("cb-mini-f") }) { Inline(front) }
             Div({ classes("cb-mini-b") }) { Inline(back.take(260)) }
         }
+    }
+}
+
+/**
+ * Um grifo: o trecho como citação (barra amarela, fundo leve), em markdown de verdade (tabela vira
+ * tabela, lista vira lista) e com a nota da pessoa junto, para ficar claro de que trecho ela é.
+ * Grifo longo vem recolhido, com "ver o trecho inteiro".
+ */
+@Composable
+private fun MarkQuote(mark: StudyNotebook.Mark) {
+    val md = remember(mark.quote) { StudyNotebook.quoteMarkdown(mark.quote) }
+    val long = md.length > 360 || md.count { it == '\n' } > 6
+    var open by remember(mark.quote) { mutableStateOf(false) }
+    Div({ classes(*listOfNotNull("cb-quote", if (long && !open) "clamp" else null).toTypedArray()) }) {
+        Div({ classes("cb-quote-in") }) { Markdown(md, compact = true) }
+        if (long) Button({ classes("cb-link", "cb-quote-more"); onClick { open = !open } }) { Text(if (open) "recolher" else "ver o trecho inteiro") }
+        if (mark.note.isNotBlank()) Div({ classes("cb-quote-note") }) { Span { Text("✎ sua nota") }; Text(mark.note) }
     }
 }

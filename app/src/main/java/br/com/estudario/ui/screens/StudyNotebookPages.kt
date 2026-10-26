@@ -51,7 +51,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
@@ -81,15 +84,20 @@ import java.time.LocalDate
  * salvos" (o Caderno de antes).
  */
 
-private val Ink = Color(0xFF1B1464)
-private val Muted = Color(0xFF6B6790)
-private val PaperColor = Color(0xFFFFFDF7)
-private val Rule = Color(0xFFDCE6F7)
-private val MarginRed = Color(0xFFF3B2B5)
+/** Tema escuro: papel azul-noite e cores suaves (o papel creme claro ficava forte demais). */
+@Composable private fun nbDark() = MaterialTheme.colorScheme.background.luminance() < 0.5f
+private val Ink: Color @Composable get() = if (nbDark()) Color(0xFFECE9FF) else Color(0xFF1B1464)
+private val Muted: Color @Composable get() = if (nbDark()) Color(0xFFB3ADDF) else Color(0xFF6B6790)
+private val PaperColor: Color @Composable get() = if (nbDark()) Color(0xFF1E1A4A) else Color(0xFFFFFDF7)
+private val CardBg: Color @Composable get() = if (nbDark()) Color(0xFF262158) else Color.White
+private val SoftBg: Color @Composable get() = if (nbDark()) Color(0xFF2A2562) else Color(0xFFF4F0FF)
+private val LineC: Color @Composable get() = if (nbDark()) Color(0xFF3A3480) else Color(0xFFEEE8D6)
+private val Rule: Color @Composable get() = if (nbDark()) Color.White.copy(alpha = 0.055f) else Color(0xFFDCE6F7)
+private val MarginRed: Color @Composable get() = if (nbDark()) Color(0x59F38C91) else Color(0xFFF3B2B5)
 private val Gold = Color(0xFFFFB421)
 private val Mint = Color(0xFF2FBF8A)
 private val Coral = Color(0xFFFF8A80)
-private val Highlight = Color(0xFFFFE066)
+private val Highlight: Color @Composable get() = if (nbDark()) Color(0x47FFD633) else Color(0x8CFFD633)
 private val Postit = Color(0xFFFFF3A0)
 private val Stamp = Color(0xFFE5484D)
 private val Hand = FontFamily.Cursive
@@ -150,14 +158,45 @@ private fun kindOf(p: StudyNotebook.Page): Pair<String, Color> = when (p) {
 }
 
 /** Papel pautado com margem vermelha (o fundo das páginas do caderno). */
-private fun Modifier.notebookPaper(marginDp: Float = 30f): Modifier = this
-    .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 20.dp, bottomEnd = 20.dp))
-    .background(PaperColor)
-    .drawBehind {
-        val step = 28.dp.toPx(); var y = 60.dp.toPx()
-        while (y < size.height) { drawLine(Rule, Offset(0f, y), Offset(size.width, y), 1.dp.toPx()); y += step }
-        val mx = marginDp.dp.toPx(); drawLine(MarginRed, Offset(mx, 0f), Offset(mx, size.height), 2.dp.toPx())
+private fun Modifier.notebookPaper(marginDp: Float = 30f): Modifier = composed {
+    val paper = PaperColor
+    val rule = Rule
+    val margin = MarginRed
+    this.clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 20.dp, bottomEnd = 20.dp))
+        .background(paper)
+        .drawBehind {
+            val step = 28.dp.toPx(); var y = 60.dp.toPx()
+            while (y < size.height) { drawLine(rule, Offset(0f, y), Offset(size.width, y), 1.dp.toPx()); y += step }
+            val mx = marginDp.dp.toPx(); drawLine(margin, Offset(mx, 0f), Offset(mx, size.height), 2.dp.toPx())
+        }
+}
+
+/**
+ * Um grifo: o trecho como citação (barra amarela, fundo leve) em markdown de verdade (a tabela
+ * colada vira tabela, a lista vira lista; ver StudyNotebook.quoteMarkdown) e a nota da pessoa junto,
+ * para ficar claro de que trecho ela é. Grifo longo vem recolhido.
+ */
+@Composable
+private fun MarkQuote(mark: StudyNotebook.Mark) {
+    val md = remember(mark.quote) { StudyNotebook.quoteMarkdown(mark.quote) }
+    val long = md.length > 360 || md.count { it == '\n' } > 6
+    var open by remember(mark.quote) { mutableStateOf(false) }
+    val bar = Color(0xFFF5C400)
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+            .background(bar.copy(alpha = if (nbDark()) 0.07f else 0.12f))
+            .drawBehind { drawRect(bar.copy(alpha = 0.8f), size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height)) }
+            .padding(start = 14.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(if (long && !open) Modifier.heightIn(max = 150.dp).clipToBounds() else Modifier) { br.com.estudario.ui.components.MarkdownText(md) }
+        if (long) Text(if (open) "recolher" else "ver o trecho inteiro", Modifier.clickable { open = !open }, color = Color(0xFF5B4BE8), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        if (mark.note.isNotBlank()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (nbDark()) Color(0xFFE8DC8A) else Postit).padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Text("✎ SUA NOTA", fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, color = Color(0xFF3E3300).copy(alpha = 0.65f))
+            Text(mark.note, fontFamily = Hand, fontSize = 19.sp, lineHeight = 22.sp, color = Color(0xFF3E3300))
+        }
     }
+}
 
 @Composable
 private fun PostIt(text: String, color: Color = Postit) {
@@ -229,7 +268,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     }
                 }
                 if (last != null) Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFF4F0FF)).clickable { onPage(last.id) }.padding(12.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SoftBg).clickable { onPage(last.id) }.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Box(Modifier.width(12.dp).height(32.dp).background(Stamp))
@@ -240,7 +279,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     val name = subjects.firstOrNull { it.id == subjectId }?.name ?: "Matéria"
                     val firm = list.map { StudyNotebook.firmness(it, now) }
                     val cold = firm.count { it == StudyNotebook.Firmness.COLD }
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(2.dp, Color(0xFFEEE8D6), RoundedCornerShape(16.dp))) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).border(2.dp, LineC, RoundedCornerShape(16.dp))) {
                         Row(Modifier.fillMaxWidth().clickable { open = if (open == subjectId) null else subjectId }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF1ECFF)), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase(), fontWeight = FontWeight.Black, color = Color(0xFF5B4BE8), fontSize = 18.sp) }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -260,7 +299,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).clickable { onSaved() }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).clickable { onSaved() }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Outlined.Bookmarks, null, tint = Color(0xFFC98A0B))
                     Column(Modifier.weight(1f)) { Text("Grifos, notas e salvos", fontWeight = FontWeight.Bold, color = Ink); Text("Tudo o que você guardou, por matéria", fontSize = 12.sp, color = Muted) }
                     Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
@@ -328,8 +367,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
                     }
                     is StudyNotebook.Page.MarkPage -> {
                         Text("O que você destacou", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
-                        Highlighted(page.mark.quote)
-                        if (page.mark.note.isNotBlank()) PostIt(page.mark.note)
+                        MarkQuote(page.mark)
                     }
                     is StudyNotebook.Page.Trap -> {
                         Text("A banca tenta te pegar aqui", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
@@ -363,7 +401,7 @@ private fun ColumnScope.FlipRecall(page: StudyNotebook.Page.Recall) {
     Text("Tente lembrar antes de virar", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
     Box(
         Modifier.fillMaxWidth().heightIn(min = 200.dp).graphicsLayer { rotationX = angle; cameraDistance = 14 * density }
-            .clip(RoundedCornerShape(16.dp)).background(if (angle < 90f) Color.White else Ink).border(2.dp, Color(0xFFE9E2CB), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp)).background(if (angle < 90f) CardBg else Color(0xFF332D78)).border(2.dp, LineC, RoundedCornerShape(16.dp))
             .clickable { flipped = !flipped }.padding(18.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -385,9 +423,9 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
     Text("Uma que você errou: e agora?", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
     br.com.estudario.ui.components.MarkdownText(question.question.statement)
     question.options.sortedBy { it.position }.forEachIndexed { pos, option ->
-        val border = when { right != null && option.isCorrect -> Mint; right == false && option.key == picked -> Stamp; else -> Color(0xFFE9E2CB) }
+        val border = when { right != null && option.isCorrect -> Mint; right == false && option.key == picked -> Stamp; else -> LineC }
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).border(2.dp, border, RoundedCornerShape(12.dp))
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardBg).border(2.dp, border, RoundedCornerShape(12.dp))
                 .clickable(enabled = right == null) { picked = option.key; scope.launch { right = viewModel.answer(question, option.key, sessionId) } }.padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) { Text("ABCDEF"[pos].toString(), fontWeight = FontWeight.Black, color = Ink); Text(option.text, color = Ink, modifier = Modifier.weight(1f)) }
@@ -437,7 +475,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                 }
                 if (topic.marks.isNotEmpty()) {
                     Section("SEUS GRIFOS")
-                    topic.marks.take(8).forEach { m -> Highlighted(m.quote); if (m.note.isNotBlank()) PostIt(m.note) }
+                    topic.marks.take(8).forEach { m -> MarkQuote(m) }
                 }
                 topic.notes.take(3).forEach { PostIt(it) }
                 if (topic.tips.isNotEmpty()) {
@@ -474,7 +512,7 @@ private fun MiniCard(front: String, back: String) {
     val angle by animateFloatAsState(if (on) 180f else 0f, tween(450), label = "mini")
     Box(
         Modifier.width(170.dp).height(130.dp).graphicsLayer { rotationY = angle; cameraDistance = 12 * density }.clip(RoundedCornerShape(12.dp))
-            .background(if (angle < 90f) Color.White else Ink).border(2.dp, Color(0xFFE9E2CB), RoundedCornerShape(12.dp)).clickable { on = !on }.padding(12.dp),
+            .background(if (angle < 90f) CardBg else Color(0xFF332D78)).border(2.dp, LineC, RoundedCornerShape(12.dp)).clickable { on = !on }.padding(12.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (angle < 90f) Text(front, fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp, maxLines = 6, textAlign = androidx.compose.ui.text.style.TextAlign.Center)

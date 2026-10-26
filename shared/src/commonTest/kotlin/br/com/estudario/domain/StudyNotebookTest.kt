@@ -44,6 +44,22 @@ class StudyNotebookTest {
     }
 
     @Test
+    fun grifoComTabelaColadaVoltaASerTabela() {
+        val md = StudyNotebook.quoteMarkdown("| Elemento | Função | | --- | --- | | @Audited | Habilita auditoria | | @Version | Concorrência otimista |")
+        val lines = md.lines()
+        assertEquals(4, lines.size)
+        assertTrue(lines.all { it.startsWith("|") && it.endsWith("|") })
+    }
+
+    @Test
+    fun grifoComTituloEItensVoltaASerLista() {
+        val md = StudyNotebook.quoteMarkdown("### NGAV (antivírus de nova geração) - Vai além do antivírus tradicional. - Atua na prevenção no endpoint.")
+        assertTrue(md.startsWith("**NGAV (antivírus de nova geração)**"))
+        assertTrue("\n- Atua na prevenção" in md)
+        assertTrue("###" !in md)
+    }
+
+    @Test
     fun semEstudoNaoTemFolheada() {
         assertTrue(StudyNotebook.folheada(listOf(StudyNotebook.Topic(1, 1, "X", "NAO_ESTUDADO", null)), now, 1).isEmpty())
     }
