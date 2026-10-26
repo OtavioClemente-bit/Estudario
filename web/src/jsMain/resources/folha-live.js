@@ -2488,8 +2488,22 @@
   // ------------------------------------------------------------------ animação
   const ease = (x) => 1 - (1 - x) * (1 - x);
   const live = new Set();
+  // Todos os Folhas na página (desenhando ou não). A cada meio segundo, quem está parado confere se
+  // está na tela de verdade: o aviso do IntersectionObserver às vezes não volta (animação, rolagem
+  // dentro de painel) e o Folha ficava em branco até um toque.
+  const all = new Set();
+  setInterval(() => {
+    for (const el of all) {
+      if (!el.isConnected) { all.delete(el); continue; }
+      if (live.has(el) && el._visible) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth && getComputedStyle(el).visibility !== "hidden") { el._visible = true; live.add(el); wake(); }
+    }
+  }, 500);
   let rafId = 0;
-  function tick(now) { rafId = 0; for (const el of live) el._frame(now); if (live.size) rafId = requestAnimationFrame(tick); }
+  // Um Folha que dá erro ao desenhar não pode parar os outros: antes o laço inteiro morria e todos
+  // ficavam congelados (ou em branco) até alguém tocar num deles.
+  function tick(now) { rafId = 0; for (const el of live) { try { el._frame(now); } catch (e) { live.delete(el); } } if (live.size) rafId = requestAnimationFrame(tick); }
   function wake() { if (!rafId && live.size) rafId = requestAnimationFrame(tick); }
 
   // Reações ao toque (cada toque, uma diferente) e quanto duram.
@@ -2599,9 +2613,9 @@
         });
         this._io.observe(this);
       }
-      live.add(this); wake();
+      live.add(this); all.add(this); wake();
     }
-    disconnectedCallback() { live.delete(this); if (this._io) this._io.disconnect(); if (this._quipEl) { this._quipEl.remove(); this._quipEl = null; } }
+    disconnectedCallback() { live.delete(this); all.delete(this); if (this._io) this._io.disconnect(); if (this._quipEl) { this._quipEl.remove(); this._quipEl = null; } }
     attributeChangedCallback(name) {
       if (name === "size") this._size();
       if (name === "say") { const t = this.getAttribute("say"); this._say = t ? speechPlan(t) : null; this._sayAt = performance.now(); }

@@ -538,8 +538,9 @@ internal fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Lon
             if (right && streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text("$streak seguidas") }
         }
         if (badge != null) Div({ classes("badge-pop") }) {
-            Icon("military_tech", filled = true)
-            Span({ classes("xs") }) { Text("Emblema") }
+            // Marca da bateria (3, 5, 10... seguidas), só na hora: não é emblema das Conquistas nem fica salva.
+            Icon("local_fire_department", filled = true)
+            Span({ classes("xs") }) { Text("${streak} seguidas") }
             B { Text(badge.second) }
         }
     }
