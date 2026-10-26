@@ -37,6 +37,8 @@ sealed class Route(val path: String) {
     data object Reviews : Route("caderno/revisoes")
     data class ReviewSession(val id: Long) : Route("caderno/revisoes/$id")
     data object Errors : Route("caderno/erros")
+    /** A missão da Virada: os erros que vencem hoje, para virar. */
+    data object ErrorMission : Route("caderno/erros/missao")
     data object Focus : Route("foco")
     data object FocusHistory : Route("foco/historico")
     data object Profile : Route("perfil")
@@ -59,6 +61,7 @@ sealed class Route(val path: String) {
             PlanSettings -> Plan
             is Quiz, Simulations, is Simulation -> Train
             is Flashcards, NotebookFlip, is NotebookPage, NotebookSaved -> Notebook
+            ErrorMission -> Errors
             is ReviewSession -> Reviews
             else -> this
         }
@@ -87,7 +90,7 @@ sealed class Route(val path: String) {
                     "pagina" -> parts.getOrNull(2)?.toLongOrNull()?.let(::NotebookPage) ?: Notebook
                     "guardados" -> NotebookSaved
                     "revisoes" -> parts.getOrNull(2)?.toLongOrNull()?.let(::ReviewSession) ?: Reviews
-                    "erros" -> Errors
+                    "erros" -> if (parts.getOrNull(2) == "missao") ErrorMission else Errors
                     else -> Notebook
                 }
                 "revisoes" -> Reviews

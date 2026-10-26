@@ -578,7 +578,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onOpenSimulations = { navController.navigate("simulations") { popUpTo("simulations") { inclusive = true } } },
                     )
                 }
-                composable("errors") { ErrorsScreen(viewModel, onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") }, onOpenTopic = { navController.navigate("topic/$it") }) }
+                composable("errors") {
+                    ViradaScreen(
+                        viewModel,
+                        onMission = { navController.navigate("errors/mission") },
+                        onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") },
+                        onTrainTopic = { navController.navigate("quiz/3/$it/0/random/_/_") },
+                    )
+                }
+                composable("errors/mission") { ViradaMissionScreen(viewModel, onBack = { navController.popBackStack() }) }
                 composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup, onNotifications = { navController.navigate("notifications") }, onAgenda = { navController.navigate("agenda") }) }
                 composable("agenda") {
                     val agendaPlan by planViewModel.state.collectAsState()

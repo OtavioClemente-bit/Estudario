@@ -436,6 +436,10 @@ object Actions {
      * [withUnansweredQuestions]; as respondidas ficam sempre (levam o histórico e o XP). O tópico, se foi
      * estudado e as revisões continuam.
      */
+    /** Troca a nota do erro (na Virada, a primeira linha guarda o motivo: "Motivo: Li rápido"). */
+    fun setErrorComment(data: Snapshot, errorId: Long, comment: String): Snapshot =
+        data.edit(Keys.ERRORS) { if (it.idIs(errorId)) it.with("comment" to JsonPrimitive(comment)) else it }
+
     fun deleteTopicMaterial(data: Snapshot, topicId: Long, withUnansweredQuestions: Boolean): Snapshot {
         val theoryIds = data.theories.filter { it.topicId == topicId }.mapTo(hashSetOf()) { it.id }
         val answered = data.attempts.mapTo(hashSetOf()) { it.questionId }

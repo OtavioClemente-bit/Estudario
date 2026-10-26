@@ -81,7 +81,7 @@ private fun titleOf(route: Route): String = when (route) {
     Route.NotebookSaved -> "Grifos, notas e salvos"
     is Route.Flashcards -> "Flashcards"
     Route.Reviews, is Route.ReviewSession -> "Revisões espaçadas"
-    Route.Errors -> "Caderno de erros"
+    Route.Errors, Route.ErrorMission -> "Caderno de erros"
     Route.Focus -> "Modo foco"
     Route.FocusHistory -> "Histórico do foco"
     Route.Profile -> "Perfil"
@@ -167,7 +167,8 @@ private fun Screen(route: Route) {
         is Route.Flashcards -> FlashcardsScreen(route.topicId, route.saved, route.deckId)
         Route.Reviews -> ReviewsScreen()
         is Route.ReviewSession -> ReviewSessionScreen(route.id)
-        Route.Errors -> ErrorsScreen()
+        Route.Errors -> ViradaScreen()
+        Route.ErrorMission -> ViradaMissionScreen()
         Route.Focus -> FocusScreen()
         Route.FocusHistory -> FocusHistoryScreen()
         Route.Profile -> ProfileScreen()
