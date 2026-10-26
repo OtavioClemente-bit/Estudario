@@ -251,14 +251,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     Text(if (pages.isEmpty()) "FOLHEADA DO DIA" else if (flippedToday) "FOLHEADA DE HOJE · FEITA" else "FOLHEADA DO DIA · ~${StudyNotebook.minutes(pages)} MIN", color = Gold, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.5.sp)
                     Text(if (pages.isEmpty()) "Estude o primeiro tópico" else if (flippedToday) "Feita! Quer folhear de novo?" else "${pages.size} ${if (pages.size == 1) "página separada" else "páginas separadas"} para você", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
                     Text(if (pages.isEmpty()) "Leia a teoria e marque como estudado: o resumo, as dicas e os cartões viram páginas daqui." else "Do que você viu e está começando a esquecer.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                    if (pages.isNotEmpty()) Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        pages.forEach { p ->
-                            val (label, c) = kindOf(p)
-                            Column(Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(8.dp)).background(PaperColor).drawBehind { drawRect(c, size = androidx.compose.ui.geometry.Size(size.width, 4.dp.toPx())) }.padding(horizontal = 5.dp, vertical = 4.dp), verticalArrangement = Arrangement.Bottom) {
-                                Text(label, fontSize = 9.sp, fontWeight = FontWeight.Black, color = Ink, maxLines = 1)
-                            }
-                        }
-                    }
+                    Spacer(Modifier.height(4.dp))
                     Button(
                         onClick = { if (pages.isEmpty()) onEdital() else onFlip() }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF3B2300)),

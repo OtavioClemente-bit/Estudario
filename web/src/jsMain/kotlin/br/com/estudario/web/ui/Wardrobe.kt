@@ -241,7 +241,7 @@ fun WardrobeScreen() {
             // ---- placar compacto: nível de colecionador e atalhos
             Div({ classes("wdg-hud", "compact") }) {
                 Div({ classes("wdg-rank") }) {
-                    Span({ classes("wdg-rank-ic") }) { Icon("military_tech", filled = true) }
+                    org.jetbrains.compose.web.dom.Img(src = "medalha-colecionador.svg", alt = "") { classes("wdg-rank-medal") }
                     Div({ classes("grow") }) {
                         Span({ classes("wdg-eyebrow") }) { Text("COLECIONADOR · " + collectorRank(owned, total).uppercase()) }
                         Div({ classes("wdg-xp") }) {
@@ -307,7 +307,7 @@ fun WardrobeScreen() {
                                     classes(*listOfNotNull("wdg-emote", if (on) "on" else null).toTypedArray())
                                     attr("title", label); attr("aria-label", label); attr("aria-pressed", on.toString())
                                     onClick { testMood = if (m == "idle") null else m }
-                                }) { Icon(icon) }
+                                }) { Folha(m, 34, live = false) }
                             }
                         }
                     }

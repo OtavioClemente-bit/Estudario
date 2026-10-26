@@ -93,7 +93,6 @@ fun HomeScreen() {
             WeakSpotCard(data)
             if (plan != null && tasks.isNotEmpty()) DailyMission(tasks) { completing = it }
             AttentionPanel(data, plan?.id)
-            HomeSyllabus(data, subjects)
         }
         Div({ classes("stack", "loose") }) {
             PaceCard(data, plan?.id, plan?.exam)
@@ -418,6 +417,7 @@ internal fun StreakWeekCard(streak: br.com.estudario.domain.StreakSummary) {
                 } else Div({ classes("sw-sub") }) { Text("Cheio: o Folha protege 2 dias ruins") }
             }
         }
+        P({ classes("sw-why") }) { Text("Para que serve: num dia em que você não conseguir estudar, o Folha usa um marca-página para guardar aquele dia, e a sua sequência não zera. Você ganha um a cada 7 dias seguidos (no máximo 2).") }
         if (streak.week.any { it.protected }) Div({ classes("sw-saved") }) { Text("O Folha guardou seu lugar num dia desta semana.") }
     }
 }

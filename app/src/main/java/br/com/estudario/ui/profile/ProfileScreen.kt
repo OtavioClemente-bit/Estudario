@@ -546,6 +546,10 @@ private fun StreakBand(summary: StreakSummary) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Text(
+            "Para que serve: num dia em que você não conseguir estudar, o Folha usa um marca-página para guardar aquele dia, e a sua sequência não zera. Você ganha um a cada 7 dias seguidos (no máximo 2).",
+            Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (summary.week.any { it.protected }) Text("O Folha guardou seu lugar num dia desta semana.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(EstudarioSpacing.comfortable))
         if (summary.todayDone) {

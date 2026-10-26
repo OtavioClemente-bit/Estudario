@@ -109,12 +109,6 @@ fun NotebookHome() {
             Span({ classes("cb-eyebrow") }) { Text(if (flippedToday) "FOLHEADA DE HOJE · FEITA" else "FOLHEADA DO DIA · ~${StudyNotebook.minutes(pages)} MIN") }
             H3 { Text(if (flippedToday) "Feita! Quer folhear de novo?" else "${pages.size} ${if (pages.size == 1) "página separada" else "páginas separadas"} para você") }
             P { Text("Do que você viu e está começando a esquecer.") }
-            Div({ classes("cb-peek") }) {
-                pages.forEach { p ->
-                    val (cls, label) = pageKind(p)
-                    Span({ classes(cls) }) { B { Text(label) } }
-                }
-            }
             Button({ classes("cb-cta"); onClick { Router.go(Route.NotebookFlip) } }) { Icon("auto_stories", filled = true); Text(if (flippedToday) "Folhear de novo" else "Folhear agora") }
         } else Div({ classes("cb-today", "empty") }) {
             Span({ classes("cb-eyebrow") }) { Text("FOLHEADA DO DIA") }

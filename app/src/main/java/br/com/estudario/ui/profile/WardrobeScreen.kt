@@ -279,9 +279,7 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
             ) {
                 // placar numa linha: nível de colecionador, barra e atalhos
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFFFE59A), GoldG, Color(0xFFC98A12)))), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.MilitaryTech, null, Modifier.size(22.dp), tint = Color(0xFF5A3803))
-                    }
+                    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(br.com.estudario.R.drawable.medalha_colecionador), null, Modifier.size(40.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("COLECIONADOR · " + collectorRank(owned, total).uppercase(), color = GameMute, fontSize = 9.5.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         GameBar(owned.toFloat() / total, "$owned / $total peças", Modifier.fillMaxWidth(), height = 14)
@@ -342,10 +340,10 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                             TRY_MOODS.forEach { (m, label, icon) ->
                                 val on = (testMood ?: FolhaMood.IDLE) == m
                                 Box(
-                                    Modifier.size(26.dp).clip(RoundedCornerShape(50)).background(if (on) Mint else Color.White.copy(alpha = 0.08f))
+                                    Modifier.size(34.dp).clip(RoundedCornerShape(50)).background(if (on) Mint else Color.White.copy(alpha = 0.08f))
                                         .border(1.dp, GameLine, RoundedCornerShape(50)).clickable { testMood = if (m == FolhaMood.IDLE) null else m },
                                     contentAlignment = Alignment.Center,
-                                ) { Icon(icon, label, Modifier.size(15.dp), tint = if (on) Color(0xFF0F3B2B) else Color.White) }
+                                ) { br.com.estudario.ui.assistant.Folha(28.dp, mood = m, enter = false) }
                             }
                         }
                     }

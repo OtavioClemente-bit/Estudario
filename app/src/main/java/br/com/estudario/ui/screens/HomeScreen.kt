@@ -416,14 +416,7 @@ fun HomeScreen(
 
         item { Spacer(Modifier.height(EstudarioSpacing.section)) }
 
-        item {
-            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                SyllabusCoverage(
-                    coverage = coverageUi(metrics),
-                    onOpenSyllabus = onSyllabus,
-                )
-            }
-        }
+        // "Seu edital" saiu do Início: "Meus concursos" já mostra o andamento do edital.
 
         item {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
