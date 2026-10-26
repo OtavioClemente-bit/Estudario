@@ -244,12 +244,11 @@ private fun PaceCard(data: Snapshot, planId: String?, exam: Long?) {
     val todayEpoch = Queries.todayEpoch()
     val pending = if (planId == null) emptyList() else data.tasks.filter { it.planId == planId && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
     // Previsão do edital inteiro (como no app); as tarefas marcadas só cobrem as próximas 4 semanas.
-    // A previsão roda o motor do plano semana a semana até a prova (centenas de milissegundos): o
-    // Início aparece primeiro e ela é calculada logo depois, em vez de travar a página ao abrir.
+    // O motor roda em um worker. Adiar por alguns milissegundos ainda bloqueava todos os cliques.
     val plan = data.plans.firstOrNull { it.id == planId }
-    var ready by remember(data, plan) { mutableStateOf(plan == null || br.com.estudario.web.data.Forecast.isReady(data, plan)) }
-    LaunchedEffect(data, plan) { if (!ready) { kotlinx.coroutines.delay(60); ready = true } }
-    val projection = if (ready) plan?.let { br.com.estudario.web.data.Forecast.of(data, it) } else null
+    val prediction = rememberForecast(data, plan)
+    val ready = !prediction.loading
+    val projection = prediction.result
     val forecast = when {
         !ready -> null
         projection == null -> pending.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: pending.maxOfOrNull { it.day }
@@ -259,6 +258,7 @@ private fun PaceCard(data: Snapshot, planId: String?, exam: Long?) {
     val (tone, title, detail) = when {
         planId == null -> Triple("var(--faint)", "Sem previsão ainda.", "Monte seu plano e o Estudário calcula quando o edital fecha.")
         !ready -> Triple("var(--faint)", "Calculando a previsão…", "Conferindo quando o seu plano fecha o edital.")
+        prediction.failed -> Triple("var(--faint)", "Previsão indisponível no momento.", "Você pode continuar estudando normalmente.")
         forecast == null -> Triple("var(--green)", "Conteúdo previsto coberto.", "Daqui para frente o plano vira revisão e questões.")
         exam == null -> Triple("var(--primary)", "Edital coberto até ${Queries.dayLabel(LocalDate.fromEpochDays(forecast))}.", "Cadastre a data da prova no plano para ver quanto tempo sobra para revisão.")
         exam - forecast >= 14 -> Triple("var(--green)", "Bom ritmo.", "Nesse ritmo, o edital fecha ${exam - forecast} dias antes da prova, em ${Queries.dayLabel(LocalDate.fromEpochDays(forecast))}.")
@@ -342,7 +342,7 @@ private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressS
     Div({ classes("lvl-card"); attr("role", "button"); attr("tabindex", "0"); onClick { Router.go(Route.Profile) } }) {
         Div({ classes("lvl-top") }) {
             Div({ classes("lvl-seal", "lvl-book") }) {
-                ProfileArt("level", size = 84, level = progress.level)
+                LevelBookView(progress.level, 84)
             }
             Div({ classes("grow") }) {
                 Span({ classes("lvl-eyebrow") }) { Text("SEU NÍVEL") }

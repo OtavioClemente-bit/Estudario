@@ -89,6 +89,22 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.withFrameNanos { }
                 mountApp = true
             }
+            // Prancha das seis faixas e ícones do perfil, somente em debug/preview.
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("profileArtShowcase", false) == true) {
+                br.com.estudario.ui.profile.ProfileArtShowcase(intent!!.getBooleanExtra("dark", false))
+                return@setContent
+            }
+            // Perfil demonstrativo (só debug/preview), sem alterar os dados do usuário.
+            if (BuildConfig.DEBUG && intent?.getBooleanExtra("profileShowcase", false) == true) {
+                br.com.estudario.ui.profile.ProfileShowcase(
+                    dark = intent!!.getBooleanExtra("dark", false),
+                    emptyStreak = intent!!.getBooleanExtra("emptyStreak", false),
+                    level = intent!!.getIntExtra("level", 14),
+                    goalDone = intent!!.getBooleanExtra("goalDone", false),
+                    lostStreak = intent!!.getBooleanExtra("lostStreak", false),
+                )
+                return@setContent
+            }
             // Vitrine do Folha (só debug/preview): `--ez folhaShowcase true`, para ver todos os humores sem login.
             if (BuildConfig.DEBUG && intent?.getBooleanExtra("folhaShowcase", false) == true) {
                 br.com.estudario.ui.assistant.FolhaShowcase()

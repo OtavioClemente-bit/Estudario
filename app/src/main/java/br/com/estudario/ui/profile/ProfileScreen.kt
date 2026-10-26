@@ -38,6 +38,7 @@ import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon
+import br.com.estudario.ui.brand.turmaTouchRoot
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -425,8 +426,8 @@ private fun LevelBand(summary: ProgressEngine.ProgressSummary) {
     val proximo = ProgressEngine.nextTitle(summary.level)
     Band {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // O selo do nível: hexágono no metal da faixa (bronze, prata, ouro...), com os raios das medalhas.
-            LevelSeal(summary.level, 104.dp)
+            // A ilustração cresce em ornamentação a cada faixa de nível.
+            LevelSeal(summary.level, 116.dp)
             Spacer(Modifier.width(EstudarioSpacing.small))
             Column(Modifier.weight(1f)) {
                 Text(summary.levelTitle, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -512,7 +513,7 @@ private fun StreakBand(summary: StreakSummary) {
         Text("SEQUÊNCIA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(EstudarioSpacing.tight))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StreakFlame(lit = summary.current > 0, size = 72.dp)
+            StreakFlame(lit = summary.current > 0, size = 72.dp, frozen = summary.current == 0 && summary.best > 0)
             Spacer(Modifier.width(EstudarioSpacing.small))
             Column {
                 Text("${summary.current}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = if (summary.current > 0) Color(0xFFFF8A3D) else MaterialTheme.colorScheme.onSurface)
@@ -799,8 +800,33 @@ private val previewStreak = StreakSummary(
     totalMinutes = 4620,
 )
 
-/** Nota: em previews o [ProfileAvatar] não decodifica um arquivo real do disco do desenvolvedor,
- * ele cai no mesmo retorno elegante de iniciais que qualquer usuário sem foto veria em produção. */
+/** Vitrine de debug no aparelho: usa dados demonstrativos, sem tocar no perfil salvo. */
+@Composable
+internal fun ProfileShowcase(dark: Boolean, emptyStreak: Boolean, level: Int = 14, goalDone: Boolean = false, lostStreak: Boolean = false) {
+    EstudarioTheme(darkTheme = dark) {
+      Box(Modifier.fillMaxSize().turmaTouchRoot()) {
+        ProfileContent(
+            profile = UserProfile(name = "Seu próximo nível"),
+            progress = previewProgress.copy(
+                level = level, levelTitle = ProgressEngine.levelTitle(level),
+                badges = br.com.estudario.domain.BadgeCatalog.sequencia.map { BadgeProgress(it, if (emptyStreak) 0 else 12) },
+            ),
+            streak = previewStreak.copy(
+                current = if (emptyStreak || lostStreak) 0 else 12, best = if (emptyStreak) 0 else 21,
+                todayDone = goalDone, todayQuestions = if (goalDone) 0 else 8,
+                todayPlanTasks = if (goalDone) 1 else 0,
+                freezes = if (emptyStreak || lostStreak) 0 else 1, daysToNextFreeze = if (emptyStreak || lostStreak) 7 else 2,
+            ),
+            driveLastBackupAt = 0L,
+            onBack = {}, onEditName = {}, onChangePhoto = {}, onRemovePhoto = {}, onBadges = {},
+            onDailyGoalChange = {}, onBackup = {}, onRestore = {},
+            onExportBackup = {}, onImportBackup = {},
+        )
+      }
+    }
+}
+
+/** Em previews o avatar usa as iniciais em vez de abrir arquivos locais do desenvolvedor. */
 @Preview(name = "Perfil, com foto", showBackground = true, heightDp = 1400)
 @Composable
 private fun ProfileWithPhotoPreview() {

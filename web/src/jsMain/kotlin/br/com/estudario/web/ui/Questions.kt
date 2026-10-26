@@ -277,6 +277,16 @@ fun TrainPreferences() {
 
 @Composable
 fun QuizScreen(scope: String) {
+    var attempt by remember(scope) { mutableStateOf(0) }
+    // Repetir o mesmo recorte não muda a URL. Cada tentativa precisa de uma composição própria
+    // para reiniciar respostas, sorteio, cronômetro e id da sessão, sem duplicar a tarefa do plano.
+    androidx.compose.runtime.key(scope, attempt) {
+        QuizAttempt(scope, onRepeat = { attempt++ })
+    }
+}
+
+@Composable
+private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
     val initial = remember(scope) { pickQuestions(Store.data, scope) }
     val sessionId = remember(scope) { Actions.newSessionId() }
     val startedAt = remember(scope) { Date.now().toLong() }
@@ -345,7 +355,7 @@ fun QuizScreen(scope: String) {
                     // Treino de um tópico volta para o conteúdo dele (o foco pode estar rodando lá, e é lá que se conclui).
                     val topicBack = scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }
                     if (topicBack != null) {
-                        Btn("Treinar de novo", { Router.go(Route.Quiz("topico-$topicBack-${results.size.coerceAtLeast(5)}")) }, style = "outline", icon = "refresh")
+                        Btn("Treinar de novo", onRepeat, style = "outline", icon = "refresh")
                         Btn("Voltar ao conteúdo", { Router.go(Route.Topic(topicBack)) }, style = "primary", icon = "menu_book")
                     } else {
                         Btn("Treinar de novo", { Router.go(Route.Train) }, style = "outline", icon = "refresh")
@@ -505,7 +515,7 @@ private val STREAK_BADGES = listOf(3 to "Aquecendo", 5 to "Em chamas", 10 to "Im
  * sequência de acertos seguidos e, ao bater uma marca (3, 5, 10, 15, 20), o emblema.
  */
 @Composable
-private fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long, results: List<Boolean>) {
+internal fun AnswerReaction(right: Boolean, correctKey: String?, questionId: Long, results: List<Boolean>) {
     val streak = results.asReversed().takeWhile { it }.size
     val badge = if (right) STREAK_BADGES.lastOrNull { it.first == streak } else null
     // Só depois de responder, ele reage ao contexto: virou depois de errar (ufa), sequência longa (em chamas).

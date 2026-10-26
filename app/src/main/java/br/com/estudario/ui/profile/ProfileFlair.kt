@@ -2,7 +2,6 @@ package br.com.estudario.ui.profile
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -24,8 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.LocalFireDepartment
-import androidx.compose.material.icons.rounded.MilitaryTech
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,16 +30,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -52,85 +47,19 @@ import androidx.compose.ui.unit.sp
 import br.com.estudario.domain.ProgressEngine
 import br.com.estudario.domain.StreakSummary
 import br.com.estudario.ui.brand.Icon
+import br.com.estudario.ui.brand.Glyph
+import br.com.estudario.ui.brand.drawGlyph
+import br.com.estudario.ui.brand.turmaMotion
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
- * O que dá vida ao Perfil: o selo do nível com os raios das medalhas, o avatar no anel do nível,
+ * O que dá vida ao Perfil: o livro do nível, o avatar no anel de progresso,
  * o fogo da sequência e os quatro números do topo (os mesmos do site).
  */
 
 /** A faixa do selo pelo nível: bronze até o 9, prata do 10, ouro do 20, safira, rubi e esmeralda no 50. */
 internal fun levelTier(level: Int): Int = (level / 10 + 1).coerceIn(1, 6)
-
-/** Selo do nível: coroa de louros e joia no metal da faixa, hexágono com o número e raios girando em volta, como as medalhas. */
-@Composable
-internal fun LevelSeal(level: Int, size: Dp = 112.dp) {
-    val palette = tierPalette(levelTier(level))
-    val shine by rememberInfiniteTransition(label = "selo").animateFloat(
-        -0.6f, 1.6f, infiniteRepeatable(tween(3_200, easing = LinearEasing)), label = "selo-brilho",
-    )
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-        RaysGlow(palette.dark)
-        Laurels(palette.light, palette.dark, palette.rim, Modifier.fillMaxSize())
-        Canvas(Modifier.size(size * 0.68f).graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
-            val r = this.size.minDimension / 2
-            val c = center
-            fun hex(radius: Float) = Path().apply {
-                repeat(6) { i ->
-                    val a = Math.toRadians(-90.0 + i * 60.0)
-                    val x = c.x + radius * kotlin.math.cos(a).toFloat()
-                    val y = c.y + radius * kotlin.math.sin(a).toFloat()
-                    if (i == 0) moveTo(x, y) else lineTo(x, y)
-                }
-                close()
-            }
-            drawPath(hex(r), palette.rim)
-            drawPath(hex(r * 0.9f), Brush.linearGradient(listOf(palette.light, palette.dark), Offset(0f, 0f), Offset(this.size.width, this.size.height)))
-            drawPath(hex(r * 0.72f), Brush.linearGradient(listOf(Color(0xFF6A4CF0), Color(0xFF2B1C8F)), Offset(0f, 0f), Offset(this.size.width, this.size.height)))
-            drawPath(hex(r * 0.72f), palette.light.copy(alpha = 0.8f), style = Stroke(1.5.dp.toPx()))
-            // o reflexo passando na diagonal, só dentro do selo
-            val x = shine * this.size.width
-            drawPath(
-                hex(r),
-                Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.5f), Color.Transparent), Offset(x - r * 0.5f, 0f), Offset(x + r * 0.5f, this.size.height)),
-                blendMode = BlendMode.SrcAtop,
-            )
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("NÍVEL", fontSize = (size.value * 0.085f).sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f), letterSpacing = 1.sp)
-            Text("$level", fontSize = (size.value * 0.26f).sp, lineHeight = (size.value * 0.27f).sp, fontWeight = FontWeight.Black, color = Color.White)
-        }
-    }
-}
-
-/** Dois ramos de louro subindo dos lados e a joia no alto, no metal da faixa. */
-@Composable
-private fun Laurels(light: Color, dark: Color, rim: Color, modifier: Modifier) {
-    Canvas(modifier) {
-        val c = center
-        val r = size.minDimension * 0.4f
-        val leaf = Brush.verticalGradient(listOf(light, dark))
-        for (side in listOf(-1f, 1f)) for (i in 0 until 8) {
-            val deg = 115.0 + i * 17.0
-            val a = Math.toRadians(deg)
-            val x = c.x - side * kotlin.math.cos(a).toFloat() * r
-            val y = c.y - kotlin.math.sin(a - Math.PI).toFloat() * r
-            val s = 1f - i * 0.04f
-            val w = size.minDimension * 0.13f * s
-            val h = w * 0.45f
-            val rot = if (side < 0) (deg + 118).toFloat() else (-deg - 118).toFloat()
-            rotate(rot, Offset(x, y)) {
-                drawOval(leaf, Offset(x - w / 2, y - h / 2), androidx.compose.ui.geometry.Size(w, h))
-                drawOval(rim, Offset(x - w / 2, y - h / 2), androidx.compose.ui.geometry.Size(w, h), style = Stroke(1.dp.toPx()))
-            }
-        }
-        // a joia no alto
-        val g = size.minDimension * 0.07f
-        val top = c.y - size.minDimension * 0.42f
-        val gem = Path().apply { moveTo(c.x, top - g); lineTo(c.x + g, top); lineTo(c.x, top + g); lineTo(c.x - g, top); close() }
-        drawPath(gem, Brush.verticalGradient(listOf(light, dark), top - g, top + g))
-        drawPath(gem, rim, style = Stroke(1.5.dp.toPx()))
-    }
-}
 
 /** O avatar dentro do anel do nível: o arco sai de baixo (do número do nível) e dá a volta até ele. */
 @Composable
@@ -152,41 +81,48 @@ internal fun LevelAvatar(progress: ProgressEngine.ProgressSummary?, size: Dp, co
             )
         }
         content()
-        if (progress != null) Text(
-            "${progress.level}",
-            Modifier.align(Alignment.BottomCenter).offset(y = 2.dp).clip(RoundedCornerShape(50))
-                .background(Brush.horizontalGradient(listOf(Color(0xFF6A4CF0), Color(0xFF22C59A))))
-                .padding(horizontal = 10.dp, vertical = 2.dp),
-            color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp,
-        )
+        // A medalha do livro de Folhas, com o número do nível (bronze, prata, ouro, ouro radiante).
+        if (progress != null) LevelBookImage(progress.level, 40.dp, Modifier.align(Alignment.BottomCenter).offset(y = 8.dp))
     }
 }
 
-/** O fogo da sequência: chama em degradê que tremula; apagada (cinza) sem sequência. */
+/** A chama da turma do Folha, nas cores originais: respira pela base e solta pequenas brasas. */
 @Composable
-internal fun StreakFlame(lit: Boolean, size: Dp, glow: Boolean = true) {
-    val wave = rememberInfiniteTransition(label = "fogo")
-    val flicker by wave.animateFloat(0.93f, 1.07f, infiniteRepeatable(tween(520, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "fogo-altura")
-    val sway by wave.animateFloat(-4f, 4f, infiniteRepeatable(tween(760, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "fogo-balanço")
-    val gray = MaterialTheme.colorScheme.outline
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-        if (lit && glow) Canvas(Modifier.fillMaxSize()) {
-            drawCircle(Brush.radialGradient(listOf(Color(0xFFFF8A3D).copy(alpha = 0.45f * flicker), Color.Transparent), center, this.size.minDimension / 2))
+internal fun StreakFlame(lit: Boolean, size: Dp, glow: Boolean = true, frozen: Boolean = false) {
+    // Sem sequência não há animação ativa: só o personagem em repouso.
+    val phase = if (lit) {
+        val loop = rememberInfiniteTransition(label = "chama-viva")
+        val time by loop.animateFloat(0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4_800, easing = LinearEasing)), label = "chama-ciclo")
+        time
+    } else 0f
+    Canvas(Modifier.size(size).turmaMotion(
+        Glyph.Fire, directTouch = true,
+        onClickLabel = if (frozen) "Animar a chama congelada" else "Animar a chama da sequência",
+        animation = if (frozen) "wiggle" else null,
+    )) {
+        val side = this.size.minDimension
+        if (frozen) drawStreakIce(front = false)
+        val breath = if (lit) sin(phase * 4f) else 0f
+        if (lit && glow) {
+            val halo = Offset(center.x, side * 0.6f)
+            drawCircle(Brush.radialGradient(listOf(Color(0xFFFFAE42).copy(alpha = 0.20f + breath * 0.025f), Color.Transparent), halo, side * 0.49f), side * 0.49f, halo)
+            drawOval(Color(0xFFF28435).copy(alpha = 0.12f), Offset(side * 0.25f, side * 0.85f), Size(side * 0.5f, side * 0.07f))
         }
-        Icon(
-            Icons.Rounded.LocalFireDepartment, null,
-            Modifier.size(size * 0.78f)
-                .graphicsLayer {
-                    if (lit) { scaleY = flicker; scaleX = 2f - flicker * 0.98f; rotationZ = sway }
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                    compositingStrategy = CompositingStrategy.Offscreen
-                }
-                .drawWithContent {
-                    drawContent()
-                    if (lit) drawRect(Brush.verticalGradient(listOf(Color(0xFFFFD25A), Color(0xFFFF7A2F), Color(0xFFE5392B))), blendMode = BlendMode.SrcIn)
-                },
-            tint = if (lit) Color.White else gray,
-        )
+        val anchor = Offset(center.x, side * 0.88f)
+        rotate(if (lit) sin(phase * 2f) * 2.6f else 0f, anchor) {
+            scale(if (frozen) 0.72f else 0.93f - breath * 0.015f, if (frozen) 0.72f else 0.93f + breath * 0.035f, if (frozen) center else anchor) {
+                // Sem a tinta SrcIn, que apagava o amarelo, o rosto e o contorno da marca.
+                drawGlyph(Glyph.Fire, muted = !lit)
+            }
+        }
+        if (frozen) drawStreakIce(front = true)
+        if (lit && glow) repeat(if (size >= 64.dp) 4 else 2) { i ->
+            val travel = (phase / (2 * PI).toFloat() * 2f + i * 0.27f) % 1f
+            val alpha = sin(travel * PI).toFloat() * 0.75f
+            val x = side * (if (i % 2 == 0) 0.16f else 0.84f) + sin(phase * 2f + i) * side * 0.035f
+            val y = side * (0.63f - travel * 0.48f)
+            drawCircle(if (i % 2 == 0) Color(0xFFFFB421) else Color(0xFFFF7847), side * (0.018f - travel * 0.008f), Offset(x, y), alpha)
+        }
     }
 }
 
@@ -215,14 +151,14 @@ internal fun ProfileKpis(
                 Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).clickable(onClick = onBadges),
                 "${progress.earnedBadges.size}", "de ${progress.badges.size} emblemas",
                 progress.nextBadges.firstOrNull()?.let { "Próximo: ${it.badge.name}" } ?: "Coleção completa",
-            ) { KpiIcon(Icons.Rounded.MilitaryTech, Color(0xFFF5B83D)) }
+            ) { ProfileEmblemsIcon() }
             val goal = streak.goal.questions.coerceAtLeast(1)
             val done = streak.todayQuestions
             Kpi(
                 Modifier.weight(1f), "$done", if (streak.todayDone) "meta batida!" else "de $goal questões",
-                if (streak.todayDone) "Dia salvo na sequência" else "Meta do dia",
+                if (streak.todayDone) "Dia salvo na sequência" else "Meta do dia · ${(streak.todayProgress * 100).toInt()}%",
                 good = streak.todayDone,
-            ) { GoalRing((done.toFloat() / goal).coerceIn(0f, 1f), streak.todayDone) }
+            ) { ProfileDailyGoalIcon(streak.todayProgress, streak.todayDone) }
         }
     }
 }
@@ -253,19 +189,5 @@ private fun Kpi(modifier: Modifier, value: String, label: String, sub: String, g
 private fun KpiIcon(icon: ImageVector, color: Color) {
     Box(Modifier.size(40.dp).clip(CircleShape).background(color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
         Icon(icon, null, Modifier.size(24.dp), tint = color)
-    }
-}
-
-@Composable
-private fun GoalRing(fraction: Float, done: Boolean) {
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
-    val color = if (done) Color(0xFF22C59A) else MaterialTheme.colorScheme.primary
-    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize().padding(3.dp)) {
-            val stroke = Stroke(4.dp.toPx(), cap = StrokeCap.Round)
-            drawArc(track, 0f, 360f, false, style = stroke)
-            drawArc(color, -90f, 360f * fraction, false, style = stroke)
-        }
-        Text("${(fraction * 100).toInt()}%", fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }

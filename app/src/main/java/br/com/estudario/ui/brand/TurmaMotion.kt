@@ -3,11 +3,14 @@ package br.com.estudario.ui.brand
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -23,12 +26,16 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import android.provider.Settings
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sin
+import kotlinx.coroutines.launch
 
 /**
  * A turma do Folha se mexe quando a pessoa toca no botão, item ou cartão que tem o personagem - o
@@ -79,29 +86,49 @@ fun Modifier.turmaTouchRoot(): Modifier = composed {
     }
 }
 
-/** Liga o personagem ao toque: registra onde ele está e faz o movimento de [glyph]. */
-internal fun Modifier.turmaMotion(glyph: Glyph, enabled: Boolean = true): Modifier = composed {
+/** Liga o personagem ao toque. [directTouch] anima o próprio desenho, sem acionar o cartão pai. */
+internal fun Modifier.turmaMotion(
+    glyph: Glyph,
+    enabled: Boolean = true,
+    directTouch: Boolean = false,
+    onClickLabel: String? = null,
+    animation: String? = null,
+): Modifier = composed {
     if (!enabled) return@composed this
     val key = remember { Any() }
     val view = LocalView.current
-    val motionOn = remember {
+    fun motionOn() =
         runCatching { Settings.Global.getFloat(view.context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) }.getOrDefault(1f) > 0f
-    }
-    val anim = remember(glyph) { Turma.art(glyph)?.anim ?: "hop" }
+    val anim = animation ?: remember(glyph) { Turma.art(glyph)?.anim ?: "hop" }
     val t = remember { Animatable(1f) }
-    DisposableEffect(key) { onDispose { TurmaPress.remove(key) } }
-    LaunchedEffect(key) {
-        var last: Int? = null
-        snapshotFlow { TurmaPress.event }.collect { ev ->
-            if (ev == null || ev.first !== key || ev.second == last) return@collect
-            last = ev.second
-            if (!motionOn) return@collect
-            t.snapTo(0f)
-            t.animateTo(1f, tween(if (anim == "spin" || anim == "flip" || anim == "roll") 760 else 640, easing = LinearEasing))
+    val scope = rememberCoroutineScope()
+    val duration = if (anim == "spin" || anim == "flip" || anim == "roll") 760 else 640
+    if (!directTouch) {
+        DisposableEffect(key) { onDispose { TurmaPress.remove(key) } }
+        LaunchedEffect(key, anim) {
+            var last: Int? = null
+            snapshotFlow { TurmaPress.event }.collect { ev ->
+                if (ev == null || ev.first !== key || ev.second == last) return@collect
+                last = ev.second
+                if (!motionOn()) return@collect
+                t.snapTo(0f)
+                t.animateTo(1f, tween(duration, easing = LinearEasing))
+            }
         }
     }
+    val touch = if (directTouch) Modifier.clickable(
+        interactionSource = remember { MutableInteractionSource() }, indication = null,
+        role = Role.Button, onClickLabel = onClickLabel,
+    ) {
+        if (motionOn()) scope.launch {
+            t.snapTo(0f)
+            t.animateTo(1f, tween(duration, easing = LinearEasing))
+        }
+    } else Modifier
     this
-        .onGloballyPositioned { TurmaPress.place(key, it.boundsInWindow()) }
+        .then(touch)
+        .then(if (directTouch) Modifier.semantics { contentDescription = onClickLabel ?: glyph.name } else Modifier)
+        .onGloballyPositioned { if (!directTouch) TurmaPress.place(key, it.boundsInWindow()) }
         .graphicsLayer {
             val m = motionOf(anim, t.value)
             val side = size.minDimension

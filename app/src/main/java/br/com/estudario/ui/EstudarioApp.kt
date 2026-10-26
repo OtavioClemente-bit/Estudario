@@ -236,6 +236,12 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // Aviso de tempo planejado: uma vez por sessão (guardado, para não repetir ao reabrir o app),
     // quando o tempo estudado alcança o que o plano reservou. A sessão continua contando.
     val focusPlanned by viewModel.focusPlannedMinutes.collectAsState()
+    val focusPlanState by planViewModel.state.collectAsState()
+    val focusPlanTask = focusPlanState.tasks.firstOrNull { it.entity.id == focusSession.taskId }
+    val canCompleteFocusTopic = focusSession.taskId == null || focusPlanTask?.entity?.type in setOf(
+        br.com.estudario.domain.planner.PlanTaskType.THEORY,
+        br.com.estudario.domain.planner.PlanTaskType.REVIEW,
+    )
     val uiPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
     var focusTimeUpSeen by remember(focusSession.sessionId) { mutableStateOf(uiPrefs.getString("focus_timeup_session", "") == focusSession.sessionId) }
     val planned = focusPlanned
@@ -246,22 +252,28 @@ private fun MainNavigation(viewModel: AppViewModel) {
             title = focusSession.title,
             onContinue = { markSeen() },
             onFinish = { markSeen(); focusSheetOpen = true },
-            onFinishAndComplete = focusSession.topicId?.let { topicId ->
+            onFinishAndComplete = focusSession.topicId?.takeIf { canCompleteFocusTopic }?.let { topicId ->
                 {
                     markSeen()
                     val startedAt = focusSession.startedAt
                     val taskId = focusSession.taskId
                     focusScope.launch {
-                        val planId = if (taskId != null) runCatching { planViewModel.matchingPendingTask(topicId, taskId)?.entity?.planId }.getOrNull() else null
+                        val plannedTask = planViewModel.matchingPendingTask(
+                            topicId, taskId, focusPlanTask?.entity?.type ?: br.com.estudario.domain.planner.PlanTaskType.THEORY,
+                        )
                         val minutes = viewModel.stopFocus()
-                        runCatching { viewModel.completeStudyNow(topicId, startedAt) }
-                        if (taskId != null) runCatching {
+                        if (taskId != null && plannedTask == null) return@launch
+                        if (plannedTask != null) runCatching {
                             planViewModel.completeFromTopic(
-                                taskId,
+                                plannedTask.entity.id,
                                 br.com.estudario.data.planner.CompleteTaskInput(startedAt = startedAt, completedAt = System.currentTimeMillis(), actualMinutes = minutes),
                             )
-                            planId?.let { planViewModel.replanAfterTopicCompletion(it) }
                         }
+                        if (plannedTask?.entity?.type == br.com.estudario.domain.planner.PlanTaskType.REVIEW) {
+                            viewModel.reviews.value.filter { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
+                                .minByOrNull { it.dueAt }?.let { viewModel.completeReview(it, startedAt = startedAt) }
+                        } else runCatching { viewModel.completeStudyNow(topicId, startedAt) }
+                        plannedTask?.let { runCatching { planViewModel.replanAfterTopicCompletion(it.entity.planId) } }
                     }
                 }
             },
@@ -628,6 +640,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0,
                         onQuizTopic = { topicId -> navController.popBackStack(); navController.navigate("quiz/5/$topicId/0/random/_/_") },
                         onOpenTopic = { topicId -> navController.popBackStack(); navController.navigate("topic/$topicId") },
+                        // Revisar pela agenda também fecha a tarefa "Revisão" do plano de hoje (ou atrasada)
+                        // daquele tópico; antes ela ficava pendente e o plano pedia a revisão de novo.
+                        onReviewCompleted = { topicId, startedAt ->
+                            focusScope.launch {
+                                val task = planViewModel.matchingPendingTask(topicId, null, br.com.estudario.domain.planner.PlanTaskType.REVIEW)
+                                    ?.takeIf { it.entity.scheduledEpochDay <= java.time.LocalDate.now().toEpochDay() } ?: return@launch
+                                runCatching {
+                                    planViewModel.completeFromTopic(task.entity.id, br.com.estudario.data.planner.CompleteTaskInput(startedAt = startedAt, completedAt = System.currentTimeMillis(), actualMinutes = ((System.currentTimeMillis() - startedAt) / 60_000L).toInt().coerceAtLeast(1)))
+                                    planViewModel.replanAfterTopicCompletion(task.entity.planId)
+                                }
+                            }
+                        },
                     ) { navController.popBackStack() }
                 }
                 composable("queue") { QueueScreen(viewModel, { navController.popBackStack() }, { navController.navigate("topic/$it") }, showInlineBack = false) }

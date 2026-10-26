@@ -12,6 +12,11 @@ import java.time.ZoneId
 class StudyRepository(private val db: AppDatabase) {
     private val dao = db.dao()
 
+    /** Uma sessão conserva o mesmo material mesmo se o catálogo sincronizar durante as respostas. */
+    suspend fun reviewPracticeMaterial(topicId: Long): ReviewPracticeMaterial = db.withTransaction {
+        ReviewPracticeMaterial(dao.reviewSnippetsFor(topicId), dao.summariesFor(topicId), dao.reviewQuestionsFor(topicId), dao.reviewTheoriesFor(topicId), dao.reviewMarksFor(topicId))
+    }
+
     val competitions = dao.competitions()
     val subjects = dao.subjects()
     val topics = dao.topics()
@@ -200,43 +205,31 @@ class StudyRepository(private val db: AppDatabase) {
         startedAt: Long = System.currentTimeMillis(),
     ) = db.withTransaction {
         val now = System.currentTimeMillis()
-        dao.updateReview(review.copy(completedAt = now, perceivedDifficulty = difficulty, questionCorrect = correct, questionTotal = total))
         val doTopico = dao.reviewsOnce().filter { it.topicId == review.topicId }
-        val next = doTopico
-            .filter { it.stage > review.stage && it.completedAt == null && it.ignoredAt == null }
-            .minByOrNull { it.stage }
-        if (next != null) {
-            val remaining = (next.dueAt - now).coerceAtLeast(86_400_000L)
-            val adjustedDue = when (difficulty) {
-                ReviewDifficulty.DIFICIL -> now + 86_400_000L
-                ReviewDifficulty.NORMAL -> next.dueAt
-                ReviewDifficulty.FACIL -> now + (remaining * 1.35).toLong()
-            }
-            if (adjustedDue != next.dueAt) dao.updateReview(next.copy(dueAt = adjustedDue))
-        } else {
-            // Revisão perpétua: sem este trecho o tópico saía do ciclo para sempre depois do D+30.
-            // O intervalo dobra a cada estágio (60, 120, 240) e ainda responde à dificuldade sentida
-            // e ao aproveitamento nas questões da própria revisão.
-            val ordenadas = doTopico.sortedBy { it.stage }
-            val nextStage = (ordenadas.lastOrNull()?.stage ?: review.stage) + 1
-            // O intervalo anterior sai da própria agenda do tópico, então o ciclo intensivo
-            // (D+1/D+3/D+7/D+14/D+30) continua daqui sem pular etapas.
-            val intervaloAnterior = if (ordenadas.size >= 2) {
-                (ordenadas[ordenadas.lastIndex].dueAt - ordenadas[ordenadas.lastIndex - 1].dueAt) / 86_400_000L
-            } else {
-                ReviewIntervals.days.last()
-            }
-            val dias = ReviewIntervals.adjustedIntervalDays(intervaloAnterior, difficulty, correct, total)
-            val zone = ZoneId.systemDefault()
-            val dueAt = LocalDate.now(zone).plusDays(dias).atStartOfDay(zone).toInstant().toEpochMilli()
-            dao.insertReviews(listOf(ReviewScheduleEntity(topicId = review.topicId, stage = nextStage, dueAt = dueAt)))
+        val change = ReviewStageProgression.record(
+            doTopico.map { it.toStageState() }, review.id, difficulty, now,
+            kotlinx.datetime.TimeZone.currentSystemDefault(), correct, total,
+        ) ?: return@withTransaction
+        val rows = doTopico.associateBy { it.id }
+        change.stages.forEach { stage ->
+            val row = rows.getValue(stage.id)
+            dao.updateReview(row.copy(
+                dueAt = stage.dueAt, completedAt = stage.completedAt, intervalDays = stage.intervalDays, updatedAt = now,
+                perceivedDifficulty = if (row.id == review.id) difficulty else row.perceivedDifficulty,
+                questionCorrect = if (row.id == review.id) correct else row.questionCorrect,
+                questionTotal = if (row.id == review.id) total else row.questionTotal,
+            ))
         }
+        change.newStage?.let { stage -> dao.insertReviews(listOf(ReviewScheduleEntity(
+            topicId = review.topicId, stage = stage.stage, dueAt = stage.dueAt,
+            intervalDays = stage.intervalDays, updatedAt = now,
+        ))) }
         dao.insertReviewHistory(ReviewHistoryEntity(topicId = review.topicId, reviewedAt = now))
         dao.insertReviewSession(ReviewSessionEntity(reviewId = review.id, topicId = review.topicId, startedAt = startedAt, completedAt = now, recalled = recalled, forgotten = forgotten, questionCorrect = correct, questionTotal = total, perceivedDifficulty = difficulty))
         dao.topic(review.topicId)?.let { dao.updateTopic(it.copy(status = TopicStatus.REVISANDO, lastReviewedAt = now)) }
     }
 
-    suspend fun ignoreReview(review: ReviewScheduleEntity) = dao.updateReview(review.copy(ignoredAt = System.currentTimeMillis()))
+    suspend fun ignoreReview(review: ReviewScheduleEntity) = dao.updateReview(review.copy(ignoredAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()))
 
     suspend fun enqueue(topicId: Long) = db.withTransaction {
         dao.insertQueue(StudyQueueEntity(topicId = topicId, position = dao.maxQueuePosition() + 1))

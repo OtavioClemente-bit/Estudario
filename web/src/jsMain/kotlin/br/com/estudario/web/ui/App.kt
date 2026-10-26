@@ -143,6 +143,7 @@ fun App() {
     TheoryPinWindows()
     StreakSaveHost()
     FocusModalsHost()
+    ReviewPracticePanelsHost()
     ToastHost()
 }
 

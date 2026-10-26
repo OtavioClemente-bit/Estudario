@@ -111,7 +111,7 @@ fun RecallCard(
                     1 -> Text("Boa! Essa já está na cabeça.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                     else -> Text("Sem problema. Leia de novo com calma e tente mais tarde.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (onVerdict == null) TextButton(onClick = { flip(false) }) { Text("Esconder a resposta") }
+                TextButton(onClick = { flip(false) }) { Text("Voltar à pergunta") }
             }
         }
     }

@@ -108,11 +108,8 @@ fun ProfileScreen() {
     val view = Progress.of(data)
     val progress = view.progress
     val streak = view.streak
-    val today = Queries.todayDate()
-    val activity = Queries.dailyActivity(data).associateBy { it.date }
-    val todayRow = activity[today]
-    val goal = Prefs.dailyGoal
-    val doneToday = todayRow?.questions ?: 0
+    val goal = streak.goal.questions.coerceAtLeast(1)
+    val doneToday = streak.todayQuestions
     val seed = rememberSeed()
     // tocar numa medalha (vitrine ou "quase lá") abre a medalha em destaque, como nas Conquistas
     var openMedal by remember { mutableStateOf<String?>(null) }
@@ -143,20 +140,35 @@ fun ProfileScreen() {
 
     // ---- os números do caminho
     Div({ classes("pf-kpis") }) {
-        Kpi("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia seguido" else "dias seguidos", "Recorde: ${streak.best}", extra = if (streak.current > 0) "fire" else null)
+        Kpi("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia seguido" else "dias seguidos", "Recorde: ${streak.best}", extra = if (streak.current > 0) "fire" else null,
+            art = { ProfileArt("flame", lit = streak.current > 0) })
         Kpi("bolt", "#8B7CFF", "${progress.totalXp}", "XP no total", if (progress.xpToday > 0) "+${progress.xpToday} hoje" else "${progress.xpThisWeek} XP esta semana", good = progress.xpToday > 0)
-        Kpi("military_tech", "#F5B83D", "${progress.earnedBadges.size}", "de ${progress.badges.size} emblemas", progress.nextBadges.firstOrNull()?.let { "Próximo: ${it.badge.name}" } ?: "Coleção completa")
-        A(href = "#/${Route.Stats.path}", { classes("pf-kpi", "goal") }) {
-            Div({ classes("pf-goal-ring"); attr("style", "--p:${(doneToday * 100 / goal.coerceAtLeast(1)).coerceAtMost(100)}") }) { B { Text("$doneToday") } }
-            Div({ classes("grow"); attr("style", "min-width:0") }) {
-                B({ classes("pf-kpi-label") }) { Text(if (doneToday >= goal) "Meta do dia batida!" else "Meta do dia") }
-                Span({ classes("pf-kpi-sub") }) { Text(if (doneToday >= goal) "$doneToday questões hoje" else "$doneToday de $goal questões") }
-            }
-        }
+        Kpi("military_tech", "#F5B83D", "${progress.earnedBadges.size}", "de ${progress.badges.size} emblemas", progress.nextBadges.firstOrNull()?.let { "Próximo: ${it.badge.name}" } ?: "Coleção completa",
+            route = Route.Achievements, art = { ProfileArt("badges") })
+        Kpi("gps_fixed", "#8060D7", "$doneToday", if (streak.todayDone) "meta batida!" else "de $goal questões",
+            if (streak.todayDone) "Dia salvo na sequência" else "Meta do dia · ${(streak.todayProgress * 100).toInt()}%",
+            good = streak.todayDone, extra = "goal", route = Route.Stats,
+            art = { ProfileArt("goal", fraction = streak.todayProgress, done = streak.todayDone) })
     }
 
     Div({ classes("grid", "main-side"); attr("style", "margin-top:16px") }) {
         Div({ classes("stack", "loose") }) {
+            Card(extra = "pad-lg pf-study-level") {
+                Div({ classes("pf-study-level-head") }) {
+                    LevelBookView(progress.level, 128)
+                    Div({ classes("grow"); attr("style", "min-width:0") }) {
+                        Div({ classes("eyebrow") }) { Text("SEU NÍVEL") }
+                        B({ classes("pf-card-title") }) { Text(progress.levelTitle) }
+                        P({ classes("small", "muted") }) { Text("${progress.totalXp} XP no total") }
+                        br.com.estudario.domain.ProgressEngine.nextTitle(progress.level)?.let { next ->
+                            Span({ classes("small", "primary-ink") }) { Text("Próximo título: ${next.second}, no nível ${next.first}") }
+                        }
+                    }
+                }
+                ProgressBar(progress.levelProgress.toDouble())
+                P({ classes("small", "muted") }) { Text("${progress.xpIntoLevel} de ${progress.xpForNextLevel} XP neste nível · faltam ${(progress.xpForNextLevel - progress.xpIntoLevel).coerceAtLeast(0)} XP") }
+            }
+            StreakWeekCard(streak)
             // ---- a vitrine: as medalhas conquistadas, desenhadas
             Card(extra = "pad-lg pf-showcase") {
                 Div({ classes("row", "between") }) {
@@ -250,14 +262,26 @@ private fun levelRay(level: Int) = when ((level / 10).coerceIn(0, 5)) {
 
 /** Um número do perfil com o ícone colorido e uma linha de contexto. */
 @Composable
-private fun Kpi(icon: String, color: String, value: String, label: String, sub: String, good: Boolean = false, extra: String? = null) {
+private fun Kpi(
+    icon: String, color: String, value: String, label: String, sub: String,
+    good: Boolean = false, extra: String? = null, route: Route? = null,
+    art: (@Composable () -> Unit)? = null,
+) {
     Div({ classes(*listOfNotNull("pf-kpi", extra).toTypedArray()); attr("style", "--k:$color") }) {
-        Span({ classes("pf-kpi-ic") }) { Icon(icon, filled = true) }
+        Span({ classes(*listOfNotNull("pf-kpi-ic", if (art != null) "drawn" else null).toTypedArray()) }) {
+            if (art != null) art() else Icon(icon, filled = true)
+        }
         Div({ classes("grow"); attr("style", "min-width:0") }) {
-            Div({ classes("pf-kpi-value") }) { B { Text(value) }; Span { Text(label) } }
-            Span({ classes(*listOfNotNull("pf-kpi-sub", if (good) "good" else null).toTypedArray()) }) { Text(sub) }
+            if (route == null) KpiText(value, label, sub, good)
+            else A(href = "#/${route.path}", { classes("pf-kpi-copy") }) { KpiText(value, label, sub, good) }
         }
     }
+}
+
+@Composable
+private fun KpiText(value: String, label: String, sub: String, good: Boolean) {
+    Div({ classes("pf-kpi-value") }) { B { Text(value) }; Span { Text(label) } }
+    Span({ classes(*listOfNotNull("pf-kpi-sub", if (good) "good" else null).toTypedArray()) }) { Text(sub) }
 }
 
 /** A arte do emblema (a cena ilustrada de cada conquista, em WebP leve); trancado sai apagado. */

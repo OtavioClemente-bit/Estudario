@@ -263,12 +263,11 @@ fun TopicScreen(topicId: Long) {
             Toast.show("Foco ligado. O tempo conta enquanto você estuda aqui.")
         }, style = "tonal", icon = "timer", block = true)
         // Tópico já estudado com tarefa pendente hoje é revisão: dá para concluir, como no app.
-        val reviewTask = if (!studied || plan == null) null else Queries.tasksOn(data, plan.id, Queries.todayEpoch())
-            .firstOrNull { it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
+        val reviewTask = if (!studied) null else Queries.pendingTopicReview(data, topicId)
         if (reviewTask != null) Btn("Concluir revisão", {
             if (focusHere) TopicFocus.stop()
             Store.update { snapshot ->
-                val withTask = Actions.completeTask(snapshot, reviewTask.id, reviewTask.minutes)
+                val withTask = Actions.completeTask(snapshot, reviewTask.id, reviewTask.minutes, fromTopic = true)
                 withTask.reviews
                     .filter { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
                     .minByOrNull { it.dueAt }
@@ -306,8 +305,10 @@ fun TopicScreen(topicId: Long) {
         Div({ classes("row"); attr("style", "justify-content:flex-end") }) {
             Btn("Cancelar", { finishAsk = false }, style = "ghost")
             Btn("Confirmar", {
-                if (focusHere) TopicFocus.stop()
-                Store.update { Actions.completeStudyWithPlan(it, topicId) }
+                val startedAt = if (focusHere) TopicFocus.startedAt else Date.now().toLong()
+                val taskId = if (focusHere) TopicFocus.taskId else null
+                val minutes = if (focusHere) TopicFocus.stop() else null
+                Store.update { Actions.completeStudyWithPlan(it, topicId, startedAt, taskId, minutes) }
                 som("concluir")
                 finishAsk = false
                 Toast.show("Estudo registrado. Revisões D+1, D+7 e D+30 na agenda.")

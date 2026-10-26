@@ -34,6 +34,13 @@ object Queries {
 
     private fun typeOrder(type: String) = listOf("REVIEW", "THEORY", "QUESTIONS", "ACTIVE_RECALL", "FLASHCARDS", "DISCURSIVE", "SIMULATION").indexOf(type).let { if (it < 0) 99 else it }
 
+    fun pendingTopicReview(data: Snapshot, topicId: Long): PlanTask? {
+        val plan = activePlan(data) ?: return null
+        return tasksOn(data, plan.id, todayEpoch()).firstOrNull {
+            it.topicId == topicId && it.type == "REVIEW" && it.status in setOf("PLANEJADA", "EM_ANDAMENTO")
+        }
+    }
+
     /** Tópicos que contam no edital: os que não viraram grupo de subtópicos. */
     fun leafTopics(data: Snapshot, subjectIds: Set<Long>? = null): List<Topic> {
         val topics = if (subjectIds == null) data.topics else data.topics.filter { it.subjectId in subjectIds }

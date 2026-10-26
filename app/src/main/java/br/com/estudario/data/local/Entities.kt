@@ -378,6 +378,8 @@ data class ReviewScheduleEntity(
     val perceivedDifficulty: ReviewDifficulty? = null,
     val questionCorrect: Int = 0,
     val questionTotal: Int = 0,
+    val intervalDays: Long? = null,
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
 )
 
 @Entity(

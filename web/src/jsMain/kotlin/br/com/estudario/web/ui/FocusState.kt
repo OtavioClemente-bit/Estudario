@@ -122,6 +122,7 @@ object TopicFocus {
     val elapsedMs: Long get() = if (!active) 0L else ((pausedAt ?: now) - startedAt - pausedTotal).coerceAtLeast(0L)
     val elapsedMinutes: Int get() = (elapsedMs / 60_000L).toInt()
     val timeUp: Boolean get() = active && !timeUpSeen && plannedMinutes?.let { elapsedMs >= it * 60_000L } == true
+    val canComplete: Boolean get() = if (taskId == null) topicId != null else Store.data.tasks.any { it.id == taskId && it.type != "QUESTIONS" }
 
     fun start(id: Long?, name: String, taskId: String? = null, plannedMinutes: Int? = null, subjectId: Long? = null) {
         if (active) stop()
@@ -182,14 +183,16 @@ object TopicFocus {
         val id = topicId
         val task = taskId
         val start = startedAt
+        val complete = canComplete
         val minutes = stop()
-        Store.update { snapshot ->
-            var next = snapshot
-            if (task != null) next = Actions.completeTask(next, task, minutes.coerceAtLeast(1))
-            if (id != null) next = Actions.completeStudy(next, id, start)
-            next
+        if (!complete) {
+            Toast.show("Foco salvo. Finalize a bateria de questões para concluí-la no plano.")
+            return
         }
-        Toast.show("Tópico concluído. As revisões já estão na agenda.")
+        Store.update { snapshot ->
+            Actions.completeFocusWithPlan(snapshot, id, task, start, minutes)
+        }
+        Toast.show("Conclusão registrada.")
     }
 
     fun clock(): String {

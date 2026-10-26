@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
@@ -110,6 +111,8 @@ fun SceneCelebration(
     reveal: Float,
     onDismiss: () -> Unit,
     sceneKey: Any = Unit,
+    /** Palco próprio no lugar da cena do Folha (a subida de nível usa o livro de Folhas). */
+    stage: (@Composable (Dp) -> Unit)? = null,
     text: @Composable ColumnScope.() -> Unit,
     actions: @Composable RowScope.() -> Unit,
 ) {
@@ -126,7 +129,7 @@ fun SceneCelebration(
                     // sobra em cima e embaixo): a luz se espalha além da caixa e some suave no fundo
                     val bleed = stageW * 0.34f
                     Box(Modifier.width(stageW).aspectRatio(1f / 1.1f), contentAlignment = Alignment.Center) {
-                        FolhaScene(
+                        if (stage != null) stage(stageW) else FolhaScene(
                             scene, Modifier.requiredSize(screenW, stageW * 1.1f + bleed * 2),
                             stageWidthDp = stageW.value.toInt(), bleedDp = bleed.value.toInt(),
                         )

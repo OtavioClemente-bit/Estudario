@@ -28,10 +28,14 @@ fun LevelUpScreen(event: AppViewModel.LevelUp, onClose: () -> Unit) {
         scene = listOf("tipo" to "nivel", "nivel" to event.level.toString()),
         reveal = 2.5f,
         onDismiss = onClose,
+        // O livro de Folhas abre, o Folha traz a folha nova e a medalha gira o número.
+        stage = { w -> LevelBookImage(event.level, w * 0.86f, animateFrom = (event.level - 1).coerceAtLeast(1)) },
         text = {
             CelEyebrow("SUBIU DE NÍVEL")
             CelTitle("Nível ${event.level} · ${event.title}")
-            if (event.newTitle) CelChip("Novo título!", background = CelGold, color = CelMid)
+            // Título novo é capa nova no livro de Folhas.
+            if (event.newTitle) CelChip("Novo título e capa nova: ${br.com.estudario.domain.LevelBook.tiers[br.com.estudario.domain.LevelBook.tierOf(event.level)].name}!", background = CelGold, color = CelMid)
+            else Text("Mais uma folha no seu livro.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
             Box(Modifier.width(280.dp).height(26.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFF5B4BF5), CelGold))))
                 Text("${event.totalXp} XP", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)

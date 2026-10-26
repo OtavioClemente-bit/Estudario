@@ -117,6 +117,8 @@ data class Review(
     val perceivedDifficulty: String? = null,
     val questionCorrect: Int = 0,
     val questionTotal: Int = 0,
+    val intervalDays: Long? = null,
+    val updatedAt: Long = 0,
 )
 
 @Serializable

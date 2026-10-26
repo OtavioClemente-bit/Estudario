@@ -599,7 +599,7 @@ internal data class ReviewCard(val kicker: String, val place: String, val quote:
  * cheia e na ordem do edital. Anterior / Próximo, e ir para a teoria quando quiser o contexto.
  */
 @Composable
-private fun NotebookReview(title: String, cards: List<ReviewCard>, onClose: () -> Unit) {
+internal fun NotebookReview(title: String, cards: List<ReviewCard>, allowNavigation: Boolean = true, onClose: () -> Unit) {
     br.com.estudario.ui.HoldCelebrations()
     var index by remember(cards) { mutableStateOf(0) }
     val card = cards.getOrNull(index) ?: return
@@ -630,9 +630,11 @@ private fun NotebookReview(title: String, cards: List<ReviewCard>, onClose: () -
                     }
                     if (!card.body.isNullOrBlank()) {
                         if (card.quote != null) Text("SUA NOTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = scheme.onSurfaceVariant)
-                        br.com.estudario.ui.components.StudyInlineText(br.com.estudario.ui.components.NoteTags.split(card.body).let { (tag, body) -> (tag?.let { "[$it] " } ?: "") + body }, style = MaterialTheme.typography.bodyLarge)
+                        androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalStudyLinksEnabled provides allowNavigation) {
+                            br.com.estudario.ui.components.StudyInlineText(br.com.estudario.ui.components.NoteTags.split(card.body).let { (tag, body) -> (tag?.let { "[$it] " } ?: "") + body }, style = MaterialTheme.typography.bodyLarge)
+                        }
                     }
-                    card.open?.let { open -> TextButton(onClick = { onClose(); open() }) { Text("Abrir na teoria") } }
+                    card.open?.takeIf { allowNavigation }?.let { open -> TextButton(onClick = { onClose(); open() }) { Text("Abrir na teoria") } }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     androidx.compose.material3.OutlinedButton(onClick = { index-- }, enabled = index > 0, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Anterior") }

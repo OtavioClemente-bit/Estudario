@@ -94,8 +94,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 154
-        versionName = "3.3.126"
+        versionCode = 156
+        versionName = "3.3.128"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
@@ -184,6 +184,9 @@ dependencies {
     kapt("androidx.room:room-compiler:2.7.2")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
+
+    // Livro de Folhas (o nível): o mesmo SVG do site, gerado em LevelBook (módulo comum).
+    implementation("com.caverock:androidsvg-aar:1.4")
 
     // Jetpack Glance (Widgets)
     implementation("androidx.glance:glance-appwidget:1.1.1")

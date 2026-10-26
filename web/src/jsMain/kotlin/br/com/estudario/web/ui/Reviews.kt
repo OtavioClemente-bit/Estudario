@@ -14,6 +14,8 @@ import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Question
 import br.com.estudario.web.data.Review
 import br.com.estudario.web.data.Store
+import br.com.estudario.web.data.ReviewPreferences
+import br.com.estudario.web.data.reviewPracticeQuestions
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
@@ -32,7 +34,8 @@ import kotlin.js.Date
  */
 
 private const val DAY = 86_400_000L
-private val stageLabels = listOf("D+1", "D+7", "D+30", "D+60", "D+120")
+/** "2ª revisão · 7 dias": a etapa e o intervalo de verdade (antes eram rótulos fixos D+1, D+7, D+30 que não batiam). */
+private fun stageName(review: Review): String = "${review.stage}ª revisão" + (review.intervalDays?.let { " · ${it} ${if (it == 1L) "dia" else "dias"}" } ?: "")
 
 /** Revisar tudo em sequência: ao terminar uma, a próxima do dia abre sozinha. */
 private object ReviewRun { var active = false }
@@ -50,10 +53,13 @@ fun ReviewsScreen() {
     val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt >= Queries.endOfToday() && it.topicId in scope }.sortedBy { it.dueAt }
     val doneToday = data.reviews.count { (it.completedAt ?: 0) >= Queries.startOfToday() && it.topicId in scope }
 
-    PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar")
+    PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar", actions = { IconButton("settings", "Configurar revisão") { ReviewPracticePanels.openSettings() } })
     CompetitionTabs()
 
     Div({ classes("rv-hero", "rise") }) {
+        Div({ classes("rv-hero-folha") }) {
+            Folha(if (due.isEmpty()) "proud" else if (late > 0) "talking" else "happy", 88)
+        }
         Div({ classes("rv-hero-main") }) {
             Span({ classes("eyebrow") }) { Text("REVISÃO ESPAÇADA") }
             H2 { Text(if (due.isEmpty()) "Tudo em dia por hoje" else "${due.size} ${if (due.size == 1) "revisão" else "revisões"} para hoje") }
@@ -81,9 +87,10 @@ fun ReviewsScreen() {
                         Div({ classes("rv-card-top") }) {
                             Span({ classes("rv-subject"); attr("style", "--c:${subjectColor(subjects[topic?.subjectId]?.name ?: "")}") }) { Text((subjects[topic?.subjectId]?.name ?: "").uppercase()) }
                             if (daysLate > 0) Span({ classes("rv-late") }) { Text("atrasada $daysLate ${if (daysLate == 1) "dia" else "dias"}") }
+                            else if (review.perceivedDifficulty == "DIFICIL") Span({ classes("rv-late", "repeat") }) { Text("repetindo") }
                         }
                         B({ classes("rv-title") }) { Text(topic?.title ?: "Tópico") }
-                        StageLadder(review.stage)
+                        StageLadder(review.stage, review.perceivedDifficulty == "DIFICIL", note = false)
                         Div({ classes("rv-card-foot") }) {
                             Btn("Pular", { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") }, style = "ghost", small = true)
                             Btn("Revisar", { ReviewRun.active = false; Router.go(Route.ReviewSession(review.id)) }, style = "primary", small = true, icon = "play_arrow")
@@ -107,7 +114,7 @@ fun ReviewsScreen() {
                         Div({ classes("rv-day-items") }) {
                             list.forEach { review ->
                                 Div({ classes("rv-day-item") }) {
-                                    Span({ classes("rv-stage-pill") }) { Text(stageLabels.getOrElse(review.stage - 1) { "R${review.stage}" }) }
+                                    Span({ classes("rv-stage-pill") }) { Text("${review.stage}ª") }
                                     Span { Text(topics[review.topicId]?.title ?: "Tópico") }
                                 }
                             }
@@ -129,16 +136,112 @@ private fun RvStat(value: String, label: String, icon: String, color: String) {
 
 /** A escadinha das etapas: as feitas, a de agora e as que vêm. */
 @Composable
-private fun StageLadder(stage: Int) {
+private fun StageLadder(stage: Int, repeating: Boolean = false, note: Boolean = true) {
+    // Uma janela de cinco etapas em volta da atual: na 7ª revisão, mostra da 5ª à 9ª (antes parava na 4ª).
+    val first = (stage - 2).coerceAtLeast(1)
     Div({ classes("rv-ladder") }) {
-        (1..4).forEach { s ->
-            val state = when { s < stage -> "done"; s == stage -> "now"; else -> null }
-            Div({ classes(*listOfNotNull("rv-step", state).toTypedArray()) }) {
-                Span({ classes("rv-step-dot") }) { if (s < stage) Icon("check") }
-                Span({ classes("rv-step-l") }) { Text(stageLabels.getOrElse(s - 1) { "R$s" }) }
+        (first until first + 5).forEach { s ->
+            val state = when { s < stage -> "done"; s == stage -> if (repeating) "now repeat" else "now"; else -> null }
+            Div({ classes(*listOfNotNull("rv-step", *state?.split(" ")?.toTypedArray().orEmpty()).toTypedArray()) }) {
+                Span({ classes("rv-step-dot") }) { if (s < stage) Icon("check") else if (s == stage && repeating) Icon("replay") }
+                Span({ classes("rv-step-l") }) { Text("${s}ª") }
             }
         }
-        if (stage > 4) Span({ classes("rv-step-more") }) { Text("+ etapa $stage") }
+    }
+    if (repeating && note) P({ classes("rv-repeat-note") }) { Icon("replay"); Text("Repetindo esta etapa: volta todo dia até você marcar Normal ou Fácil.") }
+}
+
+/** Modelos prontos de revisão: rápida, equilibrada e completa. */
+private val RV_PRESETS = listOf(
+    Triple("bolt", "Rápida", br.com.estudario.domain.ReviewPracticeOptions(questionCount = 3, flashcardCount = 4, showSummary = false, offerHighlights = false)),
+    Triple("balance", "Equilibrada", br.com.estudario.domain.ReviewPracticeOptions(questionCount = 5, flashcardCount = 8)),
+    Triple("workspace_premium", "Completa", br.com.estudario.domain.ReviewPracticeOptions(questionCount = 10, flashcardCount = 15)),
+)
+
+/**
+ * "Monte sua revisão", à vista na abertura (antes ficava escondido na engrenagem): modelos prontos,
+ * quantos cartões e questões, o que consultar e a ordem. Muda esta sessão na hora e fica salvo.
+ */
+@Composable
+private fun ReviewTuner(config: br.com.estudario.domain.ReviewPracticeOptions, cards: Int, questions: Int, hasSummary: Boolean, hasHighlights: Boolean, onChange: (br.com.estudario.domain.ReviewPracticeOptions) -> Unit) {
+    fun same(a: br.com.estudario.domain.ReviewPracticeOptions, b: br.com.estudario.domain.ReviewPracticeOptions) =
+        a.questionCount == b.questionCount && a.flashcardCount == b.flashcardCount && a.showSummary == b.showSummary && a.offerHighlights == b.offerHighlights
+    Div({ classes("rv-tuner") }) {
+        Div({ classes("rv-tuner-head") }) {
+            B { Text("Monte sua revisão") }
+            Span({ classes("xs", "muted") }) { Text("Vale agora e fica salvo para as próximas") }
+        }
+        Div({ classes("rv-presets") }) {
+            RV_PRESETS.forEach { (icon, name, preset) ->
+                val on = same(config, preset)
+                Button({
+                    classes(*listOfNotNull("rv-preset", if (on) "on" else null).toTypedArray())
+                    attr("aria-pressed", on.toString())
+                    onClick { onChange(preset.copy(order = config.order, shuffleFlashcards = config.shuffleFlashcards, showHighlightNotes = config.showHighlightNotes)) }
+                }) {
+                    Icon(icon, filled = true)
+                    B { Text(name) }
+                    Span { Text("${preset.flashcardCount} cartões · ${preset.questionCount} questões") }
+                }
+            }
+        }
+        RvCount("psychology", "Cartões para lembrar", config.flashcardCount, cards, 30) { onChange(config.copy(flashcardCount = it)) }
+        RvCount("quiz", "Questões", config.questionCount, questions, 50) { onChange(config.copy(questionCount = it)) }
+        Div({ classes("rv-toggles") }) {
+            RvToggle("menu_book", "Revisão rápida", config.showSummary, enabled = hasSummary) { onChange(config.copy(showSummary = it)) }
+            RvToggle("bookmarks", "Oferecer meus grifos", config.offerHighlights, enabled = hasHighlights) { onChange(config.copy(offerHighlights = it)) }
+            RvToggle("sticky_note_2", "Notas dos grifos", config.showHighlightNotes, enabled = hasHighlights) { onChange(config.copy(showHighlightNotes = it)) }
+            RvToggle("shuffle", "Embaralhar cartões", config.shuffleFlashcards) { onChange(config.copy(shuffleFlashcards = it)) }
+        }
+        Div({ classes("rv-order") }) {
+            Span({ classes("xs", "muted") }) { Text("Questões primeiro:") }
+            listOf(
+                br.com.estudario.domain.ReviewQuestionOrder.ERRORS_FIRST to "as que errei",
+                br.com.estudario.domain.ReviewQuestionOrder.UNSEEN_FIRST to "as novas",
+                br.com.estudario.domain.ReviewQuestionOrder.MIXED to "misturado",
+            ).forEach { (order, label) ->
+                Button({ classes(*listOfNotNull("fchip", if (config.order == order) "on" else null).toTypedArray()); onClick { onChange(config.copy(order = order)) } }) { Text(label) }
+            }
+        }
+    }
+}
+
+/** Um contador da revisão (− número +), com quantos o tópico tem. */
+@Composable
+private fun RvCount(icon: String, label: String, value: Int, available: Int, max: Int, onChange: (Int) -> Unit) {
+    val shown = value.coerceAtMost(available)
+    Div({ classes("rv-count") }) {
+        Span({ classes("rv-plan-ic") }) { Icon(icon, filled = true) }
+        Div({ classes("grow") }) {
+            B { Text(label) }
+            Span({ classes("xs", "muted") }) { Text(if (available == 0) "Este tópico ainda não tem" else if (value > available) "Vai usar as $available que o tópico tem" else "O tópico tem $available") }
+        }
+        Button({ classes("rv-step-btn"); attr("aria-label", "Menos"); if (value <= 0) attr("disabled", ""); onClick { onChange((value - 1).coerceAtLeast(0)) } }) { Icon("remove") }
+        B({ classes("rv-count-n") }) { Text("$shown") }
+        Button({ classes("rv-step-btn"); attr("aria-label", "Mais"); if (value >= max || value >= available) attr("disabled", ""); onClick { onChange((value + 1).coerceAtMost(max)) } }) { Icon("add") }
+    }
+}
+
+@Composable
+private fun RvToggle(icon: String, label: String, on: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    Button({
+        classes(*listOfNotNull("rv-toggle", if (on && enabled) "on" else null).toTypedArray())
+        attr("role", "switch"); attr("aria-checked", (on && enabled).toString())
+        if (!enabled) { attr("disabled", ""); attr("title", "Este tópico ainda não tem") }
+        onClick { onChange(!on) }
+    }) {
+        Icon(icon, filled = true)
+        Span({ classes("rv-toggle-l") }) { Text(label) }
+        Span({ classes("rv-switch") })
+    }
+}
+
+/** Um item da abertura da revisão: o ícone, o que é e para que serve. */
+@Composable
+private fun RvPlanItem(icon: String, title: String, hint: String) {
+    Div({ classes("rv-plan-item") }) {
+        Span({ classes("rv-plan-ic") }) { Icon(icon, filled = true) }
+        Div { B { Text(title) }; Span({ classes("xs", "muted") }) { Text(hint) } }
     }
 }
 
@@ -150,8 +253,12 @@ fun ReviewSessionScreen(reviewId: Long) {
     val review = data.reviews.firstOrNull { it.id == reviewId }
     // Acabou de concluir: a tela de fechamento, com as questões para fixar.
     ReviewDone.state?.takeIf { it.reviewId == reviewId }?.let { ReviewDoneScreen(it); return }
-    if (review == null || review.completedAt != null) {
+    if (review == null || review.completedAt != null || review.ignoredAt != null) {
         Card { Empty("task_alt", "Revisão concluída", "Ela já foi feita ou não existe mais.", action = { Btn("Voltar às revisões", { Router.go(Route.Reviews) }) }) }
+        return
+    }
+    if (data.reviews.any { it.topicId == review.topicId && it.stage < review.stage && it.completedAt == null && it.ignoredAt == null }) {
+        Card { Empty("event", "Há uma etapa anterior pendente", "Conclua a etapa anterior com Normal ou Fácil para avançar nesta revisão.", action = { Btn("Voltar às revisões", { Router.go(Route.Reviews) }) }) }
         return
     }
     HoldCelebrations()
@@ -169,15 +276,32 @@ fun ReviewSessionScreen(reviewId: Long) {
         }
         return
     }
-    val recall = remember(reviewId) { data.snippets.filter { it.topicId == review.topicId && it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() }.shuffled().take(8) }
-    val summary = data.summaries.firstOrNull { it.topicId == review.topicId && it.kind == "RAPIDO" } ?: data.summaries.firstOrNull { it.topicId == review.topicId }
-    // Revisar é reencontrar a falha: primeiro as erradas, depois as nunca respondidas, depois o resto.
-    val questions = remember(reviewId) {
-        val ofTopic = data.questions.filter { it.topicId == review.topicId && !it.hidden && it.simulationId == null }
-        val wrong = data.errors.filter { it.status != "CORRIGIDO" }.mapTo(hashSetOf()) { it.questionId }
-        (ofTopic.filter { it.id in wrong }.shuffled() + ofTopic.filter { it.id !in wrong && it.answerCount == 0 }.shuffled() + ofTopic.filter { it.id !in wrong && it.answerCount > 0 }.shuffled()).take(3)
+    var config by remember(reviewId) { mutableStateOf(ReviewPreferences.value) }
+    val material = remember(reviewId) { data }
+    val practiceSeed = remember(reviewId) { Date.now().toLong() }
+    val topicTheories = material.theories.filter { it.topicId == review.topicId }
+    val theoryOrder = topicTheories.mapIndexed { index, theory -> theory.id to index }.toMap()
+    val highlights = remember(reviewId, config) {
+        material.theoryMarks.filter { it.theoryId in theoryOrder && it.quote.isNotBlank() }
+            .sortedWith(compareBy({ theoryOrder[it.theoryId] }, { it.blockIndex }, { it.createdAt }))
+            .map { NbCard("GRIFO", topicTheories.firstOrNull { theory -> theory.id == it.theoryId }?.title.orEmpty(), it.quote, it.note.takeIf { _ -> config.showHighlightNotes }, review.topicId) }
     }
-    val steps = listOfNotNull("recall".takeIf { recall.isNotEmpty() }, "summary", "test".takeIf { questions.isNotEmpty() }, "rate")
+    val recall = remember(reviewId, config) {
+        val cards = material.snippets.filter { it.topicId == review.topicId && it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() }.sortedWith(compareBy({ it.position }, { it.id }))
+        (if (config.shuffleFlashcards) cards.shuffled(kotlin.random.Random(practiceSeed)) else cards).take(config.flashcardCount)
+    }
+    val summary = material.summaries.firstOrNull { it.topicId == review.topicId && it.kind == "RAPIDO" } ?: material.summaries.firstOrNull { it.topicId == review.topicId }
+    // Revisar é reencontrar a falha: primeiro as erradas, depois as nunca respondidas, depois o resto.
+    val questions = remember(reviewId, config) { reviewPracticeQuestions(material, review.topicId, config, practiceSeed) }
+    val consultation = config.showSummary || (config.offerHighlights && highlights.isNotEmpty())
+    // A abertura ("start") diz o que vem e quanto tempo leva; sem nada para fazer, vai direto ao ajuste.
+    val activities = listOfNotNull("recall".takeIf { recall.isNotEmpty() }, "summary".takeIf { consultation }, "test".takeIf { questions.isNotEmpty() })
+    val steps = (if (activities.isEmpty()) emptyList() else listOf("start")) + activities + "rate"
+    // Difícil na última vez: a mesma etapa volta todo dia até a pessoa marcar Normal ou Fácil.
+    val repeating = review.perceivedDifficulty == "DIFICIL"
+    val lastSeen = (data.reviews.filter { it.topicId == review.topicId }.mapNotNull { it.completedAt } + listOfNotNull(topic?.lastReviewedAt)).maxOrNull()
+    val minutes = (recall.size * 0.7 + (if (config.showSummary && summary != null) 2.0 else 0.0) + questions.size * 1.5 + 0.5).toInt().coerceAtLeast(1)
+    fun openSettings() { ReviewPracticePanels.openSettings { if (steps.size == 1) config = ReviewPreferences.value } }
     val startedAt = remember(reviewId) { Date.now().toLong() }
     val sessionId = remember(reviewId) { Actions.newSessionId() }
     var step by remember(reviewId) { mutableStateOf(0) }
@@ -189,21 +313,43 @@ fun ReviewSessionScreen(reviewId: Long) {
     var selected by remember(reviewId) { mutableStateOf<String?>(null) }
     var answeredRight by remember(reviewId) { mutableStateOf<Boolean?>(null) }
     var correct by remember(reviewId) { mutableStateOf(0) }
+    // Respostas desta revisão, na ordem: o Folha reage como no treino (ufa, sequência, acolhe).
+    var results by remember(reviewId) { mutableStateOf(listOf<Boolean>()) }
     val current = steps[step.coerceAtMost(steps.lastIndex)]
+    // Quanto da revisão já foi: cada cartão e cada questão contam um passinho.
+    val totalUnits = recall.size + (if (consultation) 1 else 0) + questions.size + 1
+    val doneUnits = when (current) {
+        "start" -> 0
+        "recall" -> recallIndex
+        "summary" -> recall.size
+        "test" -> recall.size + (if (consultation) 1 else 0) + questionIndex + (if (answeredRight != null) 1 else 0)
+        else -> totalUnits - 1
+    }
     fun advance() { step = (step + 1).coerceAtMost(steps.lastIndex) }
 
     Div({ classes("rv-session") }) {
         Div({ classes("rv-top") }) {
             Btn("Sair", { Router.go(Route.Reviews) }, style = "ghost", small = true, icon = "close")
             Div({ classes("rv-top-title") }) {
-                Span({ classes("xs", "muted") }) { Text("${subject?.name ?: ""} · ${stageLabels.getOrElse(review.stage - 1) { "etapa ${review.stage}" }}") }
+                Span({ classes("xs", "muted") }) { Text("${subject?.name ?: ""} · ${stageName(review)}") }
                 B { Text(topic?.title ?: "Revisão") }
+                Span({ classes("xs", "muted") }) { Text("${recall.size} ${if (recall.size == 1) "flashcard" else "flashcards"} · ${questions.size} ${if (questions.size == 1) "questão" else "questões"} · ~$minutes min") }
             }
+            // Os grifos da matéria, a qualquer momento e só para ler (não dá para mudar daqui).
+            if (highlights.isNotEmpty()) Button({
+                classes("rv-marks-btn"); attr("title", "Ler meus grifos (só leitura)")
+                onClick { ReviewPracticePanels.highlights = "Grifos · ${topic?.title.orEmpty()}" to highlights }
+            }) { Icon("bookmarks", filled = true); B { Text("${highlights.size}") } }
+            IconButton("settings", "Configurar próximas revisões") { openSettings() }
+        }
+        Div({ classes("rv-progress"); attr("role", "progressbar"); attr("aria-valuenow", "$doneUnits"); attr("aria-valuemax", "$totalUnits") }) {
+            Span({ attr("style", "width:${(doneUnits * 100 / totalUnits.coerceAtLeast(1))}%") })
         }
         // Os passos da revisão, como um caminho.
-        Div({ classes("rv-steps") }) {
-            steps.forEachIndexed { i, s ->
-                val (icon, label) = when (s) { "recall" -> "psychology" to "Lembrar"; "summary" -> "menu_book" to "Revisar"; "test" -> "quiz" to "Testar"; else -> "star" to "Avaliar" }
+        if (current != "start") Div({ classes("rv-steps") }) {
+            steps.filter { it != "start" }.forEachIndexed { i0, s ->
+                val i = i0 + (if (steps.first() == "start") 1 else 0)
+                val (icon, label) = when (s) { "recall" -> "psychology" to "Lembrar"; "summary" -> "menu_book" to "Consultar"; "test" -> "quiz" to "Testar"; else -> "star" to "Avaliar" }
                 Div({ classes(*listOfNotNull("rv-s", if (i < step) "done" else null, if (i == step) "now" else null).toTypedArray()) }) {
                     Span({ classes("rv-s-ic") }) { Icon(if (i < step) "check" else icon) }
                     Span({ classes("rv-s-l") }) { Text(label) }
@@ -213,10 +359,46 @@ fun ReviewSessionScreen(reviewId: Long) {
         }
 
         when (current) {
+            // A abertura: o Folha chama para relembrar, diz o que vem e quanto leva.
+            "start" -> Div({ classes("rv-start", "rise") }) {
+                val since = lastSeen?.let { ((Date.now().toLong() - it) / DAY).toInt() }
+                FolhaSays(if (repeating) "talking" else "happy", 96) {
+                    B { Text(if (repeating) "De novo hoje, e tudo bem!" else "Bora relembrar ${topic?.title ?: "este tópico"}?") }
+                    P { Text(when {
+                        repeating -> "Na última você marcou Difícil, então ele voltou na mesma etapa. Ele volta todo dia até ficar Normal ou Fácil: é assim que fixa."
+                        since == null -> "Recuperar de memória agora é o que faz isso ficar para a prova."
+                        since <= 0 -> "Você viu isso hoje mesmo. Uma passada rápida e está garantido."
+                        since == 1 -> "Faz 1 dia que você viu isso. É o momento certo de puxar da memória."
+                        else -> "Faz $since dias que você viu isso. É o momento certo de puxar da memória, antes de esquecer."
+                    }) }
+                }
+                Div({ classes("rv-start-plan") }) {
+                    if (recall.isNotEmpty()) RvPlanItem("psychology", "${recall.size} ${if (recall.size == 1) "cartão" else "cartões"} para lembrar", "Tente responder antes de virar")
+                    if (consultation) RvPlanItem("menu_book", if (config.showSummary) "Revisão rápida" else "Seus grifos", "Para conferir o que você lembrou")
+                    if (questions.isNotEmpty()) RvPlanItem("quiz", "${questions.size} ${if (questions.size == 1) "questão" else "questões"}", "As que você errou vêm primeiro")
+                    RvPlanItem("star", "Como foi", "Difícil volta amanhã; Normal e Fácil avançam a etapa")
+                }
+                val cardsAvailable = material.snippets.count { it.topicId == review.topicId && it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() }
+                val questionsAvailable = data.questions.count { it.topicId == review.topicId && !it.hidden && it.simulationId == null }
+                val hasHighlights = material.theoryMarks.any { it.theoryId in theoryOrder && it.quote.isNotBlank() }
+                ReviewTuner(config, cardsAvailable, questionsAvailable, summary != null, hasHighlights) { next ->
+                    config = next
+                    ReviewPreferences.save(next)
+                }
+                StageLadder(review.stage, repeating)
+                Div({ classes("rv-choice") }) {
+                    Btn("Começar · ~$minutes min", { advance() }, style = "primary", icon = "play_arrow", size = "lg")
+                }
+            }
             "recall" -> {
                 val card = recall[recallIndex.coerceAtMost(recall.lastIndex)]
                 P({ classes("rv-hint") }) { Text("Tente lembrar antes de virar o cartão. Recuperar de memória é o que fixa.") }
-                Div({ classes(*listOfNotNull("rv-flip", if (flipped) "on" else null).toTypedArray()); onClick { flipped = true } }) {
+                Div({
+                    classes(*listOfNotNull("rv-flip", if (flipped) "on" else null).toTypedArray())
+                    attr("role", "button"); attr("tabindex", "0"); attr("aria-label", if (flipped) "Voltar à pergunta" else "Ver a resposta")
+                    onClick { flipped = !flipped }
+                    onKeyDown { if (it.key == "Enter" || it.key == " ") { it.preventDefault(); flipped = !flipped } }
+                }) {
                     Div({ classes("rv-flip-in") }) {
                         Div({ classes("rv-face", "front") }) {
                             Span({ classes("rv-face-tag") }) { Text("PERGUNTA ${recallIndex + 1} DE ${recall.size}") }
@@ -234,9 +416,16 @@ fun ReviewSessionScreen(reviewId: Long) {
                     Button({ classes("rv-btn", "no"); onClick { som("nao_lembrei"); forgotten++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("close"); Text("Não lembrei") }
                     Button({ classes("rv-btn", "yes"); onClick { som("lembrei"); recalled++; flipped = false; if (recallIndex < recall.lastIndex) recallIndex++ else advance() } }) { Icon("check"); Text("Lembrei") }
                 } else Div({ classes("rv-choice") }) { Btn("Virar o cartão", { flipped = true }, style = "primary", icon = "flip") }
+                if (flipped) Div({ classes("rv-choice") }) { Btn("Voltar à pergunta", { flipped = false }, style = "ghost", icon = "flip") }
             }
             "summary" -> {
-                Div({ classes("rv-paper") }) {
+                if (config.offerHighlights && highlights.isNotEmpty()) Div({ classes("rv-paper", "rv-highlights") }) {
+                    Span({ classes("rv-face-tag") }) { Text("SEUS GRIFOS") }
+                    H3 { Text("Você já tentou lembrar. Quer conferir o que destacou?") }
+                    P({ classes("muted") }) { Text("Leia seus ${highlights.size} trechos, um por vez, e volte para continuar a revisão.") }
+                    Btn("Ler meus grifos", { ReviewPracticePanels.highlights = "Grifos · ${topic?.title.orEmpty()}" to highlights }, style = "outline", icon = "bookmarks")
+                }
+                if (config.showSummary) Div({ classes("rv-paper") }) {
                     Span({ classes("rv-face-tag") }) { Text("REVISÃO RÁPIDA") }
                     if (summary != null) Markdown(summary.markdown)
                     else P({ classes("muted") }) { Text("Este tópico ainda não tem revisão rápida. Relembre os pontos principais e siga para as questões.") }
@@ -245,26 +434,28 @@ fun ReviewSessionScreen(reviewId: Long) {
             }
             "test" -> {
                 val question = questions[questionIndex.coerceAtMost(questions.lastIndex)]
-                ReviewQuestion(question, questionIndex, questions.size, selected, answeredRight, onSelect = { if (answeredRight == null) selected = it }) {
+                ReviewQuestion(question, questionIndex, questions.size, selected, answeredRight, results, onSelect = { if (answeredRight == null) selected = it }) {
                     if (answeredRight == null) {
                         val key = selected ?: return@ReviewQuestion
                         var ok = false
                         Store.update { snapshot -> Actions.answer(snapshot, question.id, key, sessionId).also { ok = it.second }.first }
                         answeredRight = ok
                         if (ok) correct++
+                        results = results + ok
                     } else {
                         selected = null; answeredRight = null
                         if (questionIndex < questions.lastIndex) questionIndex++ else advance()
                     }
                 }
             }
-            else -> RateStep(review, recalled, forgotten, correct, questions.size, startedAt)
+            else -> if (steps.size == 1) Card { Empty("settings", "Monte sua revisão", "Não há atividade disponível com suas escolhas. Ative flashcards, resumo ou questões na engrenagem.", action = { Btn("Ajustar revisão", { openSettings() }, style = "primary", icon = "settings") }) }
+                else RateStep(review, recalled, forgotten, correct, questions.size, startedAt)
         }
     }
 }
 
 @Composable
-private fun ReviewQuestion(question: Question, index: Int, total: Int, selected: String?, answeredRight: Boolean?, onSelect: (String) -> Unit, onPrimary: () -> Unit) {
+private fun ReviewQuestion(question: Question, index: Int, total: Int, selected: String?, answeredRight: Boolean?, results: List<Boolean>, onSelect: (String) -> Unit, onPrimary: () -> Unit) {
     val original = question.options.sortedBy { it.position }
     val order = remember(question.id) { br.com.estudario.domain.OptionShuffle.order(original.map { it.text }, Date.now().toLong() + question.id) }
     // Alternativas riscadas, como no treino normal.
@@ -300,9 +491,14 @@ private fun ReviewQuestion(question: Question, index: Int, total: Int, selected:
                 }
             }
         }
-        if (answeredRight != null) Div({ classes("rv-feedback", if (answeredRight) "ok" else "bad") }) {
-            B { Text(if (answeredRight) "Isso! Você lembrou." else "Ainda não. Ela vai para o caderno de erros.") }
-            if (question.explanation.isNotBlank()) Markdown(br.com.estudario.domain.OptionShuffle.relabel(question.explanation, original.map { it.key }, order))
+        if (answeredRight != null) {
+            // O Folha reage como no treino; a letra certa é a da ordem embaralhada desta tela.
+            val rightLetter = order.indexOfFirst { original[it].correct }.takeIf { it >= 0 }?.let { "ABCDEF"[it].toString() }
+            AnswerReaction(answeredRight, rightLetter, question.id, results)
+            if (question.explanation.isNotBlank()) Div({ classes("rv-feedback", if (answeredRight) "ok" else "bad") }) {
+                B { Text("Por quê") }
+                Markdown(br.com.estudario.domain.OptionShuffle.relabel(question.explanation, original.map { it.key }, order))
+            }
         }
     }
     Div({ classes("rv-choice") }) {
@@ -334,15 +530,15 @@ private fun RateStep(review: Review, recalled: Int, forgotten: Int, correct: Int
             Folha(if ((score ?: 0.6) >= 0.5) "happy" else "thinking", 84)
         }
         H3 { Text("Como foi lembrar este tópico?") }
-        P({ classes("small", "muted") }) { Text("A escolha define quando ele volta. Sugerimos pelo seu desempenho, mas a decisão é sua.") }
+        P({ classes("small", "muted") }) { Text("Difícil repete amanhã sem avançar a etapa. Normal e Fácil avançam. A sugestão vem do seu desempenho; a decisão é sua.") }
         Div({ classes("rv-rates") }) {
             listOf(
                 Triple(ReviewDifficulty.FACIL, "Fácil", "Recuperei quase tudo com segurança"),
                 Triple(ReviewDifficulty.NORMAL, "Normal", "Lembrei depois de pensar um pouco"),
-                Triple(ReviewDifficulty.DIFICIL, "Difícil", "Ainda confundo pontos importantes"),
+                Triple(ReviewDifficulty.DIFICIL, "Difícil", "Repito amanhã, na mesma etapa"),
             ).forEach { (difficulty, label, hint) ->
                 val due = nextDueWith(review.id, difficulty, correct, total)
-                val days = due?.let { ((it - Queries.startOfToday()) / DAY).toInt().coerceAtLeast(1) }
+                val days = due?.let { br.com.estudario.time.daysBetween(Queries.todayDate(), Queries.dateOf(it)).toInt().coerceAtLeast(1) }
                 Button({ classes(*listOfNotNull("rv-rate", difficulty.name.lowercase(), if (pick == difficulty) "on" else null).toTypedArray()); onClick { pick = difficulty } }) {
                     if (difficulty == suggested) Span({ classes("rv-suggest") }) { Text("SUGERIDO") }
                     B { Text(label) }
@@ -352,10 +548,10 @@ private fun RateStep(review: Review, recalled: Int, forgotten: Int, correct: Int
             }
         }
         Div({ classes("rv-choice") }) {
-            Btn("Concluir revisão", {
-                val days = nextDueWith(review.id, pick, correct, total)?.let { ((it - Queries.startOfToday()) / DAY).toInt().coerceAtLeast(1) }
-                Store.update { Actions.completeReview(it, review.id, pick, correct, total, startedAt, recalled, forgotten) }
-                ReviewDone.state = ReviewDone.State(review.id, review.topicId, days)
+            Btn(if (pick == ReviewDifficulty.DIFICIL) "Salvar e repetir amanhã" else "Concluir etapa", {
+                val days = nextDueWith(review.id, pick, correct, total)?.let { br.com.estudario.time.daysBetween(Queries.todayDate(), Queries.dateOf(it)).toInt().coerceAtLeast(1) }
+                Store.update { Actions.completeReviewWithPlan(it, review.id, pick, correct, total, startedAt, recalled, forgotten) }
+                ReviewDone.state = ReviewDone.State(review.id, review.topicId, days, review.stage.takeIf { pick == ReviewDifficulty.DIFICIL })
             }, style = "primary", icon = "check", size = "lg")
         }
     }
@@ -372,7 +568,7 @@ private fun RvRing(value: Int, total: Int, label: String) {
 
 /** O fechamento da revisão que acabou de ser concluída (mostrado na própria rota da sessão). */
 private object ReviewDone {
-    data class State(val reviewId: Long, val topicId: Long, val nextInDays: Int?)
+    data class State(val reviewId: Long, val topicId: Long, val nextInDays: Int?, val repeatedStage: Int? = null)
     var state by mutableStateOf<State?>(null)
 }
 
@@ -389,10 +585,11 @@ private fun ReviewDoneScreen(done: ReviewDone.State) {
     fun leave(go: () -> Unit) { ReviewDone.state = null; go() }
     Div({ classes("rv-paper", "rv-done") }) {
         Folha("happy", 110)
-        Span({ classes("rv-face-tag") }) { Text("REVISÃO CONCLUÍDA") }
+        Span({ classes("rv-face-tag") }) { Text(if (done.repeatedStage != null) "SESSÃO REGISTRADA · ETAPA MANTIDA" else "ETAPA CONCLUÍDA") }
         Span({ classes("rv-xp") }) { Icon("Bolt"); Text("+${br.com.estudario.domain.ProgressEngine.previewReview().max} XP") }
         H2 { Text(topic?.title ?: "Tópico revisado") }
-        P({ classes("muted") }) { Text(done.nextInDays?.let { if (it <= 1) "Ele volta amanhã para mais uma revisão." else "Ele volta em $it dias. Até lá, a memória trabalha por você." } ?: "A próxima revisão já está na agenda.") }
+        P({ classes("muted") }) { Text(if (done.repeatedStage != null) "A ${done.repeatedStage}ª revisão volta amanhã. Você avança quando marcar Normal ou Fácil."
+            else done.nextInDays?.let { if (it <= 1) "Ele volta amanhã para mais uma revisão." else "Ele volta em $it dias. Até lá, a memória trabalha por você." } ?: "A próxima revisão já está na agenda.") }
         Div({ classes("rv-fix") }) {
             Span({ classes("rv-fix-ic") }) { Icon("quiz", filled = true) }
             Div({ classes("grow") }) {

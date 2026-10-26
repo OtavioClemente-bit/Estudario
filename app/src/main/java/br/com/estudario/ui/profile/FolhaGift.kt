@@ -85,7 +85,7 @@ fun FolhaGiftDialog(items: List<FolhaItem>, onUse: () -> Unit, onClose: () -> Un
             CelBody(if (one) "${items[0].slot.label} · ${reqs[0]}" else if (reqs.size == 1) reqs[0] else joinNames(items.map { it.slot.label }.distinct()))
         },
         actions = {
-            OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp)) { Text("Depois", color = Color.White) }
+            OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp)) { Text("Fechar", color = Color.White) }
             Button(onClick = onUse, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp), colors = ButtonDefaults.buttonColors(containerColor = CelGold, contentColor = Color(0xFF2A1A05))) {
                 Text(if (one) "Usar agora" else "Vestir tudo", fontWeight = FontWeight.Bold)
             }

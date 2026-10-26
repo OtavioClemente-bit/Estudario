@@ -2,6 +2,7 @@ package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.staticCompositionLocalOf
 import org.jetbrains.compose.web.dom.Blockquote
 import org.jetbrains.compose.web.dom.Code
 import org.jetbrains.compose.web.dom.Div
@@ -34,6 +35,8 @@ fun Markdown(source: String, compact: Boolean = false) {
         parseBlocks(MathText.normalize(source)).forEach { block -> RenderBlock(block) }
     }
 }
+
+internal val LocalMarkdownLinksEnabled = staticCompositionLocalOf { true }
 
 private sealed interface Block {
     data class Heading(val level: Int, val text: String) : Block
@@ -203,7 +206,7 @@ private fun hostOf(url: String): String = url.substringAfter("://").substringBef
 
 @Composable
 private fun LinkOut(url: String, label: String) {
-    if (!url.startsWith("http://") && !url.startsWith("https://")) { Text(label); return }
+    if (!LocalMarkdownLinksEnabled.current || (!url.startsWith("http://") && !url.startsWith("https://"))) { Text(label); return }
     org.jetbrains.compose.web.dom.A(href = url, { classes("md-link"); attr("target", "_blank"); attr("rel", "noopener noreferrer"); attr("title", url) }) { Text(label) }
 }
 

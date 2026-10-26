@@ -225,6 +225,7 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                         Toast.show(if (item.items.size == 1) "O Folha está usando: ${item.items[0].name}" else "O Folha vestiu as peças novas")
                         onClose()
                     } }) { Text(if (item.items.size == 1) "Usar agora" else "Vestir tudo") }
+                    Button({ classes("cel-ghost"); onClick { onClose() } }) { Text("Fechar") }
                 } else Button({ classes("cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
             }
         }
@@ -245,6 +246,11 @@ private fun Scene(item: Celebration) {
         is Celebration.NewBadge -> "Medalha do emblema ${item.badge.name}"
         is Celebration.StreakDay -> "${item.days} dias de sequência"
         is Celebration.NewPiece -> if (item.items.size == 1) "O Folha ganha ${item.items[0].name}" else "O Folha ganha ${item.items.size} peças novas"
+    }
+    // Subiu de nível: o livro de Folhas abre, o Folha traz a folha nova e a medalha gira o número.
+    if (item is Celebration.LevelUp) {
+        Div({ classes("cn-stage", "cn-book"); attr("aria-label", label) }) { LevelBookView(item.level, 230, animateFrom = (item.level - 1).coerceAtLeast(1)) }
+        return
     }
     Div({ classes("cn-stage") }) {
         org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
@@ -293,7 +299,9 @@ private fun LevelText(item: Celebration.LevelUp, r: Double) {
     val newTitle = br.com.estudario.domain.ProgressEngine.levelTitle(old) != item.title
     Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("SUBIU DE NÍVEL") }
     H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text("Nível ${item.level} · ${item.title}") }
-    if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:${r + 0.25}s") }) { Icon("military_tech", filled = true); Text("Novo título!") }
+    // Título novo é capa nova no livro de Folhas.
+    if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:${r + 0.25}s") }) { Icon("military_tech", filled = true); Text("Novo título e capa nova: ${br.com.estudario.domain.LevelBook.tiers[br.com.estudario.domain.LevelBook.tierOf(item.level)].name}!") }
+    else P({ classes("small", "lv-late"); attr("style", "--ld:${r + 0.25}s; opacity:.8; margin:0") }) { Text("Mais uma folha no seu livro.") }
     Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) {
         Span({ classes("lv-xp-fill") })
         B { Text("${item.totalXp} XP") }

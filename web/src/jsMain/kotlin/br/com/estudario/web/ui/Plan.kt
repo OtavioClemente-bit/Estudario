@@ -311,7 +311,8 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
     val overdue = load.count { it.day < todayEpoch && (it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO") }
     val daysToExam = plan.exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
     // Previsão do edital inteiro (as tarefas marcadas só cobrem as próximas 4 semanas).
-    val projection = br.com.estudario.web.data.Forecast.of(br.com.estudario.web.data.Store.data, plan)
+    val prediction = rememberForecast(Store.data, plan)
+    val projection = prediction.result
     val forecast = if (projection != null) projection.date?.takeIf { projection.remainingTopics > 0 }?.toEpochDays()?.toLong()
         else load.filter { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }.let { p -> p.filter { it.type == "THEORY" }.maxOfOrNull { it.day } ?: p.maxOfOrNull { it.day } }
     val next = load.filter { it.day > todayEpoch && it.status == "PLANEJADA" }.minOfOrNull { it.day }
@@ -329,7 +330,13 @@ private fun PlanProgressHeader(plan: br.com.estudario.web.data.StudyPlan, tasks:
         Div({ classes("hh-cover") }) {
             Div({ classes("row", "between") }) { Span { Text("$pct% do plano cumprido") }; B { Text("$done/$total") } }
             Div({ classes("hh-bar") }) { Span({ attr("style", "width:${pct.coerceAtLeast(2)}%") }) }
-            P({ classes("small") }) { Text(forecast?.let { "No ritmo atual você fecha o edital em ${Queries.dayLabel(LocalDate.fromEpochDays(it))}." } ?: "Todo o conteúdo previsto já foi coberto. Agora é revisão e questões.") }
+            P({ classes("small") }) {
+                Text(when {
+                    prediction.loading -> "Calculando a previsão…"
+                    prediction.failed -> "Previsão indisponível no momento. Você pode continuar estudando normalmente."
+                    else -> forecast?.let { "No ritmo atual você fecha o edital em ${Queries.dayLabel(LocalDate.fromEpochDays(it))}." } ?: "Todo o conteúdo previsto já foi coberto. Agora é revisão e questões."
+                })
+            }
         }
         // A semana em bolinhas: cheia quando o dia foi feito, contornada quando tem estudo, apagada na folga.
         val monday = todayEpoch - (LocalDate.fromEpochDays(todayEpoch.toInt()).dayOfWeek.ordinal)
@@ -458,7 +465,11 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
         }
     }
     val plan = br.com.estudario.web.data.Store.data.plans.firstOrNull { it.id == planId }
-    val projection = plan?.let { br.com.estudario.web.data.Forecast.of(br.com.estudario.web.data.Store.data, it) }
+    val prediction = rememberForecast(Store.data, plan)
+    val projection = prediction.result
+    if (prediction.loading || prediction.failed) P({ classes("small", "muted"); attr("role", "status") }) {
+        Text(if (prediction.loading) "Calculando a previsão…" else "Previsão indisponível no momento. Você pode continuar estudando normalmente.")
+    }
     if (projection != null) {
         val r = projection.roadmap
         val text = when {

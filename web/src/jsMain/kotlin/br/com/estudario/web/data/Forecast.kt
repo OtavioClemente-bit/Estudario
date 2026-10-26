@@ -12,6 +12,7 @@ import br.com.estudario.domain.planner.StudyMethodConfig
 import br.com.estudario.domain.planner.StudyProfile
 import br.com.estudario.domain.planner.WorkloadEstimator
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.Serializable
 import br.com.estudario.time.*
 
 /**
@@ -20,8 +21,9 @@ import br.com.estudario.time.*
  * a conta antiga, feita só com elas, dizia "edital coberto em 4 semanas" faltando meses.
  */
 object Forecast {
+    @Serializable
     data class Result(
-        val roadmap: EditalRoadmapResult,
+        val roadmap: RoadmapSummary,
         /** Quando o edital termina no ritmo atual, sem prazo (passa da prova quando não cabe). */
         val finishAtPace: LocalDate?,
     ) {
@@ -29,21 +31,25 @@ object Forecast {
         val remainingTopics: Int get() = roadmap.totalTopics - roadmap.studiedTopics
     }
 
-    private var lastData: Snapshot? = null
-    private var lastPlan: String? = null
-    private var last: Result? = null
-
-    /** Já calculada para estes dados? (sem calcular: a conta leva centenas de milissegundos) */
-    fun isReady(data: Snapshot, plan: StudyPlan): Boolean = lastData === data && lastPlan == plan.id
-
-    fun of(data: Snapshot, plan: StudyPlan): Result? {
-        if (lastData === data && lastPlan == plan.id) return last
-        val result = runCatching { compute(data, plan) }.getOrNull()
-        lastData = data; lastPlan = plan.id; last = result
-        return result
+    /** Só os números usados na interface atravessam a fronteira do worker. */
+    @Serializable
+    data class RoadmapSummary(
+        val totalTopics: Int,
+        val studiedTopics: Int,
+        val coverageDate: LocalDate?,
+        val contentDeadline: LocalDate,
+        val verdict: br.com.estudario.domain.planner.RoadmapVerdict,
+        val topicsLeftOut: Int,
+        val atRiskSubjects: List<String>,
+        val extraMinutesPerDayToFit: Int,
+    ) {
+        val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
     }
 
-    private fun compute(data: Snapshot, plan: StudyPlan): Result? {
+    private fun summary(r: EditalRoadmapResult) = RoadmapSummary(r.totalTopics, r.studiedTopics, r.coverageDate, r.contentDeadline, r.verdict, r.topicsLeftOut, r.atRiskSubjects, r.extraMinutesPerDayToFit)
+
+    /** Executado exclusivamente no worker, nunca durante a composição das telas. */
+    internal fun compute(data: Snapshot, plan: StudyPlan, freeRules: Boolean, excludedTopicIds: Set<Long>): Result? {
         val today = Queries.todayDate()
         val weekly = data.availability.filter { it.planId == plan.id && !it.unavailable }.sumOf { it.minutes }
         val profile = plan.profile?.let { runCatching { StudyProfile.valueOf(it) }.getOrNull() } ?: StudyProfile.DO_ZERO
@@ -64,19 +70,19 @@ object Forecast {
         ).items.associate { it.topicId to (it.theoryMinutes + it.questionMinutes to it.theoryMinutes) }
         val topics = leaves.map { RoadmapTopic(it.id, it.subjectId, it.position, Queries.isStudied(it), estimate[it.id]?.first ?: config.blockMinutes, estimate[it.id]?.second ?: config.blockMinutes) }
         // O próprio plano simulado semana a semana (PlanProjection), como no app.
-        val input = Planning.inputFor(data, plan.id)
+        val input = Planning.inputFor(data, plan.id, freeRules, excludedTopicIds)
         fun project(end: LocalDate, withExam: Boolean) = input?.let {
             runCatching { PlanProjection.project(if (withExam) it else it.copy(plan = it.plan.copy(examEpochDay = null)), end) }.getOrNull()
         }
-        fun build(end: LocalDate, hasExam: Boolean, projected: PlanProjection.Result?) = EditalRoadmap.build(today, end, hasExam, profile, weekly, subjects, topics, projected, maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(LibraryGaps.free()))
+        fun build(end: LocalDate, hasExam: Boolean, projected: PlanProjection.Result?) = EditalRoadmap.build(today, end, hasExam, profile, weekly, subjects, topics, projected, maxTopicsPerDay = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(freeRules))
         val exam = plan.exam?.let { LocalDate.fromEpochDays(it.toInt()) }?.takeIf { it > today }
         if (exam != null) {
             val roadmap = build(exam, hasExam = true, project(exam, withExam = true))
             val finish = roadmap.coverageDate ?: project(today.plusYears(3), withExam = false)?.coverageDate
-            return Result(roadmap, finish)
+            return Result(summary(roadmap), finish)
         }
         val open = project(today.plusYears(3), withExam = false)
         val finishAtPace = open?.coverageDate
-        return Result(build(maxOf(today.plusDays(60), (finishAtPace ?: today.plusMonths(6)).plusDays(21)), hasExam = false, open), finishAtPace)
+        return Result(summary(build(maxOf(today.plusDays(60), (finishAtPace ?: today.plusMonths(6)).plusDays(21)), hasExam = false, open)), finishAtPace)
     }
 }

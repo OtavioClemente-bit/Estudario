@@ -229,15 +229,9 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         return available.coerceAtMost(task.plannedQuestions.coerceAtLeast(1))
     }
     fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") { br.com.estudario.ui.brand.EstudarioSom.play(getApplication(), "concluir"); executions.complete(taskId, input); service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED) }
-    suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null): PlannerTaskUi? {
+    suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null, type: br.com.estudario.domain.planner.PlanTaskType = br.com.estudario.domain.planner.PlanTaskType.THEORY): PlannerTaskUi? {
         val current = state.first { !it.loading }
-        val planId = current.activePlan?.id ?: return null
-        val candidates = current.tasks.filter { row ->
-            row.entity.planId == planId && row.entity.topicId == topicId &&
-                row.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
-        }
-        return candidates.firstOrNull { it.entity.id == preferredTaskId }
-            ?: candidates.minByOrNull { it.entity.scheduledEpochDay }
+        return matchingPendingTopicTask(current, topicId, preferredTaskId, type)
     }
 
     suspend fun completeFromTopic(taskId: String, input: CompleteTaskInput) {

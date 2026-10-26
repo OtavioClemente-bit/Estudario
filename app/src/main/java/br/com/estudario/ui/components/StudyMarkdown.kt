@@ -9,6 +9,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.graphics.toArgb
@@ -25,6 +26,8 @@ import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.ext.tables.TableTheme
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import kotlin.math.roundToInt
+
+internal val LocalStudyLinksEnabled = staticCompositionLocalOf { true }
 
 /**
  * Texto curto (alternativa, cartão, dica) que só passa pelo leitor de Markdown quando tem
@@ -102,6 +105,7 @@ private fun MarkdownTextView(
     onSelectColor: ((String, Int) -> Unit)? = null,
 ) {
     val selectable = onSelectText != null
+    val linksEnabled = LocalStudyLinksEnabled.current
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val size = textSizeSp ?: MaterialTheme.typography.bodyLarge.fontSize.value
@@ -134,13 +138,18 @@ private fun MarkdownTextView(
             view.setLinkTextColor(colors.primary.toArgb())
             view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
             // Só redesenha o texto quando ele (ou os grifos) mudam: assim uma seleção em andamento não some.
-            val stamp = listOf(text, size, ink.toArgb(), book, colors.primary.toArgb(), highlights, highlightColor.toArgb(), notedHighlights, highlightColors)
+            val stamp = listOf(text, size, ink.toArgb(), book, colors.primary.toArgb(), highlights, highlightColor.toArgb(), notedHighlights, highlightColors, linksEnabled)
             if (view.tag != stamp) {
                 view.tag = stamp
                 markwon.setMarkdown(view, text)
                 centerInlineFormulas(view, markwon.configuration().theme())
                 paintedRanges[view] = paintHighlights(view, highlights, highlightColor.toArgb(), notedHighlights, highlightColors)
+                if (!linksEnabled) (view.text as? android.text.Spannable)?.let { content ->
+                    content.getSpans(0, content.length, android.text.style.ClickableSpan::class.java).forEach { content.removeSpan(it) }
+                }
             }
+            view.linksClickable = linksEnabled
+            view.movementMethod = if (linksEnabled) LinkMovementMethod.getInstance() else null
             // Guarda onde o dedo tocou: no clique, um trecho grifado abre a nota dele.
             if (onHighlightTap != null) view.setOnTouchListener { v, e ->
                 if (e.action == android.view.MotionEvent.ACTION_DOWN) touchAt[v as TextView] = floatArrayOf(e.x, e.y)

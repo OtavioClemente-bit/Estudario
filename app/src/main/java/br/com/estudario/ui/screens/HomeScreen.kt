@@ -250,11 +250,9 @@ fun HomeScreen(
 
         val focusTask = pickFocusTask(planState)
         val planCurrentStudy = currentStudyState(planState, focusTask)
-        // Com um plano ativo e tarefas pendentes, a Home segue o plano, na ordem dele. A fila manual
-        // de tópicos só manda quando não há plano; antes ela passava na frente e o "próximo a
-        // estudar" ignorava o plano (inclusive o importado da IA).
-        val planDrives = planState.activePlan != null && focusTask != null
-        val currentQueueItem = if (planDrives) null else firstEligibleQueueTopic(queue)
+        // O plano ativo também manda nos dias de folga e depois de concluir o dia. A fila manual
+        // só vira missão quando não há plano; não pode substituir o descanso previsto por ele.
+        val currentQueueItem = pickHomeQueueTopic(planState, queue)
         val queueTask = currentQueueItem?.let { row ->
             val subjectName = subjects.firstOrNull { it.id == row.topic.subjectId }?.name ?: "Matéria removida"
             queueTopicUi(row, subjectName)
@@ -489,36 +487,31 @@ fun HomeScreen(
 
 /**
  * A tarefa de agora, a mesma que a aba Plano mostra para hoje: a de hoje já em andamento, senão a
- * primeira de hoje na ordem do plano. Antes valia a pendente mais antiga do plano inteiro, e uma
- * tarefa de ontem esquecida tomava o lugar da de hoje: o Início mandava estudar uma matéria e o
- * Plano mostrava outra. Atrasadas ficam no aviso "Pedindo atenção"; sem nada pendente hoje, vale a
- * próxima da ordem.
+ * primeira de hoje na ordem do plano. Atrasadas ficam no aviso "Pedindo atenção" e tarefas futuras
+ * ficam na continuidade. Sem pendências hoje, a Home respeita a folga ou o dia já concluído.
  */
 internal fun pickFocusTask(planState: ActivePlanUiState): PlannerTaskUi? {
-    // Ordem do plano: data e, no mesmo dia, a posição em que a tarefa veio. Algo já começado vem
-    // antes de abrir uma nova.
-    val ordered = planState.tasks.withIndex()
-        .filter { it.value.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) }
-        .sortedWith(compareBy({ it.value.entity.scheduledEpochDay }, { it.index }))
-        .map { it.value }
-    val today = planState.today.toEpochDay()
-    val ofToday = ordered.filter { it.entity.scheduledEpochDay == today }
+    val planId = planState.activePlan?.id ?: return null
+    // A agenda já incorpora a disponibilidade semanal e as exceções de cada data. Não presumir
+    // folga por dia da semana: uma exceção pode ter criado uma tarefa para este domingo.
+    val ofToday = planState.todayTasks.filter {
+        it.entity.planId == planId && it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+    }
     return ofToday.firstOrNull { it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
         ?: ofToday.firstOrNull()
-        ?: ordered.firstOrNull { it.entity.status == PlanTaskStatus.EM_ANDAMENTO }
-        ?: ordered.firstOrNull()
 }
 
-private fun currentStudyState(planState: ActivePlanUiState, focusTask: PlannerTaskUi?): CurrentStudyUiState {
+internal fun pickHomeQueueTopic(planState: ActivePlanUiState, queue: List<QueueWithTopic>): QueueWithTopic? {
+    val planDrives = planState.activePlan != null
+    return if (planDrives) null else firstEligibleQueueTopic(queue)
+}
+
+internal fun currentStudyState(planState: ActivePlanUiState, focusTask: PlannerTaskUi?): CurrentStudyUiState {
     if (planState.loading && planState.activePlan == null) return CurrentStudyUiState.Loading
     if (planState.activePlan == null) return CurrentStudyUiState.NoPlan
 
     val todayTasks = planState.todayTasks
-    // Nada marcado para hoje, mas o plano segue: mostra a próxima tarefa da ordem.
-    if (todayTasks.isEmpty()) {
-        return focusTask?.let { CurrentStudyUiState.Ready(task = it.toStudyTaskUi(), progressFraction = null) }
-            ?: CurrentStudyUiState.NoTaskToday
-    }
+    if (todayTasks.isEmpty()) return CurrentStudyUiState.NoTaskToday
 
     val doneToday = todayTasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }
     if (focusTask == null || doneToday == todayTasks.size) {

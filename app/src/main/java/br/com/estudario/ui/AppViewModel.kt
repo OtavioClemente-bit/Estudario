@@ -194,6 +194,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val defaultQuestionCount = app.preferences.defaultQuestionCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 10)
     val showExplanation = app.preferences.showExplanation.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val reviewIntervals = app.preferences.reviewIntervals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), listOf(1L, 7L, 30L))
+    val reviewPractice: StateFlow<br.com.estudario.domain.ReviewPracticeOptions?> = app.preferences.reviewPractice
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    fun setReviewPractice(value: br.com.estudario.domain.ReviewPracticeOptions) = launchCatching { app.preferences.setReviewPractice(value) }
+    suspend fun loadReviewPracticeMaterial(topicId: Long) = withContext(Dispatchers.IO) { repository.reviewPracticeMaterial(topicId) }
     val expandedEditalSubjects = app.preferences.expandedEditalSubjects.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
     val hasCompletedOnboarding: StateFlow<Boolean?> = app.preferences.hasCompletedOnboarding.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val initialSetup: StateFlow<InitialSetupSnapshot?> = app.preferences.initialSetup.stateIn(viewModelScope, SharingStarted.Eagerly, null)

@@ -52,6 +52,8 @@ import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.components.*
 import br.com.estudario.ui.planner.PlannerTaskUi
 import br.com.estudario.ui.planner.StudyPlanViewModel
+import br.com.estudario.domain.planner.PlanTaskType
+import br.com.estudario.domain.planner.PlanTaskStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,6 +79,11 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val queue by viewModel.queue.collectAsState()
     val focusSession by viewModel.focusSession.collectAsState()
     val focusSessions by viewModel.focusSessions.collectAsState()
+    val planState by planViewModel.state.collectAsState()
+    val linkedPlanTask = planState.tasks.firstOrNull { it.entity.id == taskId && it.entity.topicId == topicId && it.entity.planId == planState.activePlan?.id }
+    val isPendingReviewTask = linkedPlanTask?.entity?.let {
+        it.type == PlanTaskType.REVIEW && it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+    } == true
     val topic = topics.firstOrNull { it.id == topicId }
     if (topic == null) { EmptyState("Tópico não encontrado", "Ele pode ter sido excluído.", "Voltar", onBack); return }
     val subject = subjects.firstOrNull { it.id == topic.subjectId }
@@ -176,9 +183,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     ),
                 )
             }
-            if (topic.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO && taskId != null) {
-                // Tópico já estudado vindo do plano é revisão: fecha a revisão pendente mais antiga
-                // (com o XP dela) e não agenda D+1/D+7/D+30 de novo.
+            if (pendingCompletionTask?.entity?.type == PlanTaskType.REVIEW) {
+                // Só uma tarefa REVIEW fecha a revisão pendente mais antiga (com o XP dela).
                 viewModel.reviews.value
                     .filter { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
                     .minByOrNull { it.dueAt }
@@ -216,7 +222,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         completionError = null
         scope.launch {
             try {
-                val plannedTask = planViewModel.matchingPendingTask(topicId, taskId)
+                val plannedTask = planViewModel.matchingPendingTask(topicId, taskId, if (isPendingReviewTask) PlanTaskType.REVIEW else PlanTaskType.THEORY)
                 val now = System.currentTimeMillis()
                 val linkedActiveFocus = focusSession.active &&
                     (focusSession.topicId == topicId || (plannedTask != null && focusSession.taskId == plannedTask.entity.id))
@@ -592,7 +598,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                     ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modo foco") }
-                    if (studied && taskId != null && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    if (studied && isPendingReviewTask && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir revisão")
                     } else if (studied) OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluído")

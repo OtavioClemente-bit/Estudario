@@ -95,8 +95,8 @@ private fun StopFocusModal(onDismiss: () -> Unit) {
         H2 { Text("Encerrar o foco?") }
         P({ classes("muted") }) { Text("Você estudou ${TopicFocus.clock()}" + (TopicFocus.title.takeIf { it.isNotBlank() }?.let { " em $it" } ?: "") + ". O tempo vai para o seu histórico.") }
         Div({ classes("stack", "tight") }) {
-            if (topicId != null && !studied) Btn("Encerrar e concluir o tópico", { onDismiss(); TopicFocus.stopAndComplete() }, style = "primary", icon = "task_alt", block = true)
-            else if (TopicFocus.taskId != null) Btn("Encerrar e concluir a tarefa", { onDismiss(); TopicFocus.stopAndComplete() }, style = "primary", icon = "task_alt", block = true)
+            if (TopicFocus.canComplete && topicId != null && !studied) Btn("Encerrar e concluir o tópico", { onDismiss(); TopicFocus.stopAndComplete() }, style = "primary", icon = "task_alt", block = true)
+            else if (TopicFocus.canComplete && TopicFocus.taskId != null) Btn("Encerrar e concluir a tarefa", { onDismiss(); TopicFocus.stopAndComplete() }, style = "primary", icon = "task_alt", block = true)
             Btn("Só encerrar", { onDismiss(); TopicFocus.stop() }, style = if (topicId != null && !studied) "outline" else "primary", icon = "stop", block = true)
             Btn("Continuar estudando", onDismiss, style = "ghost", block = true)
         }
@@ -114,7 +114,7 @@ private fun TimeUpModal() {
             Text("Você já estudou os ${br.com.estudario.web.data.Queries.minutesLabel(planned)}" + (TopicFocus.title.takeIf { it.isNotBlank() }?.let { " de $it" } ?: "") + ". Pode seguir, se estiver rendendo, ou encerrar e registrar.")
         }
         Div({ classes("stack", "tight") }) {
-            if (topicId != null || TopicFocus.taskId != null) Btn(if (topicId != null) "Encerrar e concluir o tópico" else "Encerrar e concluir a tarefa", { TopicFocus.timeUpSeen = true; TopicFocus.stopAndComplete(); if (topicId != null) Router.go(Route.Topic(topicId)) }, style = "primary", icon = "task_alt", block = true)
+            if (TopicFocus.canComplete) Btn(if (topicId != null) "Encerrar e concluir o tópico" else "Encerrar e concluir a tarefa", { TopicFocus.timeUpSeen = true; TopicFocus.stopAndComplete(); if (topicId != null) Router.go(Route.Topic(topicId)) }, style = "primary", icon = "task_alt", block = true)
             Btn("Ok, vou seguir", { TopicFocus.timeUpSeen = true }, style = if (topicId != null) "outline" else "primary", block = true)
             Btn("Só encerrar", { TopicFocus.timeUpSeen = true; TopicFocus.stop() }, style = "ghost", block = true)
         }

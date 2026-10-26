@@ -120,13 +120,13 @@ object Planning {
     }
 
     /** As entradas do motor (StudyPlanSnapshotFactory do app); também alimentam a previsão (PlanProjection). */
-    fun inputFor(data: Snapshot, planId: String): PlannerSnapshotBuilder.Input? {
+    fun inputFor(data: Snapshot, planId: String, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded()): PlannerSnapshotBuilder.Input? {
         val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return null
         val tasks = data.array(Keys.TASKS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.mapNotNull { it.toPlannerTask() }
-        return inputFor(data, planId, planRow, tasks, planRow.long("revision") ?: 0, Queries.todayDate())
+        return inputFor(data, planId, planRow, tasks, planRow.long("revision") ?: 0, Queries.todayDate(), freeRules, excludedTopicIds)
     }
 
-    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate): PlannerSnapshotBuilder.Input =
+    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded()): PlannerSnapshotBuilder.Input =
             PlannerSnapshotBuilder.Input(
                 plan = PlannerSnapshotBuilder.Plan(planId, revision, planRow.long("start") ?: today.toEpochDay(), planRow.long("exam"), planRow.methodConfig()),
                 planSubjects = data.array(Keys.PLAN_SUBJECTS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.map { row ->
@@ -157,9 +157,9 @@ object Planning {
                 today = today,
                 zone = Queries.zone,
                 // No Grátis, tópicos sem matéria pronta na biblioteca ficam fora do plano (LibraryGaps).
-                excludedTopicIds = LibraryGaps.excluded(),
+                excludedTopicIds = excludedTopicIds,
                 // Grátis: até 3 matérias novas por dia e o dia de hoje não muda ao replanejar.
-                freeRules = LibraryGaps.free(),
+                freeRules = freeRules,
             )
 
     /** StudyPlanApplicationService.replan + applyProposal. */

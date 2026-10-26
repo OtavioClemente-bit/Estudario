@@ -3,6 +3,8 @@ package br.com.estudario.web.data
 import br.com.estudario.data.local.ReviewDifficulty
 import br.com.estudario.domain.ErrorRetryLadder
 import br.com.estudario.domain.ReviewIntervals
+import br.com.estudario.domain.ReviewStageProgression
+import br.com.estudario.domain.ReviewStageState
 import br.com.estudario.time.plusDays
 import br.com.estudario.time.startOfDay
 import kotlinx.serialization.json.JsonObject
@@ -41,14 +43,15 @@ object Actions {
     // ------------------------------------------------------------------ plano
 
     /** StudyExecutionService.complete: registra a execução e conclui (ou deixa em andamento) a tarefa. */
-    fun completeTask(data: Snapshot, taskId: String, minutes: Int, questions: Int = 0, correct: Int = 0, notes: String = "", fromQuiz: Boolean = false): Snapshot {
+    fun completeTask(data: Snapshot, taskId: String, minutes: Int, questions: Int = 0, correct: Int = 0, notes: String = "", fromQuiz: Boolean = false, fromTopic: Boolean = false): Snapshot {
         val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
+        if (fromTopic && task.type !in setOf("THEORY", "REVIEW")) return data
         if (task.status in setOf("CONCLUIDA", "NAO_REALIZADA", "PAUSADA")) return data
         val plan = data.plans.firstOrNull { it.id == task.planId } ?: return data
         val completedAt = now()
         val startedAt = completedAt - minutes.coerceAtLeast(0) * 60_000L
         val nextRevision = plan.revision + 1
-        val nextStatus = if (!fromQuiz && minutes < task.minutes) "EM_ANDAMENTO" else "CONCLUIDA"
+        val nextStatus = if (!fromQuiz && !fromTopic && minutes < task.minutes) "EM_ANDAMENTO" else "CONCLUIDA"
         val reason = when {
             fromQuiz -> "QUESTION_BATTERY_COMPLETED"
             nextStatus == "CONCLUIDA" -> "TASK_COMPLETED"
@@ -113,21 +116,59 @@ object Actions {
 
     /**
      * StudyPlanViewModel.matchingPendingTask + completeFromTopic do app: concluir o tópico pelo Edital
-     * fecha também a tarefa pendente dele no plano ativo (a de hoje, senão a mais próxima), com o XP.
+     * fecha somente a tarefa de teoria dele. Questões são concluídas pela bateria ou pelo registro manual.
      */
-    fun completeStudyWithPlan(data: Snapshot, topicId: Long, startedAt: Long = now()): Snapshot {
+    fun completeStudyWithPlan(data: Snapshot, topicId: Long, startedAt: Long = now(), preferredTaskId: String? = null, actualMinutes: Int? = null): Snapshot {
+        val topic = data.topics.firstOrNull { it.id == topicId } ?: return data
+        if (topic.status in setOf("ESTUDADO", "REVISANDO", "DOMINADO")) return data
         var next = completeStudy(data, topicId, startedAt)
         val plan = Queries.activePlan(next) ?: return next
+        val preferred = next.tasks.firstOrNull { it.id == preferredTaskId }
+        if (preferred?.type == "THEORY" && (preferred.planId != plan.id || preferred.topicId != topicId || preferred.status !in setOf("PLANEJADA", "EM_ANDAMENTO"))) return next
         val today = Queries.todayEpoch()
         val task = next.tasks
-            .filter { it.planId == plan.id && it.topicId == topicId && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
-            .minByOrNull { if (it.day == today) Long.MIN_VALUE else it.day } ?: return next
-        next = completeTask(next, task.id, task.minutes)
+            .filter { it.planId == plan.id && it.topicId == topicId && it.type == "THEORY" && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }
+            .minWithOrNull(compareBy({ it.id != preferredTaskId }, { it.day != today }, { it.day })) ?: return next
+        next = completeTask(next, task.id, actualMinutes ?: task.minutes, fromTopic = true)
         return runCatching { Planning.replan(next, plan.id, br.com.estudario.domain.planner.ReplanReason.TASK_COMPLETED) }.getOrDefault(next)
     }
 
     /** Tira uma sessão do histórico do foco (vale no celular também, pela sincronização). */
     fun deleteFocusSession(data: Snapshot, id: String): Snapshot = data.edit(Keys.FOCUS_SESSIONS) { if (it.idIs(id)) null else it }
+
+    /**
+     * Revisão feita pela agenda: conclui a etapa e fecha a tarefa "Revisão" do plano de hoje (ou
+     * atrasada) daquele tópico. Antes ela ficava pendente, e o celular pedia a revisão de novo.
+     */
+    fun completeReviewWithPlan(data: Snapshot, reviewId: Long, difficulty: ReviewDifficulty, correct: Int, total: Int, startedAt: Long, recalled: Int, forgotten: Int): Snapshot {
+        val review = data.reviews.firstOrNull { it.id == reviewId } ?: return data
+        var next = completeReview(data, reviewId, difficulty, correct, total, startedAt, recalled, forgotten)
+        if (next === data) return data
+        val plan = Queries.activePlan(next) ?: return next
+        val task = next.tasks.filter {
+            it.planId == plan.id && it.topicId == review.topicId && it.type == "REVIEW" &&
+                it.status in setOf("PLANEJADA", "EM_ANDAMENTO") && it.day <= Queries.todayEpoch()
+        }.minByOrNull { it.day } ?: return next
+        val minutes = ((now() - startedAt) / 60_000L).toInt().coerceAtLeast(1)
+        next = completeTask(next, task.id, minutes, fromTopic = true)
+        return runCatching { Planning.replan(next, task.planId, br.com.estudario.domain.planner.ReplanReason.TASK_COMPLETED) }.getOrDefault(next)
+    }
+
+    fun completeFocusWithPlan(data: Snapshot, topicId: Long?, taskId: String?, startedAt: Long, minutes: Int): Snapshot {
+        if (taskId == null) return if (topicId == null) data else completeStudyWithPlan(data, topicId, startedAt, actualMinutes = minutes)
+        val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
+        // Tempo de leitura não é uma bateria respondida, mesmo quando o foco veio de questões.
+        if (task.type == "QUESTIONS") return data
+        var next = completeTask(data, taskId, minutes.coerceAtLeast(0), fromTopic = task.type in setOf("THEORY", "REVIEW"))
+        if (next === data) return data
+        if (task.type == "THEORY" && task.topicId != null) next = completeStudy(next, task.topicId, startedAt)
+        if (task.type == "REVIEW") {
+            next.reviews.filter { it.topicId == task.topicId && it.completedAt == null && it.ignoredAt == null }
+                .minByOrNull { it.dueAt }
+                ?.let { next = completeReview(next, it.id, ReviewDifficulty.NORMAL, startedAt = startedAt) }
+        }
+        return runCatching { Planning.replan(next, task.planId, br.com.estudario.domain.planner.ReplanReason.TASK_COMPLETED) }.getOrDefault(next)
+    }
 
     // ------------------------------------------------------------------ tópicos
 
@@ -188,25 +229,26 @@ object Actions {
         val review = data.reviews.firstOrNull { it.id == reviewId } ?: return data
         val at = now()
         val ofTopic = data.reviews.filter { it.topicId == review.topicId }
+        val change = ReviewStageProgression.record(
+            ofTopic.map { ReviewStageState(it.id, it.stage, it.dueAt, it.completedAt, it.ignoredAt, it.intervalDays) },
+            reviewId, difficulty, at, Queries.zone, correct, total,
+        ) ?: return data
+        val updates = change.stages.associateBy { it.id }
         var next = data.edit(Keys.REVIEWS) {
-            if (it.idIs(reviewId)) it.with("completedAt" to JsonPrimitive(at), "perceivedDifficulty" to JsonPrimitive(difficulty.name), "questionCorrect" to JsonPrimitive(correct), "questionTotal" to JsonPrimitive(total)) else it
-        }
-        val upcoming = ofTopic.filter { it.stage > review.stage && it.completedAt == null && it.ignoredAt == null }.minByOrNull { it.stage }
-        if (upcoming != null) {
-            val remaining = (upcoming.dueAt - at).coerceAtLeast(86_400_000L)
-            val adjusted = when (difficulty) {
-                ReviewDifficulty.DIFICIL -> at + 86_400_000L
-                ReviewDifficulty.NORMAL -> upcoming.dueAt
-                ReviewDifficulty.FACIL -> at + (remaining * 1.35).toLong()
+            val stage = updates[it.long("id")]
+            if (stage == null) it else {
+                val updated = it.with(
+                    "dueAt" to JsonPrimitive(stage.dueAt), "completedAt" to stage.completedAt.toJsonElement(),
+                    "intervalDays" to stage.intervalDays.toJsonElement(), "updatedAt" to JsonPrimitive(at),
+                )
+                if (it.idIs(reviewId)) updated.with("perceivedDifficulty" to JsonPrimitive(difficulty.name), "questionCorrect" to JsonPrimitive(correct), "questionTotal" to JsonPrimitive(total)) else updated
             }
-            if (adjusted != upcoming.dueAt) next = next.edit(Keys.REVIEWS) { if (it.idIs(upcoming.id)) it.with("dueAt" to JsonPrimitive(adjusted)) else it }
-        } else {
-            val ordered = ofTopic.sortedBy { it.stage }
-            val nextStage = (ordered.lastOrNull()?.stage ?: review.stage) + 1
-            val previousInterval = if (ordered.size >= 2) (ordered[ordered.lastIndex].dueAt - ordered[ordered.lastIndex - 1].dueAt) / 86_400_000L else ReviewIntervals.days.last()
-            val days = ReviewIntervals.adjustedIntervalDays(previousInterval, difficulty, correct, total)
-            next = next.append(Keys.REVIEWS, jsonOf("id" to next.nextId(Keys.REVIEWS), "topicId" to review.topicId, "stage" to nextStage, "dueAt" to startOfDayInDays(days), "completedAt" to null, "ignoredAt" to null, "perceivedDifficulty" to null, "questionCorrect" to 0, "questionTotal" to 0))
         }
+        change.newStage?.let { stage -> next = next.append(Keys.REVIEWS, jsonOf(
+            "id" to next.nextId(Keys.REVIEWS), "topicId" to review.topicId, "stage" to stage.stage, "dueAt" to stage.dueAt,
+            "completedAt" to null, "ignoredAt" to null, "perceivedDifficulty" to null, "questionCorrect" to 0, "questionTotal" to 0,
+            "intervalDays" to stage.intervalDays, "updatedAt" to at,
+        )) }
         next = next.append(Keys.REVIEW_HISTORY, jsonOf("id" to next.nextId(Keys.REVIEW_HISTORY), "topicId" to review.topicId, "reviewedAt" to at))
         next = next.append(
             Keys.REVIEW_SESSIONS,
@@ -217,7 +259,7 @@ object Actions {
 
     /** StudyRepository.ignoreReview */
     fun ignoreReview(data: Snapshot, reviewId: Long): Snapshot =
-        data.edit(Keys.REVIEWS) { if (it.idIs(reviewId)) it.with("ignoredAt" to JsonPrimitive(now())) else it }
+        data.edit(Keys.REVIEWS) { if (it.idIs(reviewId)) it.with("ignoredAt" to JsonPrimitive(now()), "updatedAt" to JsonPrimitive(now())) else it }
 
     // ------------------------------------------------------------------ questões
 

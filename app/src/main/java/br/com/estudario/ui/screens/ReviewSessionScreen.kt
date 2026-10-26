@@ -18,6 +18,19 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.WorkspacePremium
+import androidx.compose.material.icons.outlined.StickyNote2
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Balance
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,10 +49,18 @@ import androidx.compose.ui.unit.dp
 import br.com.estudario.data.local.QuestionWithOptions
 import br.com.estudario.data.local.ReviewDifficulty
 import br.com.estudario.data.local.ReviewScheduleEntity
+import br.com.estudario.domain.ReviewPracticeOptions
+import br.com.estudario.domain.ReviewQuestionOrder
 import br.com.estudario.data.local.SnippetKind
 import br.com.estudario.data.local.SummaryKind
 import br.com.estudario.domain.OptionShuffle
-import br.com.estudario.domain.ReviewIntervals
+import br.com.estudario.domain.ReviewStageProgression
+import br.com.estudario.domain.toStageState
+import br.com.estudario.domain.reviewPracticeQuestions
+import br.com.estudario.ui.brand.BrandIcon
+import br.com.estudario.ui.brand.Glyph
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon
@@ -56,9 +77,11 @@ import java.util.UUID
 private val RvGold = Color(0xFFF5B83D)
 private val RvMint = Color(0xFF2FBF8A)
 private val RvRed = Color(0xFFE5484D)
-private val stageLabels = listOf("D+1", "D+7", "D+30", "D+60", "D+120")
+/** "2ª revisão · 7 dias": a etapa e o intervalo de verdade (antes eram rótulos fixos D+1, D+7, D+30 que não batiam). */
+private fun stageName(review: ReviewScheduleEntity): String = "${review.stage}ª revisão" + (review.intervalDays?.let { " · $it ${if (it == 1L) "dia" else "dias"}" } ?: "")
 
-private enum class RvStep(val label: String) { RECALL("Lembrar"), SUMMARY("Revisar"), TEST("Testar"), RATE("Avaliar") }
+private enum class RvStep(val label: String) { START("Começar"), RECALL("Lembrar"), SUMMARY("Consultar"), TEST("Testar"), RATE("Avaliar") }
+private data class ReviewOutcome(val topicId: Long, val days: Long, val repeatedStage: Int? = null)
 
 /**
  * Revisão ativa, com a mesma cara do site: o caminho dos passos no alto, cartões que viram para
@@ -71,22 +94,28 @@ fun ReviewSessionScreen(
     reviewId: Long,
     onQuizTopic: (Long) -> Unit = {},
     onOpenTopic: (Long) -> Unit = {},
+    /** Revisão concluída (tópico, início): a rota fecha a tarefa de revisão do plano do dia. */
+    onReviewCompleted: (Long, Long) -> Unit = { _, _ -> },
     onBack: () -> Unit,
 ) {
     val reviews by viewModel.reviews.collectAsState()
     val topics by viewModel.topics.collectAsState()
-    val snippets by viewModel.snippets.collectAsState()
-    val summaries by viewModel.summaries.collectAsState()
     val allQuestions by viewModel.questions.collectAsState()
+    val preferences by viewModel.reviewPractice.collectAsState()
     val review = reviews.firstOrNull { it.id == reviewId }
     // Acabou de concluir: o fechamento, com as questões para fixar.
-    var done by remember { mutableStateOf<Pair<Long, Long>?>(null) }
-    done?.let { (topicId, days) ->
+    var done by remember { mutableStateOf<ReviewOutcome?>(null) }
+    done?.let { (topicId, days, repeatedStage) ->
         val available = allQuestions.count { it.question.topicId == topicId && !it.question.isHidden }
-        ReviewDone(topics.firstOrNull { it.id == topicId }?.title ?: "Tópico revisado", days, available, onQuiz = { onQuizTopic(topicId) }, onGenerate = { onOpenTopic(topicId) }, onBack = onBack)
+        ReviewDone(topics.firstOrNull { it.id == topicId }?.title ?: "Tópico revisado", days, available, repeatedStage, onQuiz = { onQuizTopic(topicId) }, onGenerate = { onOpenTopic(topicId) }, onBack = onBack)
         return
     }
     if (review == null) { EmptyState("Revisão não encontrada", "Ela pode já ter sido removida.", "Voltar", onBack); return }
+    if (review.completedAt != null || review.ignoredAt != null) { EmptyState("Revisão já encerrada", "Volte à agenda para ver a próxima etapa.", "Voltar", onBack); return }
+    if (reviews.any { it.topicId == review.topicId && it.stage < review.stage && it.completedAt == null && it.ignoredAt == null }) {
+        EmptyState("Há uma etapa anterior pendente", "Conclua a etapa anterior com Normal ou Fácil para avançar nesta revisão.", "Voltar às revisões", onBack)
+        return
+    }
     br.com.estudario.ui.HoldCelebrations()
     val topic = topics.firstOrNull { it.id == review.topicId }
     // Revisão espaçada vale no dia dela: antes, ainda é cedo (revisar antes enfraquece o efeito).
@@ -100,17 +129,45 @@ fun ReviewSessionScreen(
         ) { onQuizTopic(review.topicId) }
         return
     }
-    val recall = remember(review.topicId, snippets.size) { snippets.filter { it.topicId == review.topicId && it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.shuffled().take(8) }
-    val quick = summaries.firstOrNull { it.topicId == review.topicId && it.kind == SummaryKind.RAPIDO } ?: summaries.firstOrNull { it.topicId == review.topicId }
-    // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
-    val questions = remember(review.topicId) {
-        val doTopico = allQuestions.filter { it.question.topicId == review.topicId && !it.question.isHidden }
-        val erradas = doTopico.filter { it.question.errorCount > 0 }.sortedWith(compareByDescending<QuestionWithOptions> { it.question.errorCount }.thenBy { it.question.lastAnsweredAt ?: 0L })
-        val nunca = doTopico.filter { it.question.errorCount == 0 && it.question.answerCount == 0 }.shuffled()
-        val resto = doTopico.filter { it.question.errorCount == 0 && it.question.answerCount > 0 }.shuffled()
-        (erradas + nunca + resto).take(3)
+    val loadedOptions = preferences
+    if (loadedOptions == null) { Text("Preparando sua revisão…", Modifier.padding(24.dp)); return }
+    var loadAttempt by remember(reviewId) { mutableIntStateOf(0) }
+    val materialResult by produceState<Result<br.com.estudario.domain.ReviewPracticeMaterial>?>(null, reviewId, loadAttempt) {
+        value = try { Result.success(viewModel.loadReviewPracticeMaterial(review.topicId)) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (error: Exception) { Result.failure(error) }
     }
-    val steps = listOfNotNull(RvStep.RECALL.takeIf { recall.isNotEmpty() }, RvStep.SUMMARY, RvStep.TEST.takeIf { questions.isNotEmpty() }, RvStep.RATE)
+    if (materialResult?.isFailure == true) { EmptyState("Não consegui abrir o material", "Seu progresso continua salvo. Tente carregar a revisão novamente.", "Tentar novamente") { loadAttempt++ }; return }
+    val material = materialResult?.getOrNull()
+    if (material == null) { Text("Preparando seu material…", Modifier.padding(24.dp)); return }
+    var config by remember(reviewId) { mutableStateOf(loadedOptions) }
+    val practiceSeed = remember(reviewId) { System.nanoTime() }
+    var settingsOpen by remember(reviewId) { mutableStateOf(false) }
+    var highlightsOpen by remember(reviewId) { mutableStateOf(false) }
+    val topicTheories = material.theories
+    val theoryOrder = topicTheories.mapIndexed { index, theory -> theory.id to index }.toMap()
+    val highlights = remember(reviewId, material, config) {
+        material.marks.filter { it.theoryId in theoryOrder && it.quote.isNotBlank() }
+            .sortedWith(compareBy({ theoryOrder[it.theoryId] }, { it.blockIndex }, { it.createdAt }))
+            .map { ReviewCard("GRIFO", topicTheories.firstOrNull { theory -> theory.id == it.theoryId }?.title.orEmpty(), it.quote, it.note.takeIf { _ -> config.showHighlightNotes }) }
+    }
+    if (highlightsOpen && highlights.isNotEmpty()) NotebookReview("Grifos · ${topic?.title.orEmpty()}", highlights, allowNavigation = false) { highlightsOpen = false }
+    val recall = remember(reviewId, material, config) {
+        val cards = material.snippets.filter { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.sortedWith(compareBy({ it.position }, { it.id }))
+        (if (config.shuffleFlashcards) cards.shuffled(kotlin.random.Random(practiceSeed)) else cards).take(config.flashcardCount)
+    }
+    val quick = material.summaries.firstOrNull { it.kind == SummaryKind.RAPIDO } ?: material.summaries.firstOrNull()
+    // Revisar é reencontrar a falha: primeiro o que já errou, depois o que nunca respondeu, depois o resto.
+    val questions = remember(reviewId, material, config) { reviewPracticeQuestions(material.questions, review.topicId, config, practiceSeed) }
+    val consultation = config.showSummary || (config.offerHighlights && highlights.isNotEmpty())
+    // A abertura (START) diz o que vem e quanto leva; sem atividade, vai direto ao ajuste.
+    val activities = listOfNotNull(RvStep.RECALL.takeIf { recall.isNotEmpty() }, RvStep.SUMMARY.takeIf { consultation }, RvStep.TEST.takeIf { questions.isNotEmpty() })
+    val steps = (if (activities.isEmpty()) emptyList() else listOf(RvStep.START)) + activities + RvStep.RATE
+    // Difícil na última vez: a mesma etapa volta todo dia até a pessoa marcar Normal ou Fácil.
+    val repeating = review.perceivedDifficulty == ReviewDifficulty.DIFICIL
+    val lastSeen = (reviews.filter { it.topicId == review.topicId }.mapNotNull { it.completedAt } + listOfNotNull(topic?.lastReviewedAt)).maxOrNull()
+    val minutes = (recall.size * 0.7 + (if (config.showSummary && quick != null) 2.0 else 0.0) + questions.size * 1.5 + 0.5).toInt().coerceAtLeast(1)
+    if (settingsOpen) ReviewPracticeSettings(loadedOptions, onClose = { settingsOpen = false }, onSave = { viewModel.setReviewPractice(it); if (steps.size == 1) config = it; settingsOpen = false })
     val scope = rememberCoroutineScope()
     val startedAt = remember { System.currentTimeMillis() }
     val sessionId = remember { "review-${UUID.randomUUID()}" }
@@ -125,21 +182,60 @@ fun ReviewSessionScreen(
     var correct by remember { mutableIntStateOf(0) }
     // Alternativas riscadas, como no treino normal (tocar no risco de novo desfaz).
     var crossed by remember { mutableStateOf(setOf<Long>()) }
+    // Respostas desta revisão, na ordem: o Folha reage como no treino (ufa, sequência, acolhe).
+    var results by remember { mutableStateOf(listOf<Boolean>()) }
     val step = steps[stepIndex.coerceAtMost(steps.lastIndex)]
     fun advance() { stepIndex = (stepIndex + 1).coerceAtMost(steps.lastIndex) }
+    // Quanto da revisão já foi: cada cartão e cada questão contam um passinho.
+    val totalUnits = recall.size + (if (consultation) 1 else 0) + questions.size + 1
+    val doneUnits = when (step) {
+        RvStep.START -> 0
+        RvStep.RECALL -> recallIndex
+        RvStep.SUMMARY -> recall.size
+        RvStep.TEST -> recall.size + (if (consultation) 1 else 0) + questionIndex + (if (answered != null) 1 else 0)
+        RvStep.RATE -> totalUnits - 1
+    }
+    val progress by androidx.compose.animation.core.animateFloatAsState(doneUnits / totalUnits.coerceAtLeast(1).toFloat(), label = "rv-progress")
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Sair") }
                 Column(Modifier.weight(1f)) {
-                    Text("Revisão · ${stageLabels.getOrElse(review.stage - 1) { "etapa ${review.stage}" }}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
+                    Text(stageName(review), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
                     Text(topic?.title ?: "Tópico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                    Text("${recall.size} ${if (recall.size == 1) "flashcard" else "flashcards"} · ${questions.size} ${if (questions.size == 1) "questão" else "questões"} · ~$minutes min", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                // Os grifos da matéria, a qualquer momento e só para ler (não dá para mudar daqui).
+                if (highlights.isNotEmpty()) IconButton(onClick = { highlightsOpen = true }, modifier = Modifier.semantics { contentDescription = "Ler meus grifos (só leitura)" }) {
+                    androidx.compose.material3.BadgedBox(badge = { androidx.compose.material3.Badge(containerColor = RvGold) { Text("${highlights.size}", color = Color(0xFF3B2300)) } }) { BrandIcon(Glyph.Bookmark, size = 24.dp) }
+                }
+                IconButton(onClick = { settingsOpen = true }, modifier = Modifier.semantics { contentDescription = "Configurar próximas revisões" }) { BrandIcon(Glyph.Gear) }
             }
         }
-        item { StepPath(steps, stepIndex) }
+        item {
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { progress }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
+                color = RvGold, trackColor = MaterialTheme.colorScheme.surfaceVariant, drawStopIndicator = {},
+            )
+        }
+        if (step != RvStep.START) item { StepPath(steps.filter { it != RvStep.START }, stepIndex - (if (steps.first() == RvStep.START) 1 else 0)) }
         when (step) {
+            RvStep.START -> item {
+                ReviewStart(
+                    topicTitle = topic?.title ?: "este tópico", repeating = repeating, lastSeen = lastSeen,
+                    recall = recall.size, consultation = consultation, summary = config.showSummary, questions = questions.size,
+                    stage = review.stage, minutes = minutes, onStart = { advance() },
+                    tuner = {
+                        ReviewTuner(
+                            config,
+                            cards = material.snippets.count { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() },
+                            questions = material.questions.count { it.question.topicId == review.topicId && !it.question.isHidden && it.question.simulationId == null },
+                            hasSummary = quick != null, hasHighlights = material.marks.any { it.theoryId in theoryOrder && it.quote.isNotBlank() },
+                        ) { next -> config = next; viewModel.setReviewPractice(next) }
+                    },
+                )
+            }
             RvStep.RECALL -> {
                 val prompt = recall[recallIndex.coerceAtMost(recall.lastIndex)]
                 item {
@@ -155,7 +251,14 @@ fun ReviewSessionScreen(
                 }
             }
             RvStep.SUMMARY -> {
-                item {
+                if (config.offerHighlights && highlights.isNotEmpty()) item {
+                    PaperCard("SEUS GRIFOS") {
+                        Text("Você já tentou lembrar. Quer conferir o que destacou?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Leia seus ${highlights.size} trechos, um por vez, e volte para continuar a revisão.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        br.com.estudario.ui.brand.OutlinedButton(onClick = { highlightsOpen = true }, modifier = Modifier.fillMaxWidth()) { BrandIcon(Glyph.Bookmark, size = 24.dp); Spacer(Modifier.width(8.dp)); Text("Ler meus grifos") }
+                    }
+                }
+                if (config.showSummary) item {
                     PaperCard("REVISÃO RÁPIDA") {
                         if (quick == null) Text("Este tópico ainda não tem revisão rápida. Relembre os pontos principais e siga.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else MarkdownText(quick.markdown)
@@ -211,26 +314,208 @@ fun ReviewSessionScreen(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background((if (answered == true) RvMint else RvRed).copy(alpha = 0.12f)).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Text(if (answered == true) "Isso! Você lembrou." else "Ainda não. Ela vai para o caderno de erros.", fontWeight = FontWeight.Black, color = if (answered == true) Color(0xFF1E9A6C) else RvRed)
+                        // O Folha reage como no treino: comemora, consola, solta o "ufa" ao virar e acolhe na sequência de erros.
+                        val right = answered == true
+                        val inARow = results.asReversed().takeWhile { it }.size
+                        val relief = right && inARow == 1 && results.size >= 2 && !results[results.size - 2]
+                        val tough = !right && results.size >= 3 && results.takeLast(3).none { it }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            androidx.compose.runtime.key(question.question.id) {
+                                br.com.estudario.ui.assistant.Folha(
+                                    56.dp,
+                                    mood = when {
+                                        relief -> br.com.estudario.ui.assistant.FolhaMood.RELIEVED
+                                        right -> br.com.estudario.ui.assistant.FolhaMood.HAPPY
+                                        tough -> br.com.estudario.ui.assistant.FolhaMood.TALKING
+                                        else -> br.com.estudario.ui.assistant.FolhaMood.SAD
+                                    },
+                                )
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text(when { relief -> "Ufa, virou!"; right -> "Isso! Você lembrou."; tough -> "Tô aqui com você"; else -> "Ainda não." }, fontWeight = FontWeight.Black, color = if (right) Color(0xFF1E9A6C) else RvRed)
+                                Text(
+                                    when {
+                                        relief -> br.com.estudario.ui.assistant.FolhaLines.forRelief(question.question.id)
+                                        tough -> br.com.estudario.domain.FolhaMemory.toughLines[(question.question.id % br.com.estudario.domain.FolhaMemory.toughLines.size).toInt()]
+                                        else -> br.com.estudario.ui.assistant.FolhaLines.forAnswer(right, question.question.id)
+                                    } + if (right) "" else " Ela foi para o caderno de erros.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
                         MarkdownText(OptionShuffle.relabel(question.question.explanation, original.map { it.key }, order))
                     }
                 }
                 item {
-                    if (answered == null) Button(enabled = selected != null, onClick = { scope.launch { answered = viewModel.answer(question, selected!!, sessionId); if (answered == true) correct++ } }, modifier = Modifier.fillMaxWidth()) { Text("Confirmar") }
+                    if (answered == null) Button(enabled = selected != null, onClick = { scope.launch { val ok = viewModel.answer(question, selected!!, sessionId); answered = ok; if (ok == true) correct++; results = results + (ok == true) } }, modifier = Modifier.fillMaxWidth()) { Text("Confirmar") }
                     else Button(onClick = { crossed = emptySet(); if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, Modifier.fillMaxWidth()) {
                         Text(if (questionIndex < questions.lastIndex) "Próxima questão" else "Avaliar a revisão")
                     }
                 }
             }
             RvStep.RATE -> item {
-                RateCard(review, reviews, recalled, forgotten, correct, questions.size) { difficulty ->
+                if (steps.size == 1) {
+                    EmptyState("Monte sua revisão", "Não há atividade disponível com suas escolhas. Ative flashcards, resumo ou questões na engrenagem.", "Ajustar revisão") { settingsOpen = true }
+                } else RateCard(review, reviews, recalled, forgotten, correct, questions.size) { difficulty ->
                     val days = nextDueDays(review, reviews, difficulty, correct, questions.size)
                     viewModel.completeReview(review, difficulty, correct, questions.size, recalled, forgotten, startedAt)
-                    done = review.topicId to days
+                    onReviewCompleted(review.topicId, startedAt)
+                    done = ReviewOutcome(review.topicId, days, review.stage.takeIf { difficulty == ReviewDifficulty.DIFICIL })
                 }
             }
         }
     }
+}
+
+/** Modelos prontos de revisão: rápida, equilibrada e completa (os mesmos do site). */
+private val rvPresets = listOf(
+    Triple(Icons.Outlined.Bolt, "Rápida", ReviewPracticeOptions(questionCount = 3, flashcardCount = 4, showSummary = false, offerHighlights = false)),
+    Triple(Icons.Outlined.Balance, "Equilibrada", ReviewPracticeOptions(questionCount = 5, flashcardCount = 8)),
+    Triple(Icons.Outlined.WorkspacePremium, "Completa", ReviewPracticeOptions(questionCount = 10, flashcardCount = 15)),
+)
+
+/**
+ * "Monte sua revisão", à vista na abertura (antes só na engrenagem): modelos prontos, quantos cartões
+ * e questões, o que consultar e a ordem. Muda esta sessão na hora e fica salvo para as próximas.
+ */
+@Composable
+private fun ReviewTuner(config: ReviewPracticeOptions, cards: Int, questions: Int, hasSummary: Boolean, hasHighlights: Boolean, onChange: (ReviewPracticeOptions) -> Unit) {
+    fun same(a: ReviewPracticeOptions, b: ReviewPracticeOptions) =
+        a.questionCount == b.questionCount && a.flashcardCount == b.flashcardCount && a.showSummary == b.showSummary && a.offerHighlights == b.offerHighlights
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column {
+            Text("Monte sua revisão", fontWeight = FontWeight.Black)
+            Text("Vale agora e fica salvo para as próximas", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            rvPresets.forEach { (icon, name, preset) ->
+                val on = same(config, preset)
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                        .background(if (on) RvGold.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceContainerLow)
+                        .border(2.dp, if (on) RvGold else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                        .clickable { onChange(preset.copy(order = config.order, shuffleFlashcards = config.shuffleFlashcards, showHighlightNotes = config.showHighlightNotes)) }
+                        .semantics { contentDescription = "Revisão $name" }
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Icon(icon, null, tint = Color(0xFFC98A0B))
+                    Text(name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodyMedium)
+                    Text("${preset.flashcardCount} cartões · ${preset.questionCount} questões", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        RvCount(Icons.Outlined.Psychology, "Cartões para lembrar", config.flashcardCount, cards, 30) { onChange(config.copy(flashcardCount = it)) }
+        RvCount(Icons.Outlined.Quiz, "Questões", config.questionCount, questions, 50) { onChange(config.copy(questionCount = it)) }
+        RvToggle(Icons.Outlined.MenuBook, "Revisão rápida", config.showSummary, hasSummary) { onChange(config.copy(showSummary = it)) }
+        RvToggle(Icons.Outlined.Bookmarks, "Oferecer meus grifos", config.offerHighlights, hasHighlights) { onChange(config.copy(offerHighlights = it)) }
+        RvToggle(Icons.Outlined.StickyNote2, "Notas dos grifos", config.showHighlightNotes, hasHighlights) { onChange(config.copy(showHighlightNotes = it)) }
+        RvToggle(Icons.Outlined.Shuffle, "Embaralhar cartões", config.shuffleFlashcards, true) { onChange(config.copy(shuffleFlashcards = it)) }
+        Text("Questões primeiro", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(ReviewQuestionOrder.ERRORS_FIRST to "as que errei", ReviewQuestionOrder.UNSEEN_FIRST to "as novas", ReviewQuestionOrder.MIXED to "misturado").forEach { (order, label) ->
+                androidx.compose.material3.FilterChip(selected = config.order == order, onClick = { onChange(config.copy(order = order)) }, label = { Text(label) })
+            }
+        }
+    }
+}
+
+/** Um contador da revisão (− número +), com quantos o tópico tem. */
+@Composable
+private fun RvCount(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: Int, available: Int, max: Int, onChange: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(RvGold.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color(0xFFC98A0B)) }
+        Column(Modifier.weight(1f)) {
+            Text(label, fontWeight = FontWeight.Bold)
+            Text(if (available == 0) "Este tópico ainda não tem" else if (value > available) "Vai usar as $available que o tópico tem" else "O tópico tem $available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        IconButton(onClick = { onChange((value - 1).coerceAtLeast(0)) }, enabled = value > 0, modifier = Modifier.semantics { contentDescription = "Menos" }) { Icon(Icons.Outlined.Remove, null) }
+        Text("${value.coerceAtMost(available)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+        IconButton(onClick = { onChange((value + 1).coerceAtMost(max)) }, enabled = value < max && value < available, modifier = Modifier.semantics { contentDescription = "Mais" }) { Icon(Icons.Outlined.Add, null) }
+    }
+}
+
+@Composable
+private fun RvToggle(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(enabled = enabled) { onChange(!on) }.padding(horizontal = 12.dp, vertical = 4.dp)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.5f },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(icon, null, tint = if (on && enabled) Color(0xFFC98A0B) else MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+        androidx.compose.material3.Switch(checked = on && enabled, onCheckedChange = { onChange(it) }, enabled = enabled)
+    }
+}
+
+/** A abertura da revisão: o Folha chama para relembrar, diz o que vem, quanto leva e onde está na escadinha. */
+@Composable
+private fun ReviewStart(topicTitle: String, repeating: Boolean, lastSeen: Long?, recall: Int, consultation: Boolean, summary: Boolean, questions: Int, stage: Int, minutes: Int, onStart: () -> Unit, tuner: @Composable () -> Unit = {}) {
+    val since = lastSeen?.let { ((System.currentTimeMillis() - it) / 86_400_000L).toInt() }
+    PaperCard(if (repeating) "REPETINDO A ETAPA" else "HORA DE RELEMBRAR") {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            br.com.estudario.ui.assistant.Folha(80.dp, mood = if (repeating) br.com.estudario.ui.assistant.FolhaMood.TALKING else br.com.estudario.ui.assistant.FolhaMood.HAPPY)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(if (repeating) "De novo hoje, e tudo bem!" else "Bora relembrar $topicTitle?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Text(
+                    when {
+                        repeating -> "Na última você marcou Difícil, então ela voltou na mesma etapa. Volta todo dia até ficar Normal ou Fácil: é assim que fixa."
+                        since == null -> "Recuperar de memória agora é o que faz isso ficar para a prova."
+                        since <= 0 -> "Você viu isso hoje mesmo. Uma passada rápida e está garantido."
+                        since == 1 -> "Faz 1 dia que você viu isso. É o momento certo de puxar da memória."
+                        else -> "Faz $since dias que você viu isso. É o momento certo de puxar da memória, antes de esquecer."
+                    },
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (recall > 0) PlanItem(Icons.Outlined.Psychology, "$recall ${if (recall == 1) "cartão" else "cartões"} para lembrar", "Tente responder antes de virar")
+        if (consultation) PlanItem(Icons.Outlined.MenuBook, if (summary) "Revisão rápida" else "Seus grifos", "Para conferir o que você lembrou")
+        if (questions > 0) PlanItem(Icons.Outlined.Quiz, "$questions ${if (questions == 1) "questão" else "questões"}", "As que você errou vêm primeiro")
+        PlanItem(Icons.Outlined.StarOutline, "Como foi", "Difícil volta amanhã; Normal e Fácil avançam a etapa")
+        tuner()
+        StageLadder(stage, repeating)
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Começar · ~$minutes min", fontWeight = FontWeight.Black) }
+    }
+}
+
+@Composable
+private fun PlanItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, hint: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(RvGold.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color(0xFFC98A0B)) }
+        Column { Text(title, fontWeight = FontWeight.Bold); Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+/** Cinco etapas em volta da atual (na 7ª, da 5ª à 9ª); a etapa repetida por Difícil fica laranja. */
+@Composable
+private fun StageLadder(stage: Int, repeating: Boolean) {
+    val first = (stage - 2).coerceAtLeast(1)
+    val orange = Color(0xFFFF8A3D)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        (first until first + 5).forEach { s ->
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val color = when { s < stage -> RvMint; s == stage -> if (repeating) orange else RvGold; else -> MaterialTheme.colorScheme.surfaceVariant }
+                Box(Modifier.size(24.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+                    if (s < stage) Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Color.White)
+                    else if (s == stage && repeating) Icon(Icons.Outlined.Replay, null, Modifier.size(14.dp), tint = Color.White)
+                }
+                Text("${s}ª", style = MaterialTheme.typography.labelSmall, fontWeight = if (s == stage) FontWeight.Black else FontWeight.SemiBold, color = if (s == stage) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    if (repeating) Text("Repetindo esta etapa: volta todo dia até você marcar Normal ou Fácil.", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color(0xFFB5560F), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
 }
 
 /** O caminho da revisão: os passos feitos ficam verdes, o de agora em destaque. */
@@ -292,22 +577,10 @@ private fun ChoiceButton(label: String, icon: androidx.compose.ui.graphics.vecto
 /** Quando o tópico volta com cada escolha: a mesma regra de StudyRepository.completeReview. */
 private fun nextDueDays(review: ReviewScheduleEntity, all: List<ReviewScheduleEntity>, difficulty: ReviewDifficulty, correct: Int, total: Int): Long {
     val now = System.currentTimeMillis()
-    val doTopico = all.filter { it.topicId == review.topicId }
-    val next = doTopico.filter { it.stage > review.stage && it.completedAt == null && it.ignoredAt == null }.minByOrNull { it.stage }
-    val zone = ZoneId.systemDefault()
-    val today = LocalDate.now(zone)
-    if (next != null) {
-        val remaining = (next.dueAt - now).coerceAtLeast(86_400_000L)
-        val due = when (difficulty) {
-            ReviewDifficulty.DIFICIL -> now + 86_400_000L
-            ReviewDifficulty.NORMAL -> next.dueAt
-            ReviewDifficulty.FACIL -> now + (remaining * 1.35).toLong()
-        }
-        return java.time.temporal.ChronoUnit.DAYS.between(today, java.time.Instant.ofEpochMilli(due).atZone(zone).toLocalDate()).coerceAtLeast(1)
-    }
-    val ordenadas = doTopico.sortedBy { it.stage }
-    val anterior = if (ordenadas.size >= 2) (ordenadas[ordenadas.lastIndex].dueAt - ordenadas[ordenadas.lastIndex - 1].dueAt) / 86_400_000L else ReviewIntervals.days.last()
-    return ReviewIntervals.adjustedIntervalDays(anterior, difficulty, correct, total).coerceAtLeast(1)
+    val zone = kotlinx.datetime.TimeZone.currentSystemDefault()
+    val change = ReviewStageProgression.record(all.filter { it.topicId == review.topicId }.map { it.toStageState() }, review.id, difficulty, now, zone, correct, total) ?: return 1
+    val due = (change.stages + listOfNotNull(change.newStage)).filter { it.pending }.minByOrNull { it.stage }?.dueAt ?: return 1
+    return br.com.estudario.time.daysBetween(br.com.estudario.time.epochMillisToDate(now, zone), br.com.estudario.time.epochMillisToDate(due, zone)).coerceAtLeast(1)
 }
 
 @Composable
@@ -324,11 +597,11 @@ private fun RateCard(review: ReviewScheduleEntity, all: List<ReviewScheduleEntit
             br.com.estudario.ui.assistant.Folha(76.dp, mood = if ((score ?: 0.6) >= 0.5) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.THINKING)
         }
         Text("Como foi lembrar este tópico?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 6.dp).marker())
-        Text("A escolha define quando ele volta. Sugerimos pelo seu desempenho, mas a decisão é sua.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Difícil repete amanhã sem avançar a etapa. Normal e Fácil avançam. A sugestão vem do seu desempenho; a decisão é sua.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         listOf(
             Triple(ReviewDifficulty.FACIL, "Fácil", "Recuperei quase tudo com segurança"),
             Triple(ReviewDifficulty.NORMAL, "Normal", "Lembrei depois de pensar um pouco"),
-            Triple(ReviewDifficulty.DIFICIL, "Difícil", "Ainda confundo pontos importantes"),
+            Triple(ReviewDifficulty.DIFICIL, "Difícil", "Repito amanhã, na mesma etapa"),
         ).forEach { (difficulty, label, hint) ->
             val color = when (difficulty) { ReviewDifficulty.FACIL -> RvMint; ReviewDifficulty.NORMAL -> MaterialTheme.colorScheme.primary; ReviewDifficulty.DIFICIL -> RvRed }
             val on = pick == difficulty
@@ -357,7 +630,7 @@ private fun RateCard(review: ReviewScheduleEntity, all: List<ReviewScheduleEntit
                 }
             }
         }
-        Button(onClick = { onDone(pick) }, Modifier.fillMaxWidth().padding(top = 4.dp)) { Text("Concluir revisão") }
+        Button(onClick = { onDone(pick) }, Modifier.fillMaxWidth().padding(top = 4.dp)) { Text(if (pick == ReviewDifficulty.DIFICIL) "Salvar e repetir amanhã" else "Concluir etapa") }
     }
 }
 
@@ -383,19 +656,20 @@ private fun ResultRing(value: Int, total: Int, label: String) {
 
 /** Revisão concluída: quando o tópico volta e algumas questões dele agora, para fixar de verdade. */
 @Composable
-private fun ReviewDone(title: String, days: Long, available: Int, onQuiz: () -> Unit, onGenerate: () -> Unit, onBack: () -> Unit) {
+private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage: Int?, onQuiz: () -> Unit, onGenerate: () -> Unit, onBack: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
         br.com.estudario.ui.assistant.Folha(120.dp, mood = br.com.estudario.ui.assistant.FolhaMood.HAPPY)
-        Text("REVISÃO CONCLUÍDA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
+        Text(if (repeatedStage != null) "SESSÃO REGISTRADA · ETAPA MANTIDA" else "ETAPA CONCLUÍDA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
         // O XP da revisão, à vista: é o que dá peso a ela.
         br.com.estudario.ui.components.XpTag(br.com.estudario.domain.ProgressEngine.previewReview(), earned = true)
         Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            if (days <= 1L) "Ele volta amanhã para mais uma revisão." else "Ele volta em $days dias. Até lá, a memória trabalha por você.",
+            if (repeatedStage != null) "A ${repeatedStage}ª revisão volta amanhã. Você avança quando marcar Normal ou Fácil."
+            else if (days <= 1L) "Ele volta amanhã para mais uma revisão." else "Ele volta em $days dias. Até lá, a memória trabalha por você.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
         )
         Row(

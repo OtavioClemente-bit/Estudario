@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,10 @@ import br.com.estudario.domain.ComputedReviewStatus
 import br.com.estudario.domain.ReviewPolicy
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.brand.Icon
+import br.com.estudario.ui.brand.BrandIcon
+import br.com.estudario.ui.brand.Glyph
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import br.com.estudario.ui.brand.marker
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.theme.screenPadding
@@ -43,7 +48,8 @@ private val Mint = Color(0xFF2FBF8A)
 private val Red = Color(0xFFE5484D)
 private val InkA = Color(0xFF2E2799)
 private val InkB = Color(0xFF1B1464)
-private val ladder = listOf("D+1", "D+7", "D+30", "D+60")
+/** Cinco etapas por vez, em volta da atual (antes, rótulos fixos D+1…D+60 que não batiam com os intervalos reais). */
+private const val LADDER = 5
 
 /**
  * As revisões espaçadas com a cara do Estudário, como no site: o cartão de tinta com o que há para
@@ -61,6 +67,9 @@ fun ReviewsScreen(
     val reviews by viewModel.reviews.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
+    val options by viewModel.reviewPractice.collectAsState()
+    var settingsOpen by remember { mutableStateOf(false) }
+    if (settingsOpen) options?.let { initial -> ReviewPracticeSettings(initial, onClose = { settingsOpen = false }, onSave = { viewModel.setReviewPractice(it); settingsOpen = false }) }
     val pending = reviews.filter { it.completedAt == null && it.ignoredAt == null }
     val due = pending.filter { ReviewPolicy.status(it) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }.sortedBy { it.dueAt }
     val late = due.count { ReviewPolicy.status(it) == ComputedReviewStatus.ATRASADA }
@@ -74,10 +83,11 @@ fun ReviewsScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (showInlineBack) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") }
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text("Revisões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(start = 3.dp).marker())
                     Text("Revisar na hora certa é o que faz o conteúdo ficar", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                IconButton(onClick = { settingsOpen = true }, enabled = options != null, modifier = Modifier.semantics { contentDescription = "Configurar revisão" }) { BrandIcon(Glyph.Gear) }
             }
         }
         item {
@@ -90,11 +100,20 @@ fun ReviewsScreen(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text("REVISÃO ESPAÇADA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Gold)
-                Text(
-                    if (due.isEmpty()) "Tudo em dia por hoje" else "${due.size} ${if (due.size == 1) "revisão" else "revisões"} para hoje",
-                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("REVISÃO ESPAÇADA", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Gold)
+                        Text(
+                            if (due.isEmpty()) "Tudo em dia por hoje" else "${due.size} ${if (due.size == 1) "revisão" else "revisões"} para hoje",
+                            style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White,
+                        )
+                        Text(
+                            when { due.isEmpty() -> "Mandou bem. Amanhã tem mais."; late > 0 -> "Comece pelas atrasadas: são as que mais escapam."; else -> "Poucos minutos cada. É o que segura a matéria até a prova." },
+                            style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.78f),
+                        )
+                    }
+                    br.com.estudario.ui.assistant.Folha(72.dp, mood = when { due.isEmpty() -> br.com.estudario.ui.assistant.FolhaMood.PROUD; late > 0 -> br.com.estudario.ui.assistant.FolhaMood.TALKING; else -> br.com.estudario.ui.assistant.FolhaMood.HAPPY })
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HeroStat("${due.size}", "hoje", Gold, Modifier.weight(1f))
                     HeroStat("$late", "atrasadas", Color(0xFFFF8A80), Modifier.weight(1f))
@@ -110,7 +129,7 @@ fun ReviewsScreen(
                 }
             }
         }
-        if (due.isEmpty() && upcoming.isEmpty()) item { EmptyState("Revisões em dia", "Marque um tópico como estudado: as revisões entram sozinhas em D+1, D+7 e D+30.") }
+        if (due.isEmpty() && upcoming.isEmpty()) item { EmptyState("Revisões em dia", "Marque um tópico como estudado: as revisões entram sozinhas, cada uma no dia certo.") }
         if (due.isNotEmpty()) item { Text("Para fazer agora", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface) }
         items(due, key = { it.id }) { review ->
             val topic = topics.firstOrNull { it.id == review.topicId }
@@ -126,6 +145,12 @@ fun ReviewsScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text((subject?.name ?: "").uppercase(), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Difícil na última: a mesma etapa volta todo dia até ficar Normal ou Fácil.
+                    if (daysLate <= 0 && review.perceivedDifficulty == br.com.estudario.data.local.ReviewDifficulty.DIFICIL) Text(
+                        "repetindo",
+                        Modifier.clip(RoundedCornerShape(50)).background(Gold.copy(alpha = 0.22f)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFF9A6700),
+                    )
                     if (daysLate > 0) Text(
                         "atrasada $daysLate ${if (daysLate == 1L) "dia" else "dias"}",
                         Modifier.clip(RoundedCornerShape(50)).background(Red.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 2.dp),
@@ -133,7 +158,7 @@ fun ReviewsScreen(
                     )
                 }
                 Text(topic?.title ?: "Tópico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
-                StageLadder(review.stage)
+                StageLadder(review.stage, review.perceivedDifficulty == br.com.estudario.data.local.ReviewDifficulty.DIFICIL)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { onOpenTopic(review.topicId) }) { Text("Ver tópico") }
                     TextButton(onClick = { viewModel.ignoreReview(review) }) { Text("Pular") }
@@ -157,7 +182,7 @@ fun ReviewsScreen(
                         list.forEach { review ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    ladder.getOrElse(review.stage - 1) { "R${review.stage}" },
+                                    "${review.stage}ª",
                                     Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 8.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 )
@@ -184,22 +209,26 @@ private fun HeroStat(value: String, label: String, color: Color, modifier: Modif
 
 /** A escadinha das etapas: feitas em verde, a de agora em dourado. */
 @Composable
-private fun StageLadder(stage: Int) {
+private fun StageLadder(stage: Int, repeating: Boolean = false) {
+    val first = (stage - 2).coerceAtLeast(1)
+    val nowColor = if (repeating) Color(0xFFFF8A3D) else Gold
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        ladder.forEachIndexed { i, label ->
-            val s = i + 1
+        (0 until LADDER).forEach { i ->
+            val s = first + i
             val done = s < stage
             val now = s == stage
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
-                    Modifier.size(22.dp).clip(CircleShape).background(when { done -> Mint; now -> Gold; else -> Color.Transparent })
-                        .border(2.dp, when { done -> Mint; now -> Gold; else -> MaterialTheme.colorScheme.outlineVariant }, CircleShape),
+                    Modifier.size(22.dp).clip(CircleShape).background(when { done -> Mint; now -> nowColor; else -> Color.Transparent })
+                        .border(2.dp, when { done -> Mint; now -> nowColor; else -> MaterialTheme.colorScheme.outlineVariant }, CircleShape),
                     contentAlignment = Alignment.Center,
-                ) { if (done) Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Color.White) }
-                Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = if (now) FontWeight.Black else FontWeight.SemiBold, color = if (now) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                ) {
+                    if (done) Icon(Icons.Outlined.Check, null, Modifier.size(14.dp), tint = Color.White)
+                    else if (now && repeating) Icon(Icons.Outlined.Replay, null, Modifier.size(14.dp), tint = Color.White)
+                }
+                Text("${s}ª", style = MaterialTheme.typography.labelSmall, fontWeight = if (now) FontWeight.Black else FontWeight.SemiBold, color = if (now) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (i < ladder.lastIndex) Box(Modifier.weight(1f).padding(top = 10.dp, start = 4.dp, end = 4.dp).height(2.dp).background(if (done) Mint else MaterialTheme.colorScheme.outlineVariant))
+            if (i < LADDER - 1) Box(Modifier.weight(1f).padding(top = 10.dp, start = 4.dp, end = 4.dp).height(2.dp).background(if (done) Mint else MaterialTheme.colorScheme.outlineVariant))
         }
-        if (stage > ladder.size) Text("  etapa $stage", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

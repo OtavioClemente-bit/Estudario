@@ -105,6 +105,7 @@ interface AppDao {
 
     @Query("SELECT * FROM topic_snippets ORDER BY topicId, kind, position, id") fun snippets(): Flow<List<TopicSnippetEntity>>
     @Query("SELECT * FROM topic_snippets ORDER BY topicId, kind, position, id") suspend fun snippetsOnce(): List<TopicSnippetEntity>
+    @Query("SELECT * FROM topic_snippets WHERE topicId = :topicId ORDER BY position, id") suspend fun reviewSnippetsFor(topicId: Long): List<TopicSnippetEntity>
     @Query("SELECT * FROM topic_snippets WHERE externalId = :externalId LIMIT 1") suspend fun snippetByExternalId(externalId: String): TopicSnippetEntity?
     @Insert suspend fun insertSnippet(value: TopicSnippetEntity): Long
     @Update suspend fun updateSnippet(value: TopicSnippetEntity)
@@ -112,6 +113,7 @@ interface AppDao {
 
     @Query("SELECT * FROM theory_documents ORDER BY updatedAt DESC") fun theories(): Flow<List<TheoryDocumentEntity>>
     @Query("SELECT * FROM theory_documents ORDER BY updatedAt DESC") suspend fun theoriesOnce(): List<TheoryDocumentEntity>
+    @Query("SELECT * FROM theory_documents WHERE topicId = :topicId ORDER BY updatedAt DESC") suspend fun reviewTheoriesFor(topicId: Long): List<TheoryDocumentEntity>
     @Query("SELECT * FROM theory_documents WHERE externalId = :externalId LIMIT 1") suspend fun theoryByExternalId(externalId: String): TheoryDocumentEntity?
     @Insert suspend fun insertTheory(value: TheoryDocumentEntity): Long
     @Update suspend fun updateTheory(value: TheoryDocumentEntity)
@@ -119,12 +121,14 @@ interface AppDao {
 
     @Query("SELECT * FROM theory_marks ORDER BY createdAt DESC") fun theoryMarks(): Flow<List<TheoryMarkEntity>>
     @Query("SELECT * FROM theory_marks ORDER BY createdAt DESC") suspend fun theoryMarksOnce(): List<TheoryMarkEntity>
+    @Query("SELECT * FROM theory_marks WHERE theoryId IN (SELECT id FROM theory_documents WHERE topicId = :topicId) ORDER BY blockIndex, createdAt") suspend fun reviewMarksFor(topicId: Long): List<TheoryMarkEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTheoryMark(value: TheoryMarkEntity): Long
     @Update suspend fun updateTheoryMark(value: TheoryMarkEntity)
     @Delete suspend fun deleteTheoryMark(value: TheoryMarkEntity)
 
     @Transaction @Query("SELECT * FROM questions ORDER BY importedAt DESC") fun questions(): Flow<List<QuestionWithOptions>>
     @Transaction @Query("SELECT * FROM questions ORDER BY importedAt DESC") suspend fun questionsOnce(): List<QuestionWithOptions>
+    @Transaction @Query("SELECT * FROM questions WHERE topicId = :topicId AND isHidden = 0 AND simulationId IS NULL ORDER BY id") suspend fun reviewQuestionsFor(topicId: Long): List<QuestionWithOptions>
     @Transaction @Query("SELECT * FROM questions ORDER BY importedAt DESC LIMIT :limit OFFSET :offset") suspend fun questionsPage(limit: Int, offset: Int): List<QuestionWithOptions>
     /** Enunciados mais recentes, só o texto: chaves para o simulado não repetir questão. */
     @Query("SELECT statement FROM questions ORDER BY importedAt DESC LIMIT :limit") suspend fun recentStatements(limit: Int): List<String>

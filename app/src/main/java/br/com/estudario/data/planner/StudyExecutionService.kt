@@ -49,6 +49,9 @@ class StudyExecutionService(
         require(input.correct in 0..input.questions) { "Os acertos devem estar entre zero e o total de questões." }
         require(input.completedAt >= input.startedAt) { "O término deve ocorrer depois do início." }
         val task = planner.task(taskId) ?: error("Tarefa não encontrada.")
+        require(source != CompletionSource.TOPIC || task.type in setOf(PlanTaskType.THEORY, PlanTaskType.REVIEW)) {
+            "Concluir o tópico não conclui uma bateria de questões. Finalize a bateria ou registre a execução pelo plano."
+        }
         require(task.status !in setOf(PlanTaskStatus.CONCLUIDA, PlanTaskStatus.NAO_REALIZADA, PlanTaskStatus.PAUSADA)) { "A tarefa não aceita nova conclusão." }
         val plan = planner.plan(task.planId) ?: error("Plano não encontrado.")
         require(planner.claimRevision(plan.id, plan.revision, input.completedAt) == 1)

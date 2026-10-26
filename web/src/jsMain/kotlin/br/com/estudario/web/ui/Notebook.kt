@@ -540,7 +540,7 @@ fun <T> BySubject(
 
 /** Revisar o Caderno um item por vez, como um fichário, na ordem do edital. Setas do teclado também. */
 @Composable
-private fun NotebookReview(title: String, cards: List<NbCard>, onClose: () -> Unit) {
+internal fun NotebookReview(title: String, cards: List<NbCard>, allowNavigation: Boolean = true, onClose: () -> Unit) {
     var index by remember(cards) { mutableStateOf(0) }
     val card = cards.getOrNull(index) ?: return
     androidx.compose.runtime.DisposableEffect(cards) {
@@ -565,22 +565,27 @@ private fun NotebookReview(title: String, cards: List<NbCard>, onClose: () -> Un
                 Span({ classes("nb-kicker") }) { Text(card.kicker) }
                 Span({ classes("small", "primary-ink", "strong") }) { Text(card.place) }
             }
-            if (!card.quote.isNullOrBlank()) Div({ classes("nb-review-quote") }) { Markdown(card.quote, compact = true) }
+            if (!card.quote.isNullOrBlank()) Div({ classes("nb-review-quote") }) { NotebookMarkdown(card.quote, allowNavigation) }
             if (!card.body.isNullOrBlank()) {
                 if (card.quote != null) Div({ classes("xs", "muted", "strong") }) { Text("SUA NOTA") }
                 val (tag, body) = NoteTags.split(card.body)
                 Div({ classes("nb-review-body") }) {
                     if (tag != null) Span({ classes("note-pill", NoteTags.cls(tag)) }) { Text(tag.uppercase()) }
-                    Markdown(body, compact = true)
+                    NotebookMarkdown(body, allowNavigation)
                 }
             }
-            card.open?.let { open -> Btn("Abrir na teoria", { onClose(); open() }, style = "ghost", small = true, icon = "menu_book") }
+            card.open?.takeIf { allowNavigation }?.let { open -> Btn("Abrir na teoria", { onClose(); open() }, style = "ghost", small = true, icon = "menu_book") }
         }
         Div({ classes("row", "between") }) {
             Btn("Anterior", { index-- }, style = "outline", icon = "chevron_left", enabled = index > 0)
             Btn(if (index < cards.lastIndex) "Próximo" else "Concluir", { if (index < cards.lastIndex) index++ else onClose() }, style = "primary", icon = if (index < cards.lastIndex) "chevron_right" else "check")
         }
     }
+}
+
+@Composable
+private fun NotebookMarkdown(source: String, allowNavigation: Boolean) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalMarkdownLinksEnabled provides allowNavigation) { Markdown(source, compact = true) }
 }
 
 /** Filtrar os grifos por cor: todas, cai muito, entendi, revisar (com a contagem de cada uma). */
