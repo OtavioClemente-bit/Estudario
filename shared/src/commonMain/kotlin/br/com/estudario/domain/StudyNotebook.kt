@@ -137,6 +137,23 @@ object StudyNotebook {
      * ("### NGAV - Vai além...") e itens ("... - Atua na prevenção"). Aqui as linhas voltam a ser
      * linhas, para a tabela virar tabela e a lista virar lista.
      */
+    /**
+     * Grifo arrastado por cima de uma tabela fica achatado (as células viram uma frase só, e "||"
+     * de código vira lixo). Se o trecho grifado está dentro da tabela do bloco, mostra a tabela.
+     */
+    fun restoreQuote(quote: String, block: String?): String {
+        if (block == null || quote.contains('\n')) return quote
+        if (block.lines().count { it.trimStart().startsWith("|") } < 2) return quote
+        fun flat(s: String) = s.replace(Regex("""\\\|"""), "|").replace(Regex("""^\s*\|?\s*:?-{3,}.*$""", RegexOption.MULTILINE), " ")
+            .replace(Regex("""[|`*_]"""), " ").replace(Regex("""\s+"""), " ").trim().lowercase()
+        val q = flat(quote)
+        if (q.length < 12) return quote
+        val words = q.split(' ').filter { it.length > 2 }
+        val inBlock = flat(block)
+        val hit = words.count { it in inBlock }
+        return if (words.isNotEmpty() && hit * 10 >= words.size * 8) block.trim() else quote
+    }
+
     fun quoteMarkdown(quote: String): String {
         var s = quote.trim()
         // tabela colada: cada "| |" é a quebra entre duas linhas da tabela

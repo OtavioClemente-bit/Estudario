@@ -111,7 +111,7 @@ private fun parseBlocks(source: String): List<Block> {
             }
             trimmed.startsWith("|") && i + 1 < lines.size && lines[i + 1].trim().matches(Regex("^\\|?\\s*:?-{2,}.*")) -> {
                 flush()
-                fun cells(row: String) = row.trim().trim('|').split('|').map { it.trim() }
+                fun cells(row: String) = row.trim().trim('|').split(Regex("""(?<!\\)\|""")).map { it.trim().replace("\\|", "|") }
                 val header = cells(trimmed)
                 i += 2
                 val rows = mutableListOf<List<String>>()
