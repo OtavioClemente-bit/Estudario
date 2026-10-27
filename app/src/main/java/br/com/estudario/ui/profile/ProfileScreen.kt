@@ -101,6 +101,8 @@ fun ProfileScreen(
     onBadges: () -> Unit = {},
     onWardrobe: () -> Unit = {},
     showInternalTopBar: Boolean = true,
+    mission: Pair<Int, Int>? = null,
+    onOpenPlan: () -> Unit = {},
 ) {
     val profile by viewModel.profile.collectAsState()
     val streak by viewModel.streak.collectAsState()
@@ -192,6 +194,8 @@ fun ProfileScreen(
 
     ProfileContent(
         profile = profile,
+        mission = mission,
+        onOpenPlan = onOpenPlan,
         estudarioSignedIn = estudarioSignedIn,
         reopenPlans = reopenPlansAfterLogin && estudarioSignedIn,
         onPlansReopened = { reopenPlansAfterLogin = false },
@@ -223,6 +227,8 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     profile: UserProfile,
+    mission: Pair<Int, Int>? = null,
+    onOpenPlan: () -> Unit = {},
     estudarioSignedIn: Boolean = false,
     reopenPlans: Boolean = false,
     onPlansReopened: () -> Unit = {},
@@ -264,15 +270,15 @@ private fun ProfileContent(
         ) {
             item {
                 if (progress == null) SkeletonCard(lines = 4)
-                else PlayerCard(profile, progress, streak, onEditName, onChangePhoto, onBadges)
+                else PlayerCard(profile, progress, streak, mission, onEditName, onChangePhoto, onBadges)
             }
             item { Divider() }
             if (progress != null && streak != null) {
-                item { MissionsPanel(progress, streak, onBadges) }
+                item { MissionsPanel(progress, streak, mission, onOpenPlan, onBadges) }
                 item { Divider() }
             }
             if (progress != null) {
-                item { TitlesTrail(progress.level) }
+                item { TitlesTrail(progress.level, progress.levelProgress) }
                 item { Divider() }
                 item { TrophyRoom(progress, onBadges) }
                 item { Divider() }
@@ -523,6 +529,7 @@ internal fun ProfileShowcase(dark: Boolean, emptyStreak: Boolean, level: Int = 1
       Box(Modifier.fillMaxSize().turmaTouchRoot()) {
         ProfileContent(
             profile = UserProfile(name = "Seu próximo nível"),
+            mission = if (goalDone) 3 to 3 else 1 to 3,
             progress = previewProgress.copy(
                 level = level, levelTitle = ProgressEngine.levelTitle(level),
                 badges = br.com.estudario.domain.BadgeCatalog.sequencia.map { BadgeProgress(it, if (emptyStreak) 0 else 12) },

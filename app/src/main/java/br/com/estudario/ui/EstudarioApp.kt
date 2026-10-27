@@ -43,6 +43,7 @@ import br.com.estudario.ui.planner.PlanScreen
 import br.com.estudario.ui.planner.PlanTransferUiState
 import br.com.estudario.ui.planner.StudyPlanViewModel
 import br.com.estudario.ui.planner.StudyPlanViewModelFactory
+import br.com.estudario.ui.planner.countsAsPlannedLoad
 import androidx.activity.compose.BackHandler
 import br.com.estudario.ui.focus.FocusSessionSheet
 import br.com.estudario.ui.focus.FocusTimerActions
@@ -705,7 +706,17 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 composable("sources") { SourcesScreen(viewModel, { navController.popBackStack() }, { navController.navigate("topic/$it") }, showInternalTopBar = false) }
                 composable("focus-history") { FocusHistoryScreen(viewModel) }
                 composable("search") { SearchScreen(viewModel, { navController.popBackStack() }, { navController.navigate("topic/$it") }, { navController.navigate("theory/$it") }, showInlineBack = false) }
-                composable("profile") { ProfileScreen(viewModel, onBack = { navController.popBackStack() }, onBadges = { navController.navigate("badges") }, onWardrobe = { navController.navigate("wardrobe") }, showInternalTopBar = false) }
+                composable("profile") {
+                    // A missão do dia do perfil é a mesma da tela inicial: as tarefas do plano de hoje.
+                    val profilePlan by planViewModel.state.collectAsState()
+                    val todayLoad = profilePlan.todayTasks.filter { it.entity.status.countsAsPlannedLoad() }
+                    val mission = if (profilePlan.activePlan != null && todayLoad.isNotEmpty())
+                        todayLoad.count { it.entity.status == br.com.estudario.domain.planner.PlanTaskStatus.CONCLUIDA } to todayLoad.size else null
+                    ProfileScreen(
+                        viewModel, onBack = { navController.popBackStack() }, onBadges = { navController.navigate("badges") }, onWardrobe = { navController.navigate("wardrobe") },
+                        showInternalTopBar = false, mission = mission, onOpenPlan = { navegarAba("plan") },
+                    )
+                }
                 composable("wardrobe") { br.com.estudario.ui.profile.WardrobeScreen(viewModel, { navController.popBackStack() }, showInternalTopBar = false) }
                 composable("badges") { BadgesScreen(viewModel, { navController.popBackStack() }, showInternalTopBar = false) }
             }

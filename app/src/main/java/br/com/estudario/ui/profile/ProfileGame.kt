@@ -13,6 +13,32 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.animation.core.spring
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.MilitaryTech
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.Quiz
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,6 +99,7 @@ import br.com.estudario.domain.ProgressEngine
 import br.com.estudario.domain.StreakEngine
 import br.com.estudario.domain.StreakSummary
 import br.com.estudario.ui.components.ActivityHeatmap
+import br.com.estudario.ui.components.HeatTone
 import br.com.estudario.ui.components.ProfileAvatar
 import br.com.estudario.ui.theme.EstudarioTheme
 
@@ -158,6 +185,7 @@ internal fun PlayerCard(
     profile: UserProfile,
     progress: ProgressEngine.ProgressSummary,
     streak: StreakSummary?,
+    mission: Pair<Int, Int>?,
     onEditName: () -> Unit,
     onChangePhoto: () -> Unit,
     onBadges: () -> Unit,
@@ -224,7 +252,7 @@ internal fun PlayerCard(
             XpBar(progress, league)
             if (streak != null) {
                 Spacer(Modifier.height(16.dp))
-                Hud(progress, streak, onBadges)
+                Hud(progress, streak, mission, onBadges)
             }
         }
     }
@@ -308,7 +336,7 @@ private fun XpBar(progress: ProgressEngine.ProgressSummary, league: League) {
 
 /** Os quatro números do HUD: combo, XP, troféus e meta do dia. */
 @Composable
-private fun Hud(progress: ProgressEngine.ProgressSummary, streak: StreakSummary, onBadges: () -> Unit) {
+private fun Hud(progress: ProgressEngine.ProgressSummary, streak: StreakSummary, mission: Pair<Int, Int>?, onBadges: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HudStat(Modifier.weight(1f), "${streak.current}", if (streak.current == 1) "dia de combo" else "dias de combo", "recorde ${streak.best}", Game.flame) {
@@ -319,15 +347,20 @@ private fun Hud(progress: ProgressEngine.ProgressSummary, streak: StreakSummary,
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HudStat(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(onClick = onBadges), "${progress.earnedBadges.size}", "troféus", "de ${progress.badges.size}", Game.gold) {
+            HudStat(Modifier.weight(1f).gameClick(onBadges), "${progress.earnedBadges.size}", "troféus", "de ${progress.badges.size}", Game.gold) {
                 Icon(Icons.Rounded.EmojiEvents, null, Modifier.size(24.dp), tint = Game.gold)
             }
-            val pct = (streak.todayProgress * 100).toInt()
-            HudStat(
-                Modifier.weight(1f), "$pct%", "meta do dia",
-                if (streak.todayDone) "dia salvo" else "${streak.todayQuestions}/${streak.goal.questions} questões",
-                Game.mint,
-            ) { GoalDial(streak.todayProgress, streak.todayDone) }
+            if (mission != null) {
+                val (done, total) = mission
+                HudStat(
+                    Modifier.weight(1f), "$done/$total", "missão do dia", if (done >= total) "concluída" else "do plano", Game.mint,
+                ) { GoalDial(done.toFloat() / total, done >= total) }
+            } else {
+                val goal = streak.goal.questions.coerceAtLeast(1)
+                HudStat(
+                    Modifier.weight(1f), "${streak.todayQuestions}/$goal", "questões hoje", if (streak.todayQuestions >= goal) "meta batida" else "meta do dia", Game.mint,
+                ) { GoalDial((streak.todayQuestions.toFloat() / goal).coerceAtMost(1f), streak.todayQuestions >= goal) }
+            }
         }
     }
 }
@@ -362,20 +395,49 @@ private fun GoalDial(fraction: Float, done: Boolean) {
     }
 }
 
-// ---------------------------------------------------------------- missões
+// ---------------------------------------------------------------- toque de jogo
 
+/** Toque de botão de controle: afunda ao apertar e volta com mola. */
 @Composable
-internal fun MissionsPanel(progress: ProgressEngine.ProgressSummary, streak: StreakSummary, onBadges: () -> Unit) {
-    GamePanel("Missões de hoje", Game.mint, trailing = if (streak.todayDone) "2 de 2" else "0 de 2") {
+internal fun Modifier.gameClick(onClick: () -> Unit): Modifier {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, spring(dampingRatio = 0.42f, stiffness = 700f), label = "toque")
+    return this.graphicsLayer { scaleX = scale; scaleY = scale }.clickable(source, LocalIndication.current, onClick = onClick)
+}
+
+// ---------------------------------------------------------------- missão do dia
+
+/**
+ * A missão do dia é o dia do plano (as tarefas de hoje, a mesma da tela inicial). [mission] vem como
+ * feitas/total, ou nulo quando hoje não há tarefa. Embaixo, as questões do dia, o combo e o próximo troféu.
+ */
+@Composable
+internal fun MissionsPanel(progress: ProgressEngine.ProgressSummary, streak: StreakSummary, mission: Pair<Int, Int>?, onOpenPlan: () -> Unit, onBadges: () -> Unit) {
+    val goal = streak.goal.questions.coerceAtLeast(1)
+    GamePanel("Missão do dia", Game.mint, trailing = mission?.let { "${it.first} de ${it.second}" }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Quest(
-                Icons.Rounded.Flag, Game.mint, "Feche a meta do dia", streak.todayProgress, streak.todayDone,
-                if (streak.todayDone) "Dia salvo no combo" else "${streak.todayQuestions} de ${streak.goal.questions} questões, ou uma tarefa do plano, ou uma revisão",
+            if (mission != null) {
+                val (done, total) = mission
+                Quest(
+                    Icons.Rounded.Flag, Game.mint, "Termine a missão do dia", done.toFloat() / total, done >= total,
+                    if (done >= total) "Todas as tarefas de hoje feitas" else "$done de $total ${if (total == 1) "tarefa" else "tarefas"} do plano · faltam ${total - done}",
+                    onClick = onOpenPlan,
+                )
+            } else Quest(
+                Icons.Rounded.CalendarMonth, Game.mint, "Dia livre no plano", 0f, false,
+                "Sem tarefas hoje: as questões e as revisões contam", onClick = onOpenPlan,
             )
             Quest(
-                Icons.Rounded.Bolt, Game.flame, "Mantenha o combo", if (streak.todayDone) 1f else 0f, streak.todayDone,
-                if (streak.todayDone) "Combo garantido: ${streak.current} ${if (streak.current == 1) "dia" else "dias"}"
-                else "Estude hoje para chegar a ${streak.current + 1} ${if (streak.current + 1 == 1) "dia" else "dias"}",
+                Icons.Rounded.Quiz, Game.violet, "Resolva $goal ${if (goal == 1) "questão" else "questões"}",
+                (streak.todayQuestions.toFloat() / goal).coerceAtMost(1f), streak.todayQuestions >= goal,
+                "${streak.todayQuestions} de $goal hoje",
+            )
+            Quest(
+                Icons.Rounded.LocalFireDepartment, Game.flame,
+                if (streak.current > 0) "Mantenha o combo de ${streak.current} ${if (streak.current == 1) "dia" else "dias"}" else "Comece um combo de dias",
+                if (streak.todayDone) 1f else streak.todayProgress, streak.todayDone,
+                if (streak.todayDone) "Hoje já conta no combo" else "1 tarefa do plano, 1 revisão ou $goal questões salvam o dia",
             )
             progress.nextBadges.firstOrNull()?.let { next ->
                 Quest(
@@ -390,16 +452,22 @@ internal fun MissionsPanel(progress: ProgressEngine.ProgressSummary, streak: Str
 @Composable
 private fun Quest(icon: ImageVector, accent: Color, title: String, fraction: Float, complete: Boolean, sub: String, onClick: (() -> Unit)? = null) {
     val shown by animateFloatAsState(fraction, tween(800), label = "missao")
+    val pop by animateFloatAsState(if (complete) 1f else 0.85f, spring(dampingRatio = 0.35f, stiffness = 400f), label = "missao-pop")
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth()
+            .then(if (onClick != null) Modifier.gameClick(onClick) else Modifier)
+            .clip(RoundedCornerShape(16.dp))
             .background(if (complete) accent.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.04f))
             .border(1.dp, if (complete) accent.copy(alpha = 0.5f) else Game.line, RoundedCornerShape(16.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-            Icon(if (complete) Icons.Rounded.Check else icon, null, Modifier.size(22.dp), tint = accent)
+        Box(
+            Modifier.size(38.dp).graphicsLayer { scaleX = pop; scaleY = pop }.clip(RoundedCornerShape(12.dp))
+                .background(if (complete) accent else accent.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(if (complete) Icons.Rounded.Check else icon, null, Modifier.size(22.dp), tint = if (complete) Game.bg else accent)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -415,70 +483,176 @@ private fun Quest(icon: ImageVector, accent: Color, title: String, fraction: Flo
                 Box(Modifier.fillMaxWidth(shown.coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(50)).background(accent))
             }
             Spacer(Modifier.height(4.dp))
-            Text(sub, style = MaterialTheme.typography.labelSmall, color = Game.muted)
+            Text(sub, style = MaterialTheme.typography.labelSmall, color = Game.muted, letterSpacing = 0.2.sp)
         }
     }
 }
 
 // ---------------------------------------------------------------- trilha de títulos
 
+/** Brasão hexagonal (os títulos da trilha). */
+private val CrestShape = GenericShape { size, _ ->
+    moveTo(size.width / 2f, 0f)
+    lineTo(size.width, size.height * 0.22f)
+    lineTo(size.width, size.height * 0.70f)
+    lineTo(size.width / 2f, size.height)
+    lineTo(0f, size.height * 0.70f)
+    lineTo(0f, size.height * 0.22f)
+    close()
+}
+
+/** O desenho de cada título, do broto do Iniciante à coroa da Lenda. */
+private fun titleIcon(level: Int): ImageVector = when (level) {
+    1 -> Icons.Rounded.Spa
+    5 -> Icons.Rounded.AutoStories
+    10 -> Icons.Rounded.Edit
+    15 -> Icons.Rounded.FitnessCenter
+    20 -> Icons.Rounded.Psychology
+    25 -> Icons.Rounded.MyLocation
+    30 -> Icons.Rounded.MilitaryTech
+    35 -> Icons.Rounded.School
+    40 -> Icons.Rounded.Verified
+    45 -> Icons.Rounded.Badge
+    else -> Icons.Rounded.WorkspacePremium
+}
+
+/**
+ * A trilha como mapa de mundos: os brasões sobem e descem por um caminho curvo, aceso até onde a
+ * pessoa chegou (o trecho até o próximo título enche com o nível). Tocar num brasão abre o cartão
+ * dele embaixo; abre no título atual, com o "VOCÊ" em cima.
+ */
 @Composable
-internal fun TitlesTrail(level: Int) {
-    val league = leagueOf(level)
+internal fun TitlesTrail(level: Int, levelProgress: Float) {
     val stops = listOf(1) + (5..50 step 5).toList()
-    val current = stops.last { it <= level }
-    val pulse by rememberInfiniteTransition(label = "trilha").animateFloat(0.55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "pulso")
+    val currentIdx = stops.indexOfLast { it <= level }
+    var sel by remember { mutableIntStateOf(currentIdx) }
+    val step = 92.dp
+    val trackHeight = 150.dp
+    val density = LocalDensity.current
     val scroll = rememberScrollState()
-    val nodeWidth = 96.dp
-    val px = with(LocalDensity.current) { nodeWidth.toPx() }
-    LaunchedEffect(current) { scroll.scrollTo(((stops.indexOf(current) - 1).coerceAtLeast(0) * px).toInt()) }
-    val next = ProgressEngine.nextTitle(level)
-    GamePanel("Trilha de títulos", league.c2, trailing = "NV $level") {
-        Row(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
-            stops.forEachIndexed { i, stop ->
-                val reached = stop <= level
-                val now = stop == current
-                Column(Modifier.width(nodeWidth), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
-                        // Trilho entre as fases: aceso até onde a pessoa chegou.
-                        Row(Modifier.fillMaxWidth().height(4.dp)) {
-                            Box(Modifier.weight(1f).fillMaxHeight().background(if (i == 0) Color.Transparent else if (reached) league.c1 else Game.track))
-                            Box(Modifier.weight(1f).fillMaxHeight().background(if (i == stops.lastIndex) Color.Transparent else if (stops[i + 1] <= level) league.c1 else Game.track))
-                        }
-                        Box(
-                            Modifier.size(if (now) 42.dp else 34.dp).rotate(45f).clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    when {
-                                        now -> Brush.linearGradient(listOf(league.c1, league.c2))
-                                        reached -> Brush.linearGradient(listOf(league.c1.copy(alpha = 0.75f), league.c1.copy(alpha = 0.55f)))
-                                        else -> Brush.linearGradient(listOf(Game.bg2, Game.bg2))
-                                    },
-                                )
-                                .border(if (now) 2.dp else 1.dp, if (now) Color.White.copy(alpha = pulse) else if (reached) league.c2.copy(alpha = 0.6f) else Game.line, RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(Modifier.rotate(-45f), contentAlignment = Alignment.Center) {
-                                if (reached) Text("$stop", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Game.bg)
-                                else Icon(Icons.Rounded.Lock, null, Modifier.size(14.dp), tint = Game.muted)
-                            }
+    LaunchedEffect(currentIdx) {
+        scroll.scrollTo(with(density) { ((step * currentIdx) - step).toPx() }.toInt().coerceAtLeast(0))
+    }
+    val next = stops.getOrNull(currentIdx + 1)
+    val partial = if (next == null) 0f else ((level - stops[currentIdx]) + levelProgress) / (next - stops[currentIdx])
+    val target = ((currentIdx + partial.coerceIn(0f, 1f)) / (stops.size - 1)).coerceIn(0f, 1f)
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { started = true }
+    val lit by animateFloatAsState(if (started) target else 0f, tween(1_400, easing = FastOutSlowInEasing), label = "trilha-acesa")
+    val pulse by rememberInfiniteTransition(label = "trilha").animateFloat(0.4f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "pulso")
+    val bob by rememberInfiniteTransition(label = "voce").animateFloat(0f, -4f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "voce-y")
+    fun yOf(i: Int) = if (i % 2 == 0) 56.dp else 108.dp
+    fun xOf(i: Int) = step / 2 + step * i
+    val litColor = leagueOf(level).c2
+
+    GamePanel("Trilha de títulos", leagueOf(level).c2, trailing = "NV $level") {
+        Box(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
+            Box(Modifier.width(step * stops.size).height(trackHeight)) {
+                Canvas(Modifier.matchParentSize()) {
+                    val path = Path().apply {
+                        moveTo(xOf(0).toPx(), yOf(0).toPx())
+                        for (i in 1 until stops.size) {
+                            val mx = (xOf(i - 1).toPx() + xOf(i).toPx()) / 2f
+                            cubicTo(mx, yOf(i - 1).toPx(), mx, yOf(i).toPx(), xOf(i).toPx(), yOf(i).toPx())
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        ProgressEngine.levelTitle(stop), style = MaterialTheme.typography.bodySmall, fontSize = 12.sp, letterSpacing = 0.sp, lineHeight = 14.sp,
-                        fontWeight = if (now) FontWeight.Black else FontWeight.Medium,
-                        color = if (now) league.c2 else if (reached) Game.ink else Game.muted,
-                        textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                    if (!reached) Text("nível $stop", style = MaterialTheme.typography.labelSmall, color = Game.muted.copy(alpha = 0.7f), fontSize = 10.sp, letterSpacing = 0.sp)
+                    drawPath(path, Color.White.copy(alpha = 0.08f), style = Stroke(8.dp.toPx(), cap = StrokeCap.Round))
+                    val measure = PathMeasure().apply { setPath(path, false) }
+                    val litPath = Path()
+                    measure.getSegment(0f, measure.length * lit, litPath, true)
+                    drawPath(litPath, litColor.copy(alpha = 0.35f), style = Stroke(12.dp.toPx(), cap = StrokeCap.Round))
+                    drawPath(litPath, litColor, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+                }
+                stops.forEachIndexed { i, stop ->
+                    val reached = stop <= level
+                    val now = i == currentIdx
+                    val picked = i == sel
+                    val league = leagueOf(stop)
+                    val crest = if (now) 66.dp else 54.dp
+                    val pick by animateFloatAsState(if (picked) 1.08f else 1f, spring(dampingRatio = 0.35f, stiffness = 500f), label = "brasao")
+                    Box(
+                        Modifier.offset(xOf(i) - 40.dp, yOf(i) - 44.dp).size(80.dp, 96.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier.size(crest, crest * 1.1f).graphicsLayer { scaleX = pick; scaleY = pick }
+                                .gameClick { sel = i },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            // aro claro por fora, miolo com a cor da liga daquele título
+                            Box(
+                                Modifier.matchParentSize().clip(CrestShape).background(
+                                    if (reached) Brush.verticalGradient(listOf(Color.White, league.c1))
+                                    else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.08f))),
+                                ),
+                            )
+                            Box(
+                                Modifier.matchParentSize().padding(3.dp).clip(CrestShape).background(
+                                    if (reached) Brush.radialGradient(listOf(league.c2, league.c1, league.c1.copy(alpha = 0.85f)))
+                                    else Brush.verticalGradient(listOf(Color(0xFF2A2970), Color(0xFF191846))),
+                                ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(if (reached) titleIcon(stop) else Icons.Rounded.Lock, null, Modifier.size(if (now) 30.dp else 22.dp), tint = if (reached) Color.White else Color(0xFF6E6AA8))
+                            }
+                            if (now) Box(Modifier.matchParentSize().graphicsLayer { alpha = pulse }.clip(CrestShape).border(2.dp, Color.White, CrestShape))
+                        }
+                        // número do nível na base do brasão
+                        Text(
+                            "$stop",
+                            Modifier.align(Alignment.BottomCenter).offset(y = (-6).dp).clip(RoundedCornerShape(7.dp))
+                                .background(if (reached) Brush.verticalGradient(listOf(Color.White, league.c1)) else Brush.verticalGradient(listOf(Color(0xFF23215E), Color(0xFF23215E))))
+                                .padding(horizontal = 7.dp, vertical = 1.dp),
+                            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 0.sp,
+                            color = if (reached) Game.bg else Color.White,
+                        )
+                        if (now) Text(
+                            "VOCÊ",
+                            Modifier.align(Alignment.TopCenter).offset(y = (-4).dp).graphicsLayer { translationY = bob.dp.toPx() }.clip(RoundedCornerShape(6.dp)).background(Color.White).padding(horizontal = 7.dp, vertical = 1.dp),
+                            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 9.sp, color = Game.bg,
+                        )
+                        if (picked) Box(Modifier.align(Alignment.BottomCenter).offset(y = 6.dp).size(22.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(if (reached) league.c2 else Game.muted))
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            if (next != null) "Próximo título: ${next.second}, no nível ${next.first}" else "Você chegou ao último título da trilha.",
-            style = MaterialTheme.typography.bodySmall, color = Game.muted,
-        )
+        Spacer(Modifier.height(8.dp))
+        // O cartão do brasão escolhido.
+        val stop = stops[sel]
+        val reached = stop <= level
+        val league = leagueOf(stop)
+        androidx.compose.animation.AnimatedContent(sel, label = "cartao-titulo") { _ ->
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(if (reached) Brush.horizontalGradient(listOf(league.c1.copy(alpha = 0.22f), Color.Black.copy(alpha = 0.2f))) else Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.25f), Color.Black.copy(alpha = 0.25f))))
+                    .border(1.dp, if (reached) league.c1.copy(alpha = 0.5f) else Game.line, RoundedCornerShape(16.dp))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp, 44.dp).clip(CrestShape).background(if (reached) league.c1 else Color(0xFF23215E)), contentAlignment = Alignment.Center) {
+                    Icon(if (reached) titleIcon(stop) else Icons.Rounded.Lock, null, Modifier.size(20.dp), tint = if (reached) Color.White else Game.muted)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(ProgressEngine.levelTitle(stop), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Game.ink)
+                    Text(
+                        when {
+                            sel == currentIdx -> "Seu título agora · liga ${leagueOf(level).name}" + (next?.let { " · o próximo sai no nível $it" } ?: "")
+                            reached -> "Conquistado no nível $stop · liga ${league.name}"
+                            else -> "Libera no nível $stop · faltam ${stop - level} ${if (stop - level == 1) "nível" else "níveis"}"
+                        },
+                        style = MaterialTheme.typography.bodySmall, color = Game.muted,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (sel == currentIdx) "ATUAL" else if (reached) "FEITO" else "TRANCADO",
+                    Modifier.clip(RoundedCornerShape(6.dp)).background(if (reached) league.c1 else Color.White.copy(alpha = 0.07f)).padding(horizontal = 7.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.sp,
+                    color = if (reached) Game.bg else Game.muted,
+                )
+            }
+        }
     }
 }
 
@@ -519,10 +693,9 @@ internal fun TrophyRoom(progress: ProgressEngine.ProgressSummary, onBadges: () -
 @Composable
 private fun TrophySlot(modifier: Modifier, row: BadgeProgress, earned: Boolean, onClick: () -> Unit) {
     Column(
-        modifier.clip(RoundedCornerShape(16.dp))
+        modifier.gameClick(onClick).clip(RoundedCornerShape(16.dp))
             .background(if (earned) Brush.verticalGradient(listOf(Game.gold.copy(alpha = 0.16f), Color.Transparent)) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.04f), Color.White.copy(alpha = 0.04f))))
             .border(1.dp, if (earned) Game.gold.copy(alpha = 0.4f) else Game.line, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
             .padding(vertical = 10.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -579,7 +752,7 @@ internal fun ComboPanel(streak: StreakSummary) {
             Text("Um escudo salvou um dia desta semana.", style = MaterialTheme.typography.labelSmall, color = Color(0xFF60A5FA))
         }
         Spacer(Modifier.height(14.dp))
-        ActivityHeatmap(streak.calendar, streak.goal, contentPadding = PaddingValues(0.dp))
+        ActivityHeatmap(streak.calendar, streak.goal, contentPadding = PaddingValues(0.dp), tone = HeatTone.Fire)
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             ComboStat("${streak.activeDays}", "dias jogados")

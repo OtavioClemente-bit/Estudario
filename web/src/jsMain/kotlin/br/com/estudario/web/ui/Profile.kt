@@ -39,6 +39,7 @@ import org.jetbrains.compose.web.dom.Input
 import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
+import org.jetbrains.compose.web.svg.Path
 
 // ------------------------------------------------------------------ Folha (o mascote)
 
@@ -119,6 +120,11 @@ fun ProfileScreen() {
     val pct = (progress.levelProgress * 100).toInt()
     val missing = (progress.xpForNextLevel - progress.xpIntoLevel).coerceAtLeast(0)
     val league = leagueOf(progress.level)
+    // A missão do dia é o dia do plano: as tarefas de hoje (a mesma da tela inicial).
+    val plan = Queries.activePlan(data)
+    val todayTasks = plan?.let { Queries.tasksOn(data, it.id, Queries.todayEpoch()) }.orEmpty().filter { it.status != "REPROGRAMADA" && it.status != "CANCELADA" }
+    val tasksDone = todayTasks.count { it.status == "CONCLUIDA" }
+    val missionDone = todayTasks.isNotEmpty() && tasksDone == todayTasks.size
     var openMedal by remember { mutableStateOf<String?>(null) }
     openMedal?.let { id -> progress.badges.firstOrNull { it.badge.id == id }?.let { MedalDetail(it, progress.badges, onPick = { openMedal = it }, onClose = { openMedal = null }) } }
 
@@ -166,55 +172,43 @@ fun ProfileScreen() {
             HudStat("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia de combo" else "dias de combo", "recorde ${streak.best}", hot = streak.current > 0)
             HudStat("bolt", "#A78BFF", formatXp(progress.totalXp), "XP total", "${progress.xpThisWeek} na semana")
             HudStat("emoji_events", "#FFC94D", "${progress.earnedBadges.size}", "troféus", "de ${progress.badges.size}", route = Route.Achievements)
-            HudStat("gps_fixed", "#2FD39A", if (streak.todayDone) "100%" else "${(streak.todayProgress * 100).toInt()}%", "meta do dia", if (streak.todayDone) "concluída" else "$doneToday de $goal questões", hot = streak.todayDone, route = Route.Stats)
+            if (todayTasks.isNotEmpty()) HudStat("flag", "#2FD39A", "$tasksDone/${todayTasks.size}", "missão do dia", if (missionDone) "concluída" else "tarefas do plano", hot = missionDone, route = Route.Home)
+            else HudStat("gps_fixed", "#2FD39A", "$doneToday/$goal", "questões hoje", if (doneToday >= goal) "meta batida" else "meta do dia", hot = doneToday >= goal, route = Route.Stats)
         }
     }
 
     Div({ classes("gm-grid") }) {
         Div({ classes("gm-col") }) {
-            // ---- missões do dia
-            GamePanel("flag", "Missões de hoje", if (streak.todayDone) "dia salvo" else null) {
-                // A meta do dia fecha com as questões ou com uma tarefa do plano ou revisão.
-                Quest(
-                    "gps_fixed", "Feche a meta do dia",
-                    if (streak.todayDone) "fechada hoje" else "$doneToday de $goal questões, ou uma tarefa do plano ou revisão",
-                    if (streak.todayDone) 1.0 else streak.todayProgress.toDouble(), streak.todayDone,
+            // ---- missão do dia: as tarefas do plano de hoje, as questões e o combo
+            GamePanel("flag", "Missão do dia", if (todayTasks.isNotEmpty()) "$tasksDone/${todayTasks.size}" else null, accent = "#2FD39A") {
+                if (todayTasks.isNotEmpty()) Quest(
+                    "flag", "Termine a missão do dia",
+                    if (missionDone) "todas as tarefas de hoje feitas" else "$tasksDone de ${todayTasks.size} ${if (todayTasks.size == 1) "tarefa" else "tarefas"} do plano · faltam ${todayTasks.size - tasksDone}",
+                    tasksDone.toDouble() / todayTasks.size, missionDone, onClick = { Router.go(Route.Home) },
+                ) else Quest(
+                    "calendar_month", if (plan == null) "Monte o seu plano" else "Dia livre no plano",
+                    if (plan == null) "com plano, cada dia vira uma missão" else "sem tarefas hoje, as questões e revisões contam", 0.0, false, onClick = { Router.go(Route.Plan) },
                 )
-                if (!streak.todayDone || doneToday > 0) Quest(
+                Quest(
                     "quiz", "Resolva $goal ${if (goal == 1) "questão" else "questões"}",
-                    "$doneToday de $goal", (doneToday.toDouble() / goal).coerceAtMost(1.0), doneToday >= goal,
+                    "$doneToday de $goal hoje", (doneToday.toDouble() / goal).coerceAtMost(1.0), doneToday >= goal, onClick = { Router.go(Route.Train) },
                 )
                 Quest(
                     "local_fire_department",
                     if (streak.current > 0) "Mantenha o combo de ${streak.current} ${if (streak.current == 1) "dia" else "dias"}" else "Comece um combo de dias",
-                    if (streak.todayDone) "garantido hoje" else "feche a meta do dia", if (streak.todayDone) 1.0 else streak.todayProgress.toDouble(), streak.todayDone,
+                    if (streak.todayDone) "hoje já conta no combo" else "1 tarefa do plano, 1 revisão ou $goal questões salvam o dia",
+                    if (streak.todayDone) 1.0 else streak.todayProgress.toDouble(), streak.todayDone,
                 )
                 progress.nextBadges.firstOrNull()?.let { b ->
                     Quest("emoji_events", "Desbloqueie: ${b.badge.name}", "faltam ${b.remaining} ${b.badge.unit}", b.percent.toDouble(), false, onClick = { openMedal = b.badge.id })
                 }
             }
 
-            // ---- a trilha de títulos: um marco a cada 5 níveis
-            GamePanel("route", "Trilha de títulos", "nível ${progress.level}") {
-                Div({ classes("gm-road") }) {
-                    val marks = listOf(1) + (5..50 step 5).toList()
-                    marks.forEachIndexed { i, lv ->
-                        val reached = progress.level >= lv
-                        val current = reached && (marks.getOrNull(i + 1)?.let { progress.level < it } ?: true)
-                        Div({ classes(*listOfNotNull("gm-node", if (reached) "on" else null, if (current) "now" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
-                            Span({ classes("gm-node-dot") }) { if (reached) Icon(if (current) "person" else "check", filled = true) else Icon("lock", filled = true) }
-                            B { Text("NV $lv") }
-                            Span { Text(br.com.estudario.domain.ProgressEngine.levelTitle(lv)) }
-                        }
-                    }
-                }
-                br.com.estudario.domain.ProgressEngine.nextTitle(progress.level)?.let { (lv, title) ->
-                    P({ classes("gm-note") }) { Text("Próximo título: "); B { Text(title) }; Text(" no nível $lv.") }
-                }
-            }
+            // ---- a trilha de títulos: um mapa de mundos, um brasão por título
+            GamePanel("route", "Trilha de títulos", "nível ${progress.level}", accent = league.color) { TitleMap(progress.level, progress.levelProgress) }
 
             // ---- a sala de troféus
-            GamePanel("emoji_events", "Sala de troféus", "${progress.earnedBadges.size}/${progress.badges.size}") {
+            GamePanel("emoji_events", "Sala de troféus", "${progress.earnedBadges.size}/${progress.badges.size}", accent = "#FFC94D") {
                 Div({ classes("gm-trophy-meter") }) {
                     Span({ attr("style", "width:${if (progress.badges.isEmpty()) 0 else progress.earnedBadges.size * 100 / progress.badges.size}%") })
                 }
@@ -242,7 +236,7 @@ fun ProfileScreen() {
             }
 
             // ---- o combo de dias
-            GamePanel("local_fire_department", "Combo de dias", if (streak.freezes > 0) "${streak.freezes} ${if (streak.freezes == 1) "escudo" else "escudos"}" else null) {
+            GamePanel("local_fire_department", "Combo de dias", if (streak.freezes > 0) "${streak.freezes} ${if (streak.freezes == 1) "escudo" else "escudos"}" else null, accent = "#FF8A3D") {
                 Div({ classes("gm-combo") }) {
                     Div({ classes(*listOfNotNull("gm-combo-big", if (streak.current > 0) "lit" else null).toTypedArray()) }) {
                         Icon("local_fire_department", filled = true)
@@ -255,12 +249,7 @@ fun ProfileScreen() {
                         Div { B { Text("${streak.totalQuestions}") }; Span { Text("questões") } }
                     }
                 }
-                Div({ classes("gm-heat") }) {
-                    streak.calendar.forEach { day ->
-                        val level = br.com.estudario.domain.StreakEngine.level(day, streak.goal)
-                        I({ classes(*listOfNotNull(if (level > 0) "l${level.coerceAtMost(3)}" else null).toTypedArray()); attr("title", "${Queries.shortDate(day.date)}: ${day.questions} questões, ${day.minutes} min") })
-                    }
-                }
+                ActivityCalendar(streak.calendar, streak.goal, tone = "fire")
                 if (streak.daysToNextFreeze > 0) P({ classes("gm-note") }) { Text("Mais ${streak.daysToNextFreeze} ${if (streak.daysToNextFreeze == 1) "dia" else "dias"} seguidos e você ganha um escudo, que salva o combo num dia sem estudo.") }
             }
         }
@@ -269,7 +258,7 @@ fun ProfileScreen() {
             WardrobeCard(progress)
 
             // ---- atributos: de onde veio o XP
-            GamePanel("insights", "Atributos", "${formatXp(progress.totalXp)} XP") {
+            GamePanel("insights", "Atributos", "${formatXp(progress.totalXp)} XP", accent = "#A78BFF") {
                 val sources = progress.sources.filter { it.xp > 0 }
                 val top = sources.maxOfOrNull { it.xp }?.coerceAtLeast(1) ?: 1
                 if (sources.isEmpty()) P({ classes("gm-note") }) { Text("Estude, resolva questões e revise: cada coisa sobe um atributo.") }
@@ -285,19 +274,23 @@ fun ProfileScreen() {
                 }
             }
 
-            // ---- o menu
-            GamePanel("menu", "Menu") {
+            // ---- o menu, como a tela de pausa de um jogo
+            GamePanel("sports_esports", "Menu", accent = "#22D3EE") {
                 Div({ classes("gm-menu") }) {
-                    GameLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} troféus", Route.Achievements)
-                    GameLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
-                    GameLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
-                    GameLink("fact_check", "Histórico e fontes", "De onde veio o seu material", Route.Sources)
-                    GameLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
-                    GameLink("workspace_premium", "Planos e uso", "Seu plano e o seu mês", Route.PlanLimits)
-                    GameLink("tune", "Ajustes", "Aparência, sons e sincronização", Route.Settings)
+                    GameLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} troféus", Route.Achievements, "#FFC94D")
+                    GameLink("query_stats", "Desempenho", "Acerto e constância", Route.Stats, "#2FD39A")
+                    GameLink("timer", "Histórico do foco", "Tempo por matéria", Route.FocusHistory, "#FF8A3D")
+                    GameLink("fact_check", "Fontes", "De onde veio o material", Route.Sources, "#6F9BFF")
+                    GameLink("notifications_active", "Notificações", "Material pronto", Route.Notifications, "#FF5A7A")
+                    GameLink("workspace_premium", "Planos e uso", "Seu plano e o mês", Route.PlanLimits, "#A78BFF")
+                    GameLink("tune", "Ajustes", "Aparência e sons", Route.Settings, "#22D3EE")
+                    Button({ classes("gm-tile", "exit"); attr("style", "--k:#FF5A7A"); onClick { Store.signOut() } }) {
+                        Span({ classes("gm-tile-ic") }) { Icon("logout", plain = true) }
+                        B { Text(if (Store.demo) "Sair da demo" else "Sair da conta") }
+                        Span { Text(if (Store.demo) "Volta ao início" else "Até a próxima") }
+                    }
                 }
                 P({ classes("gm-note") }) { Text(if (Store.demo) "Você está na demonstração." else "Conta Google · dados sincronizados com o app do celular.") }
-                Button({ classes("gm-exit"); onClick { Store.signOut() } }) { Icon("logout"); Text(if (Store.demo) "Sair da demonstração" else "Sair da conta") }
             }
         }
     }
@@ -334,8 +327,8 @@ private fun HudStat(icon: String, color: String, value: String, label: String, s
 }
 
 @Composable
-private fun GamePanel(icon: String, title: String, badge: String? = null, content: @Composable () -> Unit) {
-    Div({ classes("gm-panel") }) {
+private fun GamePanel(icon: String, title: String, badge: String? = null, accent: String = "#A78BFF", content: @Composable () -> Unit) {
+    Div({ classes("gm-panel"); attr("style", "--acc:$accent") }) {
         Div({ classes("gm-panel-head") }) {
             Span({ classes("gm-panel-ic") }) { Icon(icon, filled = true) }
             B { Text(title.uppercase()) }
@@ -361,11 +354,90 @@ private fun Quest(icon: String, title: String, sub: String, fraction: Double, do
 }
 
 @Composable
-private fun GameLink(icon: String, title: String, subtitle: String, route: Route) {
-    A(href = "#/${route.path}", { classes("gm-link") }) {
-        Span({ classes("gm-link-ic") }) { Icon(icon) }
-        Div({ classes("grow") }) { B { Text(title) }; Span { Text(subtitle) } }
-        Icon("chevron_right")
+private fun GameLink(icon: String, title: String, subtitle: String, route: Route, color: String) {
+    A(href = "#/${route.path}", { classes("gm-tile"); attr("style", "--k:$color") }) {
+        Span({ classes("gm-tile-ic") }) { Icon(icon, filled = true) }
+        B { Text(title) }
+        Span { Text(subtitle) }
+    }
+}
+
+/** O brasão de cada título: o desenho que combina com ele. */
+private val TITLE_ICONS = mapOf(
+    1 to "spa", 5 to "menu_book", 10 to "edit_note", 15 to "fitness_center", 20 to "psychology", 25 to "my_location",
+    30 to "military_tech", 35 to "school", 40 to "verified", 45 to "badge", 50 to "workspace_premium",
+)
+
+/**
+ * A trilha como mapa de mundos: os brasões sobem e descem por um caminho curvo, aceso até onde a
+ * pessoa chegou (o trecho até o próximo título enche com o nível atual). Clicar num brasão abre o
+ * cartão dele embaixo; abre já no título atual.
+ */
+@Composable
+private fun TitleMap(level: Int, levelProgress: Float) {
+    val stops = listOf(1) + (5..50 step 5).toList()
+    val currentIdx = stops.indexOfLast { it <= level }
+    var sel by remember { mutableStateOf(currentIdx) }
+    val step = 96
+    val width = step * stops.size
+    fun y(i: Int) = if (i % 2 == 0) 54 else 106
+    fun x(i: Int) = step / 2 + i * step
+    // quanto do caminho já foi: até o título atual, mais a fração até o próximo
+    val next = stops.getOrNull(currentIdx + 1)
+    val partial = if (next == null) 0.0 else ((level - stops[currentIdx]) + levelProgress.toDouble()) / (next - stops[currentIdx])
+    val lit = ((currentIdx + partial.coerceIn(0.0, 1.0)) / (stops.size - 1) * 100).coerceIn(0.0, 100.0)
+    val d = buildString {
+        append("M ${x(0)} ${y(0)}")
+        for (i in 1 until stops.size) {
+            val mx = (x(i - 1) + x(i)) / 2
+            append(" C $mx ${y(i - 1)}, $mx ${y(i)}, ${x(i)} ${y(i)}")
+        }
+    }
+    Div({
+        classes("gm-map")
+        ref { el -> el.scrollLeft = (x(currentIdx) - el.clientWidth / 2).toDouble().coerceAtLeast(0.0); onDispose { } }
+    }) {
+        Div({ classes("gm-map-track"); attr("style", "width:${width}px") }) {
+            org.jetbrains.compose.web.svg.Svg(viewBox = "0 0 $width 150", attrs = { classes("gm-map-path"); attr("width", "$width"); attr("height", "150") }) {
+                Path(d, { attr("class", "base"); attr("pathLength", "100") })
+                Path(d, { attr("class", "lit"); attr("pathLength", "100"); attr("stroke-dasharray", "$lit 100") })
+            }
+            stops.forEachIndexed { i, lv ->
+                val reached = level >= lv
+                val now = i == currentIdx
+                Button({
+                    classes(*listOfNotNull("gm-crest", if (reached) "on" else null, if (now) "now" else null, if (i == sel) "sel" else null).toTypedArray())
+                    attr("style", "left:${x(i)}px;top:${y(i)}px;--n:${leagueOf(lv).color};--n2:${leagueOf(lv).glow}")
+                    attr("aria-label", "${br.com.estudario.domain.ProgressEngine.levelTitle(lv)}, nível $lv")
+                    onClick { sel = i }
+                }) {
+                    if (now) Span({ classes("gm-crest-pin") }) { Text("VOCÊ") }
+                    Span({ classes("gm-crest-shape") }) { Icon(if (reached) TITLE_ICONS[lv] ?: "star" else "lock", filled = true, plain = true) }
+                    Span({ classes("gm-crest-lv") }) { Text("$lv") }
+                }
+            }
+        }
+    }
+    val lv = stops[sel]
+    val reached = level >= lv
+    val title = br.com.estudario.domain.ProgressEngine.levelTitle(lv)
+    key(sel) {
+        Div({ classes(*listOfNotNull("gm-crest-card", if (reached) "on" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
+            Span({ classes("gm-crest-card-ic") }) { Icon(if (reached) TITLE_ICONS[lv] ?: "star" else "lock", filled = true, plain = true) }
+            Div({ classes("grow") }) {
+                B { Text(title) }
+                Span {
+                    Text(
+                        when {
+                            sel == currentIdx -> "Seu título agora · nível $level · liga ${leagueOf(level).name}" + (next?.let { " · o próximo sai no nível $it" } ?: "")
+                            reached -> "Conquistado no nível $lv · liga ${leagueOf(lv).name}"
+                            else -> "Libera no nível $lv · faltam ${lv - level} ${if (lv - level == 1) "nível" else "níveis"}"
+                        },
+                    )
+                }
+            }
+            Span({ classes("gm-crest-card-tag") }) { Text(if (sel == currentIdx) "ATUAL" else if (reached) "FEITO" else "TRANCADO") }
+        }
     }
 }
 

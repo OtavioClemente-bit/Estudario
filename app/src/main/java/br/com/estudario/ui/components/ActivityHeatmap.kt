@@ -59,6 +59,7 @@ fun ActivityHeatmap(
     goal: DailyGoal,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
+    tone: HeatTone = HeatTone.Brand,
 ) {
     if (calendar.isEmpty()) return
     val weeks = remember(calendar) { calendar.chunked(7) }
@@ -116,7 +117,7 @@ fun ActivityHeatmap(
                             }
                         }
                         week.forEach { day ->
-                            HeatCell(day, goal, day.date == selected?.date) { selected = if (selected?.date == day.date) null else day }
+                            HeatCell(day, goal, tone, day.date == selected?.date) { selected = if (selected?.date == day.date) null else day }
                         }
                         // A semana atual costuma estar incompleta: completa a coluna para a grade não subir.
                         repeat(7 - week.size) { Spacer(Modifier.size(CELL)) }
@@ -131,7 +132,7 @@ fun ActivityHeatmap(
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Text("Menos", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            (0..4).forEach { level -> Box(Modifier.size(11.dp).clip(RoundedCornerShape(3.dp)).background(levelColor(level))) }
+            (0..4).forEach { level -> Box(Modifier.size(11.dp).clip(RoundedCornerShape(3.dp)).background(levelColor(level, tone))) }
             Text("Mais", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
@@ -153,14 +154,14 @@ fun ActivityHeatmap(
 }
 
 @Composable
-private fun HeatCell(day: DailyActivity, goal: DailyGoal, selected: Boolean, onClick: () -> Unit) {
+private fun HeatCell(day: DailyActivity, goal: DailyGoal, tone: HeatTone, selected: Boolean, onClick: () -> Unit) {
     val today = day.date == LocalDate.now()
     val shape = RoundedCornerShape(4.dp)
     Box(
         Modifier
             .size(CELL)
             .clip(shape)
-            .background(levelColor(StreakEngine.level(day, goal)))
+            .background(levelColor(StreakEngine.level(day, goal), tone))
             .then(
                 when {
                     selected -> Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, shape)
@@ -172,16 +173,18 @@ private fun HeatCell(day: DailyActivity, goal: DailyGoal, selected: Boolean, onC
     )
 }
 
+/** A cor do mapa: o roxo do Estudário no Desempenho, o fogo do combo no Perfil de jogo. */
+enum class HeatTone { Brand, Fire }
+
 @Composable
-private fun levelColor(level: Int): Color {
-    val base = MaterialTheme.colorScheme.secondary
-    return when (level) {
-        1 -> base.copy(alpha = 0.3f)
-        2 -> base.copy(alpha = 0.52f)
-        3 -> base.copy(alpha = 0.76f)
-        4 -> base
-        else -> MaterialTheme.colorScheme.surfaceVariant
+private fun levelColor(level: Int, tone: HeatTone): Color {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val scale = when (tone) {
+        HeatTone.Fire -> listOf(Color.White.copy(alpha = 0.08f), Color(0x4DFF8A3D), Color(0x8CFF8A3D), Color(0xFFFF8A3D), Color(0xFFFFC94A))
+        HeatTone.Brand -> if (dark) listOf(MaterialTheme.colorScheme.surfaceVariant, Color(0xFF2E2770), Color(0xFF4B3BB8), Color(0xFF7C5CFF), Color(0xFFB6A6FF))
+            else listOf(MaterialTheme.colorScheme.surfaceVariant, Color(0xFFDCD3FF), Color(0xFFA895FF), Color(0xFF7C5CFF), Color(0xFF4B2FD6))
     }
+    return scale[level.coerceIn(0, 4)]
 }
 
 private fun describe(day: DailyActivity): String {

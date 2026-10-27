@@ -366,12 +366,7 @@ fun StatsScreen() {
             }
             Card {
                 Div({ classes("panel-title") }) { H3 { Text("Constância") }; P({ classes("small", "muted") }) { Text("${streak.activeDays} dias com estudo · recorde de ${streak.best} seguidos") } }
-                Div({ classes("heat") }) {
-                    streak.calendar.forEach { day ->
-                        val level = StreakEngine.level(day, streak.goal)
-                        I({ classes(*listOfNotNull(if (level > 0) "l${level.coerceAtMost(3)}" else null).toTypedArray()); attr("title", "${Queries.shortDate(day.date)}: ${day.questions} questões, ${day.minutes} min") })
-                    }
-                }
+                ActivityCalendar(streak.calendar, streak.goal, tone = "brand")
             }
         }
     }
