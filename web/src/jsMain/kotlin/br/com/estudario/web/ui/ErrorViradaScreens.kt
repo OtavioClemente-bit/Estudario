@@ -33,6 +33,13 @@ import kotlin.js.Date
  * o porquê dos erros e o mural dos que viraram. As cores vêm das variáveis do tema (claro e escuro).
  */
 
+/** O que a tela lembra entre a Virada e a missão: os tópicos abertos e o tópico escolhido para virar. */
+private object ViradaUi {
+    var expanded by mutableStateOf(setOf<Long>())
+    var topicId by mutableStateOf<Long?>(null)
+    fun toggle(id: Long) { expanded = if (id in expanded) expanded - id else expanded + id }
+}
+
 private data class Ficha(val entry: ErrorEntry, val question: Question, val virada: ErrorVirada.Entry)
 
 private fun fichas(data: Snapshot): List<Ficha> {
@@ -126,9 +133,9 @@ fun ViradaScreen() {
             H3 { Text("Missão de hoje · virar ${mission.size} ${if (mission.size == 1) "erro" else "erros"}") }
             P { Text("Os da mesa e os que vencem hoje, ~${(mission.size * 1.2).toInt().coerceAtLeast(1)} min. Acertou, ele sobe um degrau.") }
             Div({ classes("vr-peek") }) {
-                mission.forEach { m -> Span { B { Text(topics[m.topicId]?.title?.take(18) ?: "Erro") } } }
+                ErrorVirada.missionByTopic(mission).forEach { (t, n) -> Span { B { Text("$n") }; Text(" · " + (t?.let { topics[it]?.title?.take(24) } ?: "Erro")) } }
             }
-            Button({ classes("vr-cta"); onClick { Router.go(Route.ErrorMission) } }) { Icon("replay", filled = true); Text("Começar a virada") }
+            Button({ classes("vr-cta"); onClick { ViradaUi.topicId = null; Router.go(Route.ErrorMission) } }) { Icon("replay", filled = true); Text("Começar a virada") }
         } else if (all.isNotEmpty()) Div({ classes("vr-card", "vr-mission") }) {
             H3 { Text("Nada vencendo hoje") }
             P { Text("Os erros voltam no dia certo (3, 10 e 30 dias). Quer treinar os que estão na mesa mesmo assim?") }
@@ -167,46 +174,77 @@ fun ViradaScreen() {
             }
         }
 
-        val open = all.filter { ErrorVirada.stage(it.virada) != ErrorVirada.Stage.TURNED }.sortedBy { it.virada.nextRetryAt ?: it.virada.lastErrorAt }
-        if (open.isNotEmpty()) {
-            Div({ classes("vr-sect") }) { B { Text("Suas fichas de erro") }; Span { Text("${due.size} para hoje · ${open.size} no total") } }
-            open.take(40).forEach { f ->
-                key(f.entry.id) {
-                    val topic = topics[f.question.topicId]
+        // Um cartão por tópico (com as fichas de cada questão dentro): com muitos erros, uma ficha
+        // por questão virava uma rolagem sem fim. A escada continua por questão.
+        val groups = ErrorVirada.byTopic(entries, now)
+        val fichaById = all.associateBy { it.entry.id }
+        val openGroups = groups.filter { !it.done }
+        if (openGroups.isNotEmpty()) {
+            Div({ classes("vr-sect") }) { B { Text("Seus erros por tópico") }; Span { Text("${due.size} para hoje · ${openGroups.size} ${if (openGroups.size == 1) "tópico" else "tópicos"}") } }
+            openGroups.forEach { g ->
+                key(g.topicId ?: -1L) {
+                    val topic = g.topicId?.let { topics[it] }
                     val subjectName = topic?.let { subjects[it.subjectId]?.name } ?: ""
-                    val note = ErrorVirada.noteOf(f.entry.comment)
-                    val reason = ErrorVirada.reasonOf(f.entry.comment)
-                    Div({ classes("vr-ficha"); attr("style", "--c:${subjectColor(subjectName)}") }) {
-                        Div({ classes("vr-ficha-top") }) {
-                            Span { Text(listOfNotNull(subjectName.takeIf { it.isNotBlank() }, topic?.title).joinToString(" · ").uppercase()) }
-                            Span { Text("errou ${f.entry.errorCount}×") }
+                    val expanded = (g.topicId ?: -1L) in ViradaUi.expanded
+                    Div({ classes("vr-topic"); attr("style", "--c:${subjectColor(subjectName)}") }) {
+                        Button({ classes("vr-topic-head"); attr("aria-expanded", "$expanded"); onClick { ViradaUi.toggle(g.topicId ?: -1L) } }) {
+                            Div({ classes("vr-topic-ring"); attr("style", "--p:${(g.progress * 100).toInt()}") }) { B { Text("${g.entries.size}") } }
+                            Div({ classes("grow") }) {
+                                Span({ classes("vr-topic-sub") }) { Text(subjectName.uppercase()) }
+                                B { Text(topic?.title ?: "Sem tópico") }
+                                Div({ classes("vr-topic-meta") }) {
+                                    if (g.due > 0) Span({ classes("due") }) { Text("${g.due} para hoje") }
+                                    if (g.turned > 0) Span({ classes("won") }) { Text("${g.turned} ${if (g.turned == 1) "virou" else "viraram"}") }
+                                    if (g.turning > 0) Span { Text("${g.turning} virando") }
+                                    g.topReason?.let { Span({ classes("why") }) { Text(it.label) } }
+                                }
+                            }
+                            Icon(if (expanded) "expand_less" else "expand_more", extraClass = "faint")
                         }
-                        Div({ classes("vr-q") }) { Text(splitStatement(f.question.statement).let { it.command ?: it.base }.take(220)) }
-                        Div({ classes("vr-ans") }) {
-                            f.entry.selectedAnswer?.let { Span({ classes("mine") }) { Text("você: ${optionLabel(f.question, it)}") } }
-                            (f.entry.correctAnswer ?: f.question.options.firstOrNull { it.correct }?.key)?.let { Span({ classes("right") }) { Text("certa: ${optionLabel(f.question, it)}") } }
-                            reason?.let { Span({ classes("why") }) { Text(it.label) } }
+                        Div({ classes("vr-topic-bar") }) { I({ attr("style", "width:${(g.progress * 100).toInt()}%") }) }
+                        if (g.due > 0 || expanded) Div({ classes("vr-topic-actions") }) {
+                            if (g.due > 0) Btn("Virar ${g.due} ${if (g.due == 1) "erro" else "erros"} deste tópico", { ViradaUi.topicId = g.topicId; Router.go(Route.ErrorMission) }, style = "primary", small = true, icon = "replay")
+                            g.topicId?.let { id -> Btn("Ler a teoria", { Router.go(Route.Topic(id)) }, style = "ghost", small = true, icon = "menu_book") }
                         }
-                        Ladder(ErrorVirada.step(f.virada))
-                        if (note.isNotBlank()) Div({ classes("vr-note") }) { Text(note) }
-                        Div({ classes("vr-ficha-foot") }) {
-                            Span { Text(if (ErrorVirada.stage(f.virada) == ErrorVirada.Stage.TABLE) "na mesa · dá para virar já" else daysLabel(f.virada.nextRetryAt, now)) }
-                            if (f.virada in due) Btn("Virar agora", { Router.go(Route.ErrorMission) }, style = "primary", small = true, icon = "replay")
+                        if (expanded) Div({ classes("vr-topic-list") }) {
+                            g.entries.mapNotNull { fichaById[it.id] }.forEach { f ->
+                                key(f.entry.id) {
+                                    val note = ErrorVirada.noteOf(f.entry.comment)
+                                    val reason = ErrorVirada.reasonOf(f.entry.comment)
+                                    val turned = ErrorVirada.stage(f.virada) == ErrorVirada.Stage.TURNED
+                                    Div({ classes(*listOfNotNull("vr-ficha", if (turned) "turned" else null).toTypedArray()) }) {
+                                        Div({ classes("vr-ficha-top") }) {
+                                            Span { Text(if (turned) "VIROU ★" else if (ErrorVirada.stage(f.virada) == ErrorVirada.Stage.TABLE) "NA MESA · DÁ PARA VIRAR JÁ" else daysLabel(f.virada.nextRetryAt, now).uppercase()) }
+                                            Span { Text("errou ${f.entry.errorCount}×") }
+                                        }
+                                        Div({ classes("vr-q") }) { Text(splitStatement(f.question.statement).let { it.command ?: it.base }.take(220)) }
+                                        Div({ classes("vr-ans") }) {
+                                            f.entry.selectedAnswer?.let { Span({ classes("mine") }) { Text("você: ${optionLabel(f.question, it)}") } }
+                                            (f.entry.correctAnswer ?: f.question.options.firstOrNull { it.correct }?.key)?.let { Span({ classes("right") }) { Text("certa: ${optionLabel(f.question, it)}") } }
+                                            reason?.let { Span({ classes("why") }) { Text(it.label) } }
+                                        }
+                                        Ladder(ErrorVirada.step(f.virada))
+                                        if (note.isNotBlank()) Div({ classes("vr-note") }) { Text(note) }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        if (won.isNotEmpty()) {
-            Div({ classes("vr-sect") }) { B { Text("Mural dos que viraram") }; Span { Text("${won.size} ${if (won.size == 1) "troféu" else "troféus"}") } }
+        // O mural: um troféu por tópico virado por inteiro (antes, um por questão).
+        val wonTopics = groups.filter { it.done }
+        if (wonTopics.isNotEmpty()) {
+            Div({ classes("vr-sect") }) { B { Text("Mural dos tópicos que viraram") }; Span { Text("${wonTopics.size} ${if (wonTopics.size == 1) "troféu" else "troféus"}") } }
             Div({ classes("vr-wall") }) {
-                won.sortedByDescending { it.entry.lastReviewedAt ?: 0 }.take(12).forEachIndexed { i, f ->
-                    key(f.entry.id) {
+                wonTopics.sortedByDescending { g -> g.entries.maxOf { it.lastReviewedAt ?: 0 } }.take(12).forEachIndexed { i, g ->
+                    key(g.topicId ?: -1L) {
                         Div({ classes("vr-trophy"); attr("style", "--r:${listOf(-2, 1.5, -1, 2)[i % 4]}deg") }) {
                             Span({ classes("vr-stamp") }) { Text("VIROU!") }
-                            B { Text(topics[f.question.topicId]?.title ?: "Questão") }
-                            Span { Text("errou ${f.entry.errorCount}× · virou em ${f.entry.lastReviewedAt?.let { Queries.shortDate(Queries.dateOf(it)) } ?: ""}") }
+                            B { Text(g.topicId?.let { topics[it]?.title } ?: "Tópico") }
+                            Span { Text("${g.entries.size} ${if (g.entries.size == 1) "erro virado" else "erros virados"} · em ${g.entries.maxOf { it.lastReviewedAt ?: 0 }.takeIf { it > 0 }?.let { Queries.shortDate(Queries.dateOf(it)) } ?: ""}") }
                         }
                     }
                 }
@@ -226,7 +264,12 @@ private fun reasonColor(r: ErrorVirada.Reason) = when (r) {
 fun ViradaMissionScreen() {
     val now = remember { Date.now().toLong() }
     // a lista é fixada ao abrir: responder muda o erro, mas a missão continua a mesma
-    val missionIds = remember { ErrorVirada.mission(fichas(Store.data).map { it.virada }, now).map { it.id } }
+    // do tópico escolhido no cartão (todos os que vencem dele) ou a missão do dia, que junta os do mesmo tópico
+    val missionIds = remember {
+        val all = fichas(Store.data).map { it.virada }
+        val topic = ViradaUi.topicId
+        (if (topic != null) ErrorVirada.due(all.filter { it.topicId == topic }, now).take(10) else ErrorVirada.mission(all, now)).map { it.id }
+    }
     var index by remember { mutableStateOf(0) }
     var climbed by remember { mutableStateOf(0) }
     val sessionId = remember { Actions.newSessionId() }

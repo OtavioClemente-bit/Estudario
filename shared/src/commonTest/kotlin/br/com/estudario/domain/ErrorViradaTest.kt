@@ -26,6 +26,19 @@ class ErrorViradaTest {
     }
 
     @Test
+    fun agrupaPorTopicoEMissaoJuntaOMesmoAssunto() {
+        fun t(id: Long, topic: Long, streak: Int, next: Long?) = ErrorVirada.Entry(id, id, topic, 1, streak, next, now - day, now - 10 * day + id, "")
+        val list = listOf(t(1, 10, 0, now + 3 * day), t(2, 20, 1, now - day), t(3, 10, 3, null), t(4, 20, 0, now + 3 * day), t(5, 30, 3, null))
+        val groups = ErrorVirada.byTopic(list, now)
+        assertEquals(listOf(20L, 10L, 30L), groups.map { it.topicId })
+        assertEquals(2, groups[0].due)
+        assertEquals(1, groups[1].turned)
+        assertTrue(groups.last().done)
+        // a missão junta os do mesmo tópico (o 2 venceu primeiro, então vem o 4 do mesmo tópico)
+        assertEquals(listOf(2L, 4L, 1L), ErrorVirada.mission(list, now).map { it.id })
+    }
+
+    @Test
     fun motivoNaPrimeiraLinhaDaNota() {
         val c = ErrorVirada.withReason("antes de masculino não tem crase", ErrorVirada.Reason.LI_RAPIDO)
         assertEquals("Motivo: Li rápido\nantes de masculino não tem crase", c)

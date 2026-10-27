@@ -52,11 +52,61 @@ object ErrorVirada {
             .sortedWith(compareBy<Entry>({ it.nextRetryAt ?: it.lastErrorAt }, { -it.errorCount }))
 
     /** A missão do dia: até [max] dos que vencem hoje. */
-    fun mission(entries: List<Entry>, now: Long, max: Int = 5): List<Entry> = due(entries, now).take(max)
+    fun mission(entries: List<Entry>, now: Long, max: Int = 5): List<Entry> = missionGrouped(entries, now, max)
 
     /** Degraus subidos nos últimos 7 dias (acertos em erros). */
     fun stepsThisWeek(entries: List<Entry>, now: Long): Int =
         entries.count { it.retryStreak > 0 && (it.lastReviewedAt ?: 0) >= now - 7 * DAY }
+
+    // ------------------------------------------------------------------ por tópico
+
+    /**
+     * Os erros de um tópico juntos: a tela mostra um cartão por tópico (com uma ficha por questão
+     * dentro), mas a escada continua por questão, para acertar uma não "virar" as outras.
+     */
+    data class TopicGroup(
+        val topicId: Long?,
+        val entries: List<Entry>,
+        val turned: Int,
+        val turning: Int,
+        val due: Int,
+        val errors: Int,
+        val topReason: Reason?,
+        /** 0..1: degraus subidos de todos os degraus do tópico. */
+        val progress: Double,
+    ) {
+        val done: Boolean get() = entries.isNotEmpty() && turned == entries.size
+    }
+
+    /** Os tópicos, do que tem mais para virar hoje ao que tem menos; os virados por inteiro no fim. */
+    fun byTopic(entries: List<Entry>, now: Long): List<TopicGroup> {
+        val dueIds = due(entries, now).map { it.id }.toSet()
+        return entries.groupBy { it.topicId }.map { (topicId, list) ->
+            TopicGroup(
+                topicId, list.sortedWith(compareBy<Entry>({ stage(it) == Stage.TURNED }, { it.nextRetryAt ?: it.lastErrorAt })),
+                turned = list.count { stage(it) == Stage.TURNED },
+                turning = list.count { stage(it) == Stage.TURNING },
+                due = list.count { it.id in dueIds },
+                errors = list.sumOf { it.errorCount },
+                topReason = reasonStats(list).firstOrNull()?.first,
+                progress = list.sumOf { step(it) }.toDouble() / (list.size * steps).coerceAtLeast(1),
+            )
+        }.sortedWith(compareBy<TopicGroup>({ it.done }, { -it.due }, { -(it.entries.size - it.turned) }, { -it.errors }))
+    }
+
+    /** A missão do dia, contada por tópico: (tópico, quantos erros dele entram). */
+    fun missionByTopic(mission: List<Entry>): List<Pair<Long?, Int>> =
+        mission.groupBy { it.topicId }.map { it.key to it.value.size }.sortedByDescending { it.second }
+
+    /**
+     * A missão juntando os erros do mesmo tópico (ajuda a fixar o assunto em vez de pular de tema
+     * em tema): os que vencem, agrupados pelo tópico do primeiro que venceu.
+     */
+    fun missionGrouped(entries: List<Entry>, now: Long, max: Int = 5): List<Entry> {
+        val list = due(entries, now)
+        val order = list.map { it.topicId }.distinct()
+        return order.flatMap { t -> list.filter { it.topicId == t } }.take(max)
+    }
 
     // ------------------------------------------------------------------ o motivo do erro
 

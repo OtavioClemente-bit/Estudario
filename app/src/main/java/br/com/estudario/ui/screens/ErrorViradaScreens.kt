@@ -17,6 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -124,7 +127,7 @@ private fun SectionTitle(title: String, aside: String? = null) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ViradaScreen(viewModel: AppViewModel, onMission: () -> Unit, onTrainErrors: () -> Unit, onTrainTopic: (Long) -> Unit) {
+fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErrors: () -> Unit, onTrainTopic: (Long) -> Unit, onOpenTopic: (Long) -> Unit = {}) {
     val errors by viewModel.errors.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -150,7 +153,9 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: () -> Unit, onTrainErrors: 
             .map { (topicId, list) -> Triple(topicId, list.firstNotNullOfOrNull { e -> e.entry.concept.takeIf { it.isNotBlank() } } ?: topicById[topicId]?.title ?: "Tópico", list.sumOf { it.entry.errorCount }) }
             .sortedByDescending { it.third }.take(3)
     }
-    val open = errors.filter { stageOf[it.entry.id] != ErrorVirada.Stage.TURNED }.sortedBy { it.entry.nextRetryAt ?: it.entry.lastErrorAt }
+    val groups = remember(entries) { ErrorVirada.byTopic(entries, now) }
+    val byId = remember(errors) { errors.associateBy { it.entry.id } }
+    var expandedTopics by remember { mutableStateOf(setOf<Long>()) }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ScreenTitle("Caderno de erros", "Aqui erro vira acerto") }
@@ -202,14 +207,14 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: () -> Unit, onTrainErrors: 
                         Text("Missão de hoje · virar ${mission.size} ${if (mission.size == 1) "erro" else "erros"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("Os da mesa e os que vencem hoje, ~${(mission.size * 1.2).toInt().coerceAtLeast(1)} min. Acertou, ele sobe um degrau.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            mission.forEach { m ->
+                            ErrorVirada.missionByTopic(mission).forEach { (t, n) ->
                                 Surface(shape = RoundedCornerShape(8.dp), color = scheme.surfaceVariant) {
-                                    Text(topicById[m.topicId]?.title?.take(18) ?: "Erro", Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    Text("$n · " + (t?.let(topicById::get)?.title?.take(24) ?: "Erro"), Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
                         androidx.compose.material3.Button(
-                            onClick = onMission,
+                            onClick = { onMission(null) },
                             colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = Color(0xFF1B1B18)),
                             modifier = Modifier.heightIn(min = 48.dp),
                         ) { Icon(Icons.Outlined.Replay, null); Spacer(Modifier.width(8.dp)); Text("Começar a virada", fontWeight = FontWeight.ExtraBold) }
@@ -271,37 +276,69 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: () -> Unit, onTrainErrors: 
             }
         }
 
-        if (open.isNotEmpty()) {
-            item { SectionTitle("Suas fichas de erro", "${due.size} para hoje · ${open.size} no total") }
-            items(open.take(40), key = { "ficha-${it.entry.id}" }) { item ->
-                val topic = topicById[item.question.topicId]
+        // Um cartão por tópico (com as fichas de cada questão dentro): com muitos erros, uma ficha
+        // por questão virava uma rolagem sem fim. A escada continua por questão.
+        val openGroups = groups.filter { !it.done }
+        if (openGroups.isNotEmpty()) {
+            item { SectionTitle("Seus erros por tópico", "${due.size} para hoje · ${openGroups.size} ${if (openGroups.size == 1) "tópico" else "tópicos"}") }
+            items(openGroups, key = { "topico-${it.topicId}" }) { g ->
+                val topic = g.topicId?.let(topicById::get)
                 val subjectName = topic?.subjectId?.let(subjectById::get)?.name.orEmpty()
                 val accent = subjectAccentColor(subjectName, colors.subjectPalette)
-                val note = ErrorVirada.noteOf(item.entry.comment)
-                val reason = ErrorVirada.reasonOf(item.entry.comment)
-                val tableStage = stageOf[item.entry.id] == ErrorVirada.Stage.TABLE
+                val expanded = (g.topicId ?: -1L) in expandedTopics
                 Surface(shape = EstudarioShapes.panel, color = scheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.height(IntrinsicSize.Min)) {
                         Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Row {
-                                Text(listOfNotNull(subjectName.takeIf { it.isNotBlank() }, topic?.title).joinToString(" · ").uppercase(), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("errou ${item.entry.errorCount}×", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { val k = g.topicId ?: -1L; expandedTopics = if (k in expandedTopics) expandedTopics - k else expandedTopics + k },
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(progress = { g.progress.toFloat() }, Modifier.fillMaxSize(), color = Green, trackColor = scheme.surfaceVariant, strokeWidth = 4.dp)
+                                    Text("${g.entries.size}", fontWeight = FontWeight.Bold)
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    if (subjectName.isNotBlank()) Text(subjectName.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(topic?.title ?: "Sem tópico", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        if (g.due > 0) Pill("${g.due} para hoje", colors.attention)
+                                        if (g.turned > 0) Pill("${g.turned} ${if (g.turned == 1) "virou" else "viraram"}", colors.completed)
+                                        if (g.turning > 0) Pill("${g.turning} virando", scheme.onSurfaceVariant)
+                                        g.topReason?.let { Pill(it.label, reasonColor(it)) }
+                                    }
+                                }
+                                Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (expanded) "Fechar" else "Ver as questões", tint = scheme.onSurfaceVariant)
                             }
-                            Text(plainFormulaText(item.question.statement), style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                item.entry.selectedAnswer?.let { Pill("você: $it", scheme.error) }
-                                item.entry.correctAnswer?.let { Pill("certa: $it", colors.completed) }
-                                reason?.let { Pill(it.label, reasonColor(it)) }
+                            if (g.due > 0 || expanded) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (g.due > 0) Button(onClick = { onMission(g.topicId) }, contentPadding = PaddingValues(horizontal = 14.dp)) {
+                                    Icon(Icons.Outlined.Replay, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Virar ${g.due} ${if (g.due == 1) "erro" else "erros"}")
+                                }
+                                g.topicId?.let { id -> TextButton(onClick = { onOpenTopic(id) }) { Text("Ler a teoria") } }
                             }
-                            Ladder(ErrorVirada.step(item.virada()))
-                            if (note.isNotBlank()) Surface(shape = RoundedCornerShape(8.dp), color = scheme.surface) {
-                                Text(note, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (tableStage) "na mesa · dá para virar já" else daysLabel(item.entry.nextRetryAt, now), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
-                                if (item.entry.id in dueIds) Button(onClick = onMission, contentPadding = PaddingValues(horizontal = 14.dp)) {
-                                    Icon(Icons.Outlined.Replay, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Virar agora")
+                            if (expanded) g.entries.forEach { e ->
+                                val item = byId[e.id] ?: return@forEach
+                                val note = ErrorVirada.noteOf(item.entry.comment)
+                                val reason = ErrorVirada.reasonOf(item.entry.comment)
+                                val stage = stageOf[item.entry.id]
+                                Surface(shape = RoundedCornerShape(12.dp), color = scheme.surface, modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row {
+                                            Text(
+                                                when (stage) { ErrorVirada.Stage.TURNED -> "VIROU ★"; ErrorVirada.Stage.TABLE -> "NA MESA · DÁ PARA VIRAR JÁ"; else -> daysLabel(item.entry.nextRetryAt, now).uppercase() },
+                                                Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (stage == ErrorVirada.Stage.TURNED) colors.completed else scheme.onSurfaceVariant,
+                                            )
+                                            Text("errou ${item.entry.errorCount}×", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
+                                        }
+                                        Text(plainFormulaText(item.question.statement), style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            item.entry.selectedAnswer?.let { Pill("você: $it", scheme.error) }
+                                            item.entry.correctAnswer?.let { Pill("certa: $it", colors.completed) }
+                                            reason?.let { Pill(it.label, reasonColor(it)) }
+                                        }
+                                        Ladder(ErrorVirada.step(item.virada()))
+                                        if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                                    }
                                 }
                             }
                         }
@@ -310,8 +347,10 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: () -> Unit, onTrainErrors: 
             }
         }
 
-        if (won.isNotEmpty()) {
-            item { SectionTitle("Mural dos que viraram", "${won.size} ${if (won.size == 1) "troféu" else "troféus"}") }
+        // O mural: um troféu por tópico virado por inteiro (antes, um por questão).
+        val wonTopics = groups.filter { it.done }
+        if (wonTopics.isNotEmpty()) {
+            item { SectionTitle("Mural dos tópicos que viraram", "${wonTopics.size} ${if (wonTopics.size == 1) "troféu" else "troféus"}") }
             item {
                 // post-its amarelos: claros no tema claro, âmbar escuro no tema escuro
                 val dark = scheme.surface.luminanceIsDark()
@@ -319,11 +358,12 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: () -> Unit, onTrainErrors: 
                 val ink = if (dark) Color(0xFFFFE9A8) else Color(0xFF3A2E00)
                 val sub = if (dark) Color(0xFFD9C58A) else Color(0xFF6B5A1A)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    won.sortedByDescending { it.entry.lastReviewedAt ?: 0 }.take(12).forEachIndexed { i, f ->
+                    wonTopics.sortedByDescending { g -> g.entries.maxOf { it.lastReviewedAt ?: 0 } }.take(12).forEachIndexed { i, g ->
+                        val last = g.entries.maxOf { it.lastReviewedAt ?: 0 }
                         Box(Modifier.width(156.dp).rotate(listOf(-2f, 1.5f, -1f, 2f)[i % 4])) {
                             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(paper).padding(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(topicById[f.question.topicId]?.title ?: "Questão", color = ink, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                                Text("errou ${f.entry.errorCount}× · virou em ${f.entry.lastReviewedAt?.let { virouDate.format(Date(it)) } ?: ""}", color = sub, fontSize = 11.sp)
+                                Text(g.topicId?.let(topicById::get)?.title ?: "Tópico", color = ink, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                Text("${g.entries.size} ${if (g.entries.size == 1) "erro virado" else "erros virados"}" + (if (last > 0) " · em ${virouDate.format(Date(last))}" else ""), color = sub, fontSize = 11.sp)
                             }
                             Text("VIROU!", Modifier.align(Alignment.TopEnd).offset(x = (-8).dp, y = (-8).dp).rotate(4f).clip(RoundedCornerShape(6.dp)).background(Green).padding(horizontal = 8.dp, vertical = 3.dp), color = Color.White, fontWeight = FontWeight.Black, fontSize = 11.sp)
                         }
@@ -355,7 +395,7 @@ private fun Pill(text: String, color: Color) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ViradaMissionScreen(viewModel: AppViewModel, onBack: () -> Unit) {
+fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: () -> Unit) {
     val errors by viewModel.errors.collectAsState()
     val questions by viewModel.questions.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -363,7 +403,7 @@ fun ViradaMissionScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val now = remember { System.currentTimeMillis() }
     // a lista é fixada ao abrir: responder muda o erro, mas a missão continua a mesma
     var missionIds by remember { mutableStateOf<List<Long>?>(null) }
-    LaunchedEffect(errors) { if (missionIds == null && errors.isNotEmpty()) missionIds = ErrorVirada.mission(errors.map { it.virada() }, now).map { it.id } }
+    LaunchedEffect(errors) { if (missionIds == null && errors.isNotEmpty()) missionIds = errors.map { it.virada() }.let { all -> if (topicId != null) ErrorVirada.due(all.filter { it.topicId == topicId }, now).take(10) else ErrorVirada.mission(all, now) }.map { it.id } }
     var index by remember { mutableIntStateOf(0) }
     var climbed by remember { mutableIntStateOf(0) }
     val sessionId = remember { "virada-$now" }

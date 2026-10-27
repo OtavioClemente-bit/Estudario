@@ -581,12 +581,15 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 composable("errors") {
                     ViradaScreen(
                         viewModel,
-                        onMission = { navController.navigate("errors/mission") },
+                        onMission = { topic -> navController.navigate("errors/mission?topic=${topic ?: -1}") },
+                        onOpenTopic = { navController.navigate("topic/$it") },
                         onTrainErrors = { navController.navigate("quiz/20/0/0/errors/_/_") },
                         onTrainTopic = { navController.navigate("quiz/3/$it/0/random/_/_") },
                     )
                 }
-                composable("errors/mission") { ViradaMissionScreen(viewModel, onBack = { navController.popBackStack() }) }
+                composable("errors/mission?topic={topic}", arguments = listOf(androidx.navigation.navArgument("topic") { type = androidx.navigation.NavType.LongType; defaultValue = -1L })) { back ->
+                    ViradaMissionScreen(viewModel, topicId = back.arguments?.getLong("topic")?.takeIf { it >= 0 }, onBack = { navController.popBackStack() })
+                }
                 composable("more") { MoreScreen(viewModel, onOpenSetup = viewModel::reopenInitialSetup, onNotifications = { navController.navigate("notifications") }, onAgenda = { navController.navigate("agenda") }) }
                 composable("agenda") {
                     val agendaPlan by planViewModel.state.collectAsState()
