@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FormatStrikethrough
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.WorkspacePremium
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import br.com.estudario.data.local.QuestionWithOptions
 import br.com.estudario.data.local.ReviewDifficulty
 import br.com.estudario.data.local.ReviewScheduleEntity
@@ -174,6 +176,7 @@ fun ReviewSessionScreen(
     val shuffleSeed = remember { System.nanoTime() }
     var stepIndex by remember { mutableIntStateOf(0) }
     var recallIndex by remember { mutableIntStateOf(0) }
+    var flipped by remember { mutableStateOf(false) }
     var recalled by remember { mutableIntStateOf(0) }
     var forgotten by remember { mutableIntStateOf(0) }
     var questionIndex by remember { mutableIntStateOf(0) }
@@ -238,15 +241,38 @@ fun ReviewSessionScreen(
             RvStep.RECALL -> {
                 val prompt = recall[recallIndex.coerceAtMost(recall.lastIndex)]
                 item {
-                    Text("Tente lembrar antes de ver a resposta. Recuperar de memória é o que fixa.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text("Tente lembrar antes de virar o cartão. Recuperar de memória é o que fixa.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                }
+                item(key = "rv-flip-${prompt.id}") {
+                    // O mesmo cartão do site: pergunta na frente, resposta no verso, vira em 3D.
+                    ReviewFlipCard(prompt.text, prompt.answer.orEmpty(), recallIndex + 1, recall.size, flipped) { flipped = !flipped }
                 }
                 item {
-                    Text("PERGUNTA ${recallIndex + 1} DE ${recall.size}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFFC98A0B))
-                    // Um par de botões só, dentro do cartão e depois de ver a resposta (antes eram dois pares).
-                    br.com.estudario.ui.components.RecallCard(prompt.text, prompt.answer, revealKey = prompt.id, onVerdict = { lembrou ->
-                        if (lembrou) recalled++ else forgotten++
-                        if (recallIndex < recall.lastIndex) recallIndex++ else advance()
-                    })
+                    val somCtx = androidx.compose.ui.platform.LocalContext.current
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (!flipped) Button(onClick = { flipped = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Virar o cartão", fontWeight = FontWeight.Bold) }
+                        else {
+                            Text("Você lembrou antes de virar o cartão?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                fun next(lembrou: Boolean) {
+                                    br.com.estudario.ui.brand.EstudarioSom.play(somCtx, if (lembrou) "lembrei" else "nao_lembrei")
+                                    if (lembrou) recalled++ else forgotten++
+                                    flipped = false
+                                    if (recallIndex < recall.lastIndex) recallIndex++ else advance()
+                                }
+                                androidx.compose.material3.OutlinedButton(
+                                    onClick = { next(false) }, modifier = Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
+                                    border = androidx.compose.foundation.BorderStroke(2.dp, RvRed.copy(alpha = 0.55f)),
+                                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = RvRed),
+                                ) { Icon(Icons.Outlined.Close, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Não lembrei", fontWeight = FontWeight.Black) }
+                                androidx.compose.material3.Button(
+                                    onClick = { next(true) }, modifier = Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF2FBF8A), contentColor = Color.White),
+                                ) { Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Lembrei", fontWeight = FontWeight.Black) }
+                            }
+                            androidx.compose.material3.TextButton(onClick = { flipped = false }) { Text("Voltar à pergunta") }
+                        }
+                    }
                 }
             }
             RvStep.SUMMARY -> {
@@ -269,86 +295,107 @@ fun ReviewSessionScreen(
                 val question = questions[questionIndex.coerceAtMost(questions.lastIndex)]
                 val original = question.options.sortedBy { it.position }
                 val order = OptionShuffle.order(original.map { it.text }, shuffleSeed + question.question.id * 7919)
-                item {
+                // A questão inteira num papel só, como no site: enunciado, alternativas, a reação do Folha e o porquê.
+                item(key = "rv-q-${question.question.id}") {
                     PaperCard("QUESTÃO ${questionIndex + 1} DE ${questions.size}") {
                         MarkdownText(question.question.statement)
                         QuestionProvenance(question.question)
-                    }
-                }
-                order.forEachIndexed { pos, i ->
-                    val option = original[i]
-                    item(key = "rvopt-${option.id}") {
-                        val container = when {
-                            answered != null && option.isCorrect -> RvMint.copy(alpha = 0.18f)
-                            answered == false && option.key == selected -> RvRed.copy(alpha = 0.15f)
-                            option.key == selected -> MaterialTheme.colorScheme.primaryContainer
-                            else -> MaterialTheme.colorScheme.surfaceContainerLow
-                        }
-                        val border = when {
-                            answered != null && option.isCorrect -> RvMint
-                            answered == false && option.key == selected -> RvRed
-                            option.key == selected -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.outlineVariant
-                        }
-                        val isCrossed = option.id in crossed && answered == null
-                        // Riscar como nas outras questões: arrastar a alternativa para o lado.
-                        SwipeToEliminate(isCrossed, enabled = answered == null, onToggle = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null }) {
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(container).border(2.dp, border, RoundedCornerShape(16.dp))
-                                .graphicsLayer { alpha = if (isCrossed) 0.45f else 1f }
-                                .clickable(enabled = answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key }.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(Modifier.size(30.dp).clip(CircleShape).background(border.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                                Text("ABCDEF"[pos].toString(), fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(Modifier.height(4.dp))
+                        order.forEachIndexed { pos, i ->
+                            val option = original[i]
+                            val isCrossed = option.id in crossed && answered == null
+                            val tint = when {
+                                answered != null && option.isCorrect -> RvMint
+                                answered == false && option.key == selected -> RvRed
+                                option.key == selected -> MaterialTheme.colorScheme.primary
+                                else -> null
                             }
-                            Spacer(Modifier.width(12.dp))
-                            br.com.estudario.ui.components.StudyInlineText(option.text, Modifier.weight(1f), onTap = { if (answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key } }, style = if (isCrossed) MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) else MaterialTheme.typography.bodyLarge)
-                        }
-                        }
-                    }
-                }
-                if (answered != null) item {
-                    Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background((if (answered == true) RvMint else RvRed).copy(alpha = 0.12f)).padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        // O Folha reage como no treino: comemora, consola, solta o "ufa" ao virar e acolhe na sequência de erros.
-                        val right = answered == true
-                        val inARow = results.asReversed().takeWhile { it }.size
-                        val relief = right && inARow == 1 && results.size >= 2 && !results[results.size - 2]
-                        val tough = !right && results.size >= 3 && results.takeLast(3).none { it }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            androidx.compose.runtime.key(question.question.id) {
-                                br.com.estudario.ui.assistant.Folha(
-                                    56.dp,
-                                    mood = when {
-                                        relief -> br.com.estudario.ui.assistant.FolhaMood.RELIEVED
-                                        right -> br.com.estudario.ui.assistant.FolhaMood.HAPPY
-                                        tough -> br.com.estudario.ui.assistant.FolhaMood.TALKING
-                                        else -> br.com.estudario.ui.assistant.FolhaMood.SAD
-                                    },
-                                )
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text(when { relief -> "Ufa, virou!"; right -> "Isso! Você lembrou."; tough -> "Tô aqui com você"; else -> "Ainda não." }, fontWeight = FontWeight.Black, color = if (right) Color(0xFF1E9A6C) else RvRed)
-                                Text(
-                                    when {
-                                        relief -> br.com.estudario.ui.assistant.FolhaLines.forRelief(question.question.id)
-                                        tough -> br.com.estudario.domain.FolhaMemory.toughLines[(question.question.id % br.com.estudario.domain.FolhaMemory.toughLines.size).toInt()]
-                                        else -> br.com.estudario.ui.assistant.FolhaLines.forAnswer(right, question.question.id)
-                                    } + if (right) "" else " Ela foi para o caderno de erros.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
+                            // Fundo sólido (a cor do estado por cima da superfície): antes era transparente e o
+                            // "Riscar" do gesto aparecia por trás do texto.
+                            val base = MaterialTheme.colorScheme.surface
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(base)
+                                        .background(tint?.copy(alpha = if (answered != null || option.key != selected) 0.16f else 0.12f) ?: Color.Transparent)
+                                        .border(2.dp, tint ?: MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                                        .graphicsLayer { alpha = if (isCrossed) 0.45f else 1f }
+                                        .clickable(enabled = answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key }
+                                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        Modifier.size(30.dp).clip(CircleShape).background(tint ?: MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            when { answered != null && option.isCorrect -> "✓"; answered == false && option.key == selected -> "✕"; else -> "ABCDEF"[pos].toString() },
+                                            fontWeight = FontWeight.Black, color = if (tint != null) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    br.com.estudario.ui.components.StudyInlineText(
+                                        option.text, Modifier.weight(1f),
+                                        onTap = { if (answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key } },
+                                        style = if (isCrossed) MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) else MaterialTheme.typography.bodyLarge,
+                                    )
+                                }
+                                // Riscar: um botão ao lado, como no site (o gesto de arrastar ficava por trás do texto).
+                                if (answered == null) IconButton(
+                                    onClick = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null },
+                                    modifier = Modifier.size(40.dp).semantics { contentDescription = if (isCrossed) "Desfazer risco" else "Riscar alternativa" },
+                                ) {
+                                    Icon(Icons.Outlined.FormatStrikethrough, null, tint = if (isCrossed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                }
                             }
                         }
-                        MarkdownText(OptionShuffle.relabel(question.question.explanation, original.map { it.key }, order))
+                        if (answered != null) {
+                            // O Folha reage como no treino: comemora, consola, solta o "ufa" ao virar e acolhe na sequência de erros.
+                            val right = answered == true
+                            val inARow = results.asReversed().takeWhile { it }.size
+                            val relief = right && inARow == 1 && results.size >= 2 && !results[results.size - 2]
+                            val tough = !right && results.size >= 3 && results.takeLast(3).none { it }
+                            Spacer(Modifier.height(4.dp))
+                            Column(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface)
+                                    .background((if (right) RvMint else RvRed).copy(alpha = 0.12f)).padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    androidx.compose.runtime.key(question.question.id) {
+                                        br.com.estudario.ui.assistant.Folha(
+                                            52.dp,
+                                            mood = when {
+                                                relief -> br.com.estudario.ui.assistant.FolhaMood.RELIEVED
+                                                right -> br.com.estudario.ui.assistant.FolhaMood.HAPPY
+                                                tough -> br.com.estudario.ui.assistant.FolhaMood.TALKING
+                                                else -> br.com.estudario.ui.assistant.FolhaMood.SAD
+                                            },
+                                        )
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(when { relief -> "Ufa, virou!"; right -> "Isso! Você lembrou."; tough -> "Tô aqui com você"; else -> "Ainda não." }, fontWeight = FontWeight.Black, color = if (right) Color(0xFF1E9A6C) else RvRed)
+                                        Text(
+                                            when {
+                                                relief -> br.com.estudario.ui.assistant.FolhaLines.forRelief(question.question.id)
+                                                tough -> br.com.estudario.domain.FolhaMemory.toughLines[(question.question.id % br.com.estudario.domain.FolhaMemory.toughLines.size).toInt()]
+                                                else -> br.com.estudario.ui.assistant.FolhaLines.forAnswer(right, question.question.id)
+                                            } + if (right) "" else " Ela foi para o caderno de erros.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    }
+                                }
+                                if (question.question.explanation.isNotBlank()) {
+                                    Text("Por quê", fontWeight = FontWeight.Black, color = if (right) Color(0xFF1E9A6C) else RvRed)
+                                    MarkdownText(OptionShuffle.relabel(question.question.explanation, original.map { it.key }, order))
+                                }
+                            }
+                        }
                     }
                 }
                 item {
-                    if (answered == null) Button(enabled = selected != null, onClick = { scope.launch { val ok = viewModel.answer(question, selected!!, sessionId); answered = ok; if (ok == true) correct++; results = results + (ok == true) } }, modifier = Modifier.fillMaxWidth()) { Text("Confirmar") }
-                    else Button(onClick = { crossed = emptySet(); if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, Modifier.fillMaxWidth()) {
-                        Text(if (questionIndex < questions.lastIndex) "Próxima questão" else "Avaliar a revisão")
+                    if (answered == null) Button(enabled = selected != null, onClick = { scope.launch { val ok = viewModel.answer(question, selected!!, sessionId); answered = ok; if (ok == true) correct++; results = results + (ok == true) } }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Confirmar", fontWeight = FontWeight.Bold) }
+                    else Button(onClick = { crossed = emptySet(); if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, Modifier.fillMaxWidth().height(52.dp)) {
+                        Text(if (questionIndex < questions.lastIndex) "Próxima questão" else "Avaliar a revisão", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -688,5 +735,51 @@ private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage:
         if (available > 0) Button(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") }
         else Button(onClick = onGenerate, Modifier.fillMaxWidth()) { Text("Gerar questões") }
         TextButton(onClick = onBack) { Text("Voltar às revisões") }
+    }
+}
+
+/**
+ * O cartão de lembrar da revisão, igual ao do site: a pergunta na frente (papel claro), a resposta
+ * no verso (índigo), virando em 3D. Tocar vira e desvira.
+ */
+@Composable
+private fun ReviewFlipCard(question: String, answer: String, number: Int, total: Int, flipped: Boolean, onToggle: () -> Unit) {
+    val angle by androidx.compose.animation.core.animateFloatAsState(if (flipped) 180f else 0f, androidx.compose.animation.core.spring(dampingRatio = 0.72f, stiffness = 260f), label = "rv-flip")
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val front = angle <= 90f
+    val shape = RoundedCornerShape(24.dp)
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 260.dp)
+            .graphicsLayer { rotationY = angle; cameraDistance = 14f * density }
+            .clip(shape)
+            .background(if (front) MaterialTheme.colorScheme.surface else Color(0xFF231C86))
+            .then(if (front) Modifier.border(2.dp, MaterialTheme.colorScheme.outlineVariant, shape) else Modifier)
+            .clickable(onClick = onToggle)
+            .semantics { contentDescription = if (flipped) "Voltar à pergunta" else "Ver a resposta" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 26.dp).graphicsLayer { rotationY = if (front) 0f else 180f },
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (front) {
+                Text("PERGUNTA $number DE $total", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFC98A0B))
+                br.com.estudario.ui.components.StudyInlineText(question, style = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center, lineHeight = 28.sp), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Outlined.TouchApp, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Toque para ver a resposta", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                Text("RESPOSTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.4.sp, color = Color(0xFFFFB421))
+                // o verso é índigo nos dois temas: o texto da resposta vai em branco
+                val scheme = MaterialTheme.colorScheme
+                MaterialTheme(colorScheme = scheme.copy(onSurface = Color.White, onSurfaceVariant = Color(0xFFD9D5FF), onBackground = Color.White, primary = Color(0xFFFFD27A))) {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides Color.White) {
+                        if (answer.isBlank()) Text("Este material não trouxe a resposta. Confira na teoria do tópico.", color = Color.White)
+                        else MarkdownText(answer)
+                    }
+                }
+            }
+        }
     }
 }
