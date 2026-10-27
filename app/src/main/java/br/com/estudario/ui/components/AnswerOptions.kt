@@ -15,11 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FormatStrikethrough
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,8 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -39,7 +33,7 @@ private val OkMint = Color(0xFF2FBF8A)
 private val NoRed = Color(0xFFE5484D)
 
 /**
- * Alternativas no padrão da revisão: tocar só escolhe (nada é gravado), o botão ao lado risca,
+ * Alternativas no padrão da revisão: tocar só escolhe (nada é gravado), arrastar para o lado risca,
  * e a resposta vale quando a pessoa aperta [ConfirmAnswerButton]. Depois de responder mostra
  * certa/errada e, se [previousKey] vier, avisa qual tinha sido marcada da última vez.
  */
@@ -66,9 +60,10 @@ fun AnswerOptions(
                 answered == null && option.key == picked -> scheme.primary
                 else -> null
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Riscar arrastando para o lado, como no treino (o fundo sólido esconde o "Riscar" por trás).
+            br.com.estudario.ui.screens.SwipeToEliminate(crossed = isCrossed, enabled = answered == null, onToggle = { onToggleCross(option.key) }) {
                 Row(
-                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(surface)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(surface)
                         .background(tint?.copy(alpha = 0.14f) ?: Color.Transparent)
                         .border(2.dp, tint ?: line, RoundedCornerShape(16.dp))
                         .graphicsLayer { alpha = if (isCrossed) 0.45f else 1f }
@@ -93,12 +88,6 @@ fun AnswerOptions(
                             Text("você tinha marcado esta da última vez", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
                         }
                     }
-                }
-                if (answered == null) IconButton(
-                    onClick = { onToggleCross(option.key) },
-                    modifier = Modifier.size(40.dp).semantics { contentDescription = if (isCrossed) "Desfazer risco" else "Riscar alternativa" },
-                ) {
-                    Icon(Icons.Outlined.FormatStrikethrough, null, tint = if (isCrossed) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }
             }
         }
