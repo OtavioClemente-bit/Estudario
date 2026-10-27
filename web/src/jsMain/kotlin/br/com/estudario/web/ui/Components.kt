@@ -169,7 +169,7 @@ fun Modal(onDismiss: () -> Unit, wide: Boolean = false, extraClass: String? = nu
         classes("modal-back")
         onClick { event -> if (event.target == event.currentTarget) onDismiss() }
     }) {
-        Div({ classes(*listOfNotNull("modal", if (wide) "wide" else null, extraClass).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) { content() }
+        Div({ classes(*(listOfNotNull("modal", if (wide) "wide" else null) + extraClass?.split(" ")?.filter { it.isNotBlank() }.orEmpty()).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) { content() }
     }
 }
 

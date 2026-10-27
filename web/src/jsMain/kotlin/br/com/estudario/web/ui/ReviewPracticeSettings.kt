@@ -32,36 +32,48 @@ internal fun ReviewPracticePanelsHost() {
 @Composable
 internal fun ReviewPracticeSettings(onSaved: () -> Unit = {}, onClose: () -> Unit) {
     var draft by remember { mutableStateOf(ReviewPreferences.value) }
-    Modal(onDismiss = onClose, extraClass = "rv-settings") {
-        Div({ classes("row", "between"); attr("style", "align-items:flex-start") }) {
-            Div({ classes("row"); attr("style", "gap:12px") }) {
-                Icon("settings")
-                Div { H2 { Text("Seu ritmo de revisão") }; P({ classes("small", "muted") }) { Text("Personalize as próximas sessões") } }
+    Modal(onDismiss = onClose, extraClass = "rv-settings gx-sheetmodal") {
+        Div({ classes("gx-top") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Icon("tune", filled = true, plain = true); Text("AJUSTES DA REVISÃO") }
+                H2 { Text("Seu ritmo de revisão") }
+                P({ classes("gx-topic") }) { Text("Personalize as próximas sessões") }
             }
-            IconButton("close", "Fechar configurações da revisão", onClose)
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar configurações da revisão"); onClick { onClose() } }) { Icon("close", plain = true) }
         }
-        Div({ classes("stack", "loose") }) {
-            H3 { Text("Questões por revisão") }
-            BrandCounter(draft.questionCount, { draft = draft.copy(questionCount = it) }, min = 0, max = 50, unit = "questões", chips = listOf(0, 5, 10, 20), label = "Questões por revisão",
-                mood = { if (it == 0) "Sem questões nesta revisão" else "Usa até $it questões disponíveis no tópico" })
-            H3 { Text("Flashcards para lembrar") }
-            BrandCounter(draft.flashcardCount, { draft = draft.copy(flashcardCount = it) }, min = 0, max = 30, unit = "flashcards", chips = listOf(0, 4, 8, 16), label = "Flashcards por revisão",
-                mood = { if (it == 0) "Sem flashcards nesta revisão" else "Tente lembrar antes de consultar o material" })
-            H3 { Text("Ordem das questões") }
-            FilterChips(listOf(ReviewQuestionOrder.ERRORS_FIRST to "Erros primeiro", ReviewQuestionOrder.UNSEEN_FIRST to "Inéditas primeiro", ReviewQuestionOrder.MIXED to "Tudo misturado"), draft.order) { draft = draft.copy(order = it) }
-            ReviewOption("Embaralhar flashcards", "Desligado: segue a ordem do material.", draft.shuffleFlashcards) { draft = draft.copy(shuffleFlashcards = it) }
-            ReviewOption("Resumo rápido", "Consultar depois de tentar lembrar.", draft.showSummary) { draft = draft.copy(showSummary = it) }
-            ReviewOption("Oferecer meus grifos", "Leitor opcional, sem sair da revisão ou editar.", draft.offerHighlights) { draft = draft.copy(offerHighlights = it) }
-            if (draft.offerHighlights) ReviewOption("Notas junto dos grifos", "Mostra também o que você anotou no trecho.", draft.showHighlightNotes) { draft = draft.copy(showHighlightNotes = it) }
-            P({ classes("small", "muted") }) { Text("A sessão em andamento mantém suas escolhas iniciais. Difícil continua repetindo a mesma etapa amanhã.") }
-        }
-        Div({ classes("row", "between", "wrap"); attr("style", "gap:10px;margin-top:20px") }) {
-            Btn("Restaurar padrão", { draft = ReviewPracticeOptions() }, style = "ghost")
-            Btn("Salvar configurações", {
-                runCatching { ReviewPreferences.save(draft) }
-                    .onSuccess { Toast.show("Configurações salvas para as próximas revisões"); onSaved(); onClose() }
-                    .onFailure { Toast.show("Não consegui guardar as configurações neste navegador. Tente novamente.") }
-            }, style = "primary", icon = "check")
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("quiz", "Questões por revisão", null, "#2FD39A") {
+                GxCounter(draft.questionCount, { draft = draft.copy(questionCount = it) }, min = 0, max = 50, unit = "questões", chips = listOf(0, 5, 10, 20), label = "Questões por revisão",
+                    mood = { if (it == 0) "Sem questões nesta revisão" else "Usa até $it questões disponíveis no tópico" })
+            }
+            GxSection("style", "Flashcards para lembrar", null, "#FFC94D") {
+                GxCounter(draft.flashcardCount, { draft = draft.copy(flashcardCount = it) }, min = 0, max = 30, unit = "flashcards", chips = listOf(0, 4, 8, 16), label = "Flashcards por revisão",
+                    mood = { if (it == 0) "Sem flashcards nesta revisão" else "Tente lembrar antes de consultar o material" })
+            }
+            GxSection("sort", "Ordem das questões", null, "#FF8A3D") {
+                GxSeg(listOf(
+                    GxOption(ReviewQuestionOrder.ERRORS_FIRST, "Erros primeiro", "O que você errou vem antes", color = "#FF5A7A"),
+                    GxOption(ReviewQuestionOrder.UNSEEN_FIRST, "Inéditas primeiro", "O que você ainda não viu", color = "#2FD39A"),
+                    GxOption(ReviewQuestionOrder.MIXED, "Tudo misturado", "Sem ordem fixa", color = "#A78BFF"),
+                ), draft.order, { draft = draft.copy(order = it) })
+            }
+            GxSection("toggle_on", "Durante a revisão", null, "#22D3EE") {
+                Div({ classes("gx-switches") }) {
+                    GxSwitchRow("Embaralhar flashcards", "Desligado: segue a ordem do material.", draft.shuffleFlashcards) { draft = draft.copy(shuffleFlashcards = it) }
+                    GxSwitchRow("Resumo rápido", "Consultar depois de tentar lembrar.", draft.showSummary) { draft = draft.copy(showSummary = it) }
+                    GxSwitchRow("Oferecer meus grifos", "Leitor opcional, sem sair da revisão ou editar.", draft.offerHighlights) { draft = draft.copy(offerHighlights = it) }
+                    if (draft.offerHighlights) GxSwitchRow("Notas junto dos grifos", "Mostra também o que você anotou no trecho.", draft.showHighlightNotes) { draft = draft.copy(showHighlightNotes = it) }
+                }
+            }
+            P({ classes("gx-note") }) { Text("A sessão em andamento mantém suas escolhas iniciais. Difícil continua repetindo a mesma etapa amanhã.") }
+            Div({ classes("gx-go", "row") }) {
+                Button({ classes("gx-ghost"); attr("type", "button"); onClick { draft = ReviewPracticeOptions() } }) { Text("Restaurar padrão") }
+                GxLaunch("Salvar configurações", icon = "check") {
+                    runCatching { ReviewPreferences.save(draft) }
+                        .onSuccess { Toast.show("Configurações salvas para as próximas revisões"); onSaved(); onClose() }
+                        .onFailure { Toast.show("Não consegui guardar as configurações neste navegador. Tente novamente.") }
+                }
+            }
         }
     }
 }

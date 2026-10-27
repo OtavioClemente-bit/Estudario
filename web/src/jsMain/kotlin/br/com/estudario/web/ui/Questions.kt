@@ -126,52 +126,59 @@ fun TrainScreen() {
         }
     }
 
-    Card(extra = "pad-lg") {
-        if (questions.isEmpty()) {
+    if (questions.isEmpty()) {
+        Card(extra = "pad-lg") {
             Empty("quiz", "Seu banco de questões está vazio", "Abra um tópico no Edital e gere o material com IA: as questões aparecem aqui para treinar.", action = {
                 Btn("Ir para o Edital", { Router.go(Route.Edital) }, icon = "checklist")
             })
-            return@Card
         }
-        Div({ classes("stack", "loose") }) {
-            H2({ attr("style", "margin:0") }) { Text("Montar meu treino") }
-            FilterBlock("Modo") {
-                Div({ classes("train-modes") }) {
-                    modes.forEach { (key, label) ->
-                        val (icon, desc) = modeInfo[key] ?: ("quiz" to "")
-                        androidx.compose.runtime.key(key) {
-                            Button({ classes(*listOfNotNull("train-mode", if (mode == key) "on" else null).toTypedArray()); onClick { mode = key } }) {
-                                Span({ classes("train-mode-ic") }) { Icon(icon) }
-                                Span({ classes("grow") }) { B { Text(label) }; Span({ classes("xs", "muted") }) { Text(desc) } }
-                            }
-                        }
+        TrainPreferences()
+        return
+    }
+    // Montar o treino: o mesmo estúdio de gerar material (gx-*), com o resumo e o botão no fim.
+    Div({ classes("gx-panel", "gx-train") }) {
+        Div({ classes("gx-top", "flat") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Icon("tune", filled = true, plain = true); Text("ESTÚDIO DE TREINO") }
+                H2 { Text("Monte o seu treino") }
+            }
+        }
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("sports_esports", "Modo", "Como as questões vão ser escolhidas", "#A78BFF") {
+                GxTiles(modes.map { (key, label) -> val (icon, desc) = modeInfo[key] ?: ("quiz" to ""); GxOption(key, label, desc, icon, MODE_COLORS[key] ?: "#A78BFF") }, { it == mode }, cols = 3, multi = false) { mode = it }
+            }
+            GxSection("category", "Matéria", null, "#22D3EE") {
+                GxChips(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject) { subject = it; topic = -1L }
+                if (subject >= 0) {
+                    val topicsWithQuestions = data.topics.filter { t -> t.subjectId == subject && questions.any { it.topicId == t.id } }
+                    if (topicsWithQuestions.isNotEmpty()) {
+                        Span({ classes("gx-label") }) { Text("Tópico") }
+                        GxChips(listOf(-1L to "Todos") + topicsWithQuestions.map { it.id to it.title }, topic) { topic = it }
                     }
                 }
             }
-            FilterBlock("Matéria") {
-                FilterChips(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject) { subject = it; topic = -1L }
+            Div({ classes("gx-two") }) {
+                if (boards.isNotEmpty()) GxSection("account_balance", "Banca", null, "#6F9BFF") { GxChips(listOf("all" to "Todas") + boards.map { it to it }, board) { board = it } }
+                GxSection("speed", "Dificuldade", null, "#FFC94D") { GxChips(difficulties, difficulty) { difficulty = it } }
             }
-            if (subject >= 0) {
-                val topicsWithQuestions = data.topics.filter { t -> t.subjectId == subject && questions.any { it.topicId == t.id } }
-                if (topicsWithQuestions.isNotEmpty()) FilterBlock("Tópico") {
-                    FilterChips(listOf(-1L to "Todos") + topicsWithQuestions.map { it.id to it.title }, topic) { topic = it }
+            GxSection("quiz", "Quantidade", if (available == 0) "Nenhuma questão com esses filtros" else "$available disponíve${if (available == 1) "l" else "is"} com esses filtros", "#2FD39A") {
+                GxCounter(count, { count = it }, min = 5, max = 60, step = 5, unit = "questões", chips = listOf(10, 20, 30), label = "Quantidade de questões")
+            }
+            Div({ classes("gx-go", "row") }) {
+                Div({ classes("gx-go-sum") }) {
+                    Span({ classes("gx-kicker") }) { Text("SEU TREINO") }
+                    B { Text(listOfNotNull(modes.first { it.first == mode }.second, subjects.firstOrNull { it.id == subject }?.name, board.takeIf { it != "all" }, "$count questões").joinToString(" · ")) }
                 }
+                GxLaunch(modes.first { it.first == mode }.second.let { "Iniciar ${it.lowercase()}" }, icon = "play_arrow", enabled = available > 0) { Router.go(Route.Quiz(scope)) }
             }
-            if (boards.isNotEmpty()) FilterBlock("Banca") { FilterChips(listOf("all" to "Todas") + boards.map { it to it }, board) { board = it } }
-            FilterBlock("Dificuldade") { FilterChips(difficulties, difficulty) { difficulty = it } }
-            Div({ classes("row", "between", "wrap") }) {
-                Div {
-                    H3 { Text("Quantidade") }
-                    P({ classes("small", "muted") }) { Text(if (available == 0) "Nenhuma questão com esses filtros" else "$available disponíve${if (available == 1) "l" else "is"} com esses filtros") }
-                }
-                BrandCounter(count, { count = it }, step = 5, min = 5, max = 60, unit = "questões", chips = listOf(10, 20, 30), label = "Quantidade de questões")
-            }
-            Btn(modes.first { it.first == mode }.second.let { "Iniciar ${it.lowercase()}" }, { Router.go(Route.Quiz(scope)) }, block = true, style = "primary", icon = "play_arrow", enabled = available > 0)
         }
     }
 
     TrainPreferences()
 }
+
+/** A cor de cada modo de treino no estúdio. */
+private val MODE_COLORS = mapOf("smart" to "#A78BFF", "wrong" to "#FF5A7A", "neverright" to "#FF8A3D", "mostwrong" to "#F472B6", "new" to "#2FD39A", "favorites" to "#FFC94D", "random" to "#22D3EE")
 
 @Composable
 private fun FilterBlock(title: String, content: @Composable () -> Unit) {

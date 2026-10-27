@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
+import org.jetbrains.compose.web.dom.I
 import org.jetbrains.compose.web.dom.Input
 import org.jetbrains.compose.web.dom.Label
 import org.jetbrains.compose.web.dom.P
@@ -58,23 +59,7 @@ private const val FREE_MAX_QUESTIONS = 10
 /** Lote extra ("mais questões"): sempre até 10, em qualquer plano. */
 private const val BATCH_QUESTIONS = 10
 
-@Composable
-private fun ChoiceCards(items: List<Choice>, isOn: (String) -> Boolean, cols: Int = 2, onToggle: (String) -> Unit) {
-    Div({ classes("choices", "cols-$cols") }) {
-        items.forEach { item ->
-            key(item.key) {
-                val on = isOn(item.key)
-                Button({ classes(*listOfNotNull("choice", if (on) "on" else null).toTypedArray()); attr("aria-pressed", "$on"); onClick { onToggle(item.key) } }) {
-                    item.icon?.let { Icon(it) }
-                    Span({ classes("grow") }) { B { Text(item.title) }; Span({ classes("hint") }) { Text(item.hint) } }
-                    Icon(if (on) "check_circle" else "radio_button_unchecked", filled = on, extraClass = "tick")
-                }
-            }
-        }
-    }
-}
-
-/** Gerar material com o Estudário, em passos com o Folha perguntando, como no app. */
+/** Gerar material com o Estudário: o estúdio, com as escolhas de um lado e o pacote montando ao vivo do outro. */
 @Composable
 fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () -> Unit) {
 
@@ -182,99 +167,143 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
         }
     }
 
-    // Janela em três partes: cabeçalho e rodapé fixos, o meio rola. Larga, com respiro nas bordas.
-    Modal(onDismiss = close, wide = true, extraClass = "gen-modal") {
+    // O estúdio: escolhas à esquerda, o pacote montando ao vivo à direita (no celular, embaixo, com
+    // o botão sempre à mão). Cabeçalho fixo; o meio rola.
+    Modal(onDismiss = close, wide = true, extraClass = "gx-studio") {
         when (val p = progress) {
             null, is AiContent.Progress.Failed -> {
-                // O pedido numa tela só: as partes ficam à vista e se ajustam em qualquer ordem; o
-                // rodapé fixo resume o pedido e gera (antes eram passos com "Continuar").
-                Div({ classes("gen-head") }) {
-                    Div({ classes("gen-head-row") }) {
-                        Folha("talking", 48, live = false)
-                        Div({ classes("gen-head-title") }) {
-                            org.jetbrains.compose.web.dom.H2 { Text(title) }
-                            topic?.title?.let { P({ classes("gen-topic") }) { Text(it) } }
-                        }
-                        IconButton("close", "Fechar", onClose)
+                Div({ classes("gx-top") }) {
+                    Div({ classes("gx-top-id") }) {
+                        Span({ classes("gx-kicker") }) { Icon("auto_awesome", filled = true, plain = true); Text(if (questionsOnly) "ESTÚDIO DE QUESTÕES" else "ESTÚDIO DE MATERIAL") }
+                        org.jetbrains.compose.web.dom.H2 { Text(title) }
+                        topic?.title?.let { P({ classes("gx-topic") }) { Text(it) } }
                     }
+                    Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
                 }
-                Div({ classes("gen-body") }) {
-                    free?.takeIf { !questionsOnly }?.let { f -> FreeMeter(f, AiContent.purposeFor(Store.data, topicId)) }
-                    quota?.takeIf { free == null || questionsOnly }?.let { q ->
-                        QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
-                        if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
-                    }
-                    var n = 0
-                    if (!questionsOnly) GenSection(++n, "O que preparar", "Marque um ou mais", done = blocks.isNotEmpty()) {
-                        Div({ classes("gen-presets") }) {
-                            listOf(
-                                "Pacote completo" to blockChoices.map { it.key }.toSet(),
-                                "Teoria e resumo" to setOf("THEORY", "SUMMARY"),
-                                "Revisão rápida" to setOf("QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL"),
-                                "Só questões" to setOf("QUESTIONS"),
-                            ).forEach { (label, set) ->
-                                Button({ classes(*listOfNotNull("gen-preset", if (blocks == set) "on" else null).toTypedArray()); onClick { blocks = set } }) { Text(label) }
+                Div({ classes("gx-main") }) {
+                    Div({ classes("gx-controls") }) {
+                        if (!questionsOnly) GxSection("layers", "O que preparar", "Toque para ligar e desligar cada parte", "#A78BFF", aside = "${blocks.size} de ${blockChoices.size}") {
+                            Div({ classes("gx-presets") }) {
+                                listOf(
+                                    Triple("Pacote completo", "auto_awesome", blockChoices.map { it.key }.toSet()),
+                                    Triple("Teoria e resumo", "menu_book", setOf("THEORY", "SUMMARY")),
+                                    Triple("Revisão rápida", "bolt", setOf("QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL")),
+                                    Triple("Só questões", "quiz", setOf("QUESTIONS")),
+                                ).forEach { (label, icon, set) ->
+                                    Button({ classes(*listOfNotNull("gx-preset", if (blocks == set) "on" else null).toTypedArray()); attr("type", "button"); onClick { blocks = set } }) {
+                                        Icon(icon, filled = true, plain = true); Text(label)
+                                    }
+                                }
+                            }
+                            GxTiles(blockChoices.map { GxOption(it.key, it.title, it.hint, it.icon, BLOCK_COLORS[it.key] ?: "#A78BFF") }, { it in blocks }, cols = 3) { key ->
+                                blocks = if (key in blocks) blocks - key else blocks + key
+                            }
+                            if (blocks.isEmpty()) P({ classes("gx-err") }) { Icon("error", plain = true); Text("Ligue pelo menos uma parte do material.") }
+                        }
+                        if ("THEORY" in blocks || "SUMMARY" in blocks) GxSection("auto_stories", "Profundidade da teoria", "Quão completa deve ser", "#22D3EE") {
+                            GxSeg(depthChoices.mapIndexed { i, c -> GxOption(c.key, c.title, c.hint, color = listOf("#22D3EE", "#6F9BFF", "#A78BFF")[i]) }, depth, { depth = it }) { option ->
+                                // a grossura do livro cresce com a profundidade
+                                Span({ classes("gx-book"); attr("style", "--t:${depthChoices.indexOfFirst { it.key == option.key } + 1}") }) { repeat(depthChoices.indexOfFirst { it.key == option.key } + 1) { I {} } }
                             }
                         }
-                        ChoiceCards(blockChoices, { it in blocks }, cols = 3) { key -> blocks = if (key in blocks) blocks - key else blocks + key }
-                        if (blocks.isEmpty()) P({ classes("gen-err") }) { Text("Escolha pelo menos um tipo de material.") }
-                    }
-                    if ("THEORY" in blocks || "SUMMARY" in blocks) GenSection(++n, "Profundidade", "Quão completa deve ser a teoria?") {
-                        Segmented(depthChoices, depth) { depth = it }
-                    }
-                    if (hasQuestions) GenSection(++n, "Questões", if (questionsOnly) "Cada lote traz até $BATCH_QUESTIONS questões novas." else "No seu plano, até $maxQuestions ao criar a matéria.") {
-                        val top = if (questionsOnly) BATCH_QUESTIONS else maxQuestions
-                        BrandCounter(count, { count = it }, step = 1, min = 1, max = top, unit = "questões", chips = listOf(5, 10, 20, 30).filter { it <= top }, label = "Quantidade de questões")
-                        if (freeTier) FreeMixedNotice() else {
-                            Span({ classes("gen-label") }) { Text("Nível") }
-                            Segmented(difficultyChoices, difficulty) { difficulty = it }
-                            Span({ classes("gen-label") }) { Text("Formato") }
-                            ChoiceCards(styleChoices, { it == style }) { style = it }
-                        }
-                        Div({ classes("field") }) {
-                            Label { Text("Banca (opcional)") }
-                            Input(InputType.Text) {
-                                classes("input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "40")
-                                onInput { board = it.value }
+                        if (hasQuestions) GxSection("quiz", "Questões", if (questionsOnly) "Cada lote traz até $BATCH_QUESTIONS questões novas" else "No seu plano, até $maxQuestions ao criar a matéria", "#2FD39A") {
+                            val top = if (questionsOnly) BATCH_QUESTIONS else maxQuestions
+                            GxCounter(count, { count = it }, min = 1, max = top, unit = if (count == 1) "questão" else "questões", chips = listOf(5, 10, 20, 30), label = "Quantidade de questões")
+                            if (freeTier) FreeMixedNotice() else {
+                                Span({ classes("gx-label") }) { Text("Nível") }
+                                GxSeg(difficultyChoices.map { GxOption(it.key, it.title, it.hint, color = DIFF_COLORS[it.key] ?: "#A78BFF") }, difficulty, { difficulty = it }) { option ->
+                                    Span({ classes("gx-meter", "d-${option.key.lowercase()}") }) { repeat(3) { I {} } }
+                                }
+                                Span({ classes("gx-label") }) { Text("Formato") }
+                                GxSeg(styleChoices.map { GxOption(it.key, it.title, it.hint, color = "#2FD39A") }, style, { style = it }) { option -> FormatMock(option.key) }
                             }
-                            Span({ classes("xs", "muted") }) { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") }
+                            Span({ classes("gx-label") }) { Text("Banca (opcional)") }
+                            Div({ classes("gx-board") }) {
+                                Icon("account_balance", plain = true)
+                                Input(InputType.Text) {
+                                    classes("gx-input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "40")
+                                    onInput { board = it.value }
+                                }
+                                if (board.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar banca"); onClick { board = "" } }) { Icon("close", plain = true) }
+                            }
+                            Div({ classes("gx-chips", "tight") }) {
+                                listOf("Cebraspe", "FGV", "FCC", "Vunesp", "Cesgranrio", "Quadrix").forEach { b ->
+                                    Button({ classes(*listOfNotNull("gx-chip", if (board.equals(b, true)) "on" else null).toTypedArray()); attr("type", "button"); onClick { board = if (board.equals(b, true)) "" else b } }) { Span { Text(b) } }
+                                }
+                            }
+                            P({ classes("gx-note") }) { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") }
+                        }
+                        if (p is AiContent.Progress.Failed) {
+                            Div({ classes("gx-fail") }) { Icon("error", plain = true); Text(p.message) }
+                            var upgradeSeen by remember(p) { mutableStateOf(false) }
+                            val reason = upgradeReasonFor(p.message, questionsOnly)
+                            if (reason != null && !upgradeSeen) UpgradeModal(reason) { upgradeSeen = true }
                         }
                     }
-                    if (p is AiContent.Progress.Failed) {
-                        Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
-                        var upgradeSeen by remember(p) { mutableStateOf(false) }
-                        val reason = upgradeReasonFor(p.message, questionsOnly)
-                        if (reason != null && !upgradeSeen) UpgradeModal(reason) { upgradeSeen = true }
-                    }
-                }
-                Div({ classes("gen-foot", "gen-foot-sum") }) {
-                    Div({ classes("gen-sum") }) {
-                        val parts = buildList {
-                            if (!questionsOnly) add(if (blocks.size == blockChoices.size) "Pacote completo" else blockChoices.filter { it.key in blocks }.joinToString(", ") { it.title })
-                            if ("THEORY" in blocks || "SUMMARY" in blocks) add("teoria " + (depthChoices.firstOrNull { it.key == depth }?.title?.lowercase() ?: ""))
-                            if (hasQuestions) add("$count questões" + (if (freeTier) " misturadas" else " · " + (difficultyChoices.firstOrNull { it.key == difficulty }?.title?.lowercase() ?: "")) + board.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty())
+                    // ---- o pacote montando ao vivo
+                    Div({ classes("gx-aside") }) {
+                        Div({ classes("gx-pack") }) {
+                            Div({ classes("gx-pack-head") }) {
+                                Folha(if (blocks.isEmpty()) "thinking" else if (blocks.size == blockChoices.size) "proud" else "happy", 64)
+                                Div {
+                                    Span({ classes("gx-kicker") }) { Text("SEU PACOTE") }
+                                    B { Text(if (blocks.isEmpty()) "Nada ligado ainda" else if (questionsOnly) "$count questões novas" else "${blocks.size} ${if (blocks.size == 1) "parte" else "partes"} para estudar") }
+                                }
+                            }
+                            free?.takeIf { !questionsOnly }?.let { f -> FreeMeter(f, AiContent.purposeFor(Store.data, topicId)) }
+                            quota?.takeIf { free == null || questionsOnly }?.let { q ->
+                                QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
+                                if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
+                            }
+                            Div({ classes("gx-sheets") }) {
+                                blockChoices.filter { it.key in blocks }.forEach { c ->
+                                    key(c.key) {
+                                        Div({ classes("gx-sheet"); attr("style", "--c:${BLOCK_COLORS[c.key] ?: "#A78BFF"}") }) {
+                                            Span({ classes("gx-sheet-ic") }) { Icon(c.icon ?: "description", filled = true, plain = true) }
+                                            Div({ classes("gx-sheet-txt") }) {
+                                                B { Text(c.title) }
+                                                Span {
+                                                    Text(
+                                                        when (c.key) {
+                                                            "THEORY" -> "Teoria " + (depthChoices.firstOrNull { it.key == depth }?.title?.lowercase() ?: "")
+                                                            "QUESTIONS" -> "$count · " + (if (freeTier) "misturadas" else (difficultyChoices.firstOrNull { it.key == difficulty }?.title?.lowercase() ?: "") + " · " + (styleChoices.firstOrNull { it.key == style }?.title ?: "")) + board.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                                                            else -> c.hint
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                            Icon("check_circle", filled = true, plain = true)
+                                        }
+                                    }
+                                }
+                                if (blocks.isEmpty()) Div({ classes("gx-sheet", "ghost") }) { Span({ classes("gx-sheet-ic") }) { Icon("add", plain = true) }; Div({ classes("gx-sheet-txt") }) { B { Text("Ligue uma parte") }; Span { Text("Teoria, flashcards, questões…") } } }
+                            }
                         }
-                        Span({ classes("gen-sum-l") }) { Text("SEU PEDIDO") }
-                        B { Text(parts.joinToString(" · ").ifBlank { "Nada marcado ainda" }) }
+                        Div({ classes("gx-go") }) {
+                            GxLaunch(if (questionsOnly) "Gerar $count questões" else "Gerar material", enabled = blocks.isNotEmpty()) { start() }
+                            P({ classes("gx-note") }) { Text("Pode fechar e continuar estudando: eu te aviso quando ficar pronto.") }
+                        }
                     }
-                    Btn("Cancelar", onClose, style = "ghost")
-                    Btn(if (questionsOnly) "Gerar questões" else "Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
                 }
             }
-            is AiContent.Progress.Done -> Div({ classes("gen-body", "gen-done", "stack", "pop-in") }) {
-                // "gen-done-folha", não "celebrate": esse nome é o da tela cheia das comemorações e cobria tudo.
-                Div({ classes("gen-done-folha") }) { Folha("happy", 140) }
+            is AiContent.Progress.Done -> Div({ classes("gx-done", "pop-in") }) {
+                Div({ classes("gx-done-burst") }) { repeat(12) { I({ attr("style", "--k:$it") }) } }
+                Div({ classes("gen-done-folha") }) { Folha("happy", 150) }
+                Span({ classes("gx-kicker") }) { Text("PRONTO") }
                 org.jetbrains.compose.web.dom.H2 { Text("Prontinho!") }
-                P({ classes("muted") }) { Text(if (showQuestions) "As novas questões já estão em “${topic?.title ?: "neste tópico"}”, prontas para treinar." else "Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
+                P { Text(if (showQuestions) "As novas questões já estão em “${topic?.title ?: "neste tópico"}”, prontas para treinar." else "Seu material está salvo em “${topic?.title ?: "neste tópico"}”: teoria, flashcards e questões esperando por você.") }
                 val asked = Generation.requested[topicId] ?: 0
                 val got = Generation.delivered[topicId] ?: 0
-                if (got in 1 until asked) P({ classes("small", "muted") }) {
+                if (got in 1 until asked) P({ classes("gx-note") }) {
                     Text("Este tópico ainda não tinha questões prontas: vieram $got inéditas, escritas agora. Quando terminar, peça mais em lotes de 10.")
                 }
-                if (showQuestions) Btn("Treinar agora", { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId-10")) }, style = "primary", size = "lg", icon = "play_arrow")
-                else Btn("Ver material", { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }, style = "primary", size = "lg", icon = "menu_book")
+                Div({ classes("gx-done-actions") }) {
+                    if (showQuestions) GxLaunch("Treinar agora", icon = "play_arrow") { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId-10")) }
+                    else GxLaunch("Ver material", icon = "menu_book") { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }
+                    Button({ classes("gx-ghost"); attr("type", "button"); onClick { close() } }) { Text("Fechar") }
+                }
             }
-            else -> Div({ classes("gen-body", "gen-working") }) {
+            else -> Div({ classes("gen-body", "gen-working", "gx-working") }) {
                 ProcessView(
                     title = if (showQuestions) "Preparando as suas questões" else "Preparando o seu material",
                     eyebrow = topic?.title?.take(60),
@@ -296,6 +325,29 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                         Div({ classes("row", "end"); attr("style", "width:100%") }) { Btn("Continuar navegando", onClose, style = "outline", icon = "arrow_forward") }
                     },
                 )
+            }
+        }
+    }
+}
+
+/** A cor de cada parte do material (a mesma no ladrilho e na folha do pacote). */
+private val BLOCK_COLORS = mapOf(
+    "THEORY" to "#A78BFF", "SUMMARY" to "#22D3EE", "QUICK_REVIEW" to "#FFC94D", "TIPS_TRAPS" to "#FF8A3D",
+    "ACTIVE_RECALL" to "#F472B6", "QUESTIONS" to "#2FD39A", "ERROR_CONCEPTS" to "#FF5A7A",
+)
+private val DIFF_COLORS = mapOf("EASY" to "#2FD39A", "MEDIUM" to "#FFC94D", "HARD" to "#FF5A7A", "MIXED" to "#A78BFF")
+
+/** Miniatura do formato: as alternativas de A a E, de A a D, o Certo/Errado ou os dois. */
+@Composable
+private fun FormatMock(style: String) {
+    Span({ classes("gx-fmt") }) {
+        when (style) {
+            "FIVE_OPTIONS" -> "ABCDE".forEach { l -> Span({ classes("row") }) { B { Text("$l") }; I {} } }
+            "FOUR_OPTIONS" -> "ABCD".forEach { l -> Span({ classes("row") }) { B { Text("$l") }; I {} } }
+            "TRUE_FALSE" -> Span({ classes("ce") }) { B { Text("C") }; B { Text("E") } }
+            else -> {
+                "ABC".forEach { l -> Span({ classes("row") }) { B { Text("$l") }; I {} } }
+                Span({ classes("ce") }) { B { Text("C") }; B { Text("E") } }
             }
         }
     }
@@ -365,30 +417,4 @@ private fun FreeMixedNotice() {
         Span({ classes("pro-cta") }) { Text("Fazer upgrade do plano"); Icon("arrow_forward") }
     }
     if (offer) UpgradeModal(UpgradeReason.QUESTION_STYLE) { offer = false }
-}
-
-/** Uma parte do pedido: número (vira ✓ quando completa), título, dica e as escolhas. */
-@Composable
-private fun GenSection(number: Int, title: String, hint: String?, done: Boolean = true, content: @Composable () -> Unit) {
-    Div({ classes(*listOfNotNull("gen-sec", if (!done) "todo" else null).toTypedArray()) }) {
-        Div({ classes("gen-sec-head") }) {
-            Span({ classes("gen-num") }) { if (done) Icon("check", plain = true) else Text("$number") }
-            Div { B { Text(title) }; hint?.let { Span({ classes("hint") }) { Text(it) } } }
-        }
-        content()
-    }
-}
-
-/** Escolha única em faixa (profundidade, nível): o título e a dica de cada opção. */
-@Composable
-private fun Segmented(items: List<Choice>, selected: String, onPick: (String) -> Unit) {
-    Div({ classes("gen-seg") }) {
-        items.forEach { item ->
-            key(item.key) {
-                Button({ classes(*listOfNotNull("gen-seg-btn", if (item.key == selected) "on" else null).toTypedArray()); attr("aria-pressed", "${item.key == selected}"); onClick { onPick(item.key) } }) {
-                    B { Text(item.title) }; Span { Text(item.hint) }
-                }
-            }
-        }
-    }
 }
