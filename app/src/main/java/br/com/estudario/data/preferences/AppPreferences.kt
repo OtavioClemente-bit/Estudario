@@ -70,7 +70,7 @@ class AppPreferences(private val context: Context) {
     val editalPrompt: Flow<String> = context.dataStore.data.map { it[editalPromptKey] ?: PromptTemplates.EDITAL }
     val contentPrompt: Flow<String> = context.dataStore.data.map { it[contentPromptKey] ?: PromptTemplates.CONTEUDO }
     val studyPlanPrompt: Flow<String> = context.dataStore.data.map { it[studyPlanPromptKey] ?: PromptTemplates.PLANO }
-    val notificationsEnabled: Flow<Boolean> = context.dataStore.data.map { it[notificationsKey] ?: false }
+    val notificationsEnabled: Flow<Boolean> = context.dataStore.data.map { it[notificationsKey] ?: true }
     val dailyReminderEnabled: Flow<Boolean> = context.dataStore.data.map { it[dailyReminderKey] ?: true }
     val pendingAlertsEnabled: Flow<Boolean> = context.dataStore.data.map { it[pendingAlertsKey] ?: true }
     /** Lembrete no horário em que a pessoa costuma estudar (aprendido do histórico), em vez do horário fixo. */

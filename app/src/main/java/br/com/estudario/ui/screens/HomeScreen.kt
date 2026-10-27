@@ -169,6 +169,21 @@ fun HomeScreen(
             savePrefs.edit().putStringSet("streak_saved_seen", savedSeen).apply()
         }
     }
+    // Os avisos do Folha (revisão do dia, sequência em risco): sem a permissão do Android nada chega
+    // com o app fechado. O convite aparece no Início depois do primeiro estudo, e no máximo de novo
+    // uma vez, uma semana depois de um "agora não".
+    val inviteContext = androidx.compose.ui.platform.LocalContext.current
+    var inviteStudy by remember {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(inviteContext, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val asks = savePrefs.getInt("study_notifications_asks", 0)
+        val last = savePrefs.getLong("study_notifications_asked_at", 0L)
+        mutableStateOf(android.os.Build.VERSION.SDK_INT >= 33 && !granted && asks < 2 && System.currentTimeMillis() - last > java.util.concurrent.TimeUnit.DAYS.toMillis(7))
+    }
+    val studiedOnce = streak?.calendar?.any { br.com.estudario.domain.StreakEngine.isDone(it, streak!!.goal) } == true
+    if (inviteStudy && studiedOnce && savedPending.isEmpty()) br.com.estudario.ui.components.NotificationInvite(forStudy = true, onDone = {
+        savePrefs.edit().putInt("study_notifications_asks", savePrefs.getInt("study_notifications_asks", 0) + 1).putLong("study_notifications_asked_at", System.currentTimeMillis()).apply()
+        inviteStudy = false
+    })
     // Bateria do plano sem nada novo nem errado: avisa e oferece pular, em vez de repetir acertos.
     var allDoneTask by remember { mutableStateOf<br.com.estudario.data.local.planner.PlanTaskEntity?>(null) }
     allDoneTask?.let { task -> br.com.estudario.ui.planner.AllQuestionsDoneDialog(task, onSkip = { planViewModel.skip(task.id, "Sem questões novas nem erros para refazer"); allDoneTask = null }, onDismiss = { allDoneTask = null }) }

@@ -1,5 +1,7 @@
 package br.com.estudario.ui.components
 
+import kotlinx.coroutines.launch
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -37,8 +39,17 @@ import androidx.compose.ui.window.Dialog
  * sistema; "Agora não" fecha sem insistir (dá para ligar depois em Ajustes › Notificações).
  */
 @Composable
-fun NotificationInvite(onDone: () -> Unit) {
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onDone() }
+fun NotificationInvite(onDone: () -> Unit, forStudy: Boolean = false) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        // com a permissão, os lembretes já ficam agendados (sem esperar o app abrir de novo)
+        if (granted) kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            val app = context.applicationContext as br.com.estudario.EstudarioApplication
+            app.preferences.setNotificationsEnabled(true)
+            br.com.estudario.notifications.StudyNotificationCoordinator.refresh(app, app.preferences)
+        }
+        onDone()
+    }
     Dialog(onDismissRequest = onDone) {
         Column(
             Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).padding(24.dp),
@@ -48,16 +59,16 @@ fun NotificationInvite(onDone: () -> Unit) {
             br.com.estudario.ui.assistant.Folha(110.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
             Text("Posso te avisar?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
             Text(
-                "Sua matéria leva alguns minutos para ficar pronta. Pode sair do app: eu te chamo na hora.",
+                if (forStudy) "Eu te chamo na hora certa: quando uma revisão vencer, se a sua sequência estiver em risco e quando o material ficar pronto." else "Sua matéria leva alguns minutos para ficar pronta. Pode sair do app: eu te chamo na hora.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
             )
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Benefit(Icons.Outlined.AutoStories, "Matéria pronta", "Aviso assim que o material sai.")
-                Benefit(Icons.Outlined.NotificationsActive, "No seu horário", "Um lembrete por dia, perto da hora em que você costuma estudar.")
-                Benefit(Icons.Outlined.LocalFireDepartment, "Sua sequência", "Um aviso só, à noite, se o dia ainda não foi salvo.")
+                Benefit(Icons.Outlined.NotificationsActive, "Revisão no dia certo", "De manhã, o tópico que vence hoje, e um lembrete perto da hora em que você costuma estudar.")
+                Benefit(Icons.Outlined.LocalFireDepartment, "Sua sequência", "À noite, se o dia ainda não foi salvo, para ela não acabar.")
             }
             Text(
-                "Sem excesso: no máximo um lembrete de estudo por dia, e você muda tudo em Ajustes.",
+                "Sem exagero: no máximo 3 avisos de estudo por dia, nada durante o modo foco, e você muda tudo em Ajustes.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
             )
             br.com.estudario.ui.brand.Button(

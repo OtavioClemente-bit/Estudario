@@ -110,7 +110,7 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
             ElevatedCard {
                 ListItem(
                     headlineContent = { Text("Lembrete diário", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Um convite diário para manter a constância") },
+                    supportingContent = { Text("Perto da hora em que você estuda, com o que importa no dia: a meta quase batida, a tarefa do plano, a contagem da prova ou um chamado se você sumiu") },
                     leadingContent = { Icon(Icons.Outlined.Schedule, null) },
                     trailingContent = { Switch(daily, viewModel::setDailyReminderEnabled, enabled = enabled) },
                 )
@@ -148,7 +148,7 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
             ElevatedCard {
                 ListItem(
                     headlineContent = { Text("Proteger a sequência", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Às 21h, se você tem 2 dias seguidos ou mais e ainda não estudou hoje, um aviso só, dizendo o que salva o dia.") },
+                    supportingContent = { Text("Às 21h, se a sequência está em jogo e você ainda não estudou hoje. Se continuar sem estudo, a última chance às 22h30.") },
                     leadingContent = { Icon(Icons.Outlined.LocalFireDepartment, null) },
                     trailingContent = { Switch(guard, viewModel::setStreakGuardEnabled, enabled = enabled) },
                 )
@@ -157,8 +157,8 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
         item {
             ElevatedCard {
                 ListItem(
-                    headlineContent = { Text("Pendências e revisões", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("Avisa quando uma revisão programada estiver vencida") },
+                    headlineContent = { Text("Revisões do dia", fontWeight = FontWeight.SemiBold) },
+                    supportingContent = { Text("Às 9h, o tópico que vence hoje, para revisar no dia certo") },
                     leadingContent = { Icon(Icons.Outlined.PendingActions, null) },
                     trailingContent = { Switch(pending, viewModel::setPendingAlertsEnabled, enabled = enabled) },
                 )
@@ -168,7 +168,7 @@ fun NotificationSettingsScreen(viewModel: AppViewModel, onBack: () -> Unit, show
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Como funciona", fontWeight = FontWeight.Bold)
-                    Text("Os avisos são calculados no próprio celular, sem enviar seus dados para servidor. No máximo um lembrete de estudo por dia (mais o aviso da sequência, se ela estiver em jogo), e nada chega se você já estudou ou está no modo foco. Em cada lembrete dá para tocar em \"Lembrar em 1 hora\".")
+                    Text("Os avisos são calculados no próprio celular, sem enviar seus dados para servidor. No máximo 3 avisos de estudo por dia, com frases que mudam todo dia, e nada chega se você já estudou ou está no modo foco. Em cada lembrete dá para tocar em \"Lembrar em 1 hora\".")
                 }
             }
         }
