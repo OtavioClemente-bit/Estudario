@@ -471,6 +471,8 @@ private fun MissionItem(
     val colors = estudarioColors()
     var picked by remember { mutableStateOf<String?>(null) }
     var right by remember { mutableStateOf<Boolean?>(null) }
+    var crossed by remember { mutableStateOf(setOf<String>()) }
+    var sending by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf(ErrorVirada.reasonOf(start.entry.comment)) }
     val after = errors.firstOrNull { it.entry.id == start.entry.id }
     val step = if (right == null) start.entry.retryStreak else after?.entry?.retryStreak ?: start.entry.retryStreak
@@ -480,37 +482,23 @@ private fun MissionItem(
             Text(meta, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
             Ladder(step.coerceIn(0, ErrorRetryLadder.days.size))
             MarkdownText(question.question.statement)
-            question.options.sortedBy { it.position }.forEachIndexed { pos, option ->
-                val isRight = right != null && option.isCorrect
-                val isWrong = right == false && option.key == picked
-                val was = right == null && option.key == start.entry.selectedAnswer
-                val border = when { isRight -> colors.completed; isWrong -> scheme.error; was -> scheme.outline; else -> scheme.outlineVariant }
-                val bg = when { isRight -> colors.completed.copy(alpha = 0.14f); isWrong -> scheme.error.copy(alpha = 0.12f); else -> scheme.surface }
-                Surface(
-                    onClick = {
-                        if (right != null) return@Surface
-                        picked = option.key
-                        scope.launch {
-                            val ok = viewModel.answer(question, option.key, sessionId)
-                            right = ok
-                            if (ok) onClimb()
-                        }
-                    },
-                    enabled = right == null,
-                    shape = RoundedCornerShape(12.dp),
-                    color = bg,
-                    border = BorderStroke(if (isRight || isWrong) 2.dp else 1.dp, border),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.size(28.dp).clip(CircleShape).background(scheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                            Text("ABCDEF"[pos].toString(), fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(plainFormulaText(option.text), style = MaterialTheme.typography.bodyMedium)
-                            if (was) Text("você marcou esta da última vez", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
-                        }
-                    }
+            // Tocar só escolhe; vale ao confirmar. A marcação antiga aparece só depois de responder.
+            br.com.estudario.ui.components.AnswerOptions(
+                options = question.options,
+                picked = picked,
+                crossed = crossed,
+                answered = right,
+                onPick = { picked = it },
+                onToggleCross = { k -> crossed = if (k in crossed) crossed - k else crossed + k; if (picked == k) picked = null },
+                previousKey = start.entry.selectedAnswer,
+            )
+            if (right == null) br.com.estudario.ui.components.ConfirmAnswerButton(enabled = picked != null && !sending) {
+                val key = picked ?: return@ConfirmAnswerButton
+                sending = true
+                scope.launch {
+                    val ok = viewModel.answer(question, key, sessionId)
+                    right = ok
+                    if (ok) onClimb()
                 }
             }
         }

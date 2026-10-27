@@ -435,16 +435,24 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
     if (question == null) { Text("Esta questão não está mais no banco.", color = Muted); return }
     var picked by remember(questionId) { mutableStateOf<String?>(null) }
     var right by remember(questionId) { mutableStateOf<Boolean?>(null) }
+    var crossed by remember(questionId) { mutableStateOf(setOf<String>()) }
+    var sending by remember(questionId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     Text("Uma que você errou: e agora?", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
     br.com.estudario.ui.components.MarkdownText(question.question.statement)
-    question.options.sortedBy { it.position }.forEachIndexed { pos, option ->
-        val border = when { right != null && option.isCorrect -> Mint; right == false && option.key == picked -> Stamp; else -> LineC }
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardBg).border(2.dp, border, RoundedCornerShape(12.dp))
-                .clickable(enabled = right == null) { picked = option.key; scope.launch { right = viewModel.answer(question, option.key, sessionId) } }.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) { Text("ABCDEF"[pos].toString(), fontWeight = FontWeight.Black, color = Ink); Text(option.text, color = Ink, modifier = Modifier.weight(1f)) }
+    br.com.estudario.ui.components.AnswerOptions(
+        options = question.options,
+        picked = picked,
+        crossed = crossed,
+        answered = right,
+        onPick = { picked = it },
+        onToggleCross = { k -> crossed = if (k in crossed) crossed - k else crossed + k; if (picked == k) picked = null },
+        surface = CardBg, ink = Ink, line = LineC,
+    )
+    if (right == null) br.com.estudario.ui.components.ConfirmAnswerButton(enabled = picked != null && !sending) {
+        val key = picked ?: return@ConfirmAnswerButton
+        sending = true
+        scope.launch { right = viewModel.answer(question, key, sessionId) }
     }
     if (right != null) {
         PostIt(if (right == true) "Agora foi! Acertando de novo depois, ela sai do caderno de erros." else "Ainda não. Leia a explicação: ela volta depois.", if (right == true) Color(0xFFC8F5DD) else Color(0xFFFFD9D2))

@@ -313,26 +313,14 @@ private fun MissionItem(errorId: Long, sessionId: String, onClimb: () -> Unit, o
         Span({ classes("vr-meta") }) { Text(listOfNotNull(subject?.name, topic?.title, "errou ${start.errorCount}×").joinToString(" · ").uppercase()) }
         Ladder(step.coerceIn(0, ErrorRetryLadder.days.size))
         Div({ classes("vr-statement") }) { QuestionStatement(question.statement) }
-        Div({ classes("stack", "tight"); attr("style", "margin-top:12px") }) {
-            question.options.sortedBy { it.position }.forEachIndexed { pos, option ->
-                val state = when { right != null && option.correct -> "right"; right == false && option.key == picked -> "wrong"; else -> null }
-                val was = right == null && option.key == start.selectedAnswer
-                Button({
-                    classes(*listOfNotNull("option", state, if (was) "vr-was" else null).toTypedArray())
-                    if (right != null) attr("disabled", "")
-                    onClick {
-                        picked = option.key
-                        var ok = false
-                        Store.update { s -> Actions.answer(s, question.id, option.key, sessionId).also { ok = it.second }.first }
-                        right = ok
-                        if (ok) onClimb()
-                    }
-                }) {
-                    Span({ classes("key") }) { Text("ABCDEF"[pos].toString()) }
-                    Span({ classes("grow") }) { Inline(option.text) }
-                    if (was) Span({ classes("vr-was-tag") }) { Text("você marcou esta da última vez") }
-                }
-            }
+        // Clicar só escolhe; vale ao confirmar. A marcação antiga aparece só depois de responder.
+        AnswerOptions(question.id, question.options, picked, right, onPick = { picked = it }, previousKey = start.selectedAnswer)
+        if (right == null) ConfirmAnswer(picked != null) {
+            val key = picked ?: return@ConfirmAnswer
+            var ok = false
+            Store.update { s -> Actions.answer(s, question.id, key, sessionId).also { ok = it.second }.first }
+            right = ok
+            if (ok) onClimb()
         }
     }
     if (right == true) Div({ classes("vr-virou") }) {

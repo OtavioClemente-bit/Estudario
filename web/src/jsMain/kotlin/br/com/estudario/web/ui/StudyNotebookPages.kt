@@ -260,20 +260,12 @@ private fun FlipQuestion(questionId: Long, sessionId: String) {
     var right by remember(questionId) { mutableStateOf<Boolean?>(null) }
     H3({ classes("cb-title") }) { Text("Uma que você errou: e agora?") }
     Div({ classes("cb-body") }) { QuestionStatement(question.statement) }
-    Div({ classes("stack", "tight"); attr("style", "margin-top:10px") }) {
-        question.options.sortedBy { it.position }.forEachIndexed { pos, option ->
-            val state = when { right != null && option.correct -> "right"; right == false && option.key == picked -> "wrong"; else -> null }
-            Button({
-                classes(*listOfNotNull("option", state).toTypedArray())
-                if (right != null) attr("disabled", "")
-                onClick {
-                    picked = option.key
-                    var ok = false
-                    Store.update { s -> Actions.answer(s, question.id, option.key, sessionId).also { ok = it.second }.first }
-                    right = ok
-                }
-            }) { Span({ classes("key") }) { Text("ABCDEF"[pos].toString()) }; Span { Inline(option.text) } }
-        }
+    AnswerOptions(question.id, question.options, picked, right, onPick = { picked = it })
+    if (right == null) ConfirmAnswer(picked != null) {
+        val key = picked ?: return@ConfirmAnswer
+        var ok = false
+        Store.update { s -> Actions.answer(s, question.id, key, sessionId).also { ok = it.second }.first }
+        right = ok
     }
     if (right != null) {
         Div({ classes("cb-postit", if (right == true) "ok" else "bad") }) { Text(if (right == true) "Agora foi! Ela sai do caderno de erros quando você acertar de novo." else "Ainda não. Leia a explicação e ela volta depois.") }
