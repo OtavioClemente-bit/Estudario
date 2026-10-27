@@ -138,10 +138,10 @@ fun ProfileScreen() {
             Div({ classes("gm-avatar"); attr("style", "--p:$pct"); attr("title", "$pct% do nível ${progress.level}") }) {
                 Span({ classes("gm-avatar-ring") })
                 Span({ classes("gm-avatar-photo") }) {
-                    val photo = session?.avatarUrl
-                    if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
+                    AvatarContent()
                 }
                 Span({ classes("gm-avatar-lv") }) { Span { Text("NV") }; B { Text("${progress.level}") } }
+                Button({ classes("gm-avatar-cam"); attr("type", "button"); attr("aria-label", "Trocar a imagem do perfil"); attr("title", "Trocar a imagem"); onClick { AvatarChoice.picking = true } }) { Icon("photo_camera", plain = true) }
             }
             Div({ classes("gm-card-id") }) {
                 Span({ classes("gm-class") }) { Text(progress.levelTitle.uppercase()) }

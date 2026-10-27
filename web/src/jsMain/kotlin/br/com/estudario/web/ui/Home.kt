@@ -88,10 +88,11 @@ fun HomeScreen() {
     Div({ classes("grid", "main-side") }) {
         Div({ classes("stack", "loose") }) {
             if (plan != null && data.attempts.size < 5) FirstSteps(data.attempts.size)
-            NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
+            // Com o plano do dia, a missão vem primeiro e já diz por onde começar; sem tarefas hoje, o "agora" de sempre.
+            if (plan != null && tasks.isNotEmpty()) DailyMission(tasks, data, onGenerate = { generatingFor = it }) { completing = it }
+            else NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
             WeekReportCard(data, view)
             WeakSpotCard(data)
-            if (plan != null && tasks.isNotEmpty()) DailyMission(tasks) { completing = it }
             AttentionPanel(data, plan?.id)
         }
         Div({ classes("stack", "loose") }) {
@@ -182,58 +183,80 @@ private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, ho
     }
 }
 
-/** Missão do dia: o dia inteiro do plano numa trilha, com fatias que se enchem. */
+/**
+ * Missão do dia: o dia do plano como uma trilha de passos numerados. O próximo passo fica aberto,
+ * grande, com o que é, quanto tempo leva e o botão de começar; os feitos ficam marcados e os
+ * seguintes esperam a vez. Quem nunca usou sabe exatamente por onde começar.
+ */
 @Composable
-private fun DailyMission(tasks: List<PlanTask>, onComplete: (PlanTask) -> Unit) {
+private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Long) -> Unit, onComplete: (PlanTask) -> Unit) {
     val done = tasks.count { it.status == "CONCLUIDA" }
     val total = tasks.size
     val complete = done == total
     val current = nextUp(tasks)
     val planned = tasks.sumOf { it.minutes }
-    val doneMinutes = tasks.filter { it.status == "CONCLUIDA" }.sumOf { it.minutes }
+    val leftMinutes = tasks.filter { it.status != "CONCLUIDA" }.sumOf { it.minutes }
     val earned = tasks.filter { it.status == "CONCLUIDA" }.sumOf { Progress.taskXp(it) }
     val possible = tasks.sumOf { Progress.taskXp(it) }
-    Card(extra = "mission-card") {
-        Div({ classes("row", "between") }) {
-            Div({ classes("grow") }) {
-                H3 { Text("Missão do dia") }
-                P({ classes("small", "muted") }) {
-                    Text(if (complete) "Tudo feito. Você cumpriu o plano de hoje." else "${Queries.minutesLabel(doneMinutes)} de ${Queries.minutesLabel(planned)} · faltam ${total - done}")
-                }
+    Div({ classes("gx-panel", "ms2", *listOfNotNull(if (complete) "complete" else null).toTypedArray()) }) {
+        Div({ classes("ms2-head") }) {
+            Div({ classes("ms2-ring"); attr("style", "--v:${if (total == 0) 0 else done * 100 / total}") }) {
+                Div({ classes("ms2-ring-in") }) { B { Text("$done/$total") }; Span { Text("passos") } }
             }
-            B({ classes("mission-count", if (complete) "ok" else "on") }) { Text("$done/$total") }
+            Div({ classes("ms2-head-txt") }) {
+                Span({ classes("gx-kicker") }) { Text("MISSÃO DO DIA") }
+                B {
+                    Text(when {
+                        complete -> "Missão cumprida! Você fechou o plano de hoje."
+                        done == 0 -> "Hoje são $total ${if (total == 1) "passo" else "passos"}. Comece pelo primeiro."
+                        else -> "Faltam ${total - done} ${if (total - done == 1) "passo" else "passos"} para fechar o dia."
+                    })
+                }
+                Span { Text(if (complete) "+$earned XP no bolso. Amanhã tem mais." else "${Queries.minutesLabel(leftMinutes)} de estudo · até +${possible - earned} XP") }
+            }
         }
-        Div({ classes("slices") }) {
-            tasks.forEach { t -> key(t.id) { Span({ classes(*listOfNotNull(if (t.status == "CONCLUIDA") "done" else if (t.id == current?.id) "now" else null, if (complete) "ok" else null).toTypedArray()) }) } }
-        }
-        Div({ classes("trail") }) {
-            tasks.forEach { t ->
+        Div({ classes("ms2-steps") }) {
+            tasks.forEachIndexed { i, t ->
                 key(t.id) {
                     val isDone = t.status == "CONCLUIDA"
                     val isNow = t.id == current?.id
-                    Div({ classes(*listOfNotNull("trail-row", if (isDone) "done" else null, if (isNow) "now" else null).toTypedArray()) }) {
-                        Span({ classes("trail-mark") })
-                        Div({ classes("grow"); attr("role", "button"); attr("tabindex", "0"); onClick { openTask(t) } }) {
-                            Div({ classes("row"); attr("style", "gap:8px") }) {
-                                Span({ classes("trail-title") }) { Text(taskTitle(t)) }
-                                if (isNow) Span({ classes("now-tag") }) { Text("Agora") }
+                    val (icon, color) = when (t.type) {
+                        "THEORY" -> "menu_book" to "#A78BFF"
+                        "QUESTIONS" -> "quiz" to "#2FD39A"
+                        "REVIEW" -> "autorenew" to "#22D3EE"
+                        "FLASHCARDS" -> "style" to "#FFC94D"
+                        else -> "flag" to "#FF8A3D"
+                    }
+                    Div({ classes(*listOfNotNull("ms2-step", if (isDone) "done" else null, if (isNow) "now" else null).toTypedArray()); attr("style", "--c:$color") }) {
+                        Span({ classes("ms2-num") }) { if (isDone) Icon("check", plain = true) else Text("${i + 1}") }
+                        Div({ classes("ms2-card"); attr("role", "button"); attr("tabindex", "0"); onClick { openTask(t) } }) {
+                            Div({ classes("ms2-card-top") }) {
+                                Span({ classes("ms2-type") }) { Icon(icon); Text(Queries.taskTypeLabel(t.type)) }
+                                Span({ classes("ms2-time") }) { Text(Queries.minutesLabel(t.minutes)) }
+                                if (isNow) Span({ classes("ms2-tag") }) { Text("PRÓXIMO PASSO") }
                             }
-                            Div({ classes("xs", "muted") }) { Text(listOfNotNull(Queries.taskTypeLabel(t.type), Queries.minutesLabel(t.minutes), t.subjectName.takeIf { t.topicName != null && it.isNotBlank() }).joinToString(" · ")) }
+                            B({ classes("ms2-title") }) { Text(taskTitle(t)) }
+                            if (t.topicName != null && t.subjectName.isNotBlank()) Span({ classes("ms2-subject") }) { Text(t.subjectName) }
+                            if (isNow) Div({ classes("ms2-actions") }) {
+                                val noMaterial = t.topicId != null && !hasMaterial(data, t.topicId) && !Store.demo
+                                if (noMaterial) GxLaunch("Gerar o material deste passo", icon = "Pencil") { onGenerate(t.topicId!!) }
+                                else GxLaunch(if (t.status == "EM_ANDAMENTO") "Continuar de onde parei" else "Começar este passo", icon = "play_circle") { openTask(t) }
+                            }
                         }
-                        Button({
-                            classes(*listOfNotNull("check", if (isDone) "on" else null).toTypedArray())
-                            attr("aria-label", if (isDone) "Concluída" else "Concluir tarefa"); attr("title", if (isDone) "Concluída" else "Concluir")
-                            if (isDone) attr("disabled", "")
-                            onClick { onComplete(t) }
+                        if (!isDone) Button({
+                            classes("ms2-check"); attr("type", "button")
+                            attr("aria-label", "Marcar como feito"); attr("title", "Já fiz: marcar como feito")
+                            onClick { e -> e.stopPropagation(); onComplete(t) }
                         }) { Icon("check", plain = true) }
                     }
                 }
             }
         }
-        Div({ classes("row", "between", "wrap"); attr("style", "margin-top:4px") }) {
-            Div({ classes("row") }) { Xp(earned, green = complete); if (earned < possible) Span({ classes("xs", "muted") }) { Text("até +$possible se fechar tudo") } }
-            Btn("Abrir o plano", { Router.go(Route.Plan) }, style = "ghost", small = true, icon = "calendar_month")
+        Div({ classes("ms2-foot") }) {
+            Xp(earned, green = complete)
+            Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.Plan) } }) { Icon("calendar_month"); Span { Text("Ver o plano inteiro") } }
         }
+        if (planned > 0 && !complete && done == 0) P({ classes("gx-note", "ms2-hint") }) { Text("Dica: toque em “Começar este passo”. Ao terminar, o próximo abre sozinho. O ✓ ao lado marca como feito o que você já fez fora daqui.") }
     }
 }
 

@@ -74,7 +74,8 @@ fun TrainScreen() {
     CompetitionTabs()
 
     if (questions.isNotEmpty()) {
-        // Diagnóstico: o acerto geral e o de cada matéria; tocar numa matéria abre um treino dela.
+        // Diagnóstico enxuto: o acerto geral num medidor, até três treinos com o motivo e as matérias
+        // da mais fraca para a mais forte (quatro à vista; o resto em "Ver todas").
         val bySubjectAll = questions.groupBy { topicsById[it.topicId]?.subjectId }
         val answered = questions.sumOf { it.answerCount }
         val right = questions.sumOf { it.correctCount }
@@ -82,34 +83,59 @@ fun TrainScreen() {
             val list = bySubjectAll[sb.id].orEmpty()
             if (list.isEmpty()) null else Triple(sb, list.sumOf { it.answerCount }, list.sumOf { it.correctCount })
         }
-        Card {
-            Div({ classes("train-diag") }) {
-                Div {
-                    Span({ classes("train-tag") }) { Text("SEU DIAGNÓSTICO") }
-                    B({ classes("train-diag-num") }) { Text(if (answered == 0) "—" else "${percent(right, answered)}%") }
-                    Span({ classes("small", "muted") }) { Text(if (answered == 0) "Resolva as primeiras questões para o diagnóstico mostrar seu acerto por matéria." else "de acerto em $answered respostas") }
+        val weakest = scores.filter { it.second >= 5 }.minByOrNull { it.third.toDouble() / it.second }
+        val neverAnswered = questions.count { it.answerCount == 0 }
+        val overall = if (answered == 0) null else percent(right, answered)
+        var allSubjects by remember { mutableStateOf(false) }
+        Div({ classes("gx-panel", "dg") }) {
+            Div({ classes("dg-top") }) {
+                Div({ classes("dg-gauge"); attr("style", "--v:${overall ?: 0};--c:${accuracyTone(overall)}") }) {
+                    Div({ classes("dg-gauge-in") }) { B { Text(overall?.let { "$it%" } ?: "—") }; Span { Text("de acerto") } }
+                }
+                Div({ classes("dg-head") }) {
+                    Span({ classes("gx-kicker") }) { Text("SEU DIAGNÓSTICO") }
+                    B { Text(when { overall == null -> "Resolva as primeiras questões"; overall >= 70 -> "Você está no ritmo da aprovação"; overall >= 50 -> "Bom caminho, dá para subir"; else -> "Hora de reforçar a base" }) }
+                    Span { Text(if (answered == 0) "O diagnóstico mostra seu acerto por matéria assim que você responder." else "$answered respostas em ${scores.count { it.second > 0 }} matérias") }
                 }
             }
-            // Recomendados: o que treinar agora, com o motivo escrito.
-            val weakest = scores.filter { it.second >= 5 }.minByOrNull { it.third.toDouble() / it.second }
-            val neverAnswered = questions.count { it.answerCount == 0 }
-            Div({ classes("train-recs") }) {
-                if (errors.isNotEmpty()) TrainTile("Cycle", "Refazer seus erros", "${errors.size} questões em que você mais erra do que acerta.", true) { Router.go(Route.Quiz("m-wrong~s--1~t--1~b-all~d-all~n-${errors.size.coerceIn(5, 20)}")) }
-                if (weakest != null && percent(weakest.third, weakest.second) < 70) TrainTile("Target", "Reforçar ${weakest.first.name}", "Sua matéria mais fraca: ${percent(weakest.third, weakest.second)}% de acerto em ${weakest.second} respostas.", true) { Router.go(Route.Quiz("m-smart~s-${weakest.first.id}~t--1~b-all~d-all~n-15")) }
-                TrainTile("Bolt", "Desafio do dia", "10 questões entre erros recorrentes, revisões atrasadas e tópicos de menor domínio.", false) { Router.go(Route.Quiz("m-smart~s--1~t--1~b-all~d-all~n-10")) }
-                if (neverAnswered > 0) TrainTile("Star", "Avançar com questões novas", "$neverAnswered questões que você ainda não viu.", false) { Router.go(Route.Quiz("m-new~s--1~t--1~b-all~d-all~n-10")) }
-            }
-            if (scores.isNotEmpty()) Div({ classes("train-subjects") }) {
-                scores.forEach { (sb, total, ok) ->
-                    androidx.compose.runtime.key(sb.id) {
-                        Button({ classes("train-subj"); onClick { Router.go(Route.Quiz("m-smart~s-${sb.id}~t--1~b-all~d-all~n-15")) } }) {
-                            Span({ classes("grow") }) {
-                                B({ classes("clamp-2") }) { Text(sb.name) }
-                                Span({ classes("xs", "muted") }) { Text("${bySubjectAll[sb.id].orEmpty().size} questões · $total respostas") }
-                            }
-                            Span({ classes("train-subj-pct") }) { Text(if (total == 0) "—" else "${percent(ok, total)}%") }
-                            Icon("play_arrow", plain = true)
+            // Treinos para agora: o primeiro é o recomendado, em destaque.
+            Div({ classes("dg-recs") }) {
+                val recs = buildList {
+                    if (errors.isNotEmpty()) add(Triple(Triple("Cycle", "#FF5A7A", "Refazer seus erros"), "${errors.size} questões em que você mais erra do que acerta", "m-wrong~s--1~t--1~b-all~d-all~n-${errors.size.coerceIn(5, 20)}"))
+                    if (weakest != null && percent(weakest.third, weakest.second) < 70) add(Triple(Triple("Target", "#FFC94D", "Reforçar ${weakest.first.name}"), "Sua matéria mais fraca: ${percent(weakest.third, weakest.second)}% de acerto", "m-smart~s-${weakest.first.id}~t--1~b-all~d-all~n-15"))
+                    add(Triple(Triple("Bolt", "#A78BFF", "Desafio do dia"), "10 questões entre erros, revisões atrasadas e pontos fracos", "m-smart~s--1~t--1~b-all~d-all~n-10"))
+                    if (neverAnswered > 0) add(Triple(Triple("Star", "#2FD39A", "Questões novas"), "$neverAnswered que você ainda não viu", "m-new~s--1~t--1~b-all~d-all~n-10"))
+                }.take(3)
+                recs.forEachIndexed { i, (look, why, scope) ->
+                    val (icon, color, title) = look
+                    Button({ classes(*listOfNotNull("dg-rec", if (i == 0) "top" else null).toTypedArray()); attr("type", "button"); attr("style", "--c:$color"); onClick { Router.go(Route.Quiz(scope)) } }) {
+                        Span({ classes("dg-rec-ic") }) { Icon(icon) }
+                        Span({ classes("dg-rec-txt") }) {
+                            if (i == 0) Span({ classes("dg-rec-tag") }) { Text("RECOMENDADO AGORA") }
+                            B { Text(title) }
+                            Span { Text(why) }
                         }
+                        Span({ classes("dg-rec-go") }) { Icon("play_arrow", plain = true) }
+                    }
+                }
+            }
+            if (scores.isNotEmpty()) {
+                val ranked = scores.sortedBy { if (it.second == 0) 101 else percent(it.third, it.second) }
+                Div({ classes("dg-subjects") }) {
+                    Span({ classes("gx-label") }) { Text("Por matéria · da mais fraca para a mais forte") }
+                    (if (allSubjects) ranked else ranked.take(4)).forEach { (sb, total, ok) ->
+                        androidx.compose.runtime.key(sb.id) {
+                            val pct = if (total == 0) null else percent(ok, total)
+                            Button({ classes("dg-subj"); attr("type", "button"); attr("style", "--c:${accuracyTone(pct)}"); onClick { Router.go(Route.Quiz("m-smart~s-${sb.id}~t--1~b-all~d-all~n-15")) } }) {
+                                Span({ classes("dg-subj-name") }) { Text(sb.name) }
+                                Span({ classes("dg-subj-bar") }) { Span({ attr("style", "width:${(pct ?: 0).coerceAtLeast(3)}%") }) }
+                                B { Text(pct?.let { "$it%" } ?: "—") }
+                            }
+                        }
+                    }
+                    if (ranked.size > 4) Button({ classes("gx-more"); attr("type", "button"); onClick { allSubjects = !allSubjects } }) {
+                        Text(if (allSubjects) "Mostrar menos" else "Ver todas as ${ranked.size} matérias")
+                        Icon(if (allSubjects) "expand_less" else "expand_more", plain = true)
                     }
                 }
             }
@@ -173,6 +199,9 @@ fun TrainScreen() {
 
     TrainPreferences()
 }
+
+/** Cor do acerto: vermelho abaixo de 50%, amarelo até 69%, verde dali para cima. */
+private fun accuracyTone(pct: Int?): String = when { pct == null -> "#7F7BB5"; pct >= 70 -> "#2FD39A"; pct >= 50 -> "#FFC94D"; else -> "#FF5A7A" }
 
 /** A cor de cada modo de treino no estúdio. */
 private val MODE_COLORS = mapOf("smart" to "#A78BFF", "wrong" to "#FF5A7A", "neverright" to "#FF8A3D", "mostwrong" to "#F472B6", "new" to "#2FD39A", "favorites" to "#FFC94D", "random" to "#22D3EE")

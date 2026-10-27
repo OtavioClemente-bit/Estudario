@@ -147,6 +147,7 @@ fun App() {
     StreakSaveHost()
     FocusModalsHost()
     ReviewPracticePanelsHost()
+    AvatarPickerHost()
     ToastHost()
 }
 
@@ -213,8 +214,7 @@ private fun Shell(content: @Composable () -> Unit) {
                 SaveIndicator()
                 A(href = "#/perfil", { classes("avatar"); attr("aria-label", "Perfil") }) {
                     val session = Store.session
-                    val photo = session?.avatarUrl
-                    if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
+                    AvatarContent()
                 }
             }
             val narrow = route is Route.Topic || route is Route.ReviewSession || route is Route.Quiz || route is Route.Flashcards || route == Route.Focus || route == Route.Setup
@@ -257,8 +257,7 @@ private fun SidebarContent(section: Route) {
     // Cabeçalho do menu: o perfil, com nível e XP (como no app).
     A(href = "#/perfil", { classes("drawer-profile"); onClick { drawerOpen = false } }) {
         Span({ classes("avatar"); attr("style", "width:44px;height:44px;font-size:16px") }) {
-            val photo = session?.avatarUrl
-            if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
+            AvatarContent()
         }
         Div({ attr("style", "min-width:0;flex:1") }) {
             B({ classes("clamp-2") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
