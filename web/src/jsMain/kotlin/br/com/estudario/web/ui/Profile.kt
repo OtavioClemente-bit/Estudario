@@ -101,6 +101,11 @@ fun FolhaSays(mood: String = "talking", size: Int = 72, content: @Composable () 
 
 // ------------------------------------------------------------------ Perfil
 
+/**
+ * O perfil como tela de jogo: o cartão do jogador (avatar na moldura da liga, nome, XP), o HUD com
+ * os números, as missões do dia, a trilha de títulos, a sala de troféus, o combo de dias e os
+ * atributos (de onde veio o XP). Os painéis têm fundo próprio de "console" nos dois temas.
+ */
 @Composable
 fun ProfileScreen() {
     val session = Store.session
@@ -111,177 +116,257 @@ fun ProfileScreen() {
     val goal = streak.goal.questions.coerceAtLeast(1)
     val doneToday = streak.todayQuestions
     val seed = rememberSeed()
-    // tocar numa medalha (vitrine ou "quase lá") abre a medalha em destaque, como nas Conquistas
+    val pct = (progress.levelProgress * 100).toInt()
+    val missing = (progress.xpForNextLevel - progress.xpIntoLevel).coerceAtLeast(0)
+    val league = leagueOf(progress.level)
     var openMedal by remember { mutableStateOf<String?>(null) }
     openMedal?.let { id -> progress.badges.firstOrNull { it.badge.id == id }?.let { MedalDetail(it, progress.badges, onPick = { openMedal = it }, onClose = { openMedal = null }) } }
 
-    // ---- o cabeçalho: avatar no anel do nível, nome, progresso e o Folha comentando
-    Div({ classes("pf-hero", "rise") }) {
-        Div({ classes("pf-id") }) {
-            Div({ classes("pf-avatar"); attr("style", "--p:${(progress.levelProgress * 100).toInt()};--ray:${levelRay(progress.level)}"); attr("title", "${(progress.levelProgress * 100).toInt()}% do nível ${progress.level}") }) {
-                Span({ classes("pf-photo") }) {
+    // ---- o cartão do jogador
+    Div({ classes("gm-card", "rise"); attr("style", "--t:${league.color};--t2:${league.glow}") }) {
+        Div({ classes("gm-card-shine") })
+        Div({ classes("gm-card-top") }) {
+            Span({ classes("gm-card-kicker") }) { Icon("sports_esports", filled = true); Text("CARTÃO DO JOGADOR") }
+            Span({ classes("gm-league") }) { Icon("shield", filled = true); Text("LIGA ${league.name.uppercase()}") }
+        }
+        Div({ classes("gm-card-body") }) {
+            Div({ classes("gm-avatar"); attr("style", "--p:$pct"); attr("title", "$pct% do nível ${progress.level}") }) {
+                Span({ classes("gm-avatar-ring") })
+                Span({ classes("gm-avatar-photo") }) {
                     val photo = session?.avatarUrl
                     if (photo != null) Img(src = photo, alt = "") else Text(initials(session?.name ?: session?.email))
                 }
-                Span({ classes("pf-level") }) { Text("${progress.level}") }
+                Span({ classes("gm-avatar-lv") }) { Span { Text("NV") }; B { Text("${progress.level}") } }
             }
-            Div({ classes("grow"); attr("style", "min-width:0") }) {
-                Span({ classes("pf-title") }) { Text("NÍVEL ${progress.level} · ${progress.levelTitle.uppercase()}") }
-                H2({ classes("pf-name") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
-                P({ classes("pf-mail", "clamp-1") }) { Text(session?.email ?: "Dados de exemplo") }
-                Div({ classes("pf-xpbar") }) { Span({ attr("style", "width:${(progress.levelProgress * 100).toInt()}%") }) }
-                P({ classes("pf-xpline") }) { Text("${progress.xpIntoLevel} de ${progress.xpForNextLevel} XP neste nível · faltam ${progress.xpForNextLevel - progress.xpIntoLevel} para o nível ${progress.level + 1}") }
+            Div({ classes("gm-card-id") }) {
+                Span({ classes("gm-class") }) { Text(progress.levelTitle.uppercase()) }
+                H2({ classes("gm-name") }) { Text(session?.name ?: if (Store.demo) "Demonstração" else "Estudante") }
+                P({ classes("gm-mail") }) { Text(session?.email ?: "Dados de exemplo") }
+                Div({ classes("gm-xp") }) {
+                    Div({ classes("gm-xp-head") }) {
+                        B { Text("XP") }
+                        Span { B { Text("${progress.xpIntoLevel}") }; Text(" / ${progress.xpForNextLevel}") }
+                    }
+                    Div({ classes("gm-xp-bar") }) {
+                        Span({ classes("gm-xp-fill"); attr("style", "width:$pct%") })
+                        repeat(9) { I({ attr("style", "left:${(it + 1) * 10}%") }) }
+                    }
+                    Div({ classes("gm-xp-foot") }) {
+                        Span { Text("$missing XP para o nível ${progress.level + 1}") }
+                        if (progress.xpToday > 0) Span({ classes("gm-plus") }) { Text("+${progress.xpToday} hoje") }
+                    }
+                }
+            }
+            Div({ classes("gm-card-folha") }) {
+                FolhaTalking(FolhaLines.forProfile(progress.level, streak.current, progress.xpToday, seed), 96, onFolhaClick = { Router.go(Route.Wardrobe) })
             }
         }
-        Div({ classes("pf-folha") }) {
-            FolhaTalking(FolhaLines.forProfile(progress.level, streak.current, progress.xpToday, seed), 104, onFolhaClick = { Router.go(Route.Wardrobe) })
+        // o HUD: quatro números, cada um leva à tela dele
+        Div({ classes("gm-hud") }) {
+            HudStat("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia de combo" else "dias de combo", "recorde ${streak.best}", hot = streak.current > 0)
+            HudStat("bolt", "#A78BFF", formatXp(progress.totalXp), "XP total", "${progress.xpThisWeek} na semana")
+            HudStat("emoji_events", "#FFC94D", "${progress.earnedBadges.size}", "troféus", "de ${progress.badges.size}", route = Route.Achievements)
+            HudStat("gps_fixed", "#2FD39A", if (streak.todayDone) "100%" else "${(streak.todayProgress * 100).toInt()}%", "meta do dia", if (streak.todayDone) "concluída" else "$doneToday de $goal questões", hot = streak.todayDone, route = Route.Stats)
         }
     }
 
-    // ---- os números do caminho
-    Div({ classes("pf-kpis") }) {
-        Kpi("local_fire_department", "#FF8A3D", "${streak.current}", if (streak.current == 1) "dia seguido" else "dias seguidos", "Recorde: ${streak.best}", extra = if (streak.current > 0) "fire" else null,
-            art = { ProfileArt("flame", lit = streak.current > 0) })
-        Kpi("bolt", "#8B7CFF", "${progress.totalXp}", "XP no total", if (progress.xpToday > 0) "+${progress.xpToday} hoje" else "${progress.xpThisWeek} XP esta semana", good = progress.xpToday > 0)
-        Kpi("military_tech", "#F5B83D", "${progress.earnedBadges.size}", "de ${progress.badges.size} emblemas", progress.nextBadges.firstOrNull()?.let { "Próximo: ${it.badge.name}" } ?: "Coleção completa",
-            route = Route.Achievements, art = { ProfileArt("badges") })
-        Kpi("gps_fixed", "#8060D7", "$doneToday", if (streak.todayDone) "meta batida!" else "de $goal questões",
-            if (streak.todayDone) "Dia salvo na sequência" else "Meta do dia · ${(streak.todayProgress * 100).toInt()}%",
-            good = streak.todayDone, extra = "goal", route = Route.Stats,
-            art = { ProfileArt("goal", fraction = streak.todayProgress, done = streak.todayDone) })
-    }
+    Div({ classes("gm-grid") }) {
+        Div({ classes("gm-col") }) {
+            // ---- missões do dia
+            GamePanel("flag", "Missões de hoje", if (streak.todayDone) "dia salvo" else null) {
+                // A meta do dia fecha com as questões ou com uma tarefa do plano ou revisão.
+                Quest(
+                    "gps_fixed", "Feche a meta do dia",
+                    if (streak.todayDone) "fechada hoje" else "$doneToday de $goal questões, ou uma tarefa do plano ou revisão",
+                    if (streak.todayDone) 1.0 else streak.todayProgress.toDouble(), streak.todayDone,
+                )
+                if (!streak.todayDone || doneToday > 0) Quest(
+                    "quiz", "Resolva $goal ${if (goal == 1) "questão" else "questões"}",
+                    "$doneToday de $goal", (doneToday.toDouble() / goal).coerceAtMost(1.0), doneToday >= goal,
+                )
+                Quest(
+                    "local_fire_department",
+                    if (streak.current > 0) "Mantenha o combo de ${streak.current} ${if (streak.current == 1) "dia" else "dias"}" else "Comece um combo de dias",
+                    if (streak.todayDone) "garantido hoje" else "feche a meta do dia", if (streak.todayDone) 1.0 else streak.todayProgress.toDouble(), streak.todayDone,
+                )
+                progress.nextBadges.firstOrNull()?.let { b ->
+                    Quest("emoji_events", "Desbloqueie: ${b.badge.name}", "faltam ${b.remaining} ${b.badge.unit}", b.percent.toDouble(), false, onClick = { openMedal = b.badge.id })
+                }
+            }
 
-    Div({ classes("grid", "main-side"); attr("style", "margin-top:16px") }) {
-        Div({ classes("stack", "loose") }) {
-            Card(extra = "pad-lg pf-study-level") {
-                Div({ classes("pf-study-level-head") }) {
-                    LevelBookView(progress.level, 128)
-                    Div({ classes("grow"); attr("style", "min-width:0") }) {
-                        Div({ classes("eyebrow") }) { Text("SEU NÍVEL") }
-                        B({ classes("pf-card-title") }) { Text(progress.levelTitle) }
-                        P({ classes("small", "muted") }) { Text("${progress.totalXp} XP no total") }
-                        br.com.estudario.domain.ProgressEngine.nextTitle(progress.level)?.let { next ->
-                            Span({ classes("small", "primary-ink") }) { Text("Próximo título: ${next.second}, no nível ${next.first}") }
+            // ---- a trilha de títulos: um marco a cada 5 níveis
+            GamePanel("route", "Trilha de títulos", "nível ${progress.level}") {
+                Div({ classes("gm-road") }) {
+                    val marks = listOf(1) + (5..50 step 5).toList()
+                    marks.forEachIndexed { i, lv ->
+                        val reached = progress.level >= lv
+                        val current = reached && (marks.getOrNull(i + 1)?.let { progress.level < it } ?: true)
+                        Div({ classes(*listOfNotNull("gm-node", if (reached) "on" else null, if (current) "now" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
+                            Span({ classes("gm-node-dot") }) { if (reached) Icon(if (current) "person" else "check", filled = true) else Icon("lock", filled = true) }
+                            B { Text("NV $lv") }
+                            Span { Text(br.com.estudario.domain.ProgressEngine.levelTitle(lv)) }
                         }
                     }
                 }
-                ProgressBar(progress.levelProgress.toDouble())
-                P({ classes("small", "muted") }) { Text("${progress.xpIntoLevel} de ${progress.xpForNextLevel} XP neste nível · faltam ${(progress.xpForNextLevel - progress.xpIntoLevel).coerceAtLeast(0)} XP") }
-            }
-            StreakWeekCard(streak)
-            // ---- a vitrine: as medalhas conquistadas, desenhadas
-            Card(extra = "pad-lg pf-showcase") {
-                Div({ classes("row", "between") }) {
-                    Div {
-                        Div({ classes("eyebrow") }) { Text("SUA VITRINE") }
-                        B({ classes("pf-card-title") }) { Text(if (progress.earnedBadges.isEmpty()) "Sua primeira medalha está perto" else "${progress.earnedBadges.size} medalhas conquistadas") }
-                    }
-                    A(href = "#/${Route.Achievements.path}", { classes("btn", "ghost", "small") }) { Text("Ver todas"); Icon("chevron_right") }
-                }
-                val shelf = progress.earnedBadges.sortedWith(compareByDescending<br.com.estudario.domain.BadgeProgress> { it.badge.tier }).take(8)
-                if (shelf.isEmpty()) P({ classes("small", "muted"); attr("style", "margin:10px 0 0") }) { Text("Estude, resolva questões e mantenha a sequência: cada emblema vira uma medalha aqui na vitrine.") }
-                else Div({ classes("pf-shelf") }) {
-                    shelf.forEach { item -> key(item.badge.id) { MedalButton(item, 76) { openMedal = item.badge.id } } }
+                br.com.estudario.domain.ProgressEngine.nextTitle(progress.level)?.let { (lv, title) ->
+                    P({ classes("gm-note") }) { Text("Próximo título: "); B { Text(title) }; Text(" no nível $lv.") }
                 }
             }
-            // ---- quase lá: as medalhas mais perto, com o quanto falta
-            if (progress.nextBadges.isNotEmpty()) Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("QUASE LÁ") }
-                Div({ classes("pf-next") }) {
-                    progress.nextBadges.take(3).forEach { item ->
+
+            // ---- a sala de troféus
+            GamePanel("emoji_events", "Sala de troféus", "${progress.earnedBadges.size}/${progress.badges.size}") {
+                Div({ classes("gm-trophy-meter") }) {
+                    Span({ attr("style", "width:${if (progress.badges.isEmpty()) 0 else progress.earnedBadges.size * 100 / progress.badges.size}%") })
+                }
+                val shelf = progress.earnedBadges.sortedByDescending { it.badge.tier }.take(8)
+                val locked = progress.nextBadges.take((8 - shelf.size).coerceAtLeast(4))
+                Div({ classes("gm-trophies") }) {
+                    shelf.forEach { item ->
                         key(item.badge.id) {
-                            Button({ classes("pf-next-row"); onClick { openMedal = item.badge.id } }) {
-                                MedalImg(item.badge, earned = false, size = 56)
-                                Div({ classes("grow"); attr("style", "min-width:0") }) {
-                                    Div({ classes("row", "between") }) {
-                                        B { Text(item.badge.name) }
-                                        Span({ classes("pf-next-pct") }) { Text("${(item.percent * 100).toInt()}%") }
-                                    }
-                                    ProgressBar(item.percent.toDouble())
-                                    Span({ classes("xs", "muted") }) { Text("Faltam ${item.remaining} ${item.badge.unit} · ${item.badge.requirement}") }
-                                }
+                            Button({ classes("gm-slot", "won"); attr("title", item.badge.name); onClick { openMedal = item.badge.id } }) {
+                                MedalImg(item.badge, earned = true, size = 64)
+                                Span { Text(item.badge.name) }
+                            }
+                        }
+                    }
+                    locked.forEach { item ->
+                        key(item.badge.id) {
+                            Button({ classes("gm-slot", "locked"); attr("title", item.badge.requirement); attr("style", "--p:${(item.percent * 100).toInt()}"); onClick { openMedal = item.badge.id } }) {
+                                MedalImg(item.badge, earned = false, size = 64)
+                                Span { Text("${(item.percent * 100).toInt()}%") }
                             }
                         }
                     }
                 }
+                A(href = "#/${Route.Achievements.path}", { classes("gm-more") }) { Text("Ver todos os troféus"); Icon("chevron_right") }
             }
-            Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("FREQUÊNCIA DE ESTUDO") }
-                Div({ classes("grid", "cols-3"); attr("style", "margin:10px 0") }) {
-                    Stat("${streak.current}", "sequência atual")
-                    Stat("${streak.best}", "recorde")
-                    Stat("${streak.activeDays}", "dias com estudo")
+
+            // ---- o combo de dias
+            GamePanel("local_fire_department", "Combo de dias", if (streak.freezes > 0) "${streak.freezes} ${if (streak.freezes == 1) "escudo" else "escudos"}" else null) {
+                Div({ classes("gm-combo") }) {
+                    Div({ classes(*listOfNotNull("gm-combo-big", if (streak.current > 0) "lit" else null).toTypedArray()) }) {
+                        Icon("local_fire_department", filled = true)
+                        B { Text("${streak.current}") }
+                        Span { Text("x combo") }
+                    }
+                    Div({ classes("gm-combo-stats") }) {
+                        Div { B { Text("${streak.best}") }; Span { Text("recorde") } }
+                        Div { B { Text("${streak.activeDays}") }; Span { Text("dias jogados") } }
+                        Div { B { Text("${streak.totalQuestions}") }; Span { Text("questões") } }
+                    }
                 }
-                Div({ classes("heat") }) {
+                Div({ classes("gm-heat") }) {
                     streak.calendar.forEach { day ->
                         val level = br.com.estudario.domain.StreakEngine.level(day, streak.goal)
                         I({ classes(*listOfNotNull(if (level > 0) "l${level.coerceAtMost(3)}" else null).toTypedArray()); attr("title", "${Queries.shortDate(day.date)}: ${day.questions} questões, ${day.minutes} min") })
                     }
                 }
+                if (streak.daysToNextFreeze > 0) P({ classes("gm-note") }) { Text("Mais ${streak.daysToNextFreeze} ${if (streak.daysToNextFreeze == 1) "dia" else "dias"} seguidos e você ganha um escudo, que salva o combo num dia sem estudo.") }
             }
         }
-        Div({ classes("stack", "loose") }) {
+
+        Div({ classes("gm-col") }) {
             WardrobeCard(progress)
-            Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("DE ONDE VEIO SEU XP") }
+
+            // ---- atributos: de onde veio o XP
+            GamePanel("insights", "Atributos", "${formatXp(progress.totalXp)} XP") {
                 val sources = progress.sources.filter { it.xp > 0 }
-                val total = sources.sumOf { it.xp }.coerceAtLeast(1)
-                if (sources.isEmpty()) P({ classes("small", "muted") }) { Text("Estude, resolva questões e revise para ganhar XP.") }
-                Div({ classes("stack"); attr("style", "margin-top:10px") }) {
-                    sources.forEach { source ->
-                        val pct = source.xp * 100 / total
-                        Div({ classes("stack", "tight") }) {
-                            Div({ classes("row", "between") }) { Span({ classes("small") }) { Text(source.label) }; B({ classes("small") }) { Text("$pct% · ${source.xp} XP") } }
-                            ProgressBar(pct / 100.0)
+                val top = sources.maxOfOrNull { it.xp }?.coerceAtLeast(1) ?: 1
+                if (sources.isEmpty()) P({ classes("gm-note") }) { Text("Estude, resolva questões e revise: cada coisa sobe um atributo.") }
+                Div({ classes("gm-attrs") }) {
+                    sources.sortedByDescending { it.xp }.forEachIndexed { i, source ->
+                        Div({ classes("gm-attr"); attr("style", "--a:${ATTR_COLORS[i % ATTR_COLORS.size]}") }) {
+                            Div({ classes("gm-attr-head") }) { Span { Text(source.label) }; B { Text("${source.xp}") } }
+                            Div({ classes("gm-attr-bar") }) {
+                                Span({ attr("style", "width:${source.xp * 100 / top}%") })
+                            }
                         }
                     }
                 }
             }
-            Card {
-                ProfileLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} emblemas", Route.Achievements)
-                ProfileLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
-                ProfileLink("fact_check", "Histórico e fontes", "De onde veio o seu material", Route.Sources)
-                ProfileLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
-                ProfileLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
-                ProfileLink("workspace_premium", "Planos e uso", "Seu plano, seu mês e a comparação", Route.PlanLimits)
-                ProfileLink("tune", "Ajustes", "Aparência, sons, questões por dia e sincronização", Route.Settings)
-            }
-            Card(extra = "pad-lg") {
-                Div({ classes("eyebrow") }) { Text("SUA CONTA") }
-                P({ classes("small", "muted"); attr("style", "margin:6px 0 12px") }) { Text(if (Store.demo) "Você está na demonstração." else "Conta Google · dados sincronizados com o app do celular.") }
-                Btn(if (Store.demo) "Sair da demonstração" else "Sair da conta", { Store.signOut() }, style = "outline", icon = "logout", block = true)
+
+            // ---- o menu
+            GamePanel("menu", "Menu") {
+                Div({ classes("gm-menu") }) {
+                    GameLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} troféus", Route.Achievements)
+                    GameLink("query_stats", "Desempenho", "Acerto, minutos e constância", Route.Stats)
+                    GameLink("history", "Histórico do foco", "Tempo por matéria e sessões", Route.FocusHistory)
+                    GameLink("fact_check", "Histórico e fontes", "De onde veio o seu material", Route.Sources)
+                    GameLink("notifications_active", "Notificações", "Aviso quando o material ficar pronto", Route.Notifications)
+                    GameLink("workspace_premium", "Planos e uso", "Seu plano e o seu mês", Route.PlanLimits)
+                    GameLink("tune", "Ajustes", "Aparência, sons e sincronização", Route.Settings)
+                }
+                P({ classes("gm-note") }) { Text(if (Store.demo) "Você está na demonstração." else "Conta Google · dados sincronizados com o app do celular.") }
+                Button({ classes("gm-exit"); onClick { Store.signOut() } }) { Icon("logout"); Text(if (Store.demo) "Sair da demonstração" else "Sair da conta") }
             }
         }
     }
 }
 
-/** A cor dos raios do nível, no metal da faixa: bronze até o 9, prata, ouro, safira, rubi e esmeralda no 50. */
-private fun levelRay(level: Int) = when ((level / 10).coerceIn(0, 5)) {
-    0 -> "#E8925A"; 1 -> "#CFD8E3"; 2 -> "#FFC94D"; 3 -> "#6F9BFF"; 4 -> "#FF5A7A"; else -> "#2FD39A"
+/** A liga do nível: bronze até o 9, prata, ouro, safira, rubi e esmeralda do 50 em diante. */
+private data class League(val name: String, val color: String, val glow: String)
+
+private fun leagueOf(level: Int) = when ((level / 10).coerceIn(0, 5)) {
+    0 -> League("Bronze", "#E8925A", "#7A3E1D")
+    1 -> League("Prata", "#CFD8E3", "#56657A")
+    2 -> League("Ouro", "#FFC94D", "#8A5A00")
+    3 -> League("Safira", "#6F9BFF", "#1D3C8F")
+    4 -> League("Rubi", "#FF5A7A", "#8A1530")
+    else -> League("Esmeralda", "#2FD39A", "#0D6B4A")
 }
 
-/** Um número do perfil com o ícone colorido e uma linha de contexto. */
+private val ATTR_COLORS = listOf("#A78BFF", "#22D3EE", "#FFC94D", "#2FD39A", "#FF8A3D", "#FF5A7A")
+
+private fun formatXp(xp: Int): String = xp.toString().reversed().chunked(3).joinToString(".").reversed()
+
 @Composable
-private fun Kpi(
-    icon: String, color: String, value: String, label: String, sub: String,
-    good: Boolean = false, extra: String? = null, route: Route? = null,
-    art: (@Composable () -> Unit)? = null,
-) {
-    Div({ classes(*listOfNotNull("pf-kpi", extra).toTypedArray()); attr("style", "--k:$color") }) {
-        Span({ classes(*listOfNotNull("pf-kpi-ic", if (art != null) "drawn" else null).toTypedArray()) }) {
-            if (art != null) art() else Icon(icon, filled = true)
+private fun HudStat(icon: String, color: String, value: String, label: String, sub: String, hot: Boolean = false, route: Route? = null) {
+    val content: @Composable () -> Unit = {
+        Span({ classes("gm-hud-ic") }) { Icon(icon, filled = true) }
+        Div({ classes("gm-hud-txt") }) {
+            B { Text(value) }
+            Span { Text(label) }
+            I { Text(sub) }
         }
-        Div({ classes("grow"); attr("style", "min-width:0") }) {
-            if (route == null) KpiText(value, label, sub, good)
-            else A(href = "#/${route.path}", { classes("pf-kpi-copy") }) { KpiText(value, label, sub, good) }
+    }
+    if (route == null) Div({ classes(*listOfNotNull("gm-hud-stat", if (hot) "hot" else null).toTypedArray()); attr("style", "--k:$color") }) { content() }
+    else A(href = "#/${route.path}", { classes(*listOfNotNull("gm-hud-stat", "link", if (hot) "hot" else null).toTypedArray()); attr("style", "--k:$color") }) { content() }
+}
+
+@Composable
+private fun GamePanel(icon: String, title: String, badge: String? = null, content: @Composable () -> Unit) {
+    Div({ classes("gm-panel") }) {
+        Div({ classes("gm-panel-head") }) {
+            Span({ classes("gm-panel-ic") }) { Icon(icon, filled = true) }
+            B { Text(title.uppercase()) }
+            badge?.let { Span({ classes("gm-panel-badge") }) { Text(it) } }
+        }
+        content()
+    }
+}
+
+@Composable
+private fun Quest(icon: String, title: String, sub: String, fraction: Double, done: Boolean, onClick: (() -> Unit)? = null) {
+    Button({
+        classes(*listOfNotNull("gm-quest", if (done) "done" else null, if (onClick == null) "static" else null).toTypedArray())
+        if (onClick != null) onClick { onClick() } else attr("tabindex", "-1")
+    }) {
+        Span({ classes("gm-quest-ic") }) { Icon(if (done) "check" else icon, filled = true) }
+        Div({ classes("gm-quest-txt") }) {
+            Div({ classes("gm-quest-head") }) { B { Text(title) }; Span { Text(if (done) "COMPLETA" else "${(fraction * 100).toInt()}%") } }
+            Div({ classes("gm-quest-bar") }) { Span({ attr("style", "width:${(fraction * 100).toInt().coerceIn(0, 100)}%") }) }
+            I { Text(sub) }
         }
     }
 }
 
 @Composable
-private fun KpiText(value: String, label: String, sub: String, good: Boolean) {
-    Div({ classes("pf-kpi-value") }) { B { Text(value) }; Span { Text(label) } }
-    Span({ classes(*listOfNotNull("pf-kpi-sub", if (good) "good" else null).toTypedArray()) }) { Text(sub) }
+private fun GameLink(icon: String, title: String, subtitle: String, route: Route) {
+    A(href = "#/${route.path}", { classes("gm-link") }) {
+        Span({ classes("gm-link-ic") }) { Icon(icon) }
+        Div({ classes("grow") }) { B { Text(title) }; Span { Text(subtitle) } }
+        Icon("chevron_right")
+    }
 }
 
 /** A arte do emblema (a cena ilustrada de cada conquista, em WebP leve); trancado sai apagado. */
