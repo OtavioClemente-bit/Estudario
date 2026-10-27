@@ -366,7 +366,7 @@ fun StatsScreen() {
             }
             Card {
                 Div({ classes("panel-title") }) { H3 { Text("Constância") }; P({ classes("small", "muted") }) { Text("${streak.activeDays} dias com estudo · recorde de ${streak.best} seguidos") } }
-                ActivityCalendar(streak.calendar, streak.goal, tone = "brand")
+                ActivityCalendar(streak.calendar, streak.goal, tone = "fire")
             }
         }
     }

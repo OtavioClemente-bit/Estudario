@@ -59,7 +59,7 @@ fun ActivityHeatmap(
     goal: DailyGoal,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
-    tone: HeatTone = HeatTone.Brand,
+    tone: HeatTone = HeatTone.Fire,
 ) {
     if (calendar.isEmpty()) return
     val weeks = remember(calendar) { calendar.chunked(7) }

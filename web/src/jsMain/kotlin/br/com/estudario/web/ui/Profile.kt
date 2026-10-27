@@ -39,7 +39,6 @@ import org.jetbrains.compose.web.dom.Input
 import org.jetbrains.compose.web.dom.P
 import org.jetbrains.compose.web.dom.Span
 import org.jetbrains.compose.web.dom.Text
-import org.jetbrains.compose.web.svg.Path
 
 // ------------------------------------------------------------------ Folha (o mascote)
 
@@ -205,7 +204,23 @@ fun ProfileScreen() {
             }
 
             // ---- a trilha de títulos: um mapa de mundos, um brasão por título
-            GamePanel("route", "Trilha de títulos", "nível ${progress.level}", accent = league.color) { TitleMap(progress.level, progress.levelProgress) }
+            GamePanel("military_tech", "Trilha de títulos", "nível ${progress.level}", accent = league.color) {
+                Div({ classes("gm-road") }) {
+                    val marks = listOf(1) + (5..50 step 5).toList()
+                    marks.forEachIndexed { i, lv ->
+                        val reached = progress.level >= lv
+                        val current = reached && (marks.getOrNull(i + 1)?.let { progress.level < it } ?: true)
+                        Div({ classes(*listOfNotNull("gm-node", if (reached) "on" else null, if (current) "now" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
+                            Span({ classes("gm-node-dot") }) { if (reached) Icon(if (current) "person" else "check", filled = true) else Icon("lock", filled = true) }
+                            B { Text("NV $lv") }
+                            Span { Text(br.com.estudario.domain.ProgressEngine.levelTitle(lv)) }
+                        }
+                    }
+                }
+                br.com.estudario.domain.ProgressEngine.nextTitle(progress.level)?.let { (lv, title) ->
+                    P({ classes("gm-note") }) { Text("Próximo título: "); B { Text(title) }; Text(" no nível $lv.") }
+                }
+            }
 
             // ---- a sala de troféus
             GamePanel("emoji_events", "Sala de troféus", "${progress.earnedBadges.size}/${progress.badges.size}", accent = "#FFC94D") {
@@ -274,16 +289,11 @@ fun ProfileScreen() {
                 }
             }
 
-            // ---- o menu, como a tela de pausa de um jogo
+            // ---- o menu: só o que não está no menu lateral (ajustes, plano e sair)
             GamePanel("sports_esports", "Menu", accent = "#22D3EE") {
                 Div({ classes("gm-menu") }) {
-                    GameLink("emoji_events", "Conquistas", "${progress.earnedBadges.size} troféus", Route.Achievements, "#FFC94D")
-                    GameLink("query_stats", "Desempenho", "Acerto e constância", Route.Stats, "#2FD39A")
-                    GameLink("timer", "Histórico do foco", "Tempo por matéria", Route.FocusHistory, "#FF8A3D")
-                    GameLink("fact_check", "Fontes", "De onde veio o material", Route.Sources, "#6F9BFF")
-                    GameLink("notifications_active", "Notificações", "Material pronto", Route.Notifications, "#FF5A7A")
-                    GameLink("workspace_premium", "Planos e uso", "Seu plano e o mês", Route.PlanLimits, "#A78BFF")
                     GameLink("tune", "Ajustes", "Aparência e sons", Route.Settings, "#22D3EE")
+                    GameLink("workspace_premium", "Planos", "Seu plano e o mês", Route.PlanLimits, "#A78BFF")
                     Button({ classes("gm-tile", "exit"); attr("style", "--k:#FF5A7A"); onClick { Store.signOut() } }) {
                         Span({ classes("gm-tile-ic") }) { Icon("logout", plain = true) }
                         B { Text(if (Store.demo) "Sair da demo" else "Sair da conta") }
@@ -359,85 +369,6 @@ private fun GameLink(icon: String, title: String, subtitle: String, route: Route
         Span({ classes("gm-tile-ic") }) { Icon(icon, filled = true) }
         B { Text(title) }
         Span { Text(subtitle) }
-    }
-}
-
-/** O brasão de cada título: o desenho que combina com ele. */
-private val TITLE_ICONS = mapOf(
-    1 to "spa", 5 to "menu_book", 10 to "edit_note", 15 to "fitness_center", 20 to "psychology", 25 to "my_location",
-    30 to "military_tech", 35 to "school", 40 to "verified", 45 to "badge", 50 to "workspace_premium",
-)
-
-/**
- * A trilha como mapa de mundos: os brasões sobem e descem por um caminho curvo, aceso até onde a
- * pessoa chegou (o trecho até o próximo título enche com o nível atual). Clicar num brasão abre o
- * cartão dele embaixo; abre já no título atual.
- */
-@Composable
-private fun TitleMap(level: Int, levelProgress: Float) {
-    val stops = listOf(1) + (5..50 step 5).toList()
-    val currentIdx = stops.indexOfLast { it <= level }
-    var sel by remember { mutableStateOf(currentIdx) }
-    val step = 96
-    val width = step * stops.size
-    fun y(i: Int) = if (i % 2 == 0) 54 else 106
-    fun x(i: Int) = step / 2 + i * step
-    // quanto do caminho já foi: até o título atual, mais a fração até o próximo
-    val next = stops.getOrNull(currentIdx + 1)
-    val partial = if (next == null) 0.0 else ((level - stops[currentIdx]) + levelProgress.toDouble()) / (next - stops[currentIdx])
-    val lit = ((currentIdx + partial.coerceIn(0.0, 1.0)) / (stops.size - 1) * 100).coerceIn(0.0, 100.0)
-    val d = buildString {
-        append("M ${x(0)} ${y(0)}")
-        for (i in 1 until stops.size) {
-            val mx = (x(i - 1) + x(i)) / 2
-            append(" C $mx ${y(i - 1)}, $mx ${y(i)}, ${x(i)} ${y(i)}")
-        }
-    }
-    Div({
-        classes("gm-map")
-        ref { el -> el.scrollLeft = (x(currentIdx) - el.clientWidth / 2).toDouble().coerceAtLeast(0.0); onDispose { } }
-    }) {
-        Div({ classes("gm-map-track"); attr("style", "width:${width}px") }) {
-            org.jetbrains.compose.web.svg.Svg(viewBox = "0 0 $width 150", attrs = { classes("gm-map-path"); attr("width", "$width"); attr("height", "150") }) {
-                Path(d, { attr("class", "base"); attr("pathLength", "100") })
-                Path(d, { attr("class", "lit"); attr("pathLength", "100"); attr("stroke-dasharray", "$lit 100") })
-            }
-            stops.forEachIndexed { i, lv ->
-                val reached = level >= lv
-                val now = i == currentIdx
-                Button({
-                    classes(*listOfNotNull("gm-crest", if (reached) "on" else null, if (now) "now" else null, if (i == sel) "sel" else null).toTypedArray())
-                    attr("style", "left:${x(i)}px;top:${y(i)}px;--n:${leagueOf(lv).color};--n2:${leagueOf(lv).glow}")
-                    attr("aria-label", "${br.com.estudario.domain.ProgressEngine.levelTitle(lv)}, nível $lv")
-                    onClick { sel = i }
-                }) {
-                    if (now) Span({ classes("gm-crest-pin") }) { Text("VOCÊ") }
-                    Span({ classes("gm-crest-shape") }) { Icon(if (reached) TITLE_ICONS[lv] ?: "star" else "lock", filled = true, plain = true) }
-                    Span({ classes("gm-crest-lv") }) { Text("$lv") }
-                }
-            }
-        }
-    }
-    val lv = stops[sel]
-    val reached = level >= lv
-    val title = br.com.estudario.domain.ProgressEngine.levelTitle(lv)
-    key(sel) {
-        Div({ classes(*listOfNotNull("gm-crest-card", if (reached) "on" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
-            Span({ classes("gm-crest-card-ic") }) { Icon(if (reached) TITLE_ICONS[lv] ?: "star" else "lock", filled = true, plain = true) }
-            Div({ classes("grow") }) {
-                B { Text(title) }
-                Span {
-                    Text(
-                        when {
-                            sel == currentIdx -> "Seu título agora · nível $level · liga ${leagueOf(level).name}" + (next?.let { " · o próximo sai no nível $it" } ?: "")
-                            reached -> "Conquistado no nível $lv · liga ${leagueOf(lv).name}"
-                            else -> "Libera no nível $lv · faltam ${lv - level} ${if (lv - level == 1) "nível" else "níveis"}"
-                        },
-                    )
-                }
-            }
-            Span({ classes("gm-crest-card-tag") }) { Text(if (sel == currentIdx) "ATUAL" else if (reached) "FEITO" else "TRANCADO") }
-        }
     }
 }
 

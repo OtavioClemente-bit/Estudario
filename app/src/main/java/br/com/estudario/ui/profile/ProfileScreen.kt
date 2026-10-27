@@ -278,7 +278,7 @@ private fun ProfileContent(
                 item { Divider() }
             }
             if (progress != null) {
-                item { TitlesTrail(progress.level, progress.levelProgress) }
+                item { TitlesTrail(progress.level) }
                 item { Divider() }
                 item { TrophyRoom(progress, onBadges) }
                 item { Divider() }

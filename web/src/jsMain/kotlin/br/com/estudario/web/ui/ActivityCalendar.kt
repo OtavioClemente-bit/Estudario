@@ -31,10 +31,10 @@ fun ActivityCalendar(calendar: List<DailyActivity>, goal: DailyGoal, tone: Strin
     var picked by remember(calendar) { mutableStateOf<DailyActivity?>(null) }
     val lead = days.first().date.isoDayOfWeek - 1
     val weeks = (List<DailyActivity?>(lead) { null } + days).chunked(7)
+    val today = Queries.todayDate()
     Div({ classes("cal", "cal-$tone") }) {
         Div({
             classes("cal-scroll")
-            ref { el -> el.scrollLeft = el.scrollWidth.toDouble(); onDispose { } }
         }) {
             Div({ classes("cal-grid"); attr("style", "--w:${weeks.size}") }) {
                 // nome do mês na semana em que ele começa (o primeiro só se couber antes do próximo)
@@ -48,7 +48,7 @@ fun ActivityCalendar(calendar: List<DailyActivity>, goal: DailyGoal, tone: Strin
                         Span({ classes("cal-month"); attr("style", "grid-column:${w + 2}") }) { Text(MONTHS[month]) }
                     }
                 }
-                listOf(1 to "seg", 3 to "qua", 5 to "sex").forEach { (row, label) ->
+                listOf(0 to "seg", 2 to "qua", 4 to "sex").forEach { (row, label) ->
                     Span({ classes("cal-dow"); attr("style", "grid-row:${row + 2}") }) { Text(label) }
                 }
                 weeks.forEachIndexed { w, week ->
@@ -56,7 +56,7 @@ fun ActivityCalendar(calendar: List<DailyActivity>, goal: DailyGoal, tone: Strin
                         if (day != null) {
                             val level = StreakEngine.level(day, goal)
                             I({
-                                classes(*listOfNotNull("l$level", if (picked?.date == day.date) "sel" else null).toTypedArray())
+                                classes(*listOfNotNull("l$level", if (day.date == today) "today" else null, if (picked?.date == day.date) "sel" else null).toTypedArray())
                                 attr("style", "grid-column:${w + 2};grid-row:${d + 2}")
                                 attr("title", "${Queries.shortDate(day.date)}: ${day.questions} questões, ${day.minutes} min")
                                 onClick { picked = if (picked?.date == day.date) null else day }

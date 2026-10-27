@@ -490,169 +490,63 @@ private fun Quest(icon: ImageVector, accent: Color, title: String, fraction: Flo
 
 // ---------------------------------------------------------------- trilha de títulos
 
-/** Brasão hexagonal (os títulos da trilha). */
-private val CrestShape = GenericShape { size, _ ->
-    moveTo(size.width / 2f, 0f)
-    lineTo(size.width, size.height * 0.22f)
-    lineTo(size.width, size.height * 0.70f)
-    lineTo(size.width / 2f, size.height)
-    lineTo(0f, size.height * 0.70f)
-    lineTo(0f, size.height * 0.22f)
-    close()
-}
-
-/** O desenho de cada título, do broto do Iniciante à coroa da Lenda. */
-private fun titleIcon(level: Int): ImageVector = when (level) {
-    1 -> Icons.Rounded.Spa
-    5 -> Icons.Rounded.AutoStories
-    10 -> Icons.Rounded.Edit
-    15 -> Icons.Rounded.FitnessCenter
-    20 -> Icons.Rounded.Psychology
-    25 -> Icons.Rounded.MyLocation
-    30 -> Icons.Rounded.MilitaryTech
-    35 -> Icons.Rounded.School
-    40 -> Icons.Rounded.Verified
-    45 -> Icons.Rounded.Badge
-    else -> Icons.Rounded.WorkspacePremium
-}
-
-/**
- * A trilha como mapa de mundos: os brasões sobem e descem por um caminho curvo, aceso até onde a
- * pessoa chegou (o trecho até o próximo título enche com o nível). Tocar num brasão abre o cartão
- * dele embaixo; abre no título atual, com o "VOCÊ" em cima.
- */
 @Composable
-internal fun TitlesTrail(level: Int, levelProgress: Float) {
+internal fun TitlesTrail(level: Int) {
+    val league = leagueOf(level)
     val stops = listOf(1) + (5..50 step 5).toList()
-    val currentIdx = stops.indexOfLast { it <= level }
-    var sel by remember { mutableIntStateOf(currentIdx) }
-    val step = 92.dp
-    val trackHeight = 150.dp
-    val density = LocalDensity.current
+    val current = stops.last { it <= level }
+    val pulse by rememberInfiniteTransition(label = "trilha").animateFloat(0.55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "pulso")
     val scroll = rememberScrollState()
-    LaunchedEffect(currentIdx) {
-        scroll.scrollTo(with(density) { ((step * currentIdx) - step).toPx() }.toInt().coerceAtLeast(0))
-    }
-    val next = stops.getOrNull(currentIdx + 1)
-    val partial = if (next == null) 0f else ((level - stops[currentIdx]) + levelProgress) / (next - stops[currentIdx])
-    val target = ((currentIdx + partial.coerceIn(0f, 1f)) / (stops.size - 1)).coerceIn(0f, 1f)
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { started = true }
-    val lit by animateFloatAsState(if (started) target else 0f, tween(1_400, easing = FastOutSlowInEasing), label = "trilha-acesa")
-    val pulse by rememberInfiniteTransition(label = "trilha").animateFloat(0.4f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "pulso")
-    val bob by rememberInfiniteTransition(label = "voce").animateFloat(0f, -4f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "voce-y")
-    fun yOf(i: Int) = if (i % 2 == 0) 56.dp else 108.dp
-    fun xOf(i: Int) = step / 2 + step * i
-    val litColor = leagueOf(level).c2
-
-    GamePanel("Trilha de títulos", leagueOf(level).c2, trailing = "NV $level") {
-        Box(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
-            Box(Modifier.width(step * stops.size).height(trackHeight)) {
-                Canvas(Modifier.matchParentSize()) {
-                    val path = Path().apply {
-                        moveTo(xOf(0).toPx(), yOf(0).toPx())
-                        for (i in 1 until stops.size) {
-                            val mx = (xOf(i - 1).toPx() + xOf(i).toPx()) / 2f
-                            cubicTo(mx, yOf(i - 1).toPx(), mx, yOf(i).toPx(), xOf(i).toPx(), yOf(i).toPx())
+    val nodeWidth = 96.dp
+    val px = with(LocalDensity.current) { nodeWidth.toPx() }
+    LaunchedEffect(current) { scroll.scrollTo(((stops.indexOf(current) - 1).coerceAtLeast(0) * px).toInt()) }
+    val next = ProgressEngine.nextTitle(level)
+    GamePanel("Trilha de títulos", league.c2, trailing = "NV $level") {
+        Row(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
+            stops.forEachIndexed { i, stop ->
+                val reached = stop <= level
+                val now = stop == current
+                Column(Modifier.width(nodeWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
+                        // Trilho entre as fases: aceso até onde a pessoa chegou.
+                        Row(Modifier.fillMaxWidth().height(4.dp)) {
+                            Box(Modifier.weight(1f).fillMaxHeight().background(if (i == 0) Color.Transparent else if (reached) league.c1 else Game.track))
+                            Box(Modifier.weight(1f).fillMaxHeight().background(if (i == stops.lastIndex) Color.Transparent else if (stops[i + 1] <= level) league.c1 else Game.track))
                         }
-                    }
-                    drawPath(path, Color.White.copy(alpha = 0.08f), style = Stroke(8.dp.toPx(), cap = StrokeCap.Round))
-                    val measure = PathMeasure().apply { setPath(path, false) }
-                    val litPath = Path()
-                    measure.getSegment(0f, measure.length * lit, litPath, true)
-                    drawPath(litPath, litColor.copy(alpha = 0.35f), style = Stroke(12.dp.toPx(), cap = StrokeCap.Round))
-                    drawPath(litPath, litColor, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
-                }
-                stops.forEachIndexed { i, stop ->
-                    val reached = stop <= level
-                    val now = i == currentIdx
-                    val picked = i == sel
-                    val league = leagueOf(stop)
-                    val crest = if (now) 66.dp else 54.dp
-                    val pick by animateFloatAsState(if (picked) 1.08f else 1f, spring(dampingRatio = 0.35f, stiffness = 500f), label = "brasao")
-                    Box(
-                        Modifier.offset(xOf(i) - 40.dp, yOf(i) - 44.dp).size(80.dp, 96.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
                         Box(
-                            Modifier.size(crest, crest * 1.1f).graphicsLayer { scaleX = pick; scaleY = pick }
-                                .gameClick { sel = i },
+                            Modifier.size(if (now) 42.dp else 34.dp).rotate(45f).clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    when {
+                                        now -> Brush.linearGradient(listOf(league.c1, league.c2))
+                                        reached -> Brush.linearGradient(listOf(league.c1.copy(alpha = 0.75f), league.c1.copy(alpha = 0.55f)))
+                                        else -> Brush.linearGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)))
+                                    },
+                                )
+                                .border(if (now) 2.dp else 1.dp, if (now) Color.White.copy(alpha = pulse) else if (reached) league.c2.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.28f), RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            // aro claro por fora, miolo com a cor da liga daquele título
-                            Box(
-                                Modifier.matchParentSize().clip(CrestShape).background(
-                                    if (reached) Brush.verticalGradient(listOf(Color.White, league.c1))
-                                    else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.08f))),
-                                ),
-                            )
-                            Box(
-                                Modifier.matchParentSize().padding(3.dp).clip(CrestShape).background(
-                                    if (reached) Brush.radialGradient(listOf(league.c2, league.c1, league.c1.copy(alpha = 0.85f)))
-                                    else Brush.verticalGradient(listOf(Color(0xFF2A2970), Color(0xFF191846))),
-                                ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(if (reached) titleIcon(stop) else Icons.Rounded.Lock, null, Modifier.size(if (now) 30.dp else 22.dp), tint = if (reached) Color.White else Color(0xFF6E6AA8))
+                            Box(Modifier.rotate(-45f), contentAlignment = Alignment.Center) {
+                                if (reached) Text("$stop", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Game.bg)
+                                else Icon(Icons.Rounded.Lock, null, Modifier.size(15.dp), tint = Color(0xFFD6D2FA))
                             }
-                            if (now) Box(Modifier.matchParentSize().graphicsLayer { alpha = pulse }.clip(CrestShape).border(2.dp, Color.White, CrestShape))
                         }
-                        // número do nível na base do brasão
-                        Text(
-                            "$stop",
-                            Modifier.align(Alignment.BottomCenter).offset(y = (-6).dp).clip(RoundedCornerShape(7.dp))
-                                .background(if (reached) Brush.verticalGradient(listOf(Color.White, league.c1)) else Brush.verticalGradient(listOf(Color(0xFF23215E), Color(0xFF23215E))))
-                                .padding(horizontal = 7.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 0.sp,
-                            color = if (reached) Game.bg else Color.White,
-                        )
-                        if (now) Text(
-                            "VOCÊ",
-                            Modifier.align(Alignment.TopCenter).offset(y = (-4).dp).graphicsLayer { translationY = bob.dp.toPx() }.clip(RoundedCornerShape(6.dp)).background(Color.White).padding(horizontal = 7.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.sp, fontSize = 9.sp, color = Game.bg,
-                        )
-                        if (picked) Box(Modifier.align(Alignment.BottomCenter).offset(y = 6.dp).size(22.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(if (reached) league.c2 else Game.muted))
                     }
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        // O cartão do brasão escolhido.
-        val stop = stops[sel]
-        val reached = stop <= level
-        val league = leagueOf(stop)
-        androidx.compose.animation.AnimatedContent(sel, label = "cartao-titulo") { _ ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                    .background(if (reached) Brush.horizontalGradient(listOf(league.c1.copy(alpha = 0.22f), Color.Black.copy(alpha = 0.2f))) else Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.25f), Color.Black.copy(alpha = 0.25f))))
-                    .border(1.dp, if (reached) league.c1.copy(alpha = 0.5f) else Game.line, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(40.dp, 44.dp).clip(CrestShape).background(if (reached) league.c1 else Color(0xFF23215E)), contentAlignment = Alignment.Center) {
-                    Icon(if (reached) titleIcon(stop) else Icons.Rounded.Lock, null, Modifier.size(20.dp), tint = if (reached) Color.White else Game.muted)
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(ProgressEngine.levelTitle(stop), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Game.ink)
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        when {
-                            sel == currentIdx -> "Seu título agora · liga ${leagueOf(level).name}" + (next?.let { " · o próximo sai no nível $it" } ?: "")
-                            reached -> "Conquistado no nível $stop · liga ${league.name}"
-                            else -> "Libera no nível $stop · faltam ${stop - level} ${if (stop - level == 1) "nível" else "níveis"}"
-                        },
-                        style = MaterialTheme.typography.bodySmall, color = Game.muted,
+                        ProgressEngine.levelTitle(stop), style = MaterialTheme.typography.bodySmall, fontSize = 12.sp, letterSpacing = 0.sp, lineHeight = 14.sp,
+                        fontWeight = if (now) FontWeight.Black else FontWeight.Medium,
+                        color = if (now) league.c2 else if (reached) Game.ink else Color(0xFFCFCBF5),
+                        textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(horizontal = 4.dp),
                     )
+                    if (!reached) Text("nível $stop", style = MaterialTheme.typography.labelSmall, color = Game.muted, fontSize = 10.sp, letterSpacing = 0.sp)
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (sel == currentIdx) "ATUAL" else if (reached) "FEITO" else "TRANCADO",
-                    Modifier.clip(RoundedCornerShape(6.dp)).background(if (reached) league.c1 else Color.White.copy(alpha = 0.07f)).padding(horizontal = 7.dp, vertical = 2.dp),
-                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, letterSpacing = 1.sp,
-                    color = if (reached) Game.bg else Game.muted,
-                )
             }
         }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            if (next != null) "Próximo título: ${next.second}, no nível ${next.first}" else "Você chegou ao último título da trilha.",
+            style = MaterialTheme.typography.bodySmall, color = Game.muted,
+        )
     }
 }
 
