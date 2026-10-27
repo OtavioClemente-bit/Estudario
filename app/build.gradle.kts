@@ -1,4 +1,4 @@
-import com.android.build.api.dsl.ApplicationExtension
+﻿import com.android.build.api.dsl.ApplicationExtension
 import java.util.Base64
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -62,19 +62,19 @@ check(forbiddenAndroidSecretProperty == null) {
     "Server-only service-role/OpenAI properties are not allowed in Android configuration."
 }
 
-// ID do cliente OAuth "Aplicativo da Web" do Google Cloud, usado no login com Google (não é segredo).
+// ID do cliente OAuth "Aplicativo da Web" do Google Cloud, usado no login com Google (nÃ£o Ã© segredo).
 val googleWebClientId = providers.gradleProperty("estudario.google.webClientId").orNull.orEmpty().trim()
 
-// Número do projeto do Google Cloud vinculado ao app no Play Console (não é segredo).
+// NÃºmero do projeto do Google Cloud vinculado ao app no Play Console (nÃ£o Ã© segredo).
 val playIntegrityCloudProjectNumber = providers.gradleProperty("estudario.playIntegrity.cloudProjectNumber").orNull.orEmpty().trim()
 check(playIntegrityCloudProjectNumber.isEmpty() || playIntegrityCloudProjectNumber.all(Char::isDigit)) {
     "estudario.playIntegrity.cloudProjectNumber must contain only digits."
 }
 
-// AdMob (anúncio premiado do Grátis, para adiantar uma matéria do plano). Os ids não são segredo (vão
-// no app). Só a versão da loja (release) usa os reais; debug e o "Estudário Teste" usam os de teste do
-// Google, para ninguém gerar tráfego inválido testando. O botão só aparece quando o servidor liga
-// (AD_REWARDS_ENABLED). Dá para trocar os reais por ~/.gradle/gradle.properties.
+// AdMob (anÃºncio premiado do GrÃ¡tis, para adiantar uma matÃ©ria do plano). Os ids nÃ£o sÃ£o segredo (vÃ£o
+// no app). SÃ³ a versÃ£o da loja (release) usa os reais; debug e o "EstudÃ¡rio Teste" usam os de teste do
+// Google, para ninguÃ©m gerar trÃ¡fego invÃ¡lido testando. O botÃ£o sÃ³ aparece quando o servidor liga
+// (AD_REWARDS_ENABLED). DÃ¡ para trocar os reais por ~/.gradle/gradle.properties.
 val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
 val admobTestRewardedUnit = "ca-app-pub-3940256099942544/5224354917"
 val admobAppId = providers.gradleProperty("estudario.admob.appId").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "ca-app-pub-6794476146182030~3847727077"
@@ -94,8 +94,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 161
-        versionName = "3.3.133"
+        versionCode = 162
+        versionName = "3.3.134"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
@@ -112,7 +112,7 @@ extensions.configure<ApplicationExtension> {
     }
 
     sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
-    // As cenas de comemoração usam o mesmo desenho do site (folha-live.js), copiado para os assets.
+    // As cenas de comemoraÃ§Ã£o usam o mesmo desenho do site (folha-live.js), copiado para os assets.
     sourceSets.getByName("main").assets.directories.add(layout.buildDirectory.dir("generated/folha-assets").get().asFile.path)
 
     compileOptions {
@@ -135,12 +135,12 @@ extensions.configure<ApplicationExtension> {
             buildConfigField("String", "ADMOB_REWARDED_UNIT", admobRewardedUnit.toBuildConfigLiteral())
             manifestPlaceholders["admobAppId"] = admobAppId
         }
-        // "Estudário Teste": instala ao lado da versão da Play Store (outro pacote e outro nome),
+        // "EstudÃ¡rio Teste": instala ao lado da versÃ£o da Play Store (outro pacote e outro nome),
         // para testar no celular sem desinstalar e sem perder os dados do app oficial.
         create("preview") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".teste"
-            resValue("string", "app_name", "Estudário Teste")
+            resValue("string", "app_name", "EstudÃ¡rio Teste")
             matchingFallbacks += listOf("debug")
         }
     }
@@ -185,7 +185,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
-    // Livro de Folhas (o nível): o mesmo SVG do site, gerado em LevelBook (módulo comum).
+    // Livro de Folhas (o nÃ­vel): o mesmo SVG do site, gerado em LevelBook (mÃ³dulo comum).
     implementation("com.caverock:androidsvg-aar:1.4")
 
     // Jetpack Glance (Widgets)
@@ -204,11 +204,11 @@ dependencies {
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
-    // Texto do PDF do edital lido no próprio celular, para a IA receber só o conteúdo programático.
+    // Texto do PDF do edital lido no prÃ³prio celular, para a IA receber sÃ³ o conteÃºdo programÃ¡tico.
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    // Leitura de estudo: Markdown completo (tabelas, listas, código) e fórmulas LaTeX.
+    // Leitura de estudo: Markdown completo (tabelas, listas, cÃ³digo) e fÃ³rmulas LaTeX.
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:ext-tables:4.6.2")
     implementation("io.noties.markwon:ext-strikethrough:4.6.2")
@@ -218,7 +218,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("org.json:json:20250517")
-    // ListenableFuture: no app ela vem com o Guava dos anúncios (só em tempo de execução).
+    // ListenableFuture: no app ela vem com o Guava dos anÃºncios (sÃ³ em tempo de execuÃ§Ã£o).
     testImplementation("com.google.guava:guava:31.1-android")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

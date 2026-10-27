@@ -1,5 +1,8 @@
 package br.com.estudario.ui.screens
 
+import br.com.estudario.ui.brand.SubjectArtTile
+import br.com.estudario.domain.catalog.SubjectArt
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -62,6 +65,8 @@ import java.util.Locale
  * o porquê dos erros e o mural dos que viraram. As cores vêm do tema (claro e escuro); só o placar
  * tem fundo próprio, azul-noite nos dois temas, com texto claro.
  */
+
+private data class Hotspot(val topicId: Long, val title: String, val questions: Int, val misses: Int)
 
 private fun ErrorWithQuestion.virada() = ErrorVirada.Entry(
     entry.id, entry.questionId, question.topicId, entry.errorCount, entry.retryStreak, entry.nextRetryAt, entry.lastReviewedAt, entry.lastErrorAt, entry.comment,
@@ -150,8 +155,8 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
     val hotspots = remember(errors, topicById) {
         errors.filter { stageOf[it.entry.id] != ErrorVirada.Stage.TURNED }
             .groupBy { it.question.topicId }
-            .map { (topicId, list) -> Triple(topicId, list.firstNotNullOfOrNull { e -> e.entry.concept.takeIf { it.isNotBlank() } } ?: topicById[topicId]?.title ?: "Tópico", list.sumOf { it.entry.errorCount }) }
-            .sortedByDescending { it.third }.take(3)
+            .map { (topicId, list) -> Hotspot(topicId, list.firstNotNullOfOrNull { e -> e.entry.concept.takeIf { it.isNotBlank() } } ?: topicById[topicId]?.title ?: "Tópico", list.size, list.sumOf { it.entry.errorCount }) }
+            .sortedWith(compareByDescending<Hotspot> { it.misses }.thenByDescending { it.questions }).take(3)
     }
     val groups = remember(entries) { ErrorVirada.byTopic(entries, now) }
     val byId = remember(errors) { errors.associateBy { it.entry.id } }
@@ -209,7 +214,7 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             ErrorVirada.missionByTopic(mission).forEach { (t, n) ->
                                 Surface(shape = RoundedCornerShape(8.dp), color = scheme.surfaceVariant) {
-                                    Text("$n · " + (t?.let(topicById::get)?.title?.take(24) ?: "Erro"), Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    Text("$n · " + (t?.let(topicById::get)?.title?.trimEnd('.') ?: "Erro"), Modifier.padding(horizontal = 9.dp, vertical = 4.dp).widthIn(max = 220.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
@@ -259,16 +264,19 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
 
         if (hotspots.isNotEmpty()) {
             item { SectionTitle("O que mais te derruba") }
-            items(hotspots, key = { "hot-${it.first}" }) { (topicId, title, count) ->
+            items(hotspots, key = { "hot-${it.topicId}" }) { (topicId, title, questionsCount, misses) ->
                 val topic = topicById[topicId]
+                val hotSubject = topic?.subjectId?.let(subjectById::get)?.name.orEmpty()
                 Surface(shape = EstudarioShapes.row, color = scheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(scheme.error.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                            Text("$count", color = scheme.error, fontWeight = FontWeight.ExtraBold)
-                        }
+                        SubjectArtTile(SubjectArt.iconFor(hotSubject), subjectAccentColor(hotSubject, colors.subjectPalette), 42.dp)
                         Column(Modifier.weight(1f)) {
                             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(listOfNotNull(topic?.subjectId?.let(subjectById::get)?.name, topic?.title).joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (hotSubject.isNotBlank()) Text(hotSubject, style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "${questionsCount} ${if (questionsCount == 1) "questão" else "questões"} · errou ${misses} ${if (misses == 1) "vez" else "vezes"}",
+                                style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = scheme.error,
+                            )
                         }
                         FilledTonalButton(onClick = { onTrainTopic(topicId) }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Treinar 3") }
                     }
@@ -294,14 +302,12 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { val k = g.topicId ?: -1L; expandedTopics = if (k in expandedTopics) expandedTopics - k else expandedTopics + k },
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(progress = { g.progress.toFloat() }, Modifier.fillMaxSize(), color = Green, trackColor = scheme.surfaceVariant, strokeWidth = 4.dp)
-                                    Text("${g.entries.size}", fontWeight = FontWeight.Bold)
-                                }
+                                SubjectArtTile(SubjectArt.iconFor(subjectName), accent, 46.dp)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     if (subjectName.isNotBlank()) Text(subjectName.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(topic?.title ?: "Sem tópico", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Pill("${g.entries.size} ${if (g.entries.size == 1) "questão" else "questões"}", scheme.onSurface)
                                         if (g.due > 0) Pill("${g.due} para hoje", colors.attention)
                                         if (g.turned > 0) Pill("${g.turned} ${if (g.turned == 1) "virou" else "viraram"}", colors.completed)
                                         if (g.turning > 0) Pill("${g.turning} virando", scheme.onSurfaceVariant)

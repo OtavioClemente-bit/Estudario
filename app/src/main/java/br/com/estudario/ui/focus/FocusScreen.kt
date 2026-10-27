@@ -83,9 +83,15 @@ fun FocusSubjectPicker(subjects: List<FocusSubjectOption>, selectedIds: Set<Long
                 color = if (subject.id in selectedIds) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    br.com.estudario.ui.brand.SubjectArtTile(
+                        br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.name),
+                        br.com.estudario.ui.components.subjectAccentColor(subject.name, br.com.estudario.ui.theme.estudarioColors().subjectPalette),
+                        36.dp,
+                    )
                     Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
                         Text(subject.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     }
@@ -166,12 +172,12 @@ fun FocusScreen(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Modo foco", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "Acompanhe seu tempo de estudo. O cronômetro não conclui matérias nem tarefas.",
+                    "Escolha a matéria e comece. O tempo fica contando mesmo com o app fechado.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onHome, modifier = Modifier.fillMaxWidth()) {
+            if (session.active) TextButton(onClick = onHome, modifier = Modifier.fillMaxWidth()) {
                 Text("Fechar janela · foco continua")
             }
         }
@@ -252,8 +258,8 @@ fun FocusScreen(
             savedMinutes?.let { minutes ->
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Sessão salva no histórico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Você estudou ${formatMinutes(minutes)}. Seu tempo foi registrado sem concluir matéria ou tarefa automaticamente.")
+                        Text("Sessão salva", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Você estudou ${formatMinutes(minutes)}.")
                         if (savedTaskId != null) {
                             OutlinedButton(onClick = onOpenPlan, modifier = Modifier.fillMaxWidth()) {
                                 Text("Abrir o Plano para concluir a tarefa")
@@ -266,7 +272,7 @@ fun FocusScreen(
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("O que você vai estudar?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Escolha uma ou mais matérias para aparecer no acompanhamento. Sem seleção, o foco fica livre.",
+                        "Uma ou mais. Sem escolher, vira estudo livre.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -289,35 +295,12 @@ fun FocusScreen(
                             savedMinutes = null
                             stopError = null
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Iniciar foco") }
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                    ) { Text(if (selectedIds.isEmpty()) "Iniciar foco livre" else "Iniciar foco", fontWeight = FontWeight.Bold) }
                 }
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                br.com.estudario.ui.brand.Icon(Icons.Outlined.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("Histórico de foco", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("${history.size} sessões", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Tempo total de foco", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(formatLongMinutes(totalMinutes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-            if (history.isEmpty()) {
-                Text("As sessões encerradas aparecem aqui com duração, matéria e origem.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                history.take(12).forEachIndexed { index, item ->
-                    FocusHistoryRow(item, namesById)
-                    if (index < history.take(12).lastIndex) HorizontalDivider()
-                }
-            }
-        }
         Spacer(Modifier.height(8.dp))
     }
 }
