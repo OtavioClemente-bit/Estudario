@@ -219,9 +219,12 @@ private fun Highlighted(text: String) {
  * O markdown em linha das páginas (resumo, dicas, pegadinhas, cartões): **negrito**, `código` e
  * *itálico*. Antes ia como texto puro e as marcas apareciam na página (como no site, agora não).
  */
+/** **negrito** | `código` | *itálico* | __negrito__ (o padrão é testado em StudyNotebookInlineTest). */
+internal val INLINE_TOKEN = Regex("""\*\*([^*]+)\*\*|`([^`]+)`|(?<![\w*])\*([^*\s][^*]*)\*(?!\w)|__([^_]+)__""")
+
 private fun inkInline(text: String, base: SpanStyle? = null): androidx.compose.ui.text.AnnotatedString = buildAnnotatedString {
     if (base != null) pushStyle(base)
-    val token = Regex("""**([^*]+)**|`([^`]+)`|(?<![w*])*([^*s][^*]*)*(?!w)|__([^_]+)__""")
+    val token = INLINE_TOKEN
     var i = 0
     for (m in token.findAll(text)) {
         append(text.substring(i, m.range.first))
