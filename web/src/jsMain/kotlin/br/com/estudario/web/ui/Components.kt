@@ -290,31 +290,8 @@ fun BrandCounter(
     mood: (Int) -> String? = { null },
     label: String = "",
 ) {
-    val latest = androidx.compose.runtime.rememberUpdatedState(onChange)
-    val current = androidx.compose.runtime.rememberUpdatedState(value)
-    Div({ classes("bcounter"); attr("role", "group"); if (label.isNotBlank()) attr("aria-label", label) }) {
-        Div({ classes("bc-row") }) {
-            Button({
-                type(ButtonType.Button); classes("bc-btn"); attr("aria-label", "Diminuir")
-                if (value <= min) disabled()
-                onClick { latest.value((current.value - step).coerceAtLeast(min)) }
-            }) { Icon("remove") }
-            Div({ classes("bc-value"); attr("aria-live", "polite") }) {
-                org.jetbrains.compose.web.dom.B { Text(value.toString()) }
-                if (unit.isNotBlank()) Span { Text(unit) }
-            }
-            Button({
-                type(ButtonType.Button); classes("bc-btn"); attr("aria-label", "Aumentar")
-                if (value >= max) disabled()
-                onClick { latest.value((current.value + step).coerceAtMost(max)) }
-            }) { Icon("add") }
-        }
-        mood(value)?.let { Div({ classes("bc-mood") }) { Text(it) } }
-        val quick = chips.filter { it in min..max }
-        if (quick.isNotEmpty()) Div({ classes("bc-chips") }) {
-            quick.forEach { n ->
-                Button({ type(ButtonType.Button); classes(*listOfNotNull("bc-chip", if (n == value) "on" else null).toTypedArray()); onClick { latest.value(n) } }) { Text(n.toString()) }
-            }
-        }
+    // O mesmo contador do estúdio (gx): número grande, − e +, régua quando o intervalo cabe nela.
+    Div({ classes("gx-inline") }) {
+        GxCounter(value, onChange, min = min, max = max, step = step, unit = unit, chips = chips, mood = mood, label = label, range = max - min in 1..400)
     }
 }

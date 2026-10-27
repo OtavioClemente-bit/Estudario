@@ -81,7 +81,8 @@ fun SetupScreen() {
     // Edital pelo PDF é dos planos pagos: no Grátis, o clique já abre a oferta (o servidor também recusa).
     var pdfUpgrade by remember { mutableStateOf(false) }
     var pdfQuota by remember { mutableStateOf<Quota?>(null) }
-    androidx.compose.runtime.LaunchedEffect(Unit) { pdfQuota = quotaFor("SYLLABUS_GENERATION") }
+    var pdfFree by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { pdfQuota = quotaFor("SYLLABUS_GENERATION"); pdfFree = planTierOf()?.let { it == "FREE" } == true }
     var examDate by remember { mutableStateOf("") }
     var minutes by remember { mutableStateOf(listOf(120, 120, 120, 120, 120, 180, 0)) }
     var block by remember { mutableStateOf(50) }
@@ -182,19 +183,22 @@ fun SetupScreen() {
                 H2 { Text("Oi! Eu sou o Folha. Qual concurso você vai prestar?") }
                 P({ classes("small", "muted") }) { Text("Procure pelo órgão, cargo ou sigla, como “pm mg”, “trt analista” ou “pf agente”.") }
             }
+            // O PDF fica no alto (antes ficava no fim da lista e sumia rolando). Sem plano pago, abre a oferta.
+            Button({
+                classes("gx-panel", "pdf-cta"); attr("type", "button")
+                onClick { if (Store.demo || pdfFree || pdfQuota?.let { it.remaining == 0 } == true) pdfUpgrade = true else pdfOpen = true }
+            }) {
+                Span({ classes("pdf-cta-ic") }) { Icon("picture_as_pdf", filled = true) }
+                Span({ classes("pdf-cta-txt") }) {
+                    org.jetbrains.compose.web.dom.B { Text("Não achou o seu concurso? Envie o PDF do edital") }
+                    Span { Text("Eu leio o edital e monto as matérias e os tópicos para você." + if (pdfFree) " Nos planos Essencial e Pro." else "") }
+                }
+                Span({ classes("pdf-cta-go") }) { Text("Enviar PDF"); Icon("arrow_forward", plain = true) }
+            }
             CatalogPicker(entries, error, query, { query = it }, busyId = if (busy) chosen?.id else null) { entry ->
                 busy = true; chosen = entry; aiEdital = null; error = null
                 scope.launch {
                     try { subjects = Catalog.subjects(entry.id); axes = emptyMap(); step = 1 } catch (e: Throwable) { error = e.message } finally { busy = false }
-                }
-            }
-            Div({ classes("card", "soft") }) {
-                Div({ classes("row", "wrap", "between") }) {
-                    Div({ classes("grow"); attr("style", "min-width:220px") }) {
-                        H3 { Text("Não achou o seu concurso?") }
-                        P({ classes("small", "muted") }) { Text("Envie o PDF do edital: eu monto as matérias e os tópicos para você.") }
-                    }
-                    Btn("Enviar PDF do edital", { if (pdfQuota?.let { it.remaining == 0 } == true) pdfUpgrade = true else pdfOpen = true }, style = "tonal", icon = "upload_file", enabled = !Store.demo)
                 }
             }
             if (pdfUpgrade) UpgradeModal(UpgradeReason.SYLLABUS) { pdfUpgrade = false }

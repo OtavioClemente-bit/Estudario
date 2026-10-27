@@ -174,7 +174,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
             null, is AiContent.Progress.Failed -> {
                 Div({ classes("gx-top") }) {
                     Div({ classes("gx-top-id") }) {
-                        Span({ classes("gx-kicker") }) { Icon("auto_awesome", filled = true, plain = true); Text(if (questionsOnly) "ESTÚDIO DE QUESTÕES" else "ESTÚDIO DE MATERIAL") }
+                        Span({ classes("gx-kicker") }) { Text(if (questionsOnly) "ESTÚDIO DE QUESTÕES" else "ESTÚDIO DE MATERIAL") }
                         org.jetbrains.compose.web.dom.H2 { Text(title) }
                         topic?.title?.let { P({ classes("gx-topic") }) { Text(it) } }
                     }
@@ -182,16 +182,16 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 }
                 Div({ classes("gx-main") }) {
                     Div({ classes("gx-controls") }) {
-                        if (!questionsOnly) GxSection("layers", "O que preparar", "Toque para ligar e desligar cada parte", "#A78BFF", aside = "${blocks.size} de ${blockChoices.size}") {
+                        if (!questionsOnly) GxSection("library_books", "O que preparar", "Toque para ligar e desligar cada parte", "#A78BFF", aside = "${blocks.size} de ${blockChoices.size}") {
                             Div({ classes("gx-presets") }) {
                                 listOf(
-                                    Triple("Pacote completo", "auto_awesome", blockChoices.map { it.key }.toSet()),
+                                    Triple("Pacote completo", "library_books", blockChoices.map { it.key }.toSet()),
                                     Triple("Teoria e resumo", "menu_book", setOf("THEORY", "SUMMARY")),
                                     Triple("Revisão rápida", "bolt", setOf("QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL")),
                                     Triple("Só questões", "quiz", setOf("QUESTIONS")),
                                 ).forEach { (label, icon, set) ->
                                     Button({ classes(*listOfNotNull("gx-preset", if (blocks == set) "on" else null).toTypedArray()); attr("type", "button"); onClick { blocks = set } }) {
-                                        Icon(icon, filled = true, plain = true); Text(label)
+                                        Icon(icon, filled = true); Text(label)
                                     }
                                 }
                             }
@@ -200,7 +200,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             }
                             if (blocks.isEmpty()) P({ classes("gx-err") }) { Icon("error", plain = true); Text("Ligue pelo menos uma parte do material.") }
                         }
-                        if ("THEORY" in blocks || "SUMMARY" in blocks) GxSection("auto_stories", "Profundidade da teoria", "Quão completa deve ser", "#22D3EE") {
+                        if ("THEORY" in blocks || "SUMMARY" in blocks) GxSection("menu_book", "Profundidade da teoria", "Quão completa deve ser", "#22D3EE") {
                             GxSeg(depthChoices.mapIndexed { i, c -> GxOption(c.key, c.title, c.hint, color = listOf("#22D3EE", "#6F9BFF", "#A78BFF")[i]) }, depth, { depth = it }) { option ->
                                 // a grossura do livro cresce com a profundidade
                                 Span({ classes("gx-book"); attr("style", "--t:${depthChoices.indexOfFirst { it.key == option.key } + 1}") }) { repeat(depthChoices.indexOfFirst { it.key == option.key } + 1) { I {} } }
@@ -219,7 +219,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             }
                             Span({ classes("gx-label") }) { Text("Banca (opcional)") }
                             Div({ classes("gx-board") }) {
-                                Icon("account_balance", plain = true)
+                                Icon("Colunas")
                                 Input(InputType.Text) {
                                     classes("gx-input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "40")
                                     onInput { board = it.value }
@@ -255,29 +255,12 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                                 QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
                                 if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
                             }
-                            Div({ classes("gx-sheets") }) {
-                                blockChoices.filter { it.key in blocks }.forEach { c ->
-                                    key(c.key) {
-                                        Div({ classes("gx-sheet"); attr("style", "--c:${BLOCK_COLORS[c.key] ?: "#A78BFF"}") }) {
-                                            Span({ classes("gx-sheet-ic") }) { Icon(c.icon ?: "description", filled = true, plain = true) }
-                                            Div({ classes("gx-sheet-txt") }) {
-                                                B { Text(c.title) }
-                                                Span {
-                                                    Text(
-                                                        when (c.key) {
-                                                            "THEORY" -> "Teoria " + (depthChoices.firstOrNull { it.key == depth }?.title?.lowercase() ?: "")
-                                                            "QUESTIONS" -> "$count · " + (if (freeTier) "misturadas" else (difficultyChoices.firstOrNull { it.key == difficulty }?.title?.lowercase() ?: "") + " · " + (styleChoices.firstOrNull { it.key == style }?.title ?: "")) + board.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-                                                            else -> c.hint
-                                                        },
-                                                    )
-                                                }
-                                            }
-                                            Icon("check_circle", filled = true, plain = true)
-                                        }
-                                    }
-                                }
-                                if (blocks.isEmpty()) Div({ classes("gx-sheet", "ghost") }) { Span({ classes("gx-sheet-ic") }) { Icon("add", plain = true) }; Div({ classes("gx-sheet-txt") }) { B { Text("Ligue uma parte") }; Span { Text("Teoria, flashcards, questões…") } } }
+                            val recipe = buildList {
+                                if (!questionsOnly) add(if (blocks.size == blockChoices.size) "pacote completo" else blockChoices.filter { it.key in blocks }.joinToString(", ") { it.title.lowercase() })
+                                if ("THEORY" in blocks || "SUMMARY" in blocks) add("teoria " + (depthChoices.firstOrNull { it.key == depth }?.title?.lowercase() ?: ""))
+                                if (hasQuestions) add("$count questões " + (if (freeTier) "misturadas" else (difficultyChoices.firstOrNull { it.key == difficulty }?.title?.lowercase() ?: "")) + board.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty())
                             }
+                            if (recipe.isNotEmpty()) P({ classes("gx-recipe") }) { Text(recipe.joinToString(" · ").replaceFirstChar { it.uppercase() }) }
                         }
                         Div({ classes("gx-go") }) {
                             GxLaunch(if (questionsOnly) "Gerar $count questões" else "Gerar material", enabled = blocks.isNotEmpty()) { start() }
@@ -298,7 +281,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                     Text("Este tópico ainda não tinha questões prontas: vieram $got inéditas, escritas agora. Quando terminar, peça mais em lotes de 10.")
                 }
                 Div({ classes("gx-done-actions") }) {
-                    if (showQuestions) GxLaunch("Treinar agora", icon = "play_arrow") { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId-10")) }
+                    if (showQuestions) GxLaunch("Treinar agora", icon = "play_circle") { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId-10")) }
                     else GxLaunch("Ver material", icon = "menu_book") { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }
                     Button({ classes("gx-ghost"); attr("type", "button"); onClick { close() } }) { Text("Fechar") }
                 }

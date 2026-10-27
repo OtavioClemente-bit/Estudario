@@ -19,6 +19,7 @@ import kotlinx.browser.window
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
 import org.jetbrains.compose.web.dom.Div
+import org.jetbrains.compose.web.dom.I
 import org.jetbrains.compose.web.dom.H2
 import org.jetbrains.compose.web.dom.H3
 import org.jetbrains.compose.web.dom.P
@@ -69,19 +70,8 @@ fun TrainScreen() {
     val scope = "m-$mode~s-$subject~t-$topic~b-${js("encodeURIComponent")(board)}~d-$difficulty~n-$count"
     val available = pickQuestions(data, scope, preview = true).size
 
-    PageHead("Treinar questões", "Simulados, treinos recomendados e o seu treino do seu jeito")
+    PageHead("Treinar questões", "Treinos recomendados e o seu treino do seu jeito. Os simulados ganharam aba própria.")
     CompetitionTabs()
-
-    // Simulados: a porta de entrada fica no topo, como no app.
-    Button({ classes("train-sim"); onClick { Router.go(Route.Simulations) } }) {
-        Span({ classes("train-sim-ic") }) { Icon("Timer") }
-        Span({ classes("grow") }) {
-            Span({ classes("train-tag") }) { Text("SIMULADOS") }
-            B { Text("Prova inédita no estilo da sua banca") }
-            Span({ classes("small") }) { Text("Com cronômetro, gabarito no final e nota por matéria. Comece pelo diagnóstico.") }
-        }
-        Icon("chevron_right", plain = true)
-    }
 
     if (questions.isNotEmpty()) {
         // Diagnóstico: o acerto geral e o de cada matéria; tocar numa matéria abre um treino dela.
@@ -139,28 +129,35 @@ fun TrainScreen() {
     Div({ classes("gx-panel", "gx-train") }) {
         Div({ classes("gx-top", "flat") }) {
             Div({ classes("gx-top-id") }) {
-                Span({ classes("gx-kicker") }) { Icon("tune", filled = true, plain = true); Text("ESTÚDIO DE TREINO") }
+                Span({ classes("gx-kicker") }) { Text("ESTÚDIO DE TREINO") }
                 H2 { Text("Monte o seu treino") }
             }
         }
         Div({ classes("gx-controls", "solo") }) {
-            GxSection("sports_esports", "Modo", "Como as questões vão ser escolhidas", "#A78BFF") {
+            GxSection("gps_fixed", "Modo", "Como as questões vão ser escolhidas", "#A78BFF") {
                 GxTiles(modes.map { (key, label) -> val (icon, desc) = modeInfo[key] ?: ("quiz" to ""); GxOption(key, label, desc, icon, MODE_COLORS[key] ?: "#A78BFF") }, { it == mode }, cols = 3, multi = false) { mode = it }
             }
-            GxSection("category", "Matéria", null, "#22D3EE") {
-                GxChips(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject) { subject = it; topic = -1L }
+            GxSection("library_books", "Matéria", null, "#22D3EE") {
+                GxPicker(listOf(-1L to "Todas") + subjects.filter { s -> questions.any { topicsById[it.topicId]?.subjectId == s.id } }.map { it.id to it.name }, subject, searchHint = "Buscar matéria") { subject = it; topic = -1L }
                 if (subject >= 0) {
                     val topicsWithQuestions = data.topics.filter { t -> t.subjectId == subject && questions.any { it.topicId == t.id } }
                     if (topicsWithQuestions.isNotEmpty()) {
                         Span({ classes("gx-label") }) { Text("Tópico") }
-                        GxChips(listOf(-1L to "Todos") + topicsWithQuestions.map { it.id to it.title }, topic) { topic = it }
+                        GxPicker(listOf(-1L to "Todos") + topicsWithQuestions.map { it.id to it.title }, topic, limit = 6, searchHint = "Buscar tópico") { topic = it }
                     }
                 }
             }
-            Div({ classes("gx-two") }) {
-                if (boards.isNotEmpty()) GxSection("account_balance", "Banca", null, "#6F9BFF") { GxChips(listOf("all" to "Todas") + boards.map { it to it }, board) { board = it } }
-                GxSection("speed", "Dificuldade", null, "#FFC94D") { GxChips(difficulties, difficulty) { difficulty = it } }
+            GxSection("speed", "Dificuldade", "Igual ao estúdio de material: do básico às pegadinhas", "#FFC94D") {
+                GxSeg(listOf(
+                    GxOption("all", "Todas", "Um pouco de cada", color = "#A78BFF"),
+                    GxOption("FACIL", "Fácil", "Fixar o básico", color = "#2FD39A"),
+                    GxOption("MEDIA", "Média", "Nível da maioria das provas", color = "#FFC94D"),
+                    GxOption("DIFICIL", "Difícil", "Pegadinhas e detalhes", color = "#FF5A7A"),
+                ), difficulty, { difficulty = it }) { option ->
+                    Span({ classes("gx-meter", when (option.key) { "FACIL" -> "d-easy"; "MEDIA" -> "d-medium"; "DIFICIL" -> "d-hard"; else -> "d-mixed" }) }) { repeat(3) { I {} } }
+                }
             }
+            if (boards.isNotEmpty()) GxSection("Colunas", "Banca", null, "#6F9BFF") { GxPicker(listOf("all" to "Todas") + boards.map { it to it }, board, limit = 6, searchHint = "Buscar banca") { board = it } }
             GxSection("quiz", "Quantidade", if (available == 0) "Nenhuma questão com esses filtros" else "$available disponíve${if (available == 1) "l" else "is"} com esses filtros", "#2FD39A") {
                 GxCounter(count, { count = it }, min = 5, max = 60, step = 5, unit = "questões", chips = listOf(10, 20, 30), label = "Quantidade de questões")
             }
@@ -169,7 +166,7 @@ fun TrainScreen() {
                     Span({ classes("gx-kicker") }) { Text("SEU TREINO") }
                     B { Text(listOfNotNull(modes.first { it.first == mode }.second, subjects.firstOrNull { it.id == subject }?.name, board.takeIf { it != "all" }, "$count questões").joinToString(" · ")) }
                 }
-                GxLaunch(modes.first { it.first == mode }.second.let { "Iniciar ${it.lowercase()}" }, icon = "play_arrow", enabled = available > 0) { Router.go(Route.Quiz(scope)) }
+                GxLaunch(modes.first { it.first == mode }.second.let { "Iniciar ${it.lowercase()}" }, icon = "play_circle", enabled = available > 0) { Router.go(Route.Quiz(scope)) }
             }
         }
     }

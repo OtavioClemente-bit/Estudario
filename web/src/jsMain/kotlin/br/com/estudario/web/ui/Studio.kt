@@ -1,7 +1,9 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import org.jetbrains.compose.web.attributes.InputType
 import org.jetbrains.compose.web.attributes.disabled
@@ -115,6 +117,7 @@ fun GxCounter(
     chips: List<Int> = emptyList(),
     mood: (Int) -> String? = { null },
     label: String = "",
+    range: Boolean = true,
 ) {
     val latest = rememberUpdatedState(onChange)
     val current = rememberUpdatedState(value)
@@ -134,7 +137,7 @@ fun GxCounter(
                 onClick { latest.value((current.value + step).coerceAtMost(max)) }
             }) { Icon("add", plain = true) }
         }
-        if (max > min) Input(InputType.Range) {
+        if (range && max > min) Input(InputType.Range) {
             classes("gx-range")
             attr("min", "$min"); attr("max", "$max"); attr("step", "$step")
             attr("style", "--gxp:$pct%")
@@ -169,15 +172,53 @@ fun GxSwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Bo
 
 /** O botão de lançar: grande, com brilho correndo. */
 @Composable
-fun GxLaunch(label: String, icon: String = "auto_awesome", enabled: Boolean = true, onClick: () -> Unit) {
+fun GxLaunch(label: String, icon: String = "Pencil", enabled: Boolean = true, onClick: () -> Unit) {
     val latest = rememberUpdatedState(onClick)
     Button({
         classes("gx-launch"); attr("type", "button")
         if (!enabled) disabled()
         onClick { latest.value() }
     }) {
-        Icon(icon, filled = true, plain = true)
+        Span({ classes("gx-launch-ic") }) { Icon(icon, filled = true) }
         Span { Text(label) }
         I({ classes("gx-launch-shine") })
+    }
+}
+
+/**
+ * Escolha única numa lista que pode ser enorme (matérias, tópicos, bancas): mostra as primeiras
+ * [limit] (a escolhida sempre entre elas), uma busca quando a lista é grande e "Ver todas" abre o
+ * resto numa caixa que rola, em vez de uma parede infinita de chips.
+ */
+@Composable
+fun <T> GxPicker(options: List<Pair<T, String>>, selected: T, limit: Int = 8, searchHint: String = "Buscar", onPick: (T) -> Unit) {
+    var query by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val big = options.size > limit + 1
+    if (!big) { GxChips(options, selected, onPick); return }
+    val q = query.trim().lowercase()
+    val filtered = if (q.isEmpty()) options else options.filter { it.second.lowercase().contains(q) }
+    Div({ classes("gx-board", "search") }) {
+        Icon("Lupa")
+        Input(InputType.Search) {
+            classes("gx-input"); value(query); attr("placeholder", searchHint)
+            onInput { query = it.value; if (it.value.isNotBlank()) open = true }
+        }
+        if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Icon("close", plain = true) }
+    }
+    val shown = when {
+        open || q.isNotEmpty() -> filtered
+        else -> {
+            val head = options.take(limit)
+            if (head.any { it.first == selected }) head else head.dropLast(1) + options.filter { it.first == selected }
+        }
+    }
+    Div({ classes(*listOfNotNull("gx-picker", if (open || q.isNotEmpty()) "open" else null).toTypedArray()) }) {
+        GxChips(shown, selected) { onPick(it); if (q.isNotEmpty()) query = "" }
+        if (shown.isEmpty()) Span({ classes("gx-note") }) { Text("Nada encontrado para “$query”.") }
+    }
+    if (q.isEmpty()) Button({ classes("gx-more"); attr("type", "button"); onClick { open = !open } }) {
+        Text(if (open) "Mostrar menos" else "Ver todas (${options.size})")
+        Icon(if (open) "expand_less" else "expand_more", plain = true)
     }
 }

@@ -36,6 +36,7 @@ private val menu = listOf(
             NavEntry(Route.Edital, "Meus concursos", "folder_open"),
             NavEntry(Route.Plan, "Plano de estudos", "calendar_month"),
             NavEntry(Route.Train, "Treinar questões", "gps_fixed"),
+            NavEntry(Route.Simulations, "Simulados", "timer"),
             NavEntry(Route.Notebook, "Caderno de estudo", "bookmarks"),
             NavEntry(Route.Reviews, "Revisões espaçadas", "autorenew"),
             NavEntry(Route.Errors, "Caderno de erros", "error"),
@@ -67,6 +68,7 @@ private val tabs = listOf(
     NavEntry(Route.Edital, "Edital", "checklist"),
     NavEntry(Route.Plan, "Plano", "calendar_month"),
     NavEntry(Route.Train, "Treinar", "school"),
+    NavEntry(Route.Simulations, "Simulados", "timer"),
 )
 
 private fun titleOf(route: Route): String = when (route) {

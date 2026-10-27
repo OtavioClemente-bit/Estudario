@@ -59,7 +59,8 @@ sealed class Route(val path: String) {
         get() = when (this) {
             is Topic, Setup -> Edital
             PlanSettings -> Plan
-            is Quiz, Simulations, is Simulation -> Train
+            is Quiz -> Train
+            is Simulation -> Simulations
             is Flashcards, NotebookFlip, is NotebookPage, NotebookSaved -> Notebook
             ErrorMission -> Errors
             is ReviewSession -> Reviews
