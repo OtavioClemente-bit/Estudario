@@ -316,8 +316,7 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
                                 }
                                 g.topicId?.let { id -> TextButton(onClick = { onOpenTopic(id) }) { Text("Ler a teoria") } }
                             }
-                            if (expanded) g.entries.forEach { e ->
-                                val item = byId[e.id] ?: return@forEach
+                            if (expanded) g.entries.mapNotNull { byId[it.id] }.forEach { item ->
                                 val note = ErrorVirada.noteOf(item.entry.comment)
                                 val reason = ErrorVirada.reasonOf(item.entry.comment)
                                 val stage = stageOf[item.entry.id]
@@ -439,12 +438,10 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
                 )
                 Button(onClick = onBack) { Icon(Icons.Outlined.Replay, null); Spacer(Modifier.width(8.dp)); Text("Voltar à Virada") }
             }
-            return@Column
-        }
-        key(ids[index]) {
+        } else key(ids[index]) {
             val start = remember { errors.firstOrNull { it.entry.id == ids[index] } }
             val question = start?.let { s -> questions.firstOrNull { it.question.id == s.entry.questionId } }
-            if (start == null || question == null) { LaunchedEffect(Unit) { index++ }; return@key }
+            if (start == null || question == null) LaunchedEffect(Unit) { index++ } else {
             val topic = topics.firstOrNull { it.id == question.question.topicId }
             val subject = topic?.let { t -> subjects.firstOrNull { it.id == t.subjectId } }
             MissionItem(
@@ -452,6 +449,7 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
                 meta = listOfNotNull(subject?.name, topic?.title, "errou ${start.entry.errorCount}×").joinToString(" · ").uppercase(),
                 onClimb = { climbed++ }, onNext = { index++ },
             )
+            }
         }
     }
 }
