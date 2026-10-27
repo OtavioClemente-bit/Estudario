@@ -94,7 +94,9 @@ fun MoreScreen(
         item { ScreenTitle("Ajustes", "Deixe o Estudário do seu jeito") }
 
         item {
-            Group("Aparência") {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            var som by remember { mutableStateOf(br.com.estudario.ui.brand.EstudarioSom.isOn(ctx)) }
+            Group("Aparência e sons") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(Triple("SYSTEM", "Sistema", Icons.Outlined.PhoneAndroid), Triple("LIGHT", "Claro", Icons.Outlined.LightMode), Triple("DARK", "Escuro", Icons.Outlined.DarkMode)).forEach { (key, label, icon) ->
                         val selected = themeMode == key
@@ -112,27 +114,15 @@ fun MoreScreen(
                         }
                     }
                 }
-            }
-        }
-
-        item {
-            // os sons do Estudário: criados para o app; não tocam no silencioso nem na vibração
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            var som by remember { mutableStateOf(br.com.estudario.ui.brand.EstudarioSom.isOn(ctx)) }
-            Group("Sons") {
-                ToggleRow(Icons.AutoMirrored.Outlined.VolumeUp, "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas concluídas, flashcards e as comemorações. Vêm desligados; não tocam no silencioso.", som) {
+                HorizontalDivider()
+                ToggleRow(Icons.AutoMirrored.Outlined.VolumeUp, "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas e comemorações. Não tocam no silencioso.", som) {
                     som = it; br.com.estudario.ui.brand.EstudarioSom.setOn(ctx, it); if (it) br.com.estudario.ui.brand.EstudarioSom.play(ctx, "acerto")
                 }
             }
         }
 
         item {
-            Group("Sincronização com o site") { br.com.estudario.ui.sync.CloudSyncCard() }
-        }
-
-        item {
             Group("Questões") {
-                HorizontalDivider()
                 ToggleRow(Icons.Outlined.Visibility, "Explicação logo após responder", "Desligue para fazer tudo e ver as explicações só no final.", showExplanation, viewModel::setShowExplanation)
                 HorizontalDivider()
                 br.com.estudario.ui.brand.BrandCounter(
@@ -169,12 +159,23 @@ fun MoreScreen(
         }
 
         item {
-            Group("Mais") {
+            Group("Avisos e agenda") {
                 LinkRow(Icons.Outlined.Notifications, "Notificações", "Lembrete diário e pendências", onNotifications)
                 HorizontalDivider()
                 LinkRow(Icons.Outlined.CalendarMonth, "Agenda do celular", "Salvar o plano no calendário", onAgenda)
                 // "Configurar meus estudos" saiu: com o estudo pronto ele reabria o assistente inteiro
                 // ("retomar configurações") e bagunçava. Concurso e plano se ajustam nas próprias telas.
+            }
+        }
+
+        item {
+            Group("Conta e sincronização") { br.com.estudario.ui.sync.CloudSyncCard() }
+        }
+
+        item {
+            val uri = androidx.compose.ui.platform.LocalUriHandler.current
+            Group("Sobre") {
+                LinkRow(Icons.Outlined.Visibility, "Privacidade", "Como o Estudário cuida dos seus dados") { uri.openUri("https://estudario.com.br/privacidade.html") }
             }
         }
 

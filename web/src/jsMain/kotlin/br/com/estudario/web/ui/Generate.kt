@@ -78,7 +78,6 @@ private fun ChoiceCards(items: List<Choice>, isOn: (String) -> Boolean, cols: In
 @Composable
 fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () -> Unit) {
 
-    var step by remember { mutableStateOf(0) }
     var blocks by remember { mutableStateOf(if (questionsOnly) setOf("QUESTIONS") else blockChoices.map { it.key }.toSet()) }
     var depth by remember { mutableStateOf("DEEP") }
     var maxQuestions by remember { mutableStateOf(FREE_MAX_QUESTIONS) }
@@ -122,8 +121,6 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     val progress = Generation.state[topicId]
     val topic = Store.data.topics.firstOrNull { it.id == topicId }
     val hasQuestions = "QUESTIONS" in blocks
-    val steps = listOfNotNull(if (questionsOnly) null else "blocks", if ("THEORY" in blocks || "SUMMARY" in blocks) "depth" else null, if (hasQuestions) "questions" else null, if (hasQuestions) "level" else null)
-    val current = steps[step.coerceIn(0, steps.lastIndex)]
 
     fun start() {
         Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else emptyList(), purpose = AiContent.purposeFor(Store.data, topicId)))
@@ -189,51 +186,51 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     Modal(onDismiss = close, wide = true, extraClass = "gen-modal") {
         when (val p = progress) {
             null, is AiContent.Progress.Failed -> {
+                // O pedido numa tela só: as partes ficam à vista e se ajustam em qualquer ordem; o
+                // rodapé fixo resume o pedido e gera (antes eram passos com "Continuar").
                 Div({ classes("gen-head") }) {
                     Div({ classes("gen-head-row") }) {
+                        Folha("talking", 48, live = false)
                         Div({ classes("gen-head-title") }) {
-                            Span({ classes("gen-eyebrow") }) { Text("Passo ${step + 1} de ${steps.size}") }
                             org.jetbrains.compose.web.dom.H2 { Text(title) }
                             topic?.title?.let { P({ classes("gen-topic") }) { Text(it) } }
                         }
                         IconButton("close", "Fechar", onClose)
                     }
-                    Div({ classes("wizard-dots") }) { steps.indices.forEach { i -> Span({ classes(*listOfNotNull(if (i <= step) "on" else null).toTypedArray()) }) } }
                 }
                 Div({ classes("gen-body") }) {
-                // Grátis: o medidor mostra a regra que vale para esta matéria (dia do plano, adiantar ou extra).
-                free?.takeIf { !questionsOnly }?.let { f -> FreeMeter(f, AiContent.purposeFor(Store.data, topicId)) }
-                quota?.takeIf { free == null || questionsOnly }?.let { q ->
-                    QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
-                    // Sem saldo, a oferta aparece logo, como no app (fechar volta para a janela).
-                    if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
-                }
-                when (current) {
-                    "blocks" -> {
-                        FolhaSays("talking", 64) {
-                            B { Text("O que você quer que eu prepare?") }
-                            P({ classes("small", "muted") }) { Text(topic?.title?.let { "Para “$it”. Marque um ou mais." } ?: "Marque um ou mais.") }
+                    free?.takeIf { !questionsOnly }?.let { f -> FreeMeter(f, AiContent.purposeFor(Store.data, topicId)) }
+                    quota?.takeIf { free == null || questionsOnly }?.let { q ->
+                        QuotaMeter(q, if (questionsOnly) "lotes de questões" else "materiais")
+                        if (q.limit > 0 && q.remaining == 0 && !upgradeSeen) UpgradeModal(if (questionsOnly) UpgradeReason.QUESTIONS else UpgradeReason.CONTENT) { upgradeSeen = true }
+                    }
+                    var n = 0
+                    if (!questionsOnly) GenSection(++n, "O que preparar", "Marque um ou mais", done = blocks.isNotEmpty()) {
+                        Div({ classes("gen-presets") }) {
+                            listOf(
+                                "Pacote completo" to blockChoices.map { it.key }.toSet(),
+                                "Teoria e resumo" to setOf("THEORY", "SUMMARY"),
+                                "Revisão rápida" to setOf("QUICK_REVIEW", "TIPS_TRAPS", "ACTIVE_RECALL"),
+                                "Só questões" to setOf("QUESTIONS"),
+                            ).forEach { (label, set) ->
+                                Button({ classes(*listOfNotNull("gen-preset", if (blocks == set) "on" else null).toTypedArray()); onClick { blocks = set } }) { Text(label) }
+                            }
                         }
                         ChoiceCards(blockChoices, { it in blocks }, cols = 3) { key -> blocks = if (key in blocks) blocks - key else blocks + key }
+                        if (blocks.isEmpty()) P({ classes("gen-err") }) { Text("Escolha pelo menos um tipo de material.") }
                     }
-                    "depth" -> {
-                        FolhaSays("thinking", 64) { B { Text("Quão profunda deve ser a teoria?") } }
-                        ChoiceCards(depthChoices, { it == depth }, cols = 3) { depth = it }
+                    if ("THEORY" in blocks || "SUMMARY" in blocks) GenSection(++n, "Profundidade", "Quão completa deve ser a teoria?") {
+                        Segmented(depthChoices, depth) { depth = it }
                     }
-                    "questions" -> {
-                        FolhaSays("point", 64) {
-                            B { Text("Quantas questões e em qual formato?") }
-                            P({ classes("small", "muted") }) { Text(if (questionsOnly) "Cada lote traz até $BATCH_QUESTIONS questões novas." else "No seu plano, até $maxQuestions questões ao criar a matéria.") }
+                    if (hasQuestions) GenSection(++n, "Questões", if (questionsOnly) "Cada lote traz até $BATCH_QUESTIONS questões novas." else "No seu plano, até $maxQuestions ao criar a matéria.") {
+                        val top = if (questionsOnly) BATCH_QUESTIONS else maxQuestions
+                        BrandCounter(count, { count = it }, step = 1, min = 1, max = top, unit = "questões", chips = listOf(5, 10, 20, 30).filter { it <= top }, label = "Quantidade de questões")
+                        if (freeTier) FreeMixedNotice() else {
+                            Span({ classes("gen-label") }) { Text("Nível") }
+                            Segmented(difficultyChoices, difficulty) { difficulty = it }
+                            Span({ classes("gen-label") }) { Text("Formato") }
+                            ChoiceCards(styleChoices, { it == style }) { style = it }
                         }
-                        Div({ attr("style", "margin:6px 0 10px") }) {
-                            val top = if (questionsOnly) BATCH_QUESTIONS else maxQuestions
-                            BrandCounter(count, { count = it }, step = 1, min = 1, max = top, unit = "questões", chips = listOf(5, 10, 20, 30).filter { it <= top }, label = "Quantidade de questões")
-                        }
-                        if (freeTier) FreeMixedNotice() else ChoiceCards(styleChoices, { it == style }) { style = it }
-                    }
-                    "level" -> {
-                        FolhaSays("wink", 64) { B { Text("Em que nível e no estilo de qual banca?") } }
-                        if (!freeTier) ChoiceCards(difficultyChoices, { it == difficulty }, cols = 4) { difficulty = it }
                         Div({ classes("field") }) {
                             Label { Text("Banca (opcional)") }
                             Input(InputType.Text) {
@@ -243,18 +240,25 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                             Span({ classes("xs", "muted") }) { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") }
                         }
                     }
+                    if (p is AiContent.Progress.Failed) {
+                        Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
+                        var upgradeSeen by remember(p) { mutableStateOf(false) }
+                        val reason = upgradeReasonFor(p.message, questionsOnly)
+                        if (reason != null && !upgradeSeen) UpgradeModal(reason) { upgradeSeen = true }
+                    }
                 }
-                if (p is AiContent.Progress.Failed) {
-                    Div({ classes("banner", "error") }) { Icon("error"); Text(p.message) }
-                    var upgradeSeen by remember(p) { mutableStateOf(false) }
-                    val reason = upgradeReasonFor(p.message, questionsOnly)
-                    if (reason != null && !upgradeSeen) UpgradeModal(reason) { upgradeSeen = true }
-                }
-                }
-                Div({ classes("gen-foot") }) {
-                    if (step > 0) Btn("Voltar", { step-- }, style = "ghost", icon = "arrow_back") else Btn("Cancelar", onClose, style = "ghost")
-                    if (step < steps.lastIndex) Btn("Continuar", { step++ }, style = "primary", enabled = blocks.isNotEmpty())
-                    else Btn(if (questionsOnly) "Gerar questões" else "Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
+                Div({ classes("gen-foot", "gen-foot-sum") }) {
+                    Div({ classes("gen-sum") }) {
+                        val parts = buildList {
+                            if (!questionsOnly) add(if (blocks.size == blockChoices.size) "Pacote completo" else blockChoices.filter { it.key in blocks }.joinToString(", ") { it.title })
+                            if ("THEORY" in blocks || "SUMMARY" in blocks) add("teoria " + (depthChoices.firstOrNull { it.key == depth }?.title?.lowercase() ?: ""))
+                            if (hasQuestions) add("$count questões" + (if (freeTier) " misturadas" else " · " + (difficultyChoices.firstOrNull { it.key == difficulty }?.title?.lowercase() ?: "")) + board.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty())
+                        }
+                        Span({ classes("gen-sum-l") }) { Text("SEU PEDIDO") }
+                        B { Text(parts.joinToString(" · ").ifBlank { "Nada marcado ainda" }) }
+                    }
+                    Btn("Cancelar", onClose, style = "ghost")
+                    Btn(if (questionsOnly) "Gerar questões" else "Gerar material", { start() }, style = "primary", icon = "auto_awesome", enabled = blocks.isNotEmpty())
                 }
             }
             is AiContent.Progress.Done -> Div({ classes("gen-body", "gen-done", "stack", "pop-in") }) {
@@ -361,4 +365,30 @@ private fun FreeMixedNotice() {
         Span({ classes("pro-cta") }) { Text("Fazer upgrade do plano"); Icon("arrow_forward") }
     }
     if (offer) UpgradeModal(UpgradeReason.QUESTION_STYLE) { offer = false }
+}
+
+/** Uma parte do pedido: número (vira ✓ quando completa), título, dica e as escolhas. */
+@Composable
+private fun GenSection(number: Int, title: String, hint: String?, done: Boolean = true, content: @Composable () -> Unit) {
+    Div({ classes(*listOfNotNull("gen-sec", if (!done) "todo" else null).toTypedArray()) }) {
+        Div({ classes("gen-sec-head") }) {
+            Span({ classes("gen-num") }) { if (done) Icon("check", plain = true) else Text("$number") }
+            Div { B { Text(title) }; hint?.let { Span({ classes("hint") }) { Text(it) } } }
+        }
+        content()
+    }
+}
+
+/** Escolha única em faixa (profundidade, nível): o título e a dica de cada opção. */
+@Composable
+private fun Segmented(items: List<Choice>, selected: String, onPick: (String) -> Unit) {
+    Div({ classes("gen-seg") }) {
+        items.forEach { item ->
+            key(item.key) {
+                Button({ classes(*listOfNotNull("gen-seg-btn", if (item.key == selected) "on" else null).toTypedArray()); attr("aria-pressed", "${item.key == selected}"); onClick { onPick(item.key) } }) {
+                    B { Text(item.title) }; Span { Text(item.hint) }
+                }
+            }
+        }
+    }
 }

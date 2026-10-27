@@ -440,55 +440,81 @@ private fun TopicColumn(title: String, icon: String, color: String, list: List<T
 @Composable
 fun SettingsScreen() {
     var goal by remember { mutableStateOf(Prefs.dailyGoal) }
+    var som by remember { mutableStateOf(runCatching { kotlinx.browser.window.asDynamic().estudarioSom.enabled as Boolean }.getOrDefault(true)) }
     BackToProfile()
     PageHead("Ajustes", "Deixe o Estudário do seu jeito")
-    Div({ classes("grid", "cols-2") }) {
-        Card {
-            CardHead("Aparência")
-            Div({ classes("segmented") }) {
-                listOf("SYSTEM" to "Sistema", "LIGHT" to "Claro", "DARK" to "Escuro").forEach { (key, label) ->
-                    Button({ classes(*listOfNotNull(if (Theme.mode == key) "on" else null).toTypedArray()); onClick { Theme.set(key) } }) { Text(label) }
+    // Os mesmos grupos do app, na ordem de uso: aparência, estudo, conta e sobre.
+    Div({ classes("set-wrap") }) {
+        SetGroup("Aparência e sons") {
+            SetRow("dark_mode", "Tema", "Sistema acompanha o computador") {
+                Div({ classes("segmented") }) {
+                    listOf("SYSTEM" to "Sistema", "LIGHT" to "Claro", "DARK" to "Escuro").forEach { (key, label) ->
+                        Button({ classes(*listOfNotNull(if (Theme.mode == key) "on" else null).toTypedArray()); onClick { Theme.set(key) } }) { Text(label) }
+                    }
                 }
             }
-        }
-        Card {
-            // os sons do Estudário (folha-live.js, estudarioSom): criados para o app, desligáveis aqui
-            CardHead("Sons")
-            var som by remember { mutableStateOf(runCatching { kotlinx.browser.window.asDynamic().estudarioSom.enabled as Boolean }.getOrDefault(true)) }
-            Div({ classes("segmented") }) {
-                listOf(true to "Ligados", false to "Desligados").forEach { (v, label) ->
-                    Button({
-                        classes(*listOfNotNull(if (som == v) "on" else null).toTypedArray())
-                        onClick { som = v; runCatching { kotlinx.browser.window.asDynamic().estudarioSom.set(v); if (v) kotlinx.browser.window.asDynamic().estudarioSom.play("acerto") } }
-                    }) { Text(label) }
-                }
+            SetRow("favorite", "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas e comemorações") {
+                Switch(som, "Sons do Estudário") { v -> som = v; runCatching { kotlinx.browser.window.asDynamic().estudarioSom.set(v); if (v) kotlinx.browser.window.asDynamic().estudarioSom.play("acerto") } }
             }
-            P({ classes("xs", "muted"); attr("style", "margin:8px 0 0") }) { Text("Acerto, erro, toque no Folha, tarefas concluídas, flashcards e as comemorações. Vêm desligados: ligue se quiser.") }
         }
-        Card {
-            CardHead("Questões por dia")
-            BrandCounter(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, unit = "questões por dia", chips = listOf(10, 20, 30, 50), mood = ::goalMood, label = "Meta diária de questões")
-            P({ classes("xs", "muted"); attr("style", "text-align:center;margin:8px 0 0") }) { Text("Uma tarefa do plano ou uma revisão também fecham o dia.") }
+        SetGroup("Estudo") {
+            Div({ classes("set-row", "col") }) {
+                Div({ classes("set-row-text") }) { B { Text("Meta de questões por dia") }; Span { Text("Uma tarefa do plano ou uma revisão também fecham o dia. Vale no celular também.") } }
+                BrandCounter(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, unit = "questões por dia", chips = listOf(10, 20, 30, 50), mood = ::goalMood, label = "Meta diária de questões")
+            }
+            SetLink("timer", "Modo foco", "Cronômetro e aviso do bloco de estudo") { Router.go(Route.Focus) }
+            SetLink("notifications", "Notificações", "Aviso quando o material ficar pronto") { Router.go(Route.Notifications) }
         }
-        Card {
-            CardHead("Sincronização")
-            P({ classes("small", "muted") }) { Text("O que você faz aqui vai para a sua conta em segundos e aparece no celular logo depois. Se os dois mudarem ao mesmo tempo, o Estudário junta as duas mudanças sem perder nada.") }
-            Div({ classes("row", "wrap"); attr("style", "margin-top:12px") }) {
+        SetGroup("Conta e sincronização") {
+            val state = Store.save
+            SetRow("cloud_sync", "Sincronização com o celular", when (state) {
+                br.com.estudario.web.data.SaveState.Saved -> "Tudo salvo na sua conta"
+                br.com.estudario.web.data.SaveState.Offline -> "Sem internet: guardado aqui e enviado quando voltar"
+                else -> "Enviando as últimas mudanças…"
+            }) {
                 Btn("Recarregar da conta", {
                     // Recarregar troca tudo pela versão da conta: o que ainda não foi enviado se perde.
                     val unsent = Store.save != br.com.estudario.web.data.SaveState.Saved
                     if (!unsent || kotlinx.browser.window.confirm("Há mudanças feitas aqui que ainda não chegaram à conta. Recarregar descarta essas mudanças. Continuar?")) Store.start()
                 }, style = "outline", icon = "refresh", small = true)
-                A(href = "https://estudario.com.br/privacidade.html", { attr("target", "_blank"); classes("btn", "ghost", "small") }) { Text("Privacidade") }
+            }
+            P({ classes("xs", "muted", "set-note") }) { Text("O que você faz aqui chega ao celular em segundos. Se os dois mudarem ao mesmo tempo, o Estudário junta as duas mudanças sem perder nada.") }
+        }
+        SetGroup("Sobre") {
+            SetLink("explore", "Rever o tour", "O giro rápido pelas partes principais") { replayTour() }
+            Div({ classes("set-row", "link") }) {
+                Icon("shield")
+                A(href = "https://estudario.com.br/privacidade.html", { attr("target", "_blank"); classes("set-row-text") }) { B { Text("Privacidade") }; Span { Text("Como o Estudário cuida dos seus dados") } }
             }
         }
+        P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Estudário no computador · app.estudario.com.br") }
     }
-    Card {
-        CardHead("Como usar")
-        P({ classes("small", "muted") }) { Text("Reveja o giro rápido pelas partes principais do Estudário.") }
-        Btn("Rever o tour", { replayTour() }, style = "outline", icon = "explore", small = true)
+}
+
+@Composable
+private fun SetGroup(title: String, content: @Composable () -> Unit) {
+    Div({ classes("set-group") }) {
+        H3({ classes("set-title") }) { Text(title) }
+        Div({ classes("set-card") }) { content() }
     }
-    P({ classes("xs", "faint"); attr("style", "text-align:center") }) { Text("Estudário no computador · app.estudario.com.br") }
+}
+
+@Composable
+private fun SetRow(icon: String, title: String, desc: String, control: @Composable () -> Unit) {
+    Div({ classes("set-row") }) {
+        Icon(icon)
+        Div({ classes("set-row-text") }) { B { Text(title) }; Span { Text(desc) } }
+        Div({ classes("set-ctrl") }) { control() }
+    }
+}
+
+@Composable
+private fun SetLink(icon: String, title: String, desc: String, onClick: () -> Unit) {
+    Button({ classes("set-row", "link"); onClick { onClick() } }) {
+        Icon(icon)
+        Div({ classes("set-row-text") }) { B { Text(title) }; Span { Text(desc) } }
+        Icon("chevron_right", extraClass = "faint")
+    }
 }
 
 private fun goalMood(n: Int): String = when {
