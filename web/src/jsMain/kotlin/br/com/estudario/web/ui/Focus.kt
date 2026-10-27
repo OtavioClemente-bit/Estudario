@@ -32,7 +32,7 @@ fun FocusScreen() {
     var alertOn by remember { mutableStateOf(true) }
     val task = pending.firstOrNull { it.id == taskId }
 
-    PageHead("Modo foco", "Um bloco de estudo sem distração. O tempo conta aqui em cima e segue com você pelo site.")
+    PageHead("Modo foco", "Escolha o que vai estudar e comece. O tempo segue com você pelo site.")
     Card(extra = "pad-lg") {
         Div({ classes("focus-wrap") }) {
             Div({ classes("timer", "count-up") }) {
@@ -80,24 +80,12 @@ fun FocusScreen() {
             pending.forEach { item ->
                 androidx.compose.runtime.key(item.id) {
                     Button({ classes(*listOfNotNull("option", if (taskId == item.id) "chosen" else null).toTypedArray()); onClick { taskId = item.id } }) {
-                        Span({ classes("key") }) { Icon(taskIcon(item.type)) }
+                        Span({ classes("hs-art"); attr("style", "--c:${subjectColor(item.subjectName)}") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(item.subjectName)) }
                         Div {
                             H3 { Text(item.topicName ?: item.subjectName) }
                             P({ classes("small", "muted") }) { Text("${Queries.taskTypeLabel(item.type)} · ${item.subjectName} · meta de ${Queries.minutesLabel(item.minutes)}") }
                         }
                     }
-                }
-            }
-        }
-    }
-    val history = data.focusSessions.sortedByDescending { it.completedAt }.take(6)
-    if (history.isNotEmpty() && !TopicFocus.active) Card {
-        CardHead("Últimas sessões") { Btn("Ver tudo", { Router.go(Route.FocusHistory) }, style = "ghost", small = true, icon = "history") }
-        Div({ classes("stack", "tight") }) {
-            history.forEach { session ->
-                Div({ classes("row", "between") }) {
-                    Span({ classes("small", "clamp-2") }) { Text(session.title.ifBlank { "Sessão de foco" }) }
-                    Span({ classes("small", "muted", "nowrap") }) { Text("${Queries.shortDate(Queries.dateOf(session.completedAt))} · ${Queries.minutesLabel((session.durationSeconds / 60).toInt())}") }
                 }
             }
         }

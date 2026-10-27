@@ -133,7 +133,7 @@ fun ViradaScreen() {
             H3 { Text("Missão de hoje · virar ${mission.size} ${if (mission.size == 1) "erro" else "erros"}") }
             P { Text("Os da mesa e os que vencem hoje, ~${(mission.size * 1.2).toInt().coerceAtLeast(1)} min. Acertou, ele sobe um degrau.") }
             Div({ classes("vr-peek") }) {
-                ErrorVirada.missionByTopic(mission).forEach { (t, n) -> Span { B { Text("$n") }; Text(" · " + (t?.let { topics[it]?.title?.take(24) } ?: "Erro")) } }
+                ErrorVirada.missionByTopic(mission).forEach { (t, n) -> Span { B { Text("$n") }; Text(" · " + (t?.let { topics[it]?.title?.trimEnd('.') } ?: "Erro")) } }
             }
             Button({ classes("vr-cta"); onClick { ViradaUi.topicId = null; Router.go(Route.ErrorMission) } }) { Icon("replay", filled = true); Text("Começar a virada") }
         } else if (all.isNotEmpty()) Div({ classes("vr-card", "vr-mission") }) {
@@ -164,10 +164,16 @@ fun ViradaScreen() {
             Div({ classes("vr-sect") }) { B { Text("Os conceitos que mais te derrubam") } }
             concepts.forEach { c ->
                 key(c.id) {
-                    val subject = topics[c.topicId]?.let { subjects[it.subjectId]?.name }
+                    val subject = topics[c.topicId]?.let { subjects[it.subjectId]?.name }.orEmpty()
+                    // Antes era um número solto (vezes que errou) que não batia com o do cartão do tópico (questões).
+                    val open = all.count { it.question.topicId == c.topicId && ErrorVirada.stage(it.virada) != ErrorVirada.Stage.TURNED }
                     Div({ classes("vr-concept") }) {
-                        Span({ classes("vr-n") }) { Text("${c.errorCount}") }
-                        Div({ classes("grow") }) { B { Text(c.title) }; Span { Text(listOfNotNull(subject, topics[c.topicId]?.title).joinToString(" · ")) } }
+                        Span({ classes("hs-art"); attr("style", "--c:${subjectColor(subject)}") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject)) }
+                        Div({ classes("grow") }) {
+                            B { Text(c.title) }
+                            Span { Text(listOfNotNull(subject.ifBlank { null }, topics[c.topicId]?.title?.takeIf { it != c.title }).joinToString(" · ")) }
+                            Span({ classes("vr-concept-n") }) { Text(listOfNotNull(open.takeIf { it > 0 }?.let { "$it ${if (it == 1) "questão" else "questões"}" }, "errou ${c.errorCount} ${if (c.errorCount == 1) "vez" else "vezes"}").joinToString(" · ")) }
+                        }
                         Btn("Treinar 3", { Router.go(Route.Quiz("topico-${c.topicId}-3")) }, style = "primary", small = true)
                     }
                 }
@@ -188,11 +194,12 @@ fun ViradaScreen() {
                     val expanded = (g.topicId ?: -1L) in ViradaUi.expanded
                     Div({ classes("vr-topic"); attr("style", "--c:${subjectColor(subjectName)}") }) {
                         Button({ classes("vr-topic-head"); attr("aria-expanded", "$expanded"); onClick { ViradaUi.toggle(g.topicId ?: -1L) } }) {
-                            Div({ classes("vr-topic-ring"); attr("style", "--p:${(g.progress * 100).toInt()}") }) { B { Text("${g.entries.size}") } }
+                            Span({ classes("hs-art", "big"); attr("style", "--c:${subjectColor(subjectName)}") }) { Icon(br.com.estudario.domain.catalog.SubjectArt.iconFor(subjectName)) }
                             Div({ classes("grow") }) {
                                 Span({ classes("vr-topic-sub") }) { Text(subjectName.uppercase()) }
                                 B { Text(topic?.title ?: "Sem tópico") }
                                 Div({ classes("vr-topic-meta") }) {
+                                    Span { Text("${g.entries.size} ${if (g.entries.size == 1) "questão" else "questões"}") }
                                     if (g.due > 0) Span({ classes("due") }) { Text("${g.due} para hoje") }
                                     if (g.turned > 0) Span({ classes("won") }) { Text("${g.turned} ${if (g.turned == 1) "virou" else "viraram"}") }
                                     if (g.turning > 0) Span { Text("${g.turning} virando") }
