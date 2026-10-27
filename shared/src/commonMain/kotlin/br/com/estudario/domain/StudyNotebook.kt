@@ -63,13 +63,18 @@ object StudyNotebook {
             .joinToString(" ") { it.removePrefix("- ").removePrefix("* ").removePrefix("• ") }
             .replace(Regex("""\s+"""), " ")
         // quebra depois de ponto, ponto e vírgula ou dois-pontos seguidos de maiúscula; não quebra "art.", "§", "Lei n."
-        val parts = Regex("""(?<=[.;!?])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9"(])""").split(clean)
+        // (ou antes de um termo em negrito, que costuma abrir a ideia seguinte)
+        val parts = Regex("""(?<=[.;!?])\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9"(]|\*\*)""").split(clean)
             .map { it.trim() }
-            .filter { it.length >= 25 }
-        return parts.flatMap { sentence ->
-            if (sentence.length <= 220) listOf(sentence)
-            else sentence.split(Regex(""";\s+|,\s+(?=(e|mas|porém|enquanto|quando|pois)\s)""")).map { it.trim().trimEnd(',') }.filter { it.length >= 25 }
-        }.take(max)
+            .filter { it.isNotEmpty() }
+        // Frase longa só quebra no ponto e vírgula (antes quebrava também na vírgula e descartava os
+        // pedaços curtos: o resumo saía picotado, com partes sumindo). Pedaço curto junta ao anterior.
+        val pieces = parts.flatMap { sentence ->
+            if (sentence.length <= 260) listOf(sentence) else sentence.split(Regex("""(?<=;)\s+""")).map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        val merged = mutableListOf<String>()
+        pieces.forEach { p -> if (merged.isNotEmpty() && (p.length < 40 || merged.last().length < 40)) merged[merged.lastIndex] = merged.last() + " " + p else merged += p }
+        return merged.filter { it.length >= 25 }.take(max)
     }
 
     private fun goodText(s: String, min: Int = 20, max: Int = 420) = s.trim().length in min..max

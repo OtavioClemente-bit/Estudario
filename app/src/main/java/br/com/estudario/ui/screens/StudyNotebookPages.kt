@@ -201,7 +201,7 @@ private fun MarkQuote(mark: StudyNotebook.Mark) {
 @Composable
 private fun PostIt(text: String, color: Color = Postit) {
     Box(Modifier.fillMaxWidth().padding(start = 40.dp, top = 10.dp, bottom = 6.dp)) {
-        Text(text, Modifier.rotate(-1.4f).background(color).padding(horizontal = 14.dp, vertical = 12.dp), fontFamily = Hand, fontSize = 20.sp, lineHeight = 23.sp, color = Color(0xFF3E3300))
+        Text(inkInline(text), Modifier.rotate(-1.4f).background(color).padding(horizontal = 14.dp, vertical = 12.dp), fontFamily = Hand, fontSize = 20.sp, lineHeight = 23.sp, color = Color(0xFF3E3300))
     }
 }
 
@@ -212,8 +212,33 @@ private fun StampText(text: String) {
 
 @Composable
 private fun Highlighted(text: String) {
-    Text(buildAnnotatedString { withStyle(SpanStyle(background = Highlight)) { append(text) } }, color = Ink, fontSize = 16.sp, lineHeight = 28.sp)
+    Text(inkInline(text, SpanStyle(background = Highlight)), color = Ink, fontSize = 16.sp, lineHeight = 28.sp)
 }
+
+/**
+ * O markdown em linha das páginas (resumo, dicas, pegadinhas, cartões): **negrito**, `código` e
+ * *itálico*. Antes ia como texto puro e as marcas apareciam na página (como no site, agora não).
+ */
+private fun inkInline(text: String, base: SpanStyle? = null): androidx.compose.ui.text.AnnotatedString = buildAnnotatedString {
+    if (base != null) pushStyle(base)
+    val token = Regex("""**([^*]+)**|`([^`]+)`|(?<![w*])*([^*s][^*]*)*(?!w)|__([^_]+)__""")
+    var i = 0
+    for (m in token.findAll(text)) {
+        append(text.substring(i, m.range.first))
+        when {
+            m.groupValues[1].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(m.groupValues[1]) }
+            m.groupValues[2].isNotEmpty() -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = CodeBg, fontSize = 14.sp)) { append(" " + m.groupValues[2] + " ") }
+            m.groupValues[3].isNotEmpty() -> withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(m.groupValues[3]) }
+            else -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(m.groupValues[4]) }
+        }
+        i = m.range.last + 1
+    }
+    append(text.substring(i))
+    if (base != null) pop()
+}
+
+/** O fundo do código em linha: um índigo bem transparente, que serve no papel claro e no escuro. */
+private val CodeBg = Color(0x225B4BE8)
 
 // ------------------------------------------------------------------ a entrada (o fichário)
 
@@ -351,7 +376,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
                 when (page) {
                     is StudyNotebook.Page.Key -> {
                         Text(if (page.lines.size == 1) "Dica de prova" else "O que não pode esquecer", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
-                        page.lines.forEach { Text(it, color = Ink, fontSize = 16.sp, lineHeight = 28.sp) }
+                        page.lines.forEach { Text(inkInline(it), color = Ink, fontSize = 16.sp, lineHeight = 28.sp) }
                     }
                     is StudyNotebook.Page.MarkPage -> {
                         Text("O que você destacou", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
@@ -359,7 +384,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
                     }
                     is StudyNotebook.Page.Trap -> {
                         Text("A banca tenta te pegar aqui", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
-                        Text(page.text, color = Ink, fontSize = 16.sp, lineHeight = 28.sp)
+                        Text(inkInline(page.text), color = Ink, fontSize = 16.sp, lineHeight = 28.sp)
                         StampText("PEGADINHA")
                     }
                     is StudyNotebook.Page.Recall -> FlipRecall(page)
@@ -394,9 +419,9 @@ private fun ColumnScope.FlipRecall(page: StudyNotebook.Page.Recall) {
         contentAlignment = Alignment.Center,
     ) {
         if (angle < 90f) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(page.question, fontWeight = FontWeight.Black, fontSize = 17.sp, color = Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(inkInline(page.question), fontWeight = FontWeight.Black, fontSize = 17.sp, color = Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Text("toque na ficha para ver a resposta", fontSize = 12.sp, color = Muted)
-        } else Text(page.answer, Modifier.graphicsLayer { rotationX = 180f }, color = Color.White, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        } else Text(inkInline(page.answer), Modifier.graphicsLayer { rotationX = 180f }, color = Color.White, fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
@@ -459,7 +484,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                 if (thin) Text("Este tópico veio com pouco material. Gerar de novo traz a matéria completa.", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF5D6)).clickable { onTheory(topic.id) }.padding(10.dp), color = Color(0xFF6E4700), fontSize = 13.sp)
                 if (lines.isNotEmpty()) {
                     Section("O ESSENCIAL")
-                    lines.forEach { line -> if (quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }) Highlighted(line) else Text(line, color = Ink, fontSize = 16.sp, lineHeight = 28.sp) }
+                    lines.forEach { line -> if (quotes.any { q -> line.contains(q.take(60), ignoreCase = true) }) Highlighted(line) else Text(inkInline(line), color = Ink, fontSize = 16.sp, lineHeight = 28.sp) }
                 }
                 if (topic.marks.isNotEmpty()) {
                     Section("SEUS GRIFOS")
@@ -468,9 +493,9 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
                 topic.notes.take(3).forEach { PostIt(it) }
                 if (topic.tips.isNotEmpty()) {
                     Section("DICAS DE PROVA")
-                    topic.tips.take(6).forEach { Text("• $it", color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
+                    topic.tips.take(6).forEach { Text(inkInline("• $it"), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
                 }
-                topic.traps.take(3).forEach { trap -> StampText("PEGADINHA"); Text(trap, color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
+                topic.traps.take(3).forEach { trap -> StampText("PEGADINHA"); Text(inkInline(trap), color = Ink, fontSize = 15.sp, lineHeight = 26.sp) }
                 if (topic.recall.isNotEmpty()) {
                     Section("PARA LEMBRAR · TOQUE PARA VIRAR")
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) { topic.recall.take(10).forEach { (q, a) -> MiniCard(q, a) } }
@@ -503,8 +528,8 @@ private fun MiniCard(front: String, back: String) {
             .background(if (angle < 90f) CardBg else Color(0xFF332D78)).border(2.dp, LineC, RoundedCornerShape(12.dp)).clickable { on = !on }.padding(12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        if (angle < 90f) Text(front, fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp, maxLines = 6, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        else Text(back, Modifier.graphicsLayer { rotationY = 180f }, color = Color.White, fontSize = 12.5.sp, maxLines = 7, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        if (angle < 90f) Text(inkInline(front), fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp, maxLines = 6, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        else Text(inkInline(back), Modifier.graphicsLayer { rotationY = 180f }, color = Color.White, fontSize = 12.5.sp, maxLines = 7, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 

@@ -19,6 +19,10 @@ class StudyNotebookTest {
 
     @Test
     fun tituloEMarcacaoSaem() {
+        // frase longa com vírgulas e termos em negrito: nenhum pedaço some
+        val long = "O **tema** indica o assunto, e a **ideia central** sintetiza o que se diz sobre ele; a **tese** é posição defendida em contexto argumentativo, e a **informação explícita** está verbalizada no texto, enquanto a **inferência** resulta de pistas suficientes, sem inventar fatos."
+        val joined = StudyNotebook.summaryLines(long).joinToString(" ")
+        listOf("tema", "ideia central", "tese", "informação explícita", "inferência").forEach { kotlin.test.assertTrue(it in joined, it) }
         val lines = StudyNotebook.summaryLines("## Atos\n\n- **Presunção** de legitimidade vale até prova em contrário.\n- Autoexecutoriedade não está em todos os atos.")
         assertEquals(2, lines.size)
         assertTrue(lines.none { it.startsWith("#") || it.startsWith("-") })
