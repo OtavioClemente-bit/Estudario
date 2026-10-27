@@ -340,10 +340,10 @@ fun WardrobeScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopB
                             TRY_MOODS.forEach { (m, label, icon) ->
                                 val on = (testMood ?: FolhaMood.IDLE) == m
                                 Box(
-                                    Modifier.size(34.dp).clip(RoundedCornerShape(50)).background(if (on) Mint else Color.White.copy(alpha = 0.08f))
+                                    Modifier.size(30.dp).clip(RoundedCornerShape(50)).background(if (on) Mint else Color.White.copy(alpha = 0.08f))
                                         .border(1.dp, GameLine, RoundedCornerShape(50)).clickable { testMood = if (m == FolhaMood.IDLE) null else m },
                                     contentAlignment = Alignment.Center,
-                                ) { br.com.estudario.ui.assistant.Folha(28.dp, mood = m, enter = false) }
+                                ) { Icon(icon, label, Modifier.size(20.dp), tint = if (on) Color(0xFF0F3B2B) else Color.White) }
                             }
                         }
                     }

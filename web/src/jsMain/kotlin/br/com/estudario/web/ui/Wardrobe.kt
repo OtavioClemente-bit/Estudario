@@ -241,7 +241,7 @@ fun WardrobeScreen() {
             // ---- placar compacto: nível de colecionador e atalhos
             Div({ classes("wdg-hud", "compact") }) {
                 Div({ classes("wdg-rank") }) {
-                    org.jetbrains.compose.web.dom.Img(src = "medalha-colecionador.svg", alt = "") { classes("wdg-rank-medal") }
+                    org.jetbrains.compose.web.dom.Img(src = MEDAL_SVG, alt = "") { classes("wdg-rank-medal") }
                     Div({ classes("grow") }) {
                         Span({ classes("wdg-eyebrow") }) { Text("COLECIONADOR · " + collectorRank(owned, total).uppercase()) }
                         Div({ classes("wdg-xp") }) {
@@ -307,7 +307,7 @@ fun WardrobeScreen() {
                                     classes(*listOfNotNull("wdg-emote", if (on) "on" else null).toTypedArray())
                                     attr("title", label); attr("aria-label", label); attr("aria-pressed", on.toString())
                                     onClick { testMood = if (m == "idle") null else m }
-                                }) { Folha(m, 34, live = false) }
+                                }) { Icon(icon) }
                             }
                         }
                     }
@@ -506,3 +506,6 @@ fun WardrobeCard(progress: ProgressEngine.ProgressSummary) {
 
 /** Para a comemoração de emblema: as peças que esse emblema libera no armário. */
 fun wardrobeUnlockedBy(badgeId: String): List<FolhaItem> = FolhaWardrobe.unlockedBy(badgeId)
+
+/** A medalha do colecionador (desenho em web/src/jsMain/resources/medalha-colecionador.svg), embutida para não depender do arquivo. */
+private const val MEDAL_SVG = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2048%2048%22%3E%20%3Cpath%20d%3D%22M14%202h9l5%2016h-9z%22%20fill%3D%22%23E5484D%22%2F%3E%20%3Cpath%20d%3D%22M17%202h3l5%2016h-3z%22%20fill%3D%22%23FF8A8E%22%2F%3E%20%3Cpath%20d%3D%22M34%202h-9l-5%2016h9z%22%20fill%3D%22%234F46E5%22%2F%3E%20%3Cpath%20d%3D%22M31%202h-3l-5%2016h3z%22%20fill%3D%22%238E86FF%22%2F%3E%20%3Ccircle%20cx%3D%2224%22%20cy%3D%2230%22%20r%3D%2215%22%20fill%3D%22%23C98A12%22%2F%3E%20%3Ccircle%20cx%3D%2224%22%20cy%3D%2229%22%20r%3D%2214%22%20fill%3D%22%23FFC94A%22%2F%3E%20%3Ccircle%20cx%3D%2224%22%20cy%3D%2229%22%20r%3D%2210.5%22%20fill%3D%22%23F5A912%22%20stroke%3D%22%23FFE59A%22%20stroke-width%3D%221.6%22%2F%3E%20%3Cpath%20d%3D%22M24%2021.5l2.3%204.7%205.2.8-3.8%203.6.9%205.1-4.6-2.4-4.6%202.4.9-5.1-3.8-3.6%205.2-.8z%22%20fill%3D%22%23FFF3C4%22%20stroke%3D%22%23B5770A%22%20stroke-width%3D%22.9%22%20stroke-linejoin%3D%22round%22%2F%3E%20%3Cpath%20d%3D%22M15%2022a11%2011%200%200%201%206-5%22%20stroke%3D%22%23FFF7DA%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%20opacity%3D%22.8%22%2F%3E%20%3C%2Fsvg%3E"

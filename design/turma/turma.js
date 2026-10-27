@@ -129,6 +129,9 @@ function face(cx, cy, s, mood, detail, opts = {}) {
 const fxLine = (d, color, w = 3.5) => ({ d, s: color, w });
 const fxFill = (d, color, o) => ({ d, f: color, s: INK, w: 2, o });
 
+// a mão (Mostrar e Acenar): quatro dedos, o polegar e a palma num contorno só
+const HAND = "M30 62V28a6 6 0 0 1 12 0V40V18a6 6 0 0 1 12 0V40V20a6 6 0 0 1 12 0V40V30a6 6 0 0 1 12 0V66a24 24 0 0 1-24 24H50a20 20 0 0 1-15-7L15 64a6 6 0 0 1 9-8l6 7z";
+
 // ------------------------------------------------------------------ a turma
 // anim: hop | wiggle | spin | flicker | cheer | pulse | zap | sway | float | write | ring | roll | peek
 export const TURMA = {
@@ -450,6 +453,26 @@ export const TURMA = {
     body: [solid("M60 8a42 42 0 1 0 32 62A34 34 0 0 1 60 8z", "moon"), shine("M24 38a30 30 0 0 1 10-16")],
     face: [40, 54, 0.8, "sleepy"],
     fx: [{ d: "M72 18h10l-10 12h10", s: "#9563FF", w: 3.5 }, { d: "M86 2h7l-7 8h7", s: "#9563FF", w: 3 }],
+  }) },
+  Hand: { anim: "hop", about: "Mostrar: mão aberta para a frente", draw: () => ({
+    body: [solid(HAND, "skin"), shine("M36 30v12")],
+    face: [54, 68, 0.72, "grin"],
+  }) },
+  Wave: { anim: "wiggle", about: "Acenar: mão dando tchau", draw: () => ({
+    body: [...inkLine("M88 24q9 14 0 28", "amber", 4), ...inkLine("M8 34q-7 12 0 24", "amber", 4), solid(HAND, "skin"), shine("M36 30v12")],
+    face: [54, 68, 0.72, "happy"],
+    fx: [fxLine("M10 22q-8 12 0 24M90 30q8 12 0 24", "#FFB421"), fxLine("M2 16q-8 18 0 36", "#FFB421", 3)],
+  }) },
+  Party: { anim: "cheer", about: "Comemorar: lança-confete estourando", draw: () => ({
+    body: [
+      ...inkLine("M58 40q4-18 22-16", "coral", 5),
+      ...inkLine("M66 52q16-6 22 8", "sky", 5),
+      solid(poly(12, 92, 40, 36, 68, 64), "violet"),
+      flat(poly(22, 74, 30, 58, 50, 76, 36, 82), "sun", { w: 3 }),
+      shine("M30 52l6-10"),
+    ],
+    face: [38, 68, 0.6, "happy"],
+    fx: [fxFill(star(80, 10, 7, 3), "#FFD84A"), fxFill(ell(92, 40, 4), "#FF7BB0"), fxFill(rr(50, 12, 8, 8, 2), "#38B2FF"), fxFill(ell(70, 4, 3), "#22C27B")],
   }) },
   Coffee: { anim: "float", about: "Manhã: caneca de café fumegando", draw: () => ({
     body: [

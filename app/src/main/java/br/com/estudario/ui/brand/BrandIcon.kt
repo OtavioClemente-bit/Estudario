@@ -115,6 +115,10 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "DarkMode", "Bedtime" -> Glyph.Moon
     "Coffee", "LocalCafe" -> Glyph.Coffee
     "Checkroom" -> Glyph.Hanger
+    "PanTool", "BackHand", "FrontHand" -> Glyph.Hand
+    "WavingHand" -> Glyph.Wave
+    "Celebration", "Cake" -> Glyph.Party
+    "Block" -> Glyph.Lock
     "Casino" -> Glyph.Dice
     "PhoneAndroid", "Devices" -> Glyph.Phone
     "FiberNew" -> Glyph.Gem
