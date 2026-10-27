@@ -88,9 +88,8 @@ import java.time.ZoneId
 /**
  * O Perfil: quem estuda, com que constância, em que nível e onde os dados estão guardados.
  *
- * A tela é editorial, não uma fileira de [ElevatedCard], cada seção é uma faixa com um rótulo
- * discreto (NÍVEL, SEQUÊNCIA, CONTA…), separada por [br.com.estudario.ui.screens.home.HomeDivider].
- * Cartão só aparece onde há mesmo uma lista de itens tocáveis (emblemas, backup). Toda a lógica de
+ * A parte de cima é uma tela de jogo (ProfileGame.kt): cartão do jogador, missões, trilha de
+ * títulos, sala de troféus, combo e atributos. Embaixo ficam os ajustes: armário, meta e conta. Toda a lógica de
  * estado fica aqui, em [ProfileScreen]; [ProfileContent] só recebe dados prontos, é o que torna as
  * previews possíveis sem um [AppViewModel] de verdade.
  */
@@ -264,54 +263,29 @@ private fun ProfileContent(
             contentPadding = PaddingValues(horizontal = EstudarioSpacing.screenGutter, vertical = EstudarioSpacing.medium),
         ) {
             item {
-                Box(
-                    Modifier.fillMaxWidth().clip(br.com.estudario.ui.theme.EstudarioShapes.spotlight).background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainerLow),
-                        ),
-                    ).padding(vertical = EstudarioSpacing.large, horizontal = EstudarioSpacing.medium),
-                ) {
-                    ProfileHeader(profile, progress, onEditName, onChangePhoto, onRemovePhoto)
-                }
-            }
-            item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
-            if (progress != null && streak != null) {
-                item { ProfileKpis(progress, streak, onBadges) }
-                item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
-            }
-
-            item {
-                val current = progress
-                if (current == null) SkeletonCard(lines = 3) else LevelBand(current)
+                if (progress == null) SkeletonCard(lines = 4)
+                else PlayerCard(profile, progress, streak, onEditName, onChangePhoto, onBadges)
             }
             item { Divider() }
-
+            if (progress != null && streak != null) {
+                item { MissionsPanel(progress, streak, onBadges) }
+                item { Divider() }
+            }
+            if (progress != null) {
+                item { TitlesTrail(progress.level) }
+                item { Divider() }
+                item { TrophyRoom(progress, onBadges) }
+                item { Divider() }
+            }
             item {
                 val current = streak
-                if (current == null) SkeletonCard(lines = 3) else StreakBand(current)
+                if (current == null) SkeletonCard(lines = 3) else ComboPanel(current)
             }
             item { Divider() }
-
-            item {
-                if (streak == null) SkeletonCard(lines = 2) else Band {
-                    Text("FREQUÊNCIA DE ESTUDO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(EstudarioSpacing.small))
-                    // O mapa já traz seu próprio recuo horizontal (contentPadding), não soma outro.
-                    ActivityHeatmap(streak.calendar, streak.goal, contentPadding = PaddingValues(0.dp))
-                    Row(Modifier.fillMaxWidth().padding(top = EstudarioSpacing.medium), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Stat("Dias com estudo", streak.activeDays.toString())
-                        Stat("Questões", streak.totalQuestions.toString())
-                        Stat("Tempo", "${streak.totalMinutes / 60}h${streak.totalMinutes % 60}")
-                    }
-                }
+            if (progress != null && progress.sources.isNotEmpty()) {
+                item { AttributesPanel(progress) }
+                item { Divider() }
             }
-            item { Divider() }
-
-            item {
-                val current = progress
-                if (current == null) SkeletonCard(lines = 2) else BadgesBand(current, onBadges)
-            }
-            item { Divider() }
             item {
                 val current = progress
                 if (current != null) Band { WardrobeBand(current, onWardrobe) }
@@ -366,214 +340,12 @@ private fun Divider() {
     Spacer(Modifier.height(EstudarioSpacing.medium))
 }
 
-// ---------------------------------------------------------------- cabeçalho
-
-@Composable
-private fun ProfileHeader(
-    profile: UserProfile,
-    progress: ProgressEngine.ProgressSummary?,
-    onEditName: () -> Unit,
-    onChangePhoto: () -> Unit,
-    onRemovePhoto: () -> Unit,
-) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-        Box(contentAlignment = Alignment.BottomEnd) {
-            LevelAvatar(progress, 108.dp) { ProfileAvatar(profile.photoPath, profile.initials, 108.dp) }
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(onClick = onChangePhoto),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Outlined.PhotoCamera, "Trocar foto", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary) }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline)) {
-            Text(profile.displayName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
-            IconButton(onClick = onEditName, modifier = Modifier.size(28.dp)) { Icon(Icons.Outlined.Edit, "Editar nome", Modifier.size(17.dp)) }
-        }
-        if (progress != null) Text(
-            "NÍVEL ${progress.level} · ${progress.levelTitle.uppercase()}",
-            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black,
-            color = MaterialTheme.colorScheme.primary, letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
-        )
-        Text(
-            if (profile.signedIn) profile.email else "Sem conta, o progresso fica só neste celular.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        if (profile.photoPath != null) TextButton(onClick = onRemovePhoto) { Text("Remover foto") }
-    }
-}
-
-// ---------------------------------------------------------------- nível
-
-/** Cores das fontes de XP na barra empilhada, na mesma ordem em que aparecem. */
-private val SourceColors = listOf(Color(0xFF7C5CFF), Color(0xFF22C59A), Color(0xFF3B82F6), Color(0xFFF59E0B), Color(0xFFEC4899), Color(0xFF06B6D4))
-
-@Composable
-private fun LevelBand(summary: ProgressEngine.ProgressSummary) {
-    val fraction by animateFloatAsState(summary.levelProgress, EstudarioMotion.progress(), label = "profile-level")
-    val colors = estudarioColors()
-    val primary = MaterialTheme.colorScheme.primary
-    val shimmer by androidx.compose.animation.core.rememberInfiniteTransition(label = "level-shine").animateFloat(
-        -0.3f, 1.3f,
-        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2_200, easing = androidx.compose.animation.core.LinearEasing)),
-        label = "level-shine-x",
-    )
-    val faltam = (summary.xpForNextLevel - summary.xpIntoLevel).coerceAtLeast(0)
-    val proximo = ProgressEngine.nextTitle(summary.level)
-    Band {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // A ilustração cresce em ornamentação a cada faixa de nível.
-            LevelSeal(summary.level, 116.dp)
-            Spacer(Modifier.width(EstudarioSpacing.small))
-            Column(Modifier.weight(1f)) {
-                Text(summary.levelTitle, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                Text("${"%,d".format(summary.totalXp).replace(',', '.')} XP no total", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (proximo != null) Text(
-                    "Próximo título: ${proximo.second}, no nível ${proximo.first}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = primary,
-                )
-            }
-        }
-        Spacer(Modifier.height(EstudarioSpacing.medium))
-        // Barra grossa com brilho correndo: o quanto falta para o próximo nível.
-        Box(
-            Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
-        ) {
-            Box(
-                Modifier.fillMaxWidth(fraction.coerceAtLeast(0.02f)).height(14.dp).clip(RoundedCornerShape(50))
-                    .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(primary, colors.completed)))
-                    .drawWithContent {
-                        drawContent()
-                        val x = size.width * shimmer
-                        drawRect(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.45f), Color.Transparent), x - 60f, x + 60f))
-                    },
-            )
-        }
-        Spacer(Modifier.height(EstudarioSpacing.tight))
-        Row(Modifier.fillMaxWidth()) {
-            Text("${summary.xpIntoLevel} de ${summary.xpForNextLevel} XP neste nível", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.weight(1f))
-            Text("faltam $faltam XP", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Spacer(Modifier.height(EstudarioSpacing.small))
-        Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-            XpChip("+${summary.xpToday}", "hoje", if (summary.xpToday > 0) colors.completed else MaterialTheme.colorScheme.onSurfaceVariant)
-            XpChip("+${summary.xpThisWeek}", "esta semana", primary)
-        }
-        if (summary.sources.isNotEmpty()) {
-            Spacer(Modifier.height(EstudarioSpacing.medium))
-            Text("DE ONDE VEIO SEU XP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(EstudarioSpacing.tight))
-            val total = summary.sources.sumOf { it.xp }.coerceAtLeast(1)
-            val percents = wholePercents(summary.sources.map { it.xp })
-            Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50))) {
-                summary.sources.forEachIndexed { i, source ->
-                    Box(Modifier.weight(source.xp.toFloat() / total).fillMaxHeight().background(SourceColors[i % SourceColors.size]))
-                }
-            }
-            Spacer(Modifier.height(EstudarioSpacing.small))
-            Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline)) {
-                summary.sources.forEachIndexed { i, source ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(SourceColors[i % SourceColors.size]))
-                        Spacer(Modifier.width(8.dp))
-                        Text(source.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                        Text("${percents[i]}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 10.dp))
-                        Text("${source.xp} XP", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun XpChip(value: String, label: String, color: Color) {
-    Row(
-        Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(value, style = MaterialTheme.typography.labelLarge, color = color, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-        Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
 // ---------------------------------------------------------------- sequência
-
-@Composable
-private fun StreakBand(summary: StreakSummary) {
-    val colors = estudarioColors()
-    Band {
-        Text("SEQUÊNCIA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(EstudarioSpacing.tight))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StreakFlame(lit = summary.current > 0, size = 72.dp, frozen = summary.current == 0 && summary.best > 0)
-            Spacer(Modifier.width(EstudarioSpacing.small))
-            Column {
-                Text("${summary.current}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = if (summary.current > 0) Color(0xFFFF8A3D) else MaterialTheme.colorScheme.onSurface)
-                Text(
-                    if (summary.current == 1) "dia de sequência" else "dias de sequência",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            if (summary.best > 0) Column(horizontalAlignment = Alignment.End) {
-                Text("Melhor", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${summary.best}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-        Spacer(Modifier.height(EstudarioSpacing.comfortable))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            summary.week.forEach { day -> WeekDot(if (day.protected) day.copy(done = true) else day, Color(0xFFFF7A2F)) }
-        }
-        Spacer(Modifier.height(EstudarioSpacing.tight))
-        // Marca-página do Folha: a cada 7 dias seguidos ele guarda um (até 2) e salva um dia sem estudo.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-            Icon(Icons.Outlined.BookmarkBorder, null, Modifier.size(18.dp), tint = androidx.compose.ui.graphics.Color(0xFF8B7BFF))
-            Text(
-                when {
-                    summary.freezes > 0 -> "${summary.freezes} ${if (summary.freezes == 1) "marca-página do Folha" else "marca-páginas do Folha"}" + (if (summary.daysToNextFreeze > 0) " · outro em ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia" else "dias"}" else "")
-                    else -> "Mais ${summary.daysToNextFreeze} ${if (summary.daysToNextFreeze == 1) "dia seguido" else "dias seguidos"} e o Folha guarda um marca-página: num dia sem estudo, ele salva a sequência."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            "Para que serve: num dia em que você não conseguir estudar, o Folha usa um marca-página para guardar aquele dia, e a sua sequência não zera. Você ganha um a cada 7 dias seguidos (no máximo 2).",
-            Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (summary.week.any { it.protected }) Text("O Folha guardou seu lugar num dia desta semana.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(EstudarioSpacing.comfortable))
-        if (summary.todayDone) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-                Icon(Icons.Rounded.Check, null, Modifier.size(18.dp), tint = colors.completed)
-                Text("Meta de hoje concluída.", style = MaterialTheme.typography.bodyMedium, color = colors.completed)
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-                Text(
-                    "Hoje: ${summary.todayQuestions.coerceAtMost(summary.goal.questions)} de ${summary.goal.questions} questões. Uma tarefa do plano ou uma revisão também fecham o dia.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                LinearProgressIndicator({ summary.todayProgress }, Modifier.fillMaxWidth().clip(RoundedCornerShape(50)))
-            }
-        }
-    }
-}
 
 private val DIAS = listOf("S", "T", "Q", "Q", "S", "S", "D")
 
 @Composable
-private fun WeekDot(day: StreakDay, completedColor: Color) {
+internal fun WeekDot(day: StreakDay, completedColor: Color) {
     val index = day.date.isoDayOfWeek - 1
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.hairline)) {
         Text(DIAS.getOrElse(index) { "" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -601,66 +373,6 @@ private fun WeekDot(day: StreakDay, completedColor: Color) {
         }
     }
 }
-
-@Composable
-private fun Stat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-// ---------------------------------------------------------------- emblemas
-
-@Composable
-private fun BadgesBand(summary: ProgressEngine.ProgressSummary, onBadges: () -> Unit) {
-    val conquistados = summary.earnedBadges
-    val proximos = summary.nextBadges.take(3)
-    Band {
-        Row(Modifier.fillMaxWidth().clickable(onClick = onBadges), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("EMBLEMAS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    "${conquistados.size} de ${summary.badges.size} conquistados",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Icon(Icons.Outlined.ChevronRight, "Ver todos os emblemas", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (conquistados.isNotEmpty()) {
-            Spacer(Modifier.height(EstudarioSpacing.small))
-            Row(horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.tight)) {
-                conquistados.takeLast(5).forEach { row -> BadgeMedal(row.badge, earned = true, size = 50.dp) }
-            }
-        }
-        if (proximos.isNotEmpty()) {
-            Spacer(Modifier.height(EstudarioSpacing.medium))
-            Text("Quase lá", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(EstudarioSpacing.small))
-            Column(verticalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-                proximos.forEach { row -> ProximoEmblema(row) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProximoEmblema(row: BadgeProgress) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EstudarioSpacing.small)) {
-        BadgeMedal(row.badge, earned = false, size = 42.dp)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(row.badge.name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-            LinearProgressIndicator({ row.percent }, Modifier.fillMaxWidth().clip(RoundedCornerShape(50)))
-            Text(
-                row.hint ?: "faltam ${row.remaining} ${row.badge.unit}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
 
 // ---------------------------------------------------------------- meta do dia
 
@@ -934,7 +646,7 @@ private fun AvatarPickerSheet(current: String?, onPick: (br.com.estudario.ui.com
 }
 
 /** Porcentagens inteiras que sempre fecham 100 (maior resto): nada de 84% + 15% = 99%. */
-private fun wholePercents(values: List<Int>): List<Int> {
+internal fun wholePercents(values: List<Int>): List<Int> {
     val total = values.sum()
     if (total <= 0) return values.map { 0 }
     val exact = values.map { it * 100.0 / total }
