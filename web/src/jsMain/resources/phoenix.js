@@ -47,7 +47,7 @@
   const TAIL = [];
   for (let i = 0; i < 7; i++) {
     const k = i / 6, ang = 168 - 156 * k;
-    TAIL.push(plume(TAIL_BASE, ang, 360 + 60 * sin(k * PI), 78 - 18 * Math.abs(k - .5), 51 + i, (i % 2 ? 1 : -1) * 70));
+    TAIL.push(plume(TAIL_BASE, ang, 400 + 90 * sin(k * PI), 84 - 20 * Math.abs(k - .5), 51 + i, (i % 2 ? 1 : -1) * 80));
   }
   TAIL.push(plume([500, 600], 200, 300, 14, 61, -60, { thin: true }));
   TAIL.push(plume([560, 600], -20, 300, 14, 62, 60, { thin: true }));
@@ -95,6 +95,25 @@
     for (let i = 1; i < L.length; i++) path.lineTo(L[i][0], L[i][1]);
     for (let i = R.length - 1; i >= 0; i--) path.lineTo(R[i][0], R[i][1]);
     path.closePath();
+    return path;
+  }
+
+  // as barbas de uma pena: fios que saem do eixo para os dois lados, inclinados para a raiz, tremulando
+  function barbs(c, w, seed, time) {
+    const path = new Path2D(), N = 24;
+    for (let i = 1; i <= N; i++) {
+      const jit = sin(seed * 13.7 + i * 7.31) * .5 + .5, t = (i + jit * .6 - .3) / (N + 1), p = bez(c, t), q = bez(c, Math.min(1, t + .02)), p0 = bez(c, Math.max(0, t - .02));
+      let dx = q[0] - p0[0], dy = q[1] - p0[1]; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+      const nx = -dy, ny = dx, wave = sin(time * 5.2 + seed * 3 + t * 9) * 10 * t;
+      const cx = p[0] + nx * wave, cy = p[1] + ny * wave, half = w * (1 - t * .92) * 1.12;
+      for (const sd of [-1, 1]) {
+        const wig = sin(time * 6 + seed + i * 1.3 + sd) * 3;
+        const sx = cx + nx * sd * half * .15, sy = cy + ny * sd * half * .15;
+        const reach = half * (.75 + .55 * (sin(seed * 3.1 + i * 2.7 + sd) * .5 + .5)) + wig, back = half * (.55 + .4 * jit);
+        const ex = cx + nx * sd * reach - dx * back, ey = cy + ny * sd * reach - dy * back;
+        path.moveTo(sx, sy); path.quadraticCurveTo(cx + nx * sd * half * .75, cy + ny * sd * half * .75, ex, ey);
+      }
+    }
     return path;
   }
 
@@ -194,38 +213,59 @@
 
       // ---- acordada: fogo (brilho borrado + chama + núcleo, tudo somando luz)
       if (e > 0) {
-        // brilho: as penas largas num canvas pela metade, borrado e somado
+        // brilho de fundo: as penas largas num canvas pela metade, borrado e somado (só ele estoura a luz)
         const gg = this._gg; gg.setTransform(1, 0, 0, 1, 0, 0); gg.clearRect(0, 0, this._glow.width, this._glow.height);
         view(gg, .5); gg.globalCompositeOperation = "lighter";
-        for (const f of feathers) { gg.fillStyle = `rgba(255,${f.bright ? 110 : 60},20,${.55 * e})`; gg.fill(strip(f.c, f.w, f.seed, time, 1, 1.9)); }
+        for (const f of feathers) { gg.fillStyle = `rgba(255,${f.bright ? 80 : 45},15,${.42 * e})`; gg.fill(strip(f.c, f.w, f.seed, time, 1, 1.7)); }
         g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter";
-        g.filter = `blur(${Math.max(6, Math.round(14 * s * 1000 / 400))}px)`;
+        g.filter = `blur(${Math.max(6, Math.round(16 * s * 1000 / 400))}px)`;
         g.drawImage(this._glow, 0, 0, W, H); g.filter = "none"; g.restore();
-        // halo atrás do peito
-        g.save(); view(g, 1); g.globalCompositeOperation = "lighter";
-        const halo = g.createRadialGradient(540, 470 + bob, 0, 540, 470 + bob, 420);
-        halo.addColorStop(0, `rgba(255,200,90,${.35 * e})`); halo.addColorStop(.5, `rgba(255,90,30,${.15 * e})`); halo.addColorStop(1, "rgba(255,60,20,0)");
-        g.fillStyle = halo; g.fillRect(100, 50, 880, 880);
-        // chama (vermelho → laranja) e núcleo (amarelo → branco), ao longo de cada pena
+        g.save(); view(g, 1);
+        // halo atrás do corpo, suave
+        g.globalCompositeOperation = "lighter";
+        const halo = g.createRadialGradient(540, 470 + bob, 0, 540, 470 + bob, 430);
+        halo.addColorStop(0, `rgba(255,160,60,${.18 * e})`); halo.addColorStop(.55, `rgba(200,40,20,${.08 * e})`); halo.addColorStop(1, "rgba(200,40,20,0)");
+        g.fillStyle = halo; g.fillRect(100, 40, 880, 900);
+        // 1) a base de cada pena, pintada por cima (sem somar luz): vermelho profundo que vai a carmim e some
+        g.globalCompositeOperation = "source-over";
         for (const f of feathers) {
-          const a = bez(f.c, 0), b = bez(f.c, 1);
-          const lg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
-          lg.addColorStop(0, `rgba(255,140,40,${.95 * e})`); lg.addColorStop(.45, `rgba(240,70,20,${.85 * e})`); lg.addColorStop(1, "rgba(160,20,10,0)");
-          g.fillStyle = lg; g.fill(strip(f.c, f.w, f.seed, time, 1, f.thin ? 1 : .95));
-          const cg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
-          cg.addColorStop(0, `rgba(255,255,220,${(f.bright ? .95 : .75) * e})`); cg.addColorStop(.35, `rgba(255,214,90,${.7 * e})`); cg.addColorStop(.8, "rgba(255,150,40,0)");
-          g.fillStyle = cg; g.fill(strip(f.c, f.w, f.seed + .5, time, 1, f.thin ? .5 : .38));
+          const a = bez(f.c, 0), b = bez(f.c, 1), lg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
+          if (f.bright) { lg.addColorStop(0, `rgba(255,150,50,${e})`); lg.addColorStop(.5, `rgba(235,80,25,${e})`); lg.addColorStop(1, `rgba(170,25,20,${.6 * e})`); }
+          else { lg.addColorStop(0, `rgba(250,110,35,${e})`); lg.addColorStop(.4, `rgba(205,40,25,${.95 * e})`); lg.addColorStop(.85, `rgba(120,12,30,${.55 * e})`); lg.addColorStop(1, "rgba(90,8,40,0)"); }
+          g.fillStyle = lg; g.fill(strip(f.c, f.w, f.seed, time, 1, f.thin ? .9 : 1));
+        }
+        // 2) as barbas: fios finos saindo do eixo de cada pena, inclinados para trás (a textura de pincelada)
+        g.globalCompositeOperation = "lighter";
+        for (const f of feathers) {
+          const path = barbs(f.c, f.w * (f.thin ? .9 : 1), f.seed, time);
+          const a = bez(f.c, 0), b = bez(f.c, 1), bg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
+          bg.addColorStop(0, `rgba(255,236,150,${.4 * e})`); bg.addColorStop(.5, `rgba(255,170,60,${.3 * e})`); bg.addColorStop(1, "rgba(255,90,30,0)");
+          g.strokeStyle = bg; g.lineWidth = f.bright ? 2 : 1.5; g.lineCap = "round"; g.stroke(path);
+        }
+        // 3) o eixo de cada pena: um fio dourado que brilha mais perto da raiz
+        for (const f of feathers) {
+          const a = bez(f.c, 0), b = bez(f.c, 1), cg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
+          cg.addColorStop(0, `rgba(255,248,210,${(f.bright ? .45 : .6) * e})`); cg.addColorStop(.5, `rgba(255,200,90,${.38 * e})`); cg.addColorStop(1, "rgba(255,140,40,0)");
+          g.fillStyle = cg; g.fill(strip(f.c, f.w, f.seed + .5, time, 1, f.thin ? .35 : .14));
         }
         g.restore();
-        // a cabeça: chama clara, bico curvo escuro, olho branco que brilha
+        // a cabeça: alongada, de três quartos, com penas do pescoço, bico curvo e olho que brilha
         g.save(); view(g, 1); g.globalAlpha = e;
-        const hg = g.createRadialGradient(hx - 6, hy - 6, 2, hx, hy, 44);
-        hg.addColorStop(0, "#FFFBE0"); hg.addColorStop(.5, "#FFC23A"); hg.addColorStop(1, "rgba(255,110,30,.9)");
-        g.fillStyle = hg; g.beginPath(); g.ellipse(hx, hy, 44, 35, -.45, 0, PI * 2); g.fill();
-        g.fillStyle = "#3A1208"; g.beginPath();
-        g.moveTo(hx + 26, hy - 6); g.quadraticCurveTo(hx + 62, hy - 2, hx + 66, hy + 22); g.quadraticCurveTo(hx + 50, hy + 10, hx + 28, hy + 12); g.closePath(); g.fill();
-        g.fillStyle = "#2A0A05"; g.beginPath(); g.arc(hx + 6, hy - 6, 9, 0, PI * 2); g.fill();
-        g.fillStyle = "#FFFFFF"; g.shadowColor = "#FFF3B0"; g.shadowBlur = 18; g.beginPath(); g.arc(hx + 8, hy - 8, 4.5, 0, PI * 2); g.fill();
+        g.translate(hx, hy); g.rotate(-.35);
+        const hg = g.createLinearGradient(-50, -30, 50, 30);
+        hg.addColorStop(0, "#FFE08A"); hg.addColorStop(.45, "#FF9A2E"); hg.addColorStop(1, "#C8261A");
+        g.fillStyle = hg; g.beginPath();
+        g.moveTo(-58, 18); g.bezierCurveTo(-52, -26, -6, -40, 30, -26); g.bezierCurveTo(48, -18, 56, -4, 54, 8);
+        g.bezierCurveTo(30, 20, 0, 30, -58, 18); g.closePath(); g.fill();
+        // bico curvo, de rapina
+        const bk = g.createLinearGradient(40, -14, 84, 30); bk.addColorStop(0, "#FFD36A"); bk.addColorStop(1, "#7A2A08");
+        g.fillStyle = bk; g.beginPath(); g.moveTo(40, -14); g.bezierCurveTo(70, -14, 88, 6, 82, 32); g.bezierCurveTo(76, 18, 64, 12, 46, 12); g.closePath(); g.fill();
+        g.strokeStyle = "rgba(60,10,4,.6)"; g.lineWidth = 2.5; g.beginPath(); g.moveTo(46, 4); g.quadraticCurveTo(62, 4, 74, 14); g.stroke();
+        // olho: escuro com a íris acesa e o brilho
+        g.fillStyle = "#2A0A05"; g.beginPath(); g.ellipse(18, -10, 10, 8, 0, 0, PI * 2); g.fill();
+        g.fillStyle = "#FFB421"; g.beginPath(); g.ellipse(19, -10, 5.5, 5, 0, 0, PI * 2); g.fill();
+        g.fillStyle = "#FFFFFF"; g.shadowColor = "#FFF3B0"; g.shadowBlur = 16; g.beginPath(); g.arc(21, -12, 2.6, 0, PI * 2); g.fill();
+        g.shadowBlur = 0; g.strokeStyle = "rgba(60,10,4,.75)"; g.lineWidth = 3; g.beginPath(); g.moveTo(2, -20); g.quadraticCurveTo(18, -24, 32, -18); g.stroke();
         g.restore();
         // brasas saindo das pontas
         if (!reduced.matches && Math.random() < .9 * e) {
