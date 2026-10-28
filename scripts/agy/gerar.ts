@@ -11,9 +11,11 @@ import { normalizeBoard, validateBoardNote } from "../../supabase/functions/_sha
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const AGY = "C:/Users/otavi/AppData/Local/agy/bin/agy.exe";
 const BASH = "C:/Program Files/Git/bin/bash.exe";
-const GEN_MODEL = "gemini-4-argon-medium";
+// O Argon tem cota semanal própria e pequena (31% em 1 hora): escreve com o Flash alto, que usa a cota grande do Gemini.
+const GEN_MODEL = "gemini-3.8-flash-high";
 const AUD_MODEL = "claude-opus-5-5-medium";
 const AUD_GEMINI = "gemini-4-argon-high";
+const AUD_FLASH = "gemini-3.8-flash-high";
 const META = 150;            // um recorte com isso já está bom; passa para o próximo
 const LOTE = 50;
 const MIN_EDITAIS = 15;
@@ -282,11 +284,12 @@ Na dúvida, remova. Não use outras ferramentas além de ler o arquivo.`;
   // A cota semanal do Claude acaba bem antes da do Gemini (~2% por auditoria): o Opus audita 1 lote a
   // cada 4 e, nos outros, o Argon no esforço alto. Se a cota do Claude acabar, o Argon assume.
   estado.auditorias = (estado.auditorias ?? 0) + 1;
-  const modelo = estado.auditorias % 4 === 1 ? AUD_MODEL : AUD_GEMINI;
+  // Sem Claude (a cota dele acabou em 1 hora). Argon e Flash alto se alternam; se o Argon acabar, o Flash assume.
+  const modelo = estado.auditorias % 2 === 1 ? AUD_GEMINI : AUD_FLASH;
   log(`   auditando com ${modelo}`);
   let resp: string;
   try { resp = await agy(modelo, prompt, 20); }
-  catch (e) { if (e instanceof Cota && modelo !== AUD_GEMINI) resp = await agy(AUD_GEMINI, prompt, 20); else throw e; }
+  catch (e) { if (e instanceof Cota && modelo !== AUD_FLASH) resp = await agy(AUD_FLASH, prompt, 20); else throw e; }
   const r = extrairJson(resp);
   const remover = new Set<number>((r.remover ?? []).map((x: any) => Number(x)));
   for (const [n, m] of Object.entries(r.motivos ?? {})) log(`   auditoria removeu ${n}: ${String(m).slice(0, 140)}`);
