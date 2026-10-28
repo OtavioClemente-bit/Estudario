@@ -58,7 +58,8 @@ fun HomeScreen() {
     val daysToExam = plan?.exam?.let { it - todayEpoch }?.takeIf { it >= 0 }
     val coverage = percent(studied, leaves.size)
 
-    // ---------- o cartão do concurso
+    // ---------- o cartão do concurso (o Início inteiro vai no visual do estúdio: hm2)
+    Div({ classes("hm2") }) {
     Div({ classes("home-hero", "rise"); onClick { Router.go(Route.Edital) } }) {
         Div({ classes("hh-top") }) {
             Div({ classes("grow") }) {
@@ -101,6 +102,7 @@ fun HomeScreen() {
             LevelCard(progress)
             StreakWeekCard(streak)
         }
+    }
     }
 
     completing?.let { task -> CompleteTaskDialog(task) { completing = null } }
@@ -193,7 +195,10 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
     val done = tasks.count { it.status == "CONCLUIDA" }
     val total = tasks.size
     val complete = done == total
-    val current = nextUp(tasks)
+    // O próximo passo é o primeiro ainda não feito, na ordem do dia (não o que ficou "em andamento").
+    val current = tasks.firstOrNull { it.status != "CONCLUIDA" }
+    var opened by remember(tasks.map { it.id }) { mutableStateOf<String?>(null) }
+    val expanded = opened ?: current?.id
     val planned = tasks.sumOf { it.minutes }
     val leftMinutes = tasks.filter { it.status != "CONCLUIDA" }.sumOf { it.minutes }
     val earned = tasks.filter { it.status == "CONCLUIDA" }.sumOf { Progress.taskXp(it) }
@@ -209,7 +214,7 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
                     Text(when {
                         complete -> "Missão cumprida! Você fechou o plano de hoje."
                         done == 0 -> "Hoje são $total ${if (total == 1) "passo" else "passos"}. Comece pelo primeiro."
-                        else -> "Faltam ${total - done} ${if (total - done == 1) "passo" else "passos"} para fechar o dia."
+                        else -> "${if (total - done == 1) "Falta 1 passo" else "Faltam ${total - done} passos"} para fechar o dia."
                     })
                 }
                 Span { Text(if (complete) "+$earned XP no bolso. Amanhã tem mais." else "${Queries.minutesLabel(leftMinutes)} de estudo · até +${possible - earned} XP") }
@@ -220,6 +225,7 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
                 key(t.id) {
                     val isDone = t.status == "CONCLUIDA"
                     val isNow = t.id == current?.id
+                    val isOpen = t.id == expanded
                     val (icon, color) = when (t.type) {
                         "THEORY" -> "menu_book" to "#A78BFF"
                         "QUESTIONS" -> "quiz" to "#2FD39A"
@@ -227,9 +233,9 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
                         "FLASHCARDS" -> "style" to "#FFC94D"
                         else -> "flag" to "#FF8A3D"
                     }
-                    Div({ classes(*listOfNotNull("ms2-step", if (isDone) "done" else null, if (isNow) "now" else null).toTypedArray()); attr("style", "--c:$color") }) {
+                    Div({ classes(*listOfNotNull("ms2-step", if (isDone) "done" else null, if (isNow) "now" else null, if (isOpen) "open" else null).toTypedArray()); attr("style", "--c:$color") }) {
                         Span({ classes("ms2-num") }) { if (isDone) Icon("check", plain = true) else Text("${i + 1}") }
-                        Div({ classes("ms2-card"); attr("role", "button"); attr("tabindex", "0"); onClick { openTask(t) } }) {
+                        Div({ classes("ms2-card"); attr("role", "button"); attr("tabindex", "0"); attr("aria-expanded", "$isOpen"); onClick { opened = t.id } }) {
                             Div({ classes("ms2-card-top") }) {
                                 Span({ classes("ms2-type") }) { Icon(icon); Text(Queries.taskTypeLabel(t.type)) }
                                 Span({ classes("ms2-time") }) { Text(Queries.minutesLabel(t.minutes)) }
@@ -237,10 +243,20 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
                             }
                             B({ classes("ms2-title") }) { Text(taskTitle(t)) }
                             if (t.topicName != null && t.subjectName.isNotBlank()) Span({ classes("ms2-subject") }) { Text(t.subjectName) }
-                            if (isNow) Div({ classes("ms2-actions") }) {
+                            if (isOpen) Div({ classes("ms2-actions") }) {
                                 val noMaterial = t.topicId != null && !hasMaterial(data, t.topicId) && !Store.demo
-                                if (noMaterial) GxLaunch("Gerar o material deste passo", icon = "Pencil") { onGenerate(t.topicId!!) }
-                                else GxLaunch(if (t.status == "EM_ANDAMENTO") "Continuar de onde parei" else "Começar este passo", icon = "play_circle") { openTask(t) }
+                                if (noMaterial && !isDone) GxLaunch("Gerar o material deste passo", icon = "Pencil") { onGenerate(t.topicId!!) }
+                                else GxLaunch(
+                                    when {
+                                        isDone -> "Rever este passo"
+                                        t.status == "EM_ANDAMENTO" -> "Continuar de onde parei"
+                                        t.type == "QUESTIONS" -> "Resolver as questões"
+                                        t.type == "REVIEW" -> "Fazer a revisão"
+                                        t.type == "THEORY" -> "Estudar a teoria"
+                                        else -> "Começar este passo"
+                                    },
+                                    icon = if (t.type == "QUESTIONS") "quiz" else if (t.type == "THEORY") "menu_book" else "play_circle",
+                                ) { openTask(t) }
                             }
                         }
                         if (!isDone) Button({
@@ -256,7 +272,7 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
             Xp(earned, green = complete)
             Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.Plan) } }) { Icon("calendar_month"); Span { Text("Ver o plano inteiro") } }
         }
-        if (planned > 0 && !complete && done == 0) P({ classes("gx-note", "ms2-hint") }) { Text("Dica: toque em “Começar este passo”. Ao terminar, o próximo abre sozinho. O ✓ ao lado marca como feito o que você já fez fora daqui.") }
+        if (planned > 0 && !complete && done == 0) P({ classes("gx-note", "ms2-hint") }) { Text("Dica: siga os passos na ordem, de cima para baixo. Toque em qualquer passo para abrir; o ✓ ao lado marca como feito o que você já fez fora daqui.") }
     }
 }
 

@@ -100,7 +100,18 @@ enum class PresetAvatar(val key: String, val label: String, val top: Color, val 
     CAPELO("capelo", "Formatura", Color(0xFF34D399), Color(0xFF0E8F63), br.com.estudario.ui.brand.Glyph.Cap),
     LAMPADA("lampada", "Ideia", Color(0xFFFFC857), Color(0xFFE08A00), br.com.estudario.ui.brand.Glyph.Bulb),
     ALVO("alvo", "Foco", Color(0xFFFF8A7A), Color(0xFFD9443A), br.com.estudario.ui.brand.Glyph.Target),
-    TROFEU("trofeu", "Aprovação", Color(0xFF5CC8FF), Color(0xFF1C7FC4), br.com.estudario.ui.brand.Glyph.Trophy);
+    TROFEU("trofeu", "Aprovação", Color(0xFF5CC8FF), Color(0xFF1C7FC4), br.com.estudario.ui.brand.Glyph.Trophy),
+    CHAMA("chama", "Chama", Color(0xFFFFB347), Color(0xFFE8590C), br.com.estudario.ui.brand.Glyph.Fire),
+    CEREBRO("cerebro", "Cérebro", Color(0xFFF9A8D4), Color(0xFFC2416C), br.com.estudario.ui.brand.Glyph.Brain),
+    LIVROS("livros", "Livros", Color(0xFF5EEAD4), Color(0xFF0F766E), br.com.estudario.ui.brand.Glyph.Books),
+    ESTRELA("estrela", "Estrela", Color(0xFFFDE68A), Color(0xFFD97706), br.com.estudario.ui.brand.Glyph.Star),
+    DIAMANTE("diamante", "Diamante", Color(0xFFA5F3FC), Color(0xFF0E7490), br.com.estudario.ui.brand.Glyph.Gem),
+    MEDALHA("medalha", "Medalha", Color(0xFFFCD34D), Color(0xFFB45309), br.com.estudario.ui.brand.Glyph.Medal),
+    ESCUDO("escudo", "Escudo", Color(0xFF93C5FD), Color(0xFF1D4ED8), br.com.estudario.ui.brand.Glyph.Shield),
+    CAFE("cafe", "Café", Color(0xFFD6A77A), Color(0xFF7C4A21), br.com.estudario.ui.brand.Glyph.Coffee),
+    LUA("lua", "Coruja da noite", Color(0xFFA5B4FC), Color(0xFF3730A3), br.com.estudario.ui.brand.Glyph.Moon),
+    CORACAO("coracao", "Coração", Color(0xFFFDA4AF), Color(0xFFBE123C), br.com.estudario.ui.brand.Glyph.Heart),
+    DADO("dado", "Sorte", Color(0xFFC4B5FD), Color(0xFF6D28D9), br.com.estudario.ui.brand.Glyph.Dice);
 
     val path: String get() = "avatar:$key"
 

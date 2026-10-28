@@ -3,6 +3,7 @@ package br.com.estudario.ui.screens.home
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,8 @@ data class MissionItemUi(
     val minutes: Int = 0,
     val subject: String? = null,
     val inProgress: Boolean = false,
+    /** Abre esta tarefa (teoria, questões ou revisão). */
+    val onOpen: (() -> Unit)? = null,
 )
 
 /** A missão do dia inteira: o que o plano pede hoje e quanto já foi feito. */
@@ -176,7 +179,10 @@ fun DailyMissionCard(
     val done = mission.doneCount
     val total = mission.items.size
     val complete = total > 0 && done == total
-    val nowIndex = mission.items.indexOfFirst { it.current }.takeIf { it >= 0 } ?: mission.items.indexOfFirst { !it.done }
+    // O próximo passo é o primeiro ainda não feito, na ordem do dia; tocar num passo abre ele.
+    val nowIndex = mission.items.indexOfFirst { !it.done }
+    var openIndex by androidx.compose.runtime.saveable.rememberSaveable(mission.items.size) { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    val expanded = openIndex ?: nowIndex
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
     br.com.estudario.ui.theme.EstudarioTheme(darkTheme = true) {
         Column(
@@ -209,7 +215,8 @@ fun DailyMissionCard(
                         when {
                             complete -> "Missão cumprida! Você fechou o plano de hoje."
                             done == 0 -> "Hoje são $total ${if (total == 1) "passo" else "passos"}. Comece pelo primeiro."
-                            else -> "Faltam ${total - done} ${if (total - done == 1) "passo" else "passos"} para fechar o dia."
+                            total - done == 1 -> "Falta 1 passo para fechar o dia."
+                            else -> "Faltam ${total - done} passos para fechar o dia."
                         },
                         style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = if (complete) g.mint else g.ink,
                     )
@@ -222,7 +229,7 @@ fun DailyMissionCard(
             // Os passos, ligados por um fio.
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val shown = mission.items.take(6)
-                shown.forEachIndexed { index, item -> MissionStep(index, item, index == nowIndex, onStartCurrent, onGenerate) }
+                shown.forEachIndexed { index, item -> MissionStep(index, item, index == nowIndex, index == expanded, { openIndex = index }, item.onOpen ?: onStartCurrent, if (index == nowIndex) onGenerate else null) }
             }
             if (total > 6) Text("+ ${total - 6} no plano de hoje", style = MaterialTheme.typography.labelMedium, color = g.violet)
             Row(Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable(onClick = onOpenPlan).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -236,7 +243,7 @@ fun DailyMissionCard(
 }
 
 @Composable
-private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, onStart: (() -> Unit)?, onGenerate: (() -> Unit)?) {
+private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen: Boolean, onSelect: () -> Unit, onStart: (() -> Unit)?, onGenerate: (() -> Unit)?) {
     val g = br.com.estudario.ui.profile.Game
     val color = when (item.kind) {
         br.com.estudario.domain.planner.PlanTaskType.THEORY -> androidx.compose.ui.graphics.Color(0xFFA78BFF)
@@ -263,11 +270,11 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, onStart
         val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
         Column(
             Modifier.weight(1f).clip(cardShape)
-                .background(if (isNow) androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.03f))) else androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f))))
-                .border(1.5.dp, if (isNow) color else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f), cardShape)
-                .then(if (onStart != null && !item.done) Modifier.clickable { if (isNow) onStart() } else Modifier)
-                .padding(if (isNow) 14.dp else 11.dp)
-                .then(if (item.done) Modifier.alpha(0.55f) else Modifier),
+                .background(if (isOpen) androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.03f))) else androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f))))
+                .border(1.5.dp, if (isOpen) color else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f), cardShape)
+                .clickable(onClick = onSelect)
+                .padding(if (isOpen) 14.dp else 11.dp)
+                .then(if (item.done && !isOpen) Modifier.alpha(0.55f) else Modifier),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -283,12 +290,12 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, onStart
             }
             Text(
                 item.title,
-                style = if (isNow) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold, color = g.ink, maxLines = if (isNow) 3 else 2, overflow = TextOverflow.Ellipsis,
-                textDecoration = if (item.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                style = if (isOpen) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold, color = g.ink, maxLines = if (isOpen) 3 else 2, overflow = TextOverflow.Ellipsis,
+                textDecoration = if (item.done && !isOpen) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
             )
             item.subject?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = g.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            if (isNow && onStart != null) {
+            if (isOpen && onStart != null) {
                 Spacer(Modifier.height(6.dp))
                 val generate = onGenerate
                 androidx.compose.material3.Button(
@@ -297,7 +304,18 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, onStart
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFF6C5CFF), contentColor = androidx.compose.ui.graphics.Color.White),
                 ) {
-                    Text(if (generate != null) "Gerar o material deste passo" else if (item.inProgress) "Continuar de onde parei" else "Começar este passo", fontWeight = FontWeight.Black)
+                    Text(
+                        when {
+                            generate != null -> "Gerar o material deste passo"
+                            item.done -> "Rever este passo"
+                            item.inProgress -> "Continuar de onde parei"
+                            item.kind == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS -> "Resolver as questões"
+                            item.kind == br.com.estudario.domain.planner.PlanTaskType.REVIEW -> "Fazer a revisão"
+                            item.kind == br.com.estudario.domain.planner.PlanTaskType.THEORY -> "Estudar a teoria"
+                            else -> "Começar este passo"
+                        },
+                        fontWeight = FontWeight.Black,
+                    )
                 }
             }
         }

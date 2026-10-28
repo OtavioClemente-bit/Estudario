@@ -33,6 +33,17 @@ private val PRESETS = listOf(
     PresetAvatar("lampada", "Ideia", "#FFC857", "#E08A00", "lightbulb"),
     PresetAvatar("alvo", "Foco", "#FF8A7A", "#D9443A", "gps_fixed"),
     PresetAvatar("trofeu", "Aprovação", "#5CC8FF", "#1C7FC4", "emoji_events"),
+    PresetAvatar("chama", "Chama", "#FFB347", "#E8590C", "local_fire_department"),
+    PresetAvatar("cerebro", "Cérebro", "#F9A8D4", "#C2416C", "psychology"),
+    PresetAvatar("livros", "Livros", "#5EEAD4", "#0F766E", "library_books"),
+    PresetAvatar("estrela", "Estrela", "#FDE68A", "#D97706", "star"),
+    PresetAvatar("diamante", "Diamante", "#A5F3FC", "#0E7490", "diamond"),
+    PresetAvatar("medalha", "Medalha", "#FCD34D", "#B45309", "military_tech"),
+    PresetAvatar("escudo", "Escudo", "#93C5FD", "#1D4ED8", "shield"),
+    PresetAvatar("cafe", "Café", "#D6A77A", "#7C4A21", "coffee"),
+    PresetAvatar("lua", "Coruja da noite", "#A5B4FC", "#3730A3", "dark_mode"),
+    PresetAvatar("coracao", "Coração", "#FDA4AF", "#BE123C", "favorite"),
+    PresetAvatar("dado", "Sorte", "#C4B5FD", "#6D28D9", "casino"),
 )
 
 /**
@@ -68,7 +79,7 @@ fun AvatarContent() {
 @Composable
 private fun PresetArt(p: PresetAvatar) {
     Span({ classes("av-preset"); attr("style", "background:linear-gradient(180deg,${p.top},${p.bottom})") }) {
-        if (p.glyph == null) Folha("happy", 40, live = false) else Icon(p.glyph, filled = true)
+        if (p.glyph == null) Folha("happy", 220, live = false) else Icon(p.glyph, filled = true)
     }
 }
 
