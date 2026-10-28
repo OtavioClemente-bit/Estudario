@@ -567,24 +567,31 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
         before = { s -> SleepZ(s) },
         after = { },
         backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
-        cues = listOf(0.8f to "toque"),
+        cues = listOf(0.64f to "toque"),
         folhaInLine = false,
         stageExtra = { t, s ->
             StreakCounter(days, t)
-            // o Folha chega na ponta dos pés com o marca-página…
-            val walk = seg(t, 0.05f, 0.9f)
-            Box(Modifier.align(Alignment.BottomStart).offset(x = (-20).dp).graphicsLayer {
-                alpha = (walk * 5f).coerceAtMost(1f); translationX = (-120f * (1f - walk)).dp.toPx(); translationY = (-6f * kotlin.math.abs(kotlin.math.sin(walk * PI.toFloat() * 4f))).dp.toPx()
+            // o Folha chega com o marca-página, toma impulso e joga nela; ela desperta, ele se assusta e recua
+            val walk = seg(t, 0f, 0.6f)
+            val wind = seg(t, 0.48f, 0.32f)
+            val back = CubicBezierEasing(0.2f, 1.2f, 0.4f, 1f).transform(seg(t, 1.12f, 0.65f))
+            val scared = t >= 1.08f
+            Box(Modifier.align(Alignment.BottomStart).offset(x = (-30).dp, y = (-10).dp).graphicsLayer {
+                alpha = (walk * 4f).coerceAtMost(1f)
+                translationX = (-150f * (1f - walk) - 24f * back).dp.toPx()
+                translationY = (-6f * kotlin.math.abs(kotlin.math.sin(walk * PI.toFloat() * 4f))).dp.toPx()
+                // o impulso do arremesso (para trás e para a frente) e, assustado, inclinado para trás
+                rotationZ = (if (wind in 0.001f..0.999f) -14f * kotlin.math.sin(wind * PI.toFloat() * 2f) else 0f) - 7f * back
             }) {
-                Folha(52.dp, mood = FolhaMood.WINK)
-                Box(Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp).rotate(if (t > 0.7f) -20f else 18f)) { BrandIcon(Glyph.Bookmark, size = 26.dp) }
+                Folha(64.dp, mood = if (scared) FolhaMood.SURPRISED else FolhaMood.WINK)
             }
-            // …e solta a faísca que acende a fênix
-            val sp = seg(t, 0.78f, 0.32f)
-            if (sp in 0.001f..0.999f) Box(
-                Modifier.align(Alignment.Center).offset(x = (-80f * (1f - sp)).dp, y = (80f * (1f - sp)).dp).size((10f + 8f * sp).dp).clip(CircleShape)
-                    .background(Brush.radialGradient(listOf(Color.White, Color(0xFFFFC22E), Color.Transparent))),
-            )
+            // o marca-página voa em arco, girando, da mão dele até o peito dela
+            val fly = seg(t, 0.62f, 0.44f)
+            if (fly in 0.001f..0.999f) {
+                val x = -150f * (1f - fly)
+                val y = 70f * (1f - fly) - 120f * kotlin.math.sin(fly * PI.toFloat())
+                Box(Modifier.align(Alignment.Center).offset(x = x.dp, y = (y - 10f).dp).rotate(600f * fly)) { BrandIcon(Glyph.Bookmark, size = 30.dp) }
+            }
         },
     )
 }

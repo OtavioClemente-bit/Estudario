@@ -287,8 +287,8 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
 @Composable
 internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, week: List<Pair<String, Boolean>>, onClose: () -> Unit) {
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(800); som("toque")
-        kotlinx.coroutines.delay(250); som("combo")
+        kotlinx.coroutines.delay(640); som("toque")
+        kotlinx.coroutines.delay(410); som("combo")
     }
     GameShell(Triple("#FFE08A", "#FF8A3D", "#B23A0E"), null, "Sequência salva pelo Folha", false, "streak saved") {
         GameStage(
@@ -297,8 +297,12 @@ internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, week: List<
             after = { Div({ classes("lvx-phx") }) },
             extra = {
                 FenixView(340, wakeAt = 1050)
-                Div({ classes("lvx-tiptoe") }) { Folha("wink", 64); Img(bookmarkSrc(), "") }
-                Span({ classes("lvx-spark") })
+                // o Folha chega com o marca-página, toma impulso e joga nela; ela desperta, ele se assusta e recua
+                Div({ classes("lvx-saver") }) {
+                    Div({ classes("lvx-saver-a") }) { Folha("wink", 72) }
+                    Div({ classes("lvx-saver-b") }) { Folha("surprised", 72) }
+                }
+                Img(bookmarkSrc(), "", attrs = { classes("lvx-throw") })
             },
         )
         StreakCounter(days)
