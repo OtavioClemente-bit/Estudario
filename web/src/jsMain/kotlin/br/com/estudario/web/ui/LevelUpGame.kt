@@ -10,7 +10,6 @@ import androidx.compose.runtime.setValue
 import br.com.estudario.domain.Badge
 import br.com.estudario.domain.FolhaWardrobe
 import br.com.estudario.domain.LevelCrest
-import br.com.estudario.domain.Phoenix
 import br.com.estudario.domain.ProgressEngine
 import br.com.estudario.web.data.Progress
 import br.com.estudario.web.data.Store
@@ -184,18 +183,21 @@ internal fun LevelUpGame(level: Int, title: String, totalXp: Int, leaving: Boole
 
 // ------------------------------------------------------------------ a fênix
 
-/** A fênix da sequência (Phoenix, o mesmo desenho do app): dormindo cinza ou acordada em fogo, batendo as asas. */
+/**
+ * A fênix da sequência pintada com fogo em tempo real (phoenix.js, <estudario-fenix>, a mesma do app):
+ * dorme como carvão com veias de brasa e acorda sozinha depois de [wakeAt] ms, explodindo em fogo.
+ */
 @Composable
-internal fun PhoenixView(awake: Boolean, size: Int, extraClass: String? = null) {
-    val id = remember { "px" + Random.nextInt(1, 999_999) }
-    key(awake) {
-        Div({
-            classes(*listOfNotNull("px", if (awake) "awake" else "sleep", extraClass).toTypedArray())
-            attr("style", "width:${size}px;height:${size}px")
-            attr("role", "img"); attr("aria-label", if (awake) "A fênix acordada, pegando fogo" else "A fênix dormindo")
-            ref { el -> el.innerHTML = Phoenix.svg(awake, "$id-${if (awake) "a" else "s"}"); onDispose { } }
-        })
-    }
+internal fun FenixView(size: Int, wakeAt: Int?, awake: Boolean = false) {
+    org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
+        elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-fenix"),
+        applyAttrs = {
+            classes("lvx-fenix"); attr("style", "width:${size}px;height:${size}px")
+            attr("state", if (awake) "awake" else "sleep"); if (wakeAt != null) attr("wake-at", wakeAt.toString())
+            attr("role", "img"); attr("aria-label", "A fênix da sequência")
+        },
+        content = null,
+    )
 }
 
 /** Os dias da semana: chama acesa nos dias estudados, apagada nos outros; hoje maior e brilhando. */
@@ -234,9 +236,10 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
     GameShell(Triple("#FFE08A", "#FF8A3D", "#B23A0E"), null, "$days dias de sequência", leaving, "streak") {
         GameStage(
             if (record) "RECORDE!" else null,
-            before = { Div({ classes("lvx-phx") }) { PhoenixView(false, 210); Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
-            after = { Div({ classes("lvx-phx") }) { PhoenixView(true, 210); B({ classes("lvx-coin") }) { Text("$days") } } },
+            before = { Div({ classes("lvx-phx") }) { Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
+            after = { Div({ classes("lvx-phx") }) { B({ classes("lvx-coin") }) { Text("$days") } } },
             extra = {
+                FenixView(250, wakeAt = 1050)
                 Div({ classes("lvx-vortex") })
                 Div({ classes("lvx-scared") }) { Folha("surprised", 64); Span { Text("!") } }
             },
@@ -273,9 +276,10 @@ internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, week: List<
     GameShell(Triple("#FFE08A", "#FF8A3D", "#B23A0E"), null, "Sequência salva pelo Folha", false, "streak saved") {
         GameStage(
             "SALVA!",
-            before = { Div({ classes("lvx-phx") }) { PhoenixView(false, 210); Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
-            after = { Div({ classes("lvx-phx") }) { PhoenixView(true, 210); B({ classes("lvx-coin") }) { Text("$days") } } },
+            before = { Div({ classes("lvx-phx") }) { Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
+            after = { Div({ classes("lvx-phx") }) { B({ classes("lvx-coin") }) { Text("$days") } } },
             extra = {
+                FenixView(250, wakeAt = 1050)
                 Div({ classes("lvx-tiptoe") }) { Folha("wink", 64); Img(bookmarkSrc(), "") }
                 Span({ classes("lvx-spark") })
             },

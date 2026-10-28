@@ -94,8 +94,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 176
-        versionName = "3.3.148"
+        versionCode = 177
+        versionName = "3.3.149"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
@@ -149,7 +149,7 @@ extensions.configure<ApplicationExtension> {
 }
 
 val copyFolhaAssets by tasks.registering(Copy::class) {
-    from(rootProject.file("web/src/jsMain/resources/folha-live.js"), rootProject.file("web/src/jsMain/resources/turma.js"))
+    from(rootProject.file("web/src/jsMain/resources/folha-live.js"), rootProject.file("web/src/jsMain/resources/turma.js"), rootProject.file("web/src/jsMain/resources/phoenix.js"))
     into(layout.buildDirectory.dir("generated/folha-assets"))
 }
 tasks.named("preBuild") { dependsOn(copyFolhaAssets) }

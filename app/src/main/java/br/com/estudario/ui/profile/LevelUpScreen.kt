@@ -135,7 +135,7 @@ internal fun GameScene(
     /** Segundos antes da linha do tempo começar (a forja do emblema roda primeiro). */
     delay: Float = 0f,
     /** Algo desenhado no fundo do palco (a forja), com o tamanho do palco. */
-    backdrop: (@Composable (androidx.compose.ui.unit.Dp) -> Unit)? = null,
+    backdrop: (@Composable (androidx.compose.ui.unit.Dp, Float) -> Unit)? = null,
     /** Altura do palco em relação à largura, e quanto o impacto sobe ou desce nele (fração da altura). */
     stageTall: Float = 1f, fxShift: Float = 0f,
     /** Peças a mais no palco que seguem o relógio (redemoinho, o Folha). */
@@ -204,7 +204,7 @@ internal fun GameScene(
             ) {
                 // palco (com a forja no fundo, quando houver; o impacto pode subir até a medalha)
                 Box(Modifier.width(stageSize + 30.dp).height((stageSize + 30.dp) * stageTall), contentAlignment = Alignment.Center) {
-                backdrop?.invoke(stageSize)
+                backdrop?.invoke(stageSize, t)
                 Box(Modifier.size(stageSize + 30.dp).offset(y = (stageSize + 30.dp) * stageTall * fxShift), contentAlignment = Alignment.Center) {
                     // halo
                     val haloA = seg(t, IMPACT, 0.5f)
@@ -367,59 +367,64 @@ private fun levelLine(level: Int, title: String, promo: Boolean): String = when 
 // ---------------------------------------------------------------- a fênix
 
 /**
- * A fênix da sequência (Phoenix, o mesmo desenho do site, desenhado pelo AndroidSVG em partes): cauda,
- * as duas asas batendo ([flap] de 0 a 1) em torno do ombro e o corpo respirando ([breath]).
+ * A fênix da sequência pintada com fogo em tempo real (phoenix.js, o mesmo do site, numa WebView
+ * transparente): dorme como carvão com veias de brasa e, quando [wake] vira verdade (o impacto da cena),
+ * o app a acende — ela explode em fogo e abre as asas. A WebView é maior que a fênix para o brilho caber.
  */
+@android.annotation.SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun PhoenixImage(awake: Boolean, size: androidx.compose.ui.unit.Dp, flap: Float = 0f, breath: Float = 0f, modifier: Modifier = Modifier) {
-    val parts = remember(awake) {
-        br.com.estudario.domain.Phoenix.Part.entries.associateWith { part ->
-            runCatching { com.caverock.androidsvg.SVG.getFromString(br.com.estudario.domain.Phoenix.svg(awake, "px${part.ordinal}", setOf(part))) }.getOrNull()
-        }
+private fun FenixScene(size: androidx.compose.ui.unit.Dp, wake: Boolean) {
+    val px = size.value.toInt()
+    val html = remember(px) {
+        """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}estudario-fenix{display:block;width:${px}px;height:${px}px;margin:${px / 4}px auto 0}</style></head>
+<body><script src="phoenix.js"></script><estudario-fenix state="sleep"></estudario-fenix></body></html>"""
     }
-    Canvas(modifier.size(size)) {
-        val k = this.size.width / 200f
-        val native = drawContext.canvas.nativeCanvas
-        fun part(p: br.com.estudario.domain.Phoenix.Part, block: android.graphics.Canvas.() -> Unit) {
-            val svg = parts[p] ?: return
-            native.save(); native.block()
-            svg.documentWidth = this.size.width; svg.documentHeight = this.size.height
-            svg.renderToCanvas(native); native.restore()
-        }
-        val (lx, ly) = br.com.estudario.domain.Phoenix.WING_L_PIVOT
-        val (rx, ry) = br.com.estudario.domain.Phoenix.WING_R_PIVOT
-        part(br.com.estudario.domain.Phoenix.Part.TAIL) { rotate((breath - 0.5f) * 8f, 100f * k, 150f * k) }
-        part(br.com.estudario.domain.Phoenix.Part.WING_L) { rotate(-16f * flap, lx * k, ly * k) }
-        part(br.com.estudario.domain.Phoenix.Part.WING_R) { rotate(16f * flap, rx * k, ry * k) }
-        part(br.com.estudario.domain.Phoenix.Part.BODY) { scale(1f - 0.02f * breath, 1f + 0.04f * breath, 100f * k, 158f * k) }
-    }
+    val lit = remember { booleanArrayOf(false) }
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { ctx ->
+            android.webkit.WebView(ctx).apply {
+                setBackgroundColor(0)
+                settings.javaScriptEnabled = true
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = android.view.View.OVER_SCROLL_NEVER
+                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
+            }
+        },
+        update = { view -> if (wake && !lit[0]) { lit[0] = true; view.evaluateJavascript("document.querySelector('estudario-fenix').ignite()", null) } },
+        onRelease = { it.destroy() },
+        modifier = Modifier.requiredSize(size * 1.5f),
+    )
 }
 
-/** A fênix no palco: dormindo (respirando devagar, com "z" subindo) ou acordada (batendo as asas, com a moeda do dia). */
+/** O "antes" da fênix: o "z" subindo enquanto ela dorme. */
 @Composable
-private fun PhoenixStage(awake: Boolean, days: Int, size: androidx.compose.ui.unit.Dp) {
-    val loop = rememberInfiniteTransition(label = "px")
-    val flap by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "flap")
-    val breath by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(if (awake) 700 else 1200), RepeatMode.Reverse), label = "breath")
-    val z by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "z")
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-        PhoenixImage(awake, size * 0.95f, flap = if (awake) flap else 0f, breath = breath)
-        if (!awake) Box(Modifier.align(Alignment.TopEnd).padding(end = size * 0.1f, top = size * 0.12f)) {
+private fun SleepZ(size: androidx.compose.ui.unit.Dp) {
+    val z by rememberInfiniteTransition(label = "z").animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "z")
+    Box(Modifier.size(size)) {
+        Box(Modifier.align(Alignment.TopEnd).padding(end = size * 0.12f, top = size * 0.14f)) {
             listOf(0f, 0.33f, 0.66f).forEachIndexed { i, off ->
                 val p = (z + off) % 1f
                 Text("z", Modifier.offset(x = (i * 12).dp + (10f * p).dp, y = (-i * 16).dp - (14f * p).dp).graphicsLayer { alpha = if (p < 0.3f) p / 0.3f else 1f - p },
                     color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Black, fontSize = (16 + i * 6).sp)
             }
         }
-        if (awake) {
-            val coin = size * 0.3f
-            Box(
-                Modifier.align(Alignment.BottomEnd).padding(end = size * 0.02f, bottom = size * 0.06f).size(coin).clip(CircleShape)
-                    .background(Brush.verticalGradient(listOf(Color(0xFFFFF3B8), Color(0xFFFFC22E), Color(0xFFFF8A3D))))
-                    .border(3.dp, Color.White, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Text("$days", color = Color(0xFF4A1800), fontWeight = FontWeight.Black, fontSize = (coin.value * 0.45f).sp) }
-        }
+    }
+}
+
+/** O "depois": a moeda com o número do dia, no canto da fênix acesa. */
+@Composable
+private fun DayCoin(days: Int, size: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(size)) {
+        val coin = size * 0.28f
+        Box(
+            Modifier.align(Alignment.BottomEnd).padding(end = size * 0.0f, bottom = size * 0.04f).size(coin).clip(CircleShape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFF3B8), Color(0xFFFFC22E), Color(0xFFFF8A3D))))
+                .border(3.dp, Color.White, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text("$days", color = Color(0xFF4A1800), fontWeight = FontWeight.Black, fontSize = (coin.value * 0.45f).sp) }
     }
 }
 
@@ -505,8 +510,9 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
         },
         primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
         middle = { t -> GameWeekRow(week, t, FIRE1, FIRE2) },
-        before = { s -> PhoenixStage(false, days, s) },
-        after = { s -> PhoenixStage(true, days, s) },
+        before = { s -> SleepZ(s) },
+        after = { s -> DayCoin(days, s) },
+        backdrop = { s, t -> FenixScene(s, wake = t >= IMPACT) },
         cues = listOf(0.25f to "tonto"),
         stageExtra = { t, s ->
             Vortex(t, s)
@@ -544,8 +550,9 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
         line = "Shhh… ela quase apagou, mas eu acendi de novo pra você. Bora não deixar dormir hoje?",
         primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
         middle = { t -> GameWeekRow(days7, t, FIRE1, FIRE2) },
-        before = { s -> PhoenixStage(false, days, s) },
-        after = { s -> PhoenixStage(true, days, s) },
+        before = { s -> SleepZ(s) },
+        after = { s -> DayCoin(days, s) },
+        backdrop = { s, t -> FenixScene(s, wake = t >= IMPACT) },
         cues = listOf(0.8f to "toque"),
         stageExtra = { t, _ ->
             // o Folha chega na ponta dos pés com o marca-página…
@@ -615,7 +622,7 @@ fun BadgeCelebrationScreen(badges: List<br.com.estudario.domain.Badge>, onClose:
             primary = if (last) "Continuar" else "Próximo emblema", onPrimary = { if (last) onClose() else index++ }, onClose = onClose,
             before = { }, after = { },
             delay = FORGE_REVEAL - IMPACT, stageTall = 1.1f, fxShift = -0.25f,
-            backdrop = { s ->
+            backdrop = { s, _ ->
                 val w = s + 30.dp
                 val bleed = w * 0.34f
                 FolhaScene(
