@@ -316,23 +316,54 @@
           g.fillStyle = cg; g.fill(strip(f.c, f.w, f.seed + .5, time, 1, f.thin ? .35 : .14));
         }
         g.restore();
-        // a cabeça: alongada, de três quartos, com penas do pescoço, bico curvo e olho que brilha
+        // a cabeça: de ave de rapina, fina e aerodinâmica, afinando para trás até a crista; plumas de fogo
+        // saindo da nuca, bico curto em gancho dourado, olho amendoado aceso sob a crista óssea (olhar firme)
         g.save(); view(g, 1); g.globalAlpha = e;
-        g.translate(hx, hy); g.rotate(-.35);
-        const hg = g.createLinearGradient(-50, -30, 50, 30);
-        hg.addColorStop(0, "#FFE08A"); hg.addColorStop(.45, "#FF9A2E"); hg.addColorStop(1, "#C8261A");
+        g.translate(hx, hy); g.rotate(-.3);
+        // plumas da nuca (fogo somando luz, atrás da cabeça)
+        g.globalCompositeOperation = "lighter";
+        for (let i = 0; i < 3; i++) {
+          const sw = sin(time * 3 + i * 1.7) * 6, tipX = -118 - i * 18, tipY = -58 + i * 26 + sw;
+          const pg = g.createLinearGradient(-30, -14, tipX, tipY);
+          pg.addColorStop(0, `rgba(255,190,80,${.75 * e})`); pg.addColorStop(1, "rgba(255,70,20,0)");
+          g.fillStyle = pg; g.beginPath();
+          g.moveTo(-26, -24 + i * 12); g.quadraticCurveTo(-70, -40 + i * 18 + sw * .5, tipX, tipY);
+          g.quadraticCurveTo(-70, -26 + i * 18 + sw * .5, -26, -10 + i * 12); g.closePath(); g.fill();
+        }
+        g.globalCompositeOperation = "source-over";
+        // a cabeça
+        const hg = g.createLinearGradient(-60, -30, 50, 20);
+        hg.addColorStop(0, "#C8261A"); hg.addColorStop(.4, "#FF8A26"); hg.addColorStop(.8, "#FFD36A"); hg.addColorStop(1, "#FFF1C0");
         g.fillStyle = hg; g.beginPath();
-        g.moveTo(-58, 18); g.bezierCurveTo(-52, -26, -6, -40, 30, -26); g.bezierCurveTo(48, -18, 56, -4, 54, 8);
-        g.bezierCurveTo(30, 20, 0, 30, -58, 18); g.closePath(); g.fill();
-        // bico curvo, de rapina
-        const bk = g.createLinearGradient(40, -14, 84, 30); bk.addColorStop(0, "#FFD36A"); bk.addColorStop(1, "#7A2A08");
-        g.fillStyle = bk; g.beginPath(); g.moveTo(40, -14); g.bezierCurveTo(70, -14, 88, 6, 82, 32); g.bezierCurveTo(76, 18, 64, 12, 46, 12); g.closePath(); g.fill();
-        g.strokeStyle = "rgba(60,10,4,.6)"; g.lineWidth = 2.5; g.beginPath(); g.moveTo(46, 4); g.quadraticCurveTo(62, 4, 74, 14); g.stroke();
-        // olho: escuro com a íris acesa e o brilho
-        g.fillStyle = "#2A0A05"; g.beginPath(); g.ellipse(18, -10, 10, 8, 0, 0, PI * 2); g.fill();
-        g.fillStyle = "#FFB421"; g.beginPath(); g.ellipse(19, -10, 5.5, 5, 0, 0, PI * 2); g.fill();
-        g.fillStyle = "#FFFFFF"; g.shadowColor = "#FFF3B0"; g.shadowBlur = 16; g.beginPath(); g.arc(21, -12, 2.6, 0, PI * 2); g.fill();
-        g.shadowBlur = 0; g.strokeStyle = "rgba(60,10,4,.75)"; g.lineWidth = 3; g.beginPath(); g.moveTo(2, -20); g.quadraticCurveTo(18, -24, 32, -18); g.stroke();
+        g.moveTo(44, 0);
+        g.bezierCurveTo(38, -22, 16, -36, -14, -34);
+        g.bezierCurveTo(-38, -32, -56, -36, -76, -46);
+        g.bezierCurveTo(-60, -26, -48, -10, -36, 0);
+        g.bezierCurveTo(-18, 14, 12, 20, 30, 14);
+        g.bezierCurveTo(38, 10, 44, 6, 44, 0); g.closePath(); g.fill();
+        // luz de borda no alto da cabeça
+        g.globalCompositeOperation = "lighter"; g.strokeStyle = `rgba(255,220,140,${.55 * e})`; g.lineWidth = 2.2;
+        g.beginPath(); g.moveTo(40, -6); g.bezierCurveTo(32, -24, 12, -36, -14, -34); g.bezierCurveTo(-38, -32, -56, -36, -74, -45); g.stroke();
+        g.globalCompositeOperation = "source-over";
+        // bico curto em gancho, dourado
+        const bk = g.createLinearGradient(38, -10, 72, 22); bk.addColorStop(0, "#FFF0B8"); bk.addColorStop(.6, "#F2B13A"); bk.addColorStop(1, "#9A4A0E");
+        g.fillStyle = bk; g.beginPath();
+        g.moveTo(38, -8); g.bezierCurveTo(54, -10, 68, -2, 72, 12); g.bezierCurveTo(73, 18, 70, 24, 66, 26);
+        g.bezierCurveTo(66, 18, 62, 13, 56, 11); g.bezierCurveTo(50, 12, 44, 12, 38, 8); g.closePath(); g.fill();
+        g.strokeStyle = "rgba(90,30,6,.55)"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(40, 4); g.quadraticCurveTo(52, 6, 60, 12); g.stroke();
+        g.fillStyle = "rgba(120,14,20,.85)"; g.beginPath();
+        g.moveTo(8, -8); g.bezierCurveTo(-10, -12, -30, -10, -46, -2); g.bezierCurveTo(-30, -2, -14, 2, 2, 8); g.bezierCurveTo(6, 2, 8, -2, 8, -8); g.closePath(); g.fill();
+        // olho amendoado e inclinado, com a íris acesa
+        g.fillStyle = "#2A0A05"; g.beginPath();
+        g.moveTo(1, -6); g.quadraticCurveTo(16, -21, 35, -11); g.quadraticCurveTo(21, 2, 1, -6); g.closePath(); g.fill();
+        g.fillStyle = "#FFC23A"; g.shadowColor = "#FFE7A0"; g.shadowBlur = 20;
+        g.beginPath(); g.ellipse(19, -9, 6, 5.2, -.2, 0, PI * 2); g.fill();
+        g.fillStyle = "#3A0A04"; g.shadowBlur = 0; g.beginPath(); g.ellipse(20, -9, 2.2, 3.6, 0, 0, PI * 2); g.fill();
+        g.fillStyle = "#FFFFFF"; g.shadowColor = "#FFF3B0"; g.shadowBlur = 10; g.beginPath(); g.arc(21.5, -11.5, 1.8, 0, PI * 2); g.fill();
+        g.shadowBlur = 0;
+        // a crista óssea sobre o olho (a "sobrancelha" da águia), dourada
+        g.fillStyle = "#FFD36A"; g.beginPath();
+        g.moveTo(-4, -13); g.quadraticCurveTo(14, -28, 38, -15); g.quadraticCurveTo(16, -20, -4, -13); g.closePath(); g.fill();
         g.restore();
 
         // brasas saindo das pontas
