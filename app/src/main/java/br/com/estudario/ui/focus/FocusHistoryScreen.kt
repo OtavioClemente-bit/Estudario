@@ -111,7 +111,7 @@ fun FocusHistoryScreen(viewModel: AppViewModel) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Kpi("Sessões", "${r.sessions}", if (r.sessions > 0) "média ${fmt(r.averageSession)}" else null, null, Modifier.weight(1f))
-                    Kpi("Melhor dia", r.bestDay?.let { fmt(it.total) } ?: "—", r.bestDay?.let { LocalDate.ofEpochDay(it.epochDay).let { d -> "${d.dayOfMonth}/${d.monthValue}" } }, null, Modifier.weight(1f))
+                    Kpi("Melhor dia", r.bestDay?.let { fmt(it.total) } ?: "-", r.bestDay?.let { LocalDate.ofEpochDay(it.epochDay).let { d -> "${d.dayOfMonth}/${d.monthValue}" } }, null, Modifier.weight(1f))
                 }
             }
         }

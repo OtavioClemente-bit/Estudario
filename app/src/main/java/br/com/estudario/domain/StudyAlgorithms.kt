@@ -11,12 +11,31 @@ enum class ComputedReviewStatus { FUTURA, DISPONIVEL, ATRASADA, CONCLUIDA, IGNOR
 object ReviewPolicy {
     val defaultIntervals = listOf(1L, 7L, 30L)
 
-    fun status(review: ReviewScheduleEntity, now: Long = System.currentTimeMillis(), availableWindowHours: Int = 24): ComputedReviewStatus = when {
-        review.completedAt != null -> ComputedReviewStatus.CONCLUIDA
-        review.ignoredAt != null -> ComputedReviewStatus.IGNORADA
-        review.dueAt < now - availableWindowHours * 3_600_000L -> ComputedReviewStatus.ATRASADA
-        review.dueAt <= now + availableWindowHours * 3_600_000L -> ComputedReviewStatus.DISPONIVEL
-        else -> ComputedReviewStatus.FUTURA
+    /** As pendentes que dá para fazer: só a menor etapa de cada tópico (a seguinte espera a anterior). */
+    fun nextPerTopic(reviews: List<ReviewScheduleEntity>): List<ReviewScheduleEntity> =
+        reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, list) -> list.minBy { it.stage } }
+
+    /** As de hoje e as atrasadas, uma por tópico: a mesma conta no plano, no Início e nas Revisões (e no site). */
+    fun dueToday(reviews: List<ReviewScheduleEntity>, now: Long = System.currentTimeMillis()): List<ReviewScheduleEntity> =
+        nextPerTopic(reviews).filter { status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }
+
+    /**
+     * Pelo dia do calendário, como o site e o plano: de hoje é a que vence até o fim de hoje; atrasada,
+     * a que venceu antes de hoje. Antes era "nas próximas 24 h", e as de amanhã (inclusive o Difícil
+     * feito no site, que volta amanhã) apareciam como de hoje no app.
+     */
+    fun status(review: ReviewScheduleEntity, now: Long = System.currentTimeMillis()): ComputedReviewStatus {
+        val zone = java.time.ZoneId.systemDefault()
+        val day = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val startOfToday = day.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endOfToday = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        return when {
+            review.completedAt != null -> ComputedReviewStatus.CONCLUIDA
+            review.ignoredAt != null -> ComputedReviewStatus.IGNORADA
+            review.dueAt < startOfToday -> ComputedReviewStatus.ATRASADA
+            review.dueAt < endOfToday -> ComputedReviewStatus.DISPONIVEL
+            else -> ComputedReviewStatus.FUTURA
+        }
     }
 }
 

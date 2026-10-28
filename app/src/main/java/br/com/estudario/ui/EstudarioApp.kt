@@ -406,6 +406,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onStatistics = { abrirDoMenu("statistics") },
                         onBadges = { abrirDoMenu("badges") },
                         onSources = { abrirDoMenu("sources") },
+                        onWardrobe = { abrirDoMenu("wardrobe") },
                         onSettings = { abrirDoMenu("more") },
                         onNotifications = { abrirDoMenu("notifications") },
                         onSyncCalendar = { abrirDoMenu("agenda") },
@@ -687,6 +688,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         viewModel, backStack.arguments?.getString("id")?.toLongOrNull() ?: 0,
                         onQuizTopic = { topicId -> navController.popBackStack(); navController.navigate("quiz/5/$topicId/0/random/_/_") },
                         onOpenTopic = { topicId -> navController.popBackStack(); navController.navigate("topic/$topicId") },
+                        onNextReview = { id -> navController.popBackStack(); navController.navigate("review-session/$id") },
                         // Revisar pela agenda também fecha a tarefa "Revisão" do plano de hoje (ou atrasada)
                         // daquele tópico; antes ela ficava pendente e o plano pedia a revisão de novo.
                         onReviewCompleted = { topicId, startedAt ->

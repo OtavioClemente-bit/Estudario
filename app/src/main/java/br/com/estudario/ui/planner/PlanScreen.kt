@@ -58,8 +58,7 @@ import java.time.LocalDate
 fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpenTopic: (Long) -> Unit, onOpenTopicTask: (Long, String) -> Unit = { id, _ -> onOpenTopic(id) }, onOpenErrors: () -> Unit = {}, onFocus: () -> Unit = {}, onHelp: () -> Unit = {}, onStartQuestions: (PlanTaskEntity, Int) -> Unit = { _, _ -> }, onReviews: () -> Unit = {}) {
     // As revisões espaçadas vencidas até hoje aparecem no próprio plano, para ninguém esquecer delas.
     val allReviews by appViewModel.reviews.collectAsState()
-    val endOfToday = java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val dueReviews = allReviews.count { it.completedAt == null && it.ignoredAt == null && it.dueAt < endOfToday }
+    val dueReviews = br.com.estudario.domain.ReviewPolicy.dueToday(allReviews).size
     val state by viewModel.state.collectAsState()
     val entitlements = br.com.estudario.ui.plans.rememberEntitlements()
     var planUpgrade by remember { mutableStateOf(false) }

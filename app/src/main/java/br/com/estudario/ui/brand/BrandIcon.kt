@@ -112,7 +112,8 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "Description", "UploadFile", "FileOpen", "PictureAsPdf", "Summarize" -> Glyph.Doc
     "EditNote", "BorderColor" -> Glyph.Pencil
     "LightMode" -> Glyph.Sun
-    "DarkMode", "Bedtime" -> Glyph.Moon
+    "DarkMode", "Bedtime", "DoNotDisturbOn" -> Glyph.Moon
+    "VolumeUp", "VolumeOff", "MusicNote" -> Glyph.Speaker
     "Coffee", "LocalCafe" -> Glyph.Coffee
     "Checkroom" -> Glyph.Hanger
     "PanTool", "BackHand", "FrontHand" -> Glyph.Hand

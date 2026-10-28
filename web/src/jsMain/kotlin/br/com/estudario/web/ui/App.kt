@@ -48,8 +48,8 @@ private val menu = listOf(
         listOf(
             NavEntry(Route.Stats, "Desempenho", "query_stats"),
             NavEntry(Route.Achievements, "Conquistas", "emoji_events"),
-            NavEntry(Route.Sources, "Histórico e fontes", "fact_check"),
             NavEntry(Route.FocusHistory, "Histórico do foco", "history"),
+            NavEntry(Route.Sources, "Histórico e fontes", "fact_check"),
         ),
     ),
     NavSection(

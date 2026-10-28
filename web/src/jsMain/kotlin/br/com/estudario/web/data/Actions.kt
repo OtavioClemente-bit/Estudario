@@ -199,7 +199,9 @@ object Actions {
         val hasPending = data.reviews.any { it.topicId == topicId && it.completedAt == null && it.ignoredAt == null }
         if (!hasPending) {
             var id = next.nextId(Keys.REVIEWS)
-            val reviews = ReviewIntervals.days.mapIndexed { index, days ->
+            // como o app (que ignora a etapa repetida): etapa que o tópico já tem não é criada de novo
+            val existing = data.reviews.filter { it.topicId == topicId }.mapTo(HashSet()) { it.stage }
+            val reviews = ReviewIntervals.days.mapIndexed { index, days -> index to days }.filter { (index, _) -> index + 1 !in existing }.map { (index, days) ->
                 jsonOf("id" to id++, "topicId" to topicId, "stage" to index + 1, "dueAt" to startOfDayInDays(days), "completedAt" to null, "ignoredAt" to null, "perceivedDifficulty" to null, "questionCorrect" to 0, "questionTotal" to 0)
             }
             next = next.appendAll(mapOf(Keys.REVIEWS to reviews))

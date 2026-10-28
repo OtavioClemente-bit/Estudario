@@ -373,7 +373,7 @@ private fun levelLine(level: Int, title: String, promo: Boolean): String = when 
 /**
  * A fênix da sequência pintada com fogo em tempo real (phoenix.js, o mesmo do site, numa WebView
  * transparente): dorme como carvão com veias de brasa e, quando [wake] vira verdade (o impacto da cena),
- * o app a acende — ela explode em fogo e abre as asas. A WebView é maior que a fênix para o brilho caber.
+ * o app a acende: ela explode em fogo e abre as asas. A WebView é maior que a fênix para o brilho caber.
  */
 @android.annotation.SuppressLint("SetJavaScriptEnabled")
 @Composable

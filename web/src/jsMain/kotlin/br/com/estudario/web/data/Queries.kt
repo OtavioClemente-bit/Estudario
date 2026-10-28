@@ -55,7 +55,9 @@ object Queries {
 
     fun dueReviews(data: Snapshot): List<Review> {
         val end = endOfToday()
-        return data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt < end }.sortedBy { it.dueAt }
+        // uma por tópico (a menor etapa pendente): a seguinte só abre depois da anterior
+        return data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, l) -> l.minBy { it.stage } }
+            .filter { it.dueAt < end }.sortedBy { it.dueAt }
     }
 
     fun pendingErrors(data: Snapshot): List<ErrorEntry> = data.errors.filter { it.status != "CORRIGIDO" }

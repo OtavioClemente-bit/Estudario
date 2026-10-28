@@ -147,16 +147,25 @@ object StudyNotebook {
      * de código vira lixo). Se o trecho grifado está dentro da tabela do bloco, mostra a tabela.
      */
     fun restoreQuote(quote: String, block: String?): String {
-        if (block == null || quote.contains('\n')) return quote
+        // já é tabela em markdown; a seleção do site traz quebras de linha e tabs, e também é achatada
+        if (block == null || Regex("""\|\s*:?-{3,}""").containsMatchIn(quote)) return quote
         if (block.lines().count { it.trimStart().startsWith("|") } < 2) return quote
         fun flat(s: String) = s.replace(Regex("""\\\|"""), "|").replace(Regex("""^\s*\|?\s*:?-{3,}.*$""", RegexOption.MULTILINE), " ")
-            .replace(Regex("""[|`*_]"""), " ").replace(Regex("""\s+"""), " ").trim().lowercase()
+            .replace(Regex("""[|`*_,;]"""), " ").replace(Regex("""\s+"""), " ").trim().lowercase()
         val q = flat(quote)
         if (q.length < 12) return quote
         val words = q.split(' ').filter { it.length > 2 }
         val inBlock = flat(block)
         val hit = words.count { it in inBlock }
         return if (words.isNotEmpty() && hit * 10 >= words.size * 8) block.trim() else quote
+    }
+
+    /** Igual, mas procura a tabela em todos os blocos (o grifo feito no site pode apontar outro bloco no app). */
+    fun restoreQuote(quote: String, blocks: List<String>, index: Int): String {
+        restoreQuote(quote, blocks.getOrNull(index)).let { if (it != quote) return it }
+        if (quote.length < 40) return quote
+        for (b in blocks) restoreQuote(quote, b).let { if (it != quote) return it }
+        return quote
     }
 
     fun quoteMarkdown(quote: String): String {

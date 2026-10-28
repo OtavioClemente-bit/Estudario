@@ -32,7 +32,6 @@ import kotlin.random.Random
 /** Os modos do Treinar no app, com o mesmo texto de cada um. */
 private val modes = listOf(
     "smart" to "Treino inteligente",
-    "wrong" to "Refazer erros",
     "neverright" to "Nunca acertadas",
     "mostwrong" to "Mais erradas",
     "new" to "Questões novas",
@@ -41,7 +40,6 @@ private val modes = listOf(
 )
 private val modeInfo = mapOf(
     "smart" to ("Brain" to "Mistura seus erros, os tópicos mais fracos e questões novas. O melhor para o dia a dia."),
-    "wrong" to ("Cycle" to "Só as questões que você errou, para fechar as lacunas."),
     "neverright" to ("Warning" to "As que você ainda não acertou nenhuma vez."),
     "mostwrong" to ("Target" to "As que você mais errou. Onde está o ponto fraco de verdade."),
     "new" to ("Star" to "Só as que você nunca respondeu. Bom para avançar no conteúdo."),
@@ -103,7 +101,6 @@ fun TrainScreen() {
             // Treinos para agora: o primeiro é o recomendado, em destaque.
             Div({ classes("dg-recs") }) {
                 val recs = buildList {
-                    if (errors.isNotEmpty()) add(Triple(Triple("Cycle", "#FF5A7A", "Refazer seus erros"), "${errors.size} questões em que você mais erra do que acerta", "m-wrong~s--1~t--1~b-all~d-all~n-${errors.size.coerceIn(5, 20)}"))
                     if (weakest != null && percent(weakest.third, weakest.second) < 70) add(Triple(Triple("Target", "#FFC94D", "Reforçar ${weakest.first.name}"), "Sua matéria mais fraca: ${percent(weakest.third, weakest.second)}% de acerto", "m-smart~s-${weakest.first.id}~t--1~b-all~d-all~n-15"))
                     add(Triple(Triple("Bolt", "#A78BFF", "Desafio do dia"), "10 questões entre erros, revisões atrasadas e pontos fracos", "m-smart~s--1~t--1~b-all~d-all~n-10"))
                     if (neverAnswered > 0) add(Triple(Triple("Star", "#2FD39A", "Questões novas"), "$neverAnswered que você ainda não viu", "m-new~s--1~t--1~b-all~d-all~n-10"))

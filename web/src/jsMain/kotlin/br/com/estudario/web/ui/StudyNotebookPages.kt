@@ -59,7 +59,7 @@ private fun notebookTopics(data: Snapshot): List<StudyNotebook.Topic> {
             tips = mine.filter { it.kind == "BIZU" }.map { it.text },
             traps = mine.filter { it.kind == "PEGADINHA" }.map { it.text },
             recall = mine.filter { it.kind == "RECUPERACAO" && !it.answer.isNullOrBlank() }.map { it.text to it.answer!! } + quickCards,
-            marks = theoriesByTopic[t.id].orEmpty().flatMap { th -> val b = studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b.getOrNull(it.blockIndex))) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }
+            marks = theoriesByTopic[t.id].orEmpty().flatMap { th -> val b = studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b, it.blockIndex)) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }
                 .map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
             wrongQuestions = wrongByTopic[t.id].orEmpty().map { it.questionId },
             notes = notes[t.id].orEmpty().map { it.text },

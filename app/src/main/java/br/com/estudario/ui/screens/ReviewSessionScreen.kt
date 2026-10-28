@@ -33,6 +33,8 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
+import br.com.estudario.domain.ComputedReviewStatus
+import br.com.estudario.domain.ReviewPolicy
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,6 +101,8 @@ fun ReviewSessionScreen(
     onOpenTopic: (Long) -> Unit = {},
     /** Revisão concluída (tópico, início): a rota fecha a tarefa de revisão do plano do dia. */
     onReviewCompleted: (Long, Long) -> Unit = { _, _ -> },
+    /** "Revisar tudo em sequência": abre a próxima revisão do dia. */
+    onNextReview: (Long) -> Unit = {},
     onBack: () -> Unit,
 ) {
     val reviews by viewModel.reviews.collectAsState()
@@ -110,7 +114,9 @@ fun ReviewSessionScreen(
     var done by remember { mutableStateOf<ReviewOutcome?>(null) }
     done?.let { (topicId, days, repeatedStage) ->
         val available = allQuestions.count { it.question.topicId == topicId && !it.question.isHidden }
-        ReviewDone(topics.firstOrNull { it.id == topicId }?.title ?: "Tópico revisado", days, available, repeatedStage, onQuiz = { onQuizTopic(topicId) }, onGenerate = { onOpenTopic(topicId) }, onBack = onBack)
+        // em sequência (o botão do topo das revisões), a próxima do dia abre daqui, como no site
+        val next = if (ReviewRun.active) ReviewPolicy.dueToday(reviews).filter { it.id != reviewId }.minByOrNull { it.dueAt } else null
+        ReviewDone(topics.firstOrNull { it.id == topicId }?.title ?: "Tópico revisado", days, available, repeatedStage, onQuiz = { ReviewRun.active = false; onQuizTopic(topicId) }, onGenerate = { ReviewRun.active = false; onOpenTopic(topicId) }, onBack = { ReviewRun.active = false; onBack() }, onNext = next?.let { n -> { onNextReview(n.id) } })
         return
     }
     if (review == null) { EmptyState("Revisão não encontrada", "Ela pode já ter sido removida.", "Voltar", onBack); return }
@@ -716,7 +722,7 @@ private fun ResultRing(value: Int, total: Int, label: String) {
 
 /** Revisão concluída: quando o tópico volta e algumas questões dele agora, para fixar de verdade. */
 @Composable
-private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage: Int?, onQuiz: () -> Unit, onGenerate: () -> Unit, onBack: () -> Unit) {
+private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage: Int?, onQuiz: () -> Unit, onGenerate: () -> Unit, onBack: () -> Unit, onNext: (() -> Unit)? = null) {
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -744,8 +750,9 @@ private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage:
                 )
             }
         }
-        if (available > 0) Button(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") }
-        else Button(onClick = onGenerate, Modifier.fillMaxWidth()) { Text("Gerar questões") }
+        if (onNext != null) Button(onClick = onNext, Modifier.fillMaxWidth()) { Text("Próxima revisão", fontWeight = FontWeight.Black) }
+        if (available > 0) (if (onNext != null) OutlinedButton(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") } else Button(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") })
+        else if (onNext == null) Button(onClick = onGenerate, Modifier.fillMaxWidth()) { Text("Gerar questões") }
         TextButton(onClick = onBack) { Text("Voltar às revisões") }
     }
 }

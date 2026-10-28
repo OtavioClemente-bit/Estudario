@@ -82,7 +82,8 @@ fun ReviewsScreen() {
     val due = Queries.dueReviews(data).filter { it.topicId in scope }.sortedBy { it.dueAt }
     val late = due.count { it.dueAt < Queries.startOfToday() }
     val weekEnd = Queries.endOfToday() + 6 * DAY
-    val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt >= Queries.endOfToday() && it.topicId in scope }.sortedBy { it.dueAt }
+    val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, l) -> l.minBy { it.stage } }
+        .filter { it.dueAt >= Queries.endOfToday() && it.topicId in scope }.sortedBy { it.dueAt }
     val doneToday = data.reviews.count { (it.completedAt ?: 0) >= Queries.startOfToday() && it.topicId in scope }
 
     var help by remember { mutableStateOf(false) }

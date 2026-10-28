@@ -28,7 +28,8 @@ import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Summarize
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
@@ -123,7 +124,7 @@ fun MoreScreen(
 
         item {
             Group("Questões") {
-                ToggleRow(Icons.Outlined.Visibility, "Explicação logo após responder", "Desligue para fazer tudo e ver as explicações só no final.", showExplanation, viewModel::setShowExplanation)
+                ToggleRow(Icons.Outlined.Summarize, "Explicação logo após responder", "Desligue para fazer tudo e ver as explicações só no final.", showExplanation, viewModel::setShowExplanation)
                 HorizontalDivider()
                 br.com.estudario.ui.brand.BrandCounter(
                     value = defaultCount.coerceIn(5, 50),
@@ -175,7 +176,7 @@ fun MoreScreen(
         item {
             val uri = androidx.compose.ui.platform.LocalUriHandler.current
             Group("Sobre") {
-                LinkRow(Icons.Outlined.Visibility, "Privacidade", "Como o Estudário cuida dos seus dados") { uri.openUri("https://estudario.com.br/privacidade.html") }
+                LinkRow(Icons.Outlined.Shield, "Privacidade", "Como o Estudário cuida dos seus dados") { uri.openUri("https://estudario.com.br/privacidade.html") }
             }
         }
 

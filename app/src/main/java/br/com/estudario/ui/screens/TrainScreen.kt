@@ -71,7 +71,6 @@ private data class TrainMode(val key: String, val title: String, val description
 
 private val trainModes = listOf(
     TrainMode("smart", "Treino inteligente", "Mistura seus erros, os tópicos mais fracos e questões novas. O melhor para o dia a dia.", Icons.Outlined.AutoAwesome),
-    TrainMode("errors", "Refazer erros", "Só as questões que você errou, para fechar as lacunas.", Icons.Outlined.Replay),
     TrainMode("never_correct", "Nunca acertadas", "As que você ainda não acertou nenhuma vez.", Icons.Outlined.WarningAmber),
     TrainMode("most_errors", "Mais erradas", "As que você mais errou. Onde está o ponto fraco de verdade.", Icons.Outlined.TrendingDown),
     TrainMode("new", "Questões novas", "Só as que você nunca respondeu. Bom para avançar no conteúdo.", Icons.Outlined.FiberNew),
@@ -123,7 +122,6 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
     }
     val weakest = perSubject.filter { it.answered >= 5 && it.accuracy != null }.minByOrNull { it.accuracy!! }
     val recommendations = buildList {
-        if (pendingErrors > 0) add(Recommendation("Refazer seus erros", "$pendingErrors questões em que você mais erra do que acerta.", Icons.Outlined.Replay, MaterialTheme.colorScheme.error, QuizConfig(pendingErrors.coerceIn(5, 20), mode = "errors")))
         if (weakest != null && (weakest.accuracy ?: 100) < 70) add(Recommendation("Reforçar ${weakest.name}", "Sua matéria mais fraca: ${weakest.accuracy}% de acerto em ${weakest.answered} respostas.", Icons.Outlined.TrendingDown, colors.attention, QuizConfig(15, subjectId = weakest.id, mode = "smart")))
         add(Recommendation("Desafio do dia", "10 questões entre erros recorrentes, revisões atrasadas e tópicos de menor domínio.", Icons.Outlined.Bolt, MaterialTheme.colorScheme.primary, QuizConfig(10, mode = "daily")))
         if (neverAnswered > 0 && size < 3) add(Recommendation("Avançar com questões novas", "$neverAnswered questões que você ainda não viu.", Icons.Outlined.Explore, colors.completed, QuizConfig(10, mode = "new")))
@@ -154,7 +152,6 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
         // (o primeiro em destaque) e as matérias da mais fraca para a mais forte, quatro à vista.
         item {
             val recs = buildList {
-                if (pendingErrors > 0) add(DiagRec(br.com.estudario.ui.brand.Glyph.Cycle, br.com.estudario.ui.studio.Gx.red, "Refazer seus erros", "$pendingErrors questões em que você mais erra do que acerta", QuizConfig(pendingErrors.coerceIn(5, 20), mode = "errors")))
                 if (weakest != null && (weakest.accuracy ?: 100) < 70) add(DiagRec(br.com.estudario.ui.brand.Glyph.Target, br.com.estudario.ui.studio.Gx.gold, "Reforçar ${weakest.name}", "Sua matéria mais fraca: ${weakest.accuracy}% de acerto", QuizConfig(15, subjectId = weakest.id, mode = "smart")))
                 add(DiagRec(br.com.estudario.ui.brand.Glyph.Bolt, br.com.estudario.ui.studio.Gx.violet, "Desafio do dia", "10 questões entre erros, revisões atrasadas e pontos fracos", QuizConfig(10, mode = "daily")))
                 if (neverAnswered > 0) add(DiagRec(br.com.estudario.ui.brand.Glyph.Star, br.com.estudario.ui.studio.Gx.mint, "Questões novas", "$neverAnswered que você ainda não viu", QuizConfig(10, mode = "new")))
@@ -267,7 +264,7 @@ private fun DiagnosisPanel(
                         drawArc(tone, -90f, 360f * fill, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(accuracy?.let { "$it%" } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
+                        Text(accuracy?.let { "$it%" } ?: "-", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                         Text("de acerto", style = MaterialTheme.typography.labelSmall, color = br.com.estudario.ui.studio.Gx.mute)
                     }
                 }
@@ -332,7 +329,7 @@ private fun DiagnosisPanel(
                                 Box(Modifier.fillMaxWidth(((score.accuracy ?: 0) / 100f).coerceIn(0.03f, 1f)).fillMaxHeight().clip(CircleShape).background(c))
                             }
                             Spacer(Modifier.width(8.dp))
-                            Text(score.accuracy?.let { "$it%" } ?: "—", Modifier.width(40.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.readable(c), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                            Text(score.accuracy?.let { "$it%" } ?: "-", Modifier.width(40.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.readable(c), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                         }
                     }
                     if (ranked.size > 4) TextButton(onClick = { allSubjects = !allSubjects }) {

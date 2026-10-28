@@ -452,7 +452,7 @@ fun SettingsScreen() {
                     }
                 }
             }
-            SetRow("favorite", "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas e comemorações") {
+            SetRow("volume_up", "Sons do Estudário", "Acerto, erro, toque no Folha, tarefas e comemorações") {
                 Switch(som, "Sons do Estudário") { v -> som = v; runCatching { kotlinx.browser.window.asDynamic().estudarioSom.set(v); if (v) kotlinx.browser.window.asDynamic().estudarioSom.play("acerto") } }
             }
         }

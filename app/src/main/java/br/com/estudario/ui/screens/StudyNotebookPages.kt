@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -142,7 +143,7 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
                 tips = mine.filter { it.kind == SnippetKind.BIZU }.map { it.text },
                 traps = mine.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text },
                 recall = mine.filter { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.map { it.text to it.answer!! } + quickCards,
-                marks = theoriesByTopic[t.id].orEmpty().flatMap { th -> val b = br.com.estudario.ui.components.studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b.getOrNull(it.blockIndex))) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }.map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
+                marks = theoriesByTopic[t.id].orEmpty().flatMap { th -> val b = br.com.estudario.ui.components.studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b, it.blockIndex)) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }.map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
                 wrongQuestions = wrongByTopic[t.id].orEmpty().map { it.entry.questionId },
                 notes = notesByTopic[t.id].orEmpty().map { it.text },
             )
@@ -363,7 +364,11 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
         viewModel.viewModelScope.launch { viewModel.saveQuestionSession(session) }
     }
     DisposableEffect(Unit) { onDispose { saveSession() } }
-    Column(Modifier.fillMaxWidth().padding(screenPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // a página rola: questão longa empurrava a resposta (acertou ou errou) para fora da tela
+    val scroll = rememberScrollState()
+    LaunchedEffect(index) { scroll.scrollTo(0) }
+    LaunchedEffect(answers.size) { if (answers.isNotEmpty()) { kotlinx.coroutines.delay(120); scroll.animateScrollTo(scroll.maxValue) } }
+    Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(screenPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, "Fechar") }
             Text("Folheada do dia", Modifier.weight(1f), fontWeight = FontWeight.Black, fontSize = 17.sp)
@@ -460,6 +465,7 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
     var crossed by remember(questionId) { mutableStateOf(setOf<String>()) }
     var sending by remember(questionId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     Text("Uma que você errou: e agora?", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Ink)
     br.com.estudario.ui.components.MarkdownText(question.question.statement)
     br.com.estudario.ui.components.AnswerOptions(
@@ -474,9 +480,13 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
     if (right == null) br.com.estudario.ui.components.ConfirmAnswerButton(enabled = picked != null && !sending) {
         val key = picked ?: return@ConfirmAnswerButton
         sending = true
-        scope.launch { val ok = viewModel.answer(question, key, sessionId); right = ok; onAnswered(ok) }
+        scope.launch { val ok = viewModel.answer(question, key, sessionId); right = ok; onAnswered(ok); br.com.estudario.ui.brand.EstudarioSom.play(context, if (ok) "acerto" else "erro") }
     }
     if (right != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            br.com.estudario.ui.assistant.Folha(64.dp, mood = if (right == true) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.SAD)
+            Text(if (right == true) "Acertou!" else "Errou", fontWeight = FontWeight.Black, fontSize = 22.sp, color = if (right == true) Color(0xFF1E9E5A) else Color(0xFFD5432F))
+        }
         PostIt(if (right == true) "Agora foi! Acertando de novo depois, ela sai do caderno de erros." else "Ainda não. Leia a explicação: ela volta depois.", if (right == true) Color(0xFFC8F5DD) else Color(0xFFFFD9D2))
         if (question.question.explanation.isNotBlank()) br.com.estudario.ui.components.MarkdownText(question.question.explanation)
     }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -213,6 +214,7 @@ fun estudarioDrawerSections(
     onHome: () -> Unit = {},
     onPlans: () -> Unit = {},
     onSimulations: () -> Unit = {},
+    onWardrobe: () -> Unit = {},
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
@@ -233,8 +235,9 @@ fun estudarioDrawerSections(
         listOf(
             DrawerEntry("Desempenho", Icons.Outlined.QueryStats, onStatistics, "statistics"),
             DrawerEntry("Conquistas", Icons.Outlined.EmojiEvents, onBadges, "badges"),
-            DrawerEntry("Histórico e fontes", Icons.Outlined.FactCheck, onSources, "sources"),
+            DrawerEntry("Armário do Folha", Icons.Outlined.Checkroom, onWardrobe, "wardrobe"),
             DrawerEntry("Histórico do foco", Icons.Outlined.History, onFocusHistory, "focus-history"),
+            DrawerEntry("Histórico e fontes", Icons.Outlined.FactCheck, onSources, "sources"),
         ),
     ),
     DrawerSection(

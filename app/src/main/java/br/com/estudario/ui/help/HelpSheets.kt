@@ -200,7 +200,6 @@ fun TrainHelp(onClose: () -> Unit, onTour: (() -> Unit)? = null) {
         GxSection(Glyph.Target, "Os modos", "Como as questões são escolhidas:", Gx.violet) {
             Points(Gx.violet,
                 "Treino inteligente: mistura seus erros, os tópicos mais fracos e questões novas.",
-                "Refazer erros: só as que você errou.",
                 "Nunca acertadas: as que você ainda não acertou nenhuma vez.",
                 "Mais erradas: onde está o ponto fraco de verdade.",
                 "Questões novas: só as que você nunca respondeu.",

@@ -453,19 +453,19 @@ private fun ExamRoomHeader(competition: String, board: String?, delivered: Int, 
                         drawArc(br.com.estudario.ui.studio.Gx.gold, -90f + 360f * target / 100f - 2f, 4f, false, androidx.compose.ui.geometry.Offset(2.dp.toPx(), 2.dp.toPx()), androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(4.dp.toPx()))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(last?.let { "$it%" } ?: "—", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
+                        Text(last?.let { "$it%" } ?: "-", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                         Text(if (last == null) "FAÇA O PRIMEIRO" else if (last >= target) "ACIMA DA META" else "ÚLTIMA NOTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.mute)
                     }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RoomStat(br.com.estudario.ui.brand.Glyph.Clipboard, "$delivered", if (delivered == 1) "entregue" else "entregues", br.com.estudario.ui.studio.Gx.violet, Modifier.weight(1f))
-                RoomStat(br.com.estudario.ui.brand.Glyph.Trophy, best?.let { "$it%" } ?: "—", "melhor nota", br.com.estudario.ui.studio.Gx.gold, Modifier.weight(1f))
+                RoomStat(br.com.estudario.ui.brand.Glyph.Trophy, best?.let { "$it%" } ?: "-", "melhor nota", br.com.estudario.ui.studio.Gx.gold, Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RoomStat(br.com.estudario.ui.brand.Glyph.Target, "$target%", "sua meta", br.com.estudario.ui.studio.Gx.mint, Modifier.weight(1f))
                 val delta = if (scores.size >= 2) scores.last() - scores.first() else null
-                RoomStat(br.com.estudario.ui.brand.Glyph.Chart, delta?.let { if (it >= 0) "+$it" else "$it" } ?: "—", "desde o primeiro", br.com.estudario.ui.studio.Gx.cyan, Modifier.weight(1f))
+                RoomStat(br.com.estudario.ui.brand.Glyph.Chart, delta?.let { if (it >= 0) "+$it" else "$it" } ?: "-", "desde o primeiro", br.com.estudario.ui.studio.Gx.cyan, Modifier.weight(1f))
             }
         }
     }

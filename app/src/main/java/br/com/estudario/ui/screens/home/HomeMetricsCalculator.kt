@@ -102,7 +102,7 @@ internal fun calculateHomeMetrics(
         totalTopics = competitionTopics.size,
         mastery = if (competitionTopics.isEmpty()) 0 else masterySum / competitionTopics.size,
         subjects = subjectCoverage,
-        pendingReviews = reviews.count { ReviewPolicy.status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) },
+        pendingReviews = ReviewPolicy.dueToday(reviews, now).size,
         pendingErrors = errors.count { it.entry.pending },
         // Só os que ainda estão para refazer (o mesmo "para hoje" do caderno): erro já corrigido
         // mantém a data antiga e era contado, e o caderno abria sem nada para hoje.

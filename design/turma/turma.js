@@ -367,6 +367,17 @@ export const TURMA = {
     face: [50, 46, 0.85, "grin"],
     fx: [fxLine("M2 30q-4 10 0 20M98 30q4 10 0 20", "#FFB421")],
   }) },
+  Speaker: { anim: "pulse", about: "Sons: alto-falante cantando", draw: () => ({
+    body: [
+      solid(rr(6, 32, 26, 36, 8), "steel"),
+      solid("M26 36 58 12a4 4 0 0 1 6 3v70a4 4 0 0 1-6 3L26 64z", "violet"),
+      shine("M34 38l16-12"),
+      line("M74 36q8 14 0 28", "sky", 6),
+      line("M84 24q16 26 0 52", "sky", 6),
+    ],
+    face: [45, 50, 0.7, "grin"],
+    fx: [fxFill(ell(94, 10, 3.5), "#FFB421"), fxLine("M97 10V-2l-6 2", INK, 2.5)],
+  }) },
   Chart: { anim: "hop", about: "Estatísticas: gráfico crescendo", draw: () => ({
     body: [
       solid(rr(8, 58, 24, 32, 6), "sky"),
