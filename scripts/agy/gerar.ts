@@ -13,6 +13,7 @@ const AGY = "C:/Users/otavi/AppData/Local/agy/bin/agy.exe";
 const BASH = "C:/Program Files/Git/bin/bash.exe";
 const GEN_MODEL = "gemini-4-argon-medium";
 const AUD_MODEL = "claude-opus-5-5-medium";
+const AUD_GEMINI = "gemini-4-argon-high";
 const META = 150;            // um recorte com isso já está bom; passa para o próximo
 const LOTE = 50;
 const MIN_EDITAIS = 15;
@@ -210,7 +211,14 @@ Leia o arquivo lote.json desta pasta. Para CADA questão, confira:
 6. a explicação está de acordo com o gabarito.
 Responda SÓ com um bloco \`\`\`json no formato {"remover": [números das questões com qualquer problema acima], "motivos": {"número": "motivo curto"}}.
 Na dúvida, remova. Não use outras ferramentas além de ler o arquivo.`;
-  const resp = await agy(AUD_MODEL, prompt, 20);
+  // A cota semanal do Claude acaba bem antes da do Gemini (~2% por auditoria): o Opus audita 1 lote a
+  // cada 4 e, nos outros, o Argon no esforço alto. Se a cota do Claude acabar, o Argon assume.
+  estado.auditorias = (estado.auditorias ?? 0) + 1;
+  const modelo = estado.auditorias % 4 === 1 ? AUD_MODEL : AUD_GEMINI;
+  log(`   auditando com ${modelo}`);
+  let resp: string;
+  try { resp = await agy(modelo, prompt, 20); }
+  catch (e) { if (e instanceof Cota && modelo !== AUD_GEMINI) resp = await agy(AUD_GEMINI, prompt, 20); else throw e; }
   const r = extrairJson(resp);
   const remover = new Set<number>((r.remover ?? []).map((x: any) => Number(x)));
   for (const [n, m] of Object.entries(r.motivos ?? {})) log(`   auditoria removeu ${n}: ${String(m).slice(0, 140)}`);
