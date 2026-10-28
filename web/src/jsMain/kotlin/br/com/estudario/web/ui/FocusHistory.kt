@@ -46,7 +46,12 @@ fun FocusHistoryScreen() {
     val topics = data.topics.associateBy { it.id }
     val subjects = data.subjects.associateBy { it.id }
     val scopeTopics = CompetitionFilter.topicIds(data)
-    val raw = data.focusSessions.filter { s -> s.topicId == null || s.topicId in scopeTopics }
+    // Do concurso escolhido nas abas. Foco livre e foco num tópico que já não existe (material refeito ou
+    // apagado) aparecem sempre: antes eles sumiam do histórico, parecendo que o foco não tinha sido salvo.
+    val knownTopics = remember(data.topics) { data.topics.mapTo(hashSetOf()) { it.id } }
+    var showOthers by remember { mutableStateOf(false) }
+    fun inScope(s: br.com.estudario.web.data.FocusSession) = showOthers || s.topicId == null || s.topicId !in knownTopics || s.topicId in scopeTopics
+    val raw = data.focusSessions.filter { inScope(it) }
     val sessions = remember(raw) {
         raw.map { s ->
             val d = Date(s.startedAt.toDouble())
@@ -211,7 +216,8 @@ fun FocusHistoryScreen() {
             var subjectFilter by remember { mutableStateOf("all") }
             var shownCount by remember { mutableStateOf(30) }
             val q = query.trim().lowercase()
-            val inScope = data.focusSessions.filter { s -> s.topicId == null || s.topicId in scopeTopics }
+            val inScope = data.focusSessions.filter { inScope(it) }
+            val others = data.focusSessions.count { !inScope(it) && Queries.dateOf(it.startedAt).toEpochDays() >= today - period + 1 }
             fun subjectOf(s: br.com.estudario.web.data.FocusSession) = s.topicId?.let { topics[it] }?.let { subjects[it.subjectId]?.name } ?: "Foco livre"
             val subjectNames = inScope.map { subjectOf(it) }.distinct().sorted()
             val list = inScope
@@ -235,6 +241,12 @@ fun FocusHistoryScreen() {
                     "${list.size} ${if (list.size == 1) "sessão" else "sessões"} · ${fmt(list.sumOf { it.durationSeconds } / 60.0)}" +
                         if (q.isNotEmpty()) " · buscando em todo o histórico" else " · nos últimos $period dias",
                 )
+            }
+            // Sessões em tópicos de outro concurso: avisa e deixa ver, em vez de esconder calado.
+            if (others > 0 || showOthers) P({ classes("xs", "muted"); attr("style", "margin:0 0 6px") }) {
+                val one = others == 1
+                Text(if (showOthers) "Mostrando também as sessões dos outros concursos. " else "$others ${if (one) "sessão" else "sessões"} em tópicos de outro concurso não ${if (one) "aparece" else "aparecem"} aqui. ")
+                Button({ classes("link-btn"); attr("type", "button"); onClick { showOthers = !showOthers } }) { Text(if (showOthers) "Só este concurso" else "Mostrar também") }
             }
             val list30 = list
             Div({ classes("stack") }) {

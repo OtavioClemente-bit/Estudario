@@ -208,6 +208,15 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
         LevelUpGame(item.level, item.title, item.totalXp, leaving, onClose, onProfile = { onCloseNow(); Router.go(Route.Profile) })
         return
     }
+    // Sequência do dia e emblema novo: as mesmas cenas de jogo (o emblema usa a arte de emblemas/g).
+    if (item is Celebration.StreakDay) {
+        StreakGame(item.days, item.best, item.week, item.xpToday, leaving, onClose)
+        return
+    }
+    if (item is Celebration.NewBadge) {
+        BadgeGame(item.badge, leaving, onClose, onTrophies = { onCloseNow(); Router.go(Route.Achievements) })
+        return
+    }
     val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece" }
     val r = revealAt(item)
     Div({ classes(*listOfNotNull("celebrate", "cn", kind, if (leaving) "out" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) {
@@ -215,8 +224,8 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
             Scene(item)
             Div({ classes("cn-text") }) {
                 when (item) {
-                    is Celebration.StreakDay -> StreakText(item, r)
-                    is Celebration.NewBadge -> BadgeText(item.badge, r)
+                    is Celebration.StreakDay -> Unit
+                    is Celebration.NewBadge -> Unit
                     is Celebration.LevelUp -> Unit
                     is Celebration.NewPiece -> PieceText(item.items, r)
                 }
@@ -260,37 +269,6 @@ private fun Scene(item: Celebration) {
             content = null,
         )
     }
-}
-
-@Composable
-private fun StreakText(item: Celebration.StreakDay, r: Double) {
-    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text(if (item.days == 1) "1 DIA DE SEQUÊNCIA" else "${item.days} DIAS DE SEQUÊNCIA") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) {
-        Text(
-            when {
-                item.days <= 1 -> "A chama acendeu"
-                item.days >= item.best -> "Recorde! Ninguém te para."
-                else -> "Mais um dia aceso"
-            },
-        )
-    }
-    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) {
-        Text(
-            when {
-                item.days <= 1 -> "Volte amanhã para manter o fogo aceso."
-                item.days >= item.best -> "Sua maior sequência até agora. Amanhã tem mais."
-                else -> "Faltam ${item.best - item.days} para o seu recorde de ${item.best} dias."
-            },
-        )
-    }
-    if (item.xpToday > 0) Span({ classes("cel-xp", "lv-late"); attr("style", "--ld:${r + 0.3}s") }) { Icon("bolt", filled = true); Text("+${item.xpToday} XP hoje") }
-}
-
-@Composable
-private fun BadgeText(badge: Badge, r: Double) {
-    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text(badge.name) }
-    P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) { Text(badge.requirement) }
 }
 
 /** As peças para a cena do presente (atributo pieces de <estudario-cena>), em JSON. */
