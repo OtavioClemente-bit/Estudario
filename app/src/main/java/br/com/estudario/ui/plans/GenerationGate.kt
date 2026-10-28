@@ -164,7 +164,7 @@ private fun AdvanceWithAdDialog(ads: AiFreeAdAdvances, onCredit: () -> Unit, onD
 private fun QualityOverQuantityDialog(gate: GenerationGate.OverDailyPlan, onContinue: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Column(
-            Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).padding(24.dp),
+            Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

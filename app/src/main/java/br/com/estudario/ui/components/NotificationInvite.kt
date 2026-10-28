@@ -1,5 +1,7 @@
 package br.com.estudario.ui.components
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.launch
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -52,7 +54,7 @@ fun NotificationInvite(onDone: () -> Unit, forStudy: Boolean = false) {
     }
     Dialog(onDismissRequest = onDone) {
         Column(
-            Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).padding(24.dp),
+            Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(28.dp)).verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

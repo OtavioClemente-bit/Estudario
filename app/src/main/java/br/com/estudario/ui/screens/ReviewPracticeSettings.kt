@@ -35,8 +35,8 @@ import br.com.estudario.ui.studio.GxSwitchRow
 @Composable
 internal fun ReviewPracticeSettings(initial: ReviewPracticeOptions, onClose: () -> Unit, onSave: (ReviewPracticeOptions) -> Unit) {
     var draft by remember { mutableStateOf(initial) }
-    Dialog(onDismissRequest = onClose) {
-        GxPanel(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp - 48).coerceAtLeast(300).dp)) {
+    br.com.estudario.ui.studio.GxDialog(onClose) {
+        run {
             Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     GxKicker("Ajustes da revisão")

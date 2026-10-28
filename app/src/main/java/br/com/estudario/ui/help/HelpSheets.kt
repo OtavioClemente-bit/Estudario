@@ -54,8 +54,8 @@ fun HelpButton(label: String, onClick: () -> Unit) {
 
 @Composable
 private fun HelpDialog(kicker: String, title: String, subtitle: String, cta: String, onClose: () -> Unit, extra: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    Dialog(onDismissRequest = onClose) {
-        GxPanel(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp - 48).coerceAtLeast(300).dp)) {
+    br.com.estudario.ui.studio.GxDialog(onClose) {
+        run {
             Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     GxKicker(kicker)

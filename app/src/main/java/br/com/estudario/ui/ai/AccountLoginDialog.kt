@@ -1,5 +1,7 @@
 package br.com.estudario.ui.ai
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -68,7 +70,7 @@ private fun GoogleLoginDialog(onDismiss: () -> Unit, onSignedIn: () -> Unit) {
             color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
-                Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 24.dp),
                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {

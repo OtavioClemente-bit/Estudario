@@ -1,5 +1,7 @@
 package br.com.estudario.ui.components
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -115,7 +117,7 @@ private fun BackupDialogFrame(onDismiss: () -> Unit, content: @Composable () -> 
             modifier = Modifier.widthIn(max = 400.dp),
         ) {
             Column(
-                Modifier.padding(horizontal = 24.dp, vertical = 26.dp),
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) { content() }

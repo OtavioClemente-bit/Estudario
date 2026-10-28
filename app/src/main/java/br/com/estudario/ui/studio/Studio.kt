@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -139,6 +141,29 @@ fun StudioBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Uni
                     drawCircle(Brush.radialGradient(listOf(Color(0x387C5CFF), Color.Transparent), Offset(size.width, 0f), size.width * 0.8f), size.width * 0.8f, Offset(size.width, 0f))
                 },
         ) { content() }
+    }
+}
+
+/**
+ * Janela do estúdio (ajuda "?", ajustes da revisão): ocupa a tela toda e mede o espaço que sobra de
+ * verdade (sem as barras do sistema, o recorte da câmera e o teclado), então cabe em qualquer celular,
+ * tablet ou tamanho de letra; o que passar da altura rola dentro do painel. Tocar fora fecha.
+ */
+@Composable
+fun GxDialog(onDismiss: () -> Unit, maxWidth: androidx.compose.ui.unit.Dp = 560.dp, content: @Composable ColumnScope.() -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        val outside = remember { MutableInteractionSource() }
+        val inside = remember { MutableInteractionSource() }
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            Modifier.fillMaxSize().clickable(outside, indication = null, onClick = onDismiss)
+                .safeDrawingPadding().padding(horizontal = 14.dp, vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            GxPanel(Modifier.widthIn(max = maxWidth).heightIn(max = this.maxHeight).clickable(inside, indication = null) {}, content = content)
+        }
     }
 }
 

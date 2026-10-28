@@ -1,5 +1,7 @@
 package br.com.estudario.ui.focus
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -58,7 +60,7 @@ fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit
     Dialog(onDismissRequest = onContinue) {
         Surface(shape = RoundedCornerShape(30.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp, shadowElevation = 18.dp, modifier = Modifier.widthIn(max = 400.dp)) {
             Column(
-                Modifier.padding(horizontal = 24.dp, vertical = 26.dp),
+                Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {

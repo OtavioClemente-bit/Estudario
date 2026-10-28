@@ -121,11 +121,11 @@ fun GenerationWizard(
                         Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    if (tutorial != null) IconButton(onClick = { showTutorial = true }) { Icon(Icons.Outlined.HelpOutline, "Ver vídeo de ajuda", tint = Color.White) }
+                    if (tutorial != null) IconButton(onClick = { showTutorial = true }) { Icon(Icons.Outlined.HelpOutline, "Ver vídeo de ajuda", tint = br.com.estudario.ui.studio.Gx.strong) }
                     Box(
                         Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.06f)).clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Outlined.Close, "Fechar", tint = Color.White) }
+                    ) { Icon(Icons.Outlined.Close, "Fechar", tint = br.com.estudario.ui.studio.Gx.strong) }
                 }
                 HorizontalDivider(color = br.com.estudario.ui.studio.Gx.line)
 

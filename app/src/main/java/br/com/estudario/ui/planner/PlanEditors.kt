@@ -93,7 +93,7 @@ internal fun PriorityPill(priority: PlanPriority, enabled: Boolean, onClick: () 
 internal fun PriorityPickerDialog(subjectName: String, current: PlanPriority, onDismiss: () -> Unit, onPick: (PlanPriority) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp, modifier = Modifier.widthIn(max = 420.dp)) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Prioridade", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text(subjectName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
@@ -239,7 +239,7 @@ private fun QuickAction(label: String, onClick: () -> Unit) {
 internal fun ReprogramDialog(taskTitle: String, onDismiss: () -> Unit, onPick: (java.time.LocalDate?) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp, modifier = Modifier.widthIn(max = 420.dp)) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Reprogramar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text(taskTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("O que você já fez dela continua registrado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
