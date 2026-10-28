@@ -204,7 +204,7 @@ fun <T> GxPicker(options: List<Pair<T, String>>, selected: T, limit: Int = 8, se
             classes("gx-input"); value(query); attr("placeholder", searchHint)
             onInput { query = it.value; if (it.value.isNotBlank()) open = true }
         }
-        if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Icon("close", plain = true) }
+        if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Text("✕") }
     }
     val shown = when {
         open || q.isNotEmpty() -> filtered

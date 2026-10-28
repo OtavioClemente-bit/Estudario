@@ -224,7 +224,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                                     classes("gx-input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "40")
                                     onInput { board = it.value }
                                 }
-                                if (board.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar banca"); onClick { board = "" } }) { Icon("close", plain = true) }
+                                if (board.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar banca"); onClick { board = "" } }) { Text("✕") }
                             }
                             Div({ classes("gx-chips", "tight") }) {
                                 listOf("Cebraspe", "FGV", "FCC", "Vunesp", "Cesgranrio", "Quadrix").forEach { b ->

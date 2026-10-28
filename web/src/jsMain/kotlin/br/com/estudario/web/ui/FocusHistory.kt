@@ -204,20 +204,51 @@ fun FocusHistoryScreen() {
             }
         }
         Card {
-            CardHead("Sessões do período")
-            val list = data.focusSessions.filter { s -> (s.topicId == null || s.topicId in scopeTopics) && Queries.dateOf(s.startedAt).toEpochDays() >= today - period + 1 }.sortedByDescending { it.startedAt }
+            CardHead("Sessões")
+            // Busca: pelo que foi estudado (título, tópico ou matéria), escrevendo; com texto, procura em
+            // todas as sessões, não só no período. A matéria filtra também, para achar e excluir rápido.
+            var query by remember { mutableStateOf("") }
+            var subjectFilter by remember { mutableStateOf("all") }
+            var shownCount by remember { mutableStateOf(30) }
+            val q = query.trim().lowercase()
+            val inScope = data.focusSessions.filter { s -> s.topicId == null || s.topicId in scopeTopics }
+            fun subjectOf(s: br.com.estudario.web.data.FocusSession) = s.topicId?.let { topics[it] }?.let { subjects[it.subjectId]?.name } ?: "Foco livre"
+            val subjectNames = inScope.map { subjectOf(it) }.distinct().sorted()
+            val list = inScope
+                .filter { s -> q.isNotEmpty() || Queries.dateOf(s.startedAt).toEpochDays() >= today - period + 1 }
+                .filter { s -> subjectFilter == "all" || subjectOf(s) == subjectFilter }
+                .filter { s ->
+                    q.isEmpty() || listOfNotNull(s.title, s.topicId?.let { topics[it]?.title }, subjectOf(s)).any { it.lowercase().contains(q) }
+                }
+                .sortedByDescending { it.startedAt }
+            Div({ classes("gx-board", "search", "fh-search") }) {
+                Icon("Lupa")
+                org.jetbrains.compose.web.dom.Input(org.jetbrains.compose.web.attributes.InputType.Search) {
+                    classes("gx-input"); value(query); attr("placeholder", "Buscar pelo conteúdo: tópico, matéria ou título")
+                    onInput { query = it.value; shownCount = 30 }
+                }
+                if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Text("✕") }
+            }
+            if (subjectNames.size > 1) GxPicker(listOf("all" to "Todas as matérias") + subjectNames.map { it to it }, subjectFilter, limit = 6, searchHint = "Buscar matéria") { subjectFilter = it; shownCount = 30 }
+            P({ classes("xs", "muted"); attr("style", "margin:6px 0 4px") }) {
+                Text(
+                    "${list.size} ${if (list.size == 1) "sessão" else "sessões"} · ${fmt(list.sumOf { it.durationSeconds } / 60.0)}" +
+                        if (q.isNotEmpty()) " · buscando em todo o histórico" else " · nos últimos $period dias",
+                )
+            }
+            val list30 = list
             Div({ classes("stack") }) {
-                list.take(30).forEach { s ->
+                list30.take(shownCount).forEach { s ->
                     key(s.id) {
                         val topic = s.topicId?.let { topics[it] }
                         val subject = topic?.let { subjects[it.subjectId]?.name }
                         Div({ classes("fh-session") }) {
                             I({ attr("style", "background:${subject?.let { legendColor(r.legend, if (it in r.legend) it else FocusInsights.OTHERS) } ?: "var(--faint)"}") })
                             Div({ classes("grow"); attr("style", "min-width:0") }) {
-                                B({ classes("small", "clamp-2") }) { Text(s.title.ifBlank { topic?.title ?: "Foco livre" }) }
+                                B({ classes("small", "clamp-2") }) { Text(topic?.title ?: s.title.ifBlank { "Foco livre" }) }
                                 Div({ classes("xs", "muted") }) {
                                     val d = Date(s.startedAt.toDouble())
-                                    Text(listOfNotNull(Queries.dayLabel(Queries.dateOf(s.startedAt)) + " · " + "${d.getHours()}h${d.getMinutes().toString().padStart(2, '0')}", subject).joinToString(" · "))
+                                    Text(listOfNotNull(Queries.dayLabel(Queries.dateOf(s.startedAt)) + " · " + "${d.getHours()}h${d.getMinutes().toString().padStart(2, '0')}", subject, s.title.takeIf { it.isNotBlank() && it != topic?.title }).joinToString(" · "))
                                 }
                             }
                             Chip(Queries.minutesLabel((s.durationSeconds / 60).toInt()), icon = "timer")
@@ -230,7 +261,8 @@ fun FocusHistoryScreen() {
                         }
                     }
                 }
-                if (list.isEmpty()) P({ classes("small", "muted") }) { Text("Nenhuma sessão neste período.") }
+                if (list.isEmpty()) P({ classes("small", "muted") }) { Text(if (q.isNotEmpty()) "Nenhuma sessão com “$query”." else "Nenhuma sessão neste período.") }
+                if (list.size > shownCount) Button({ classes("gx-more"); attr("type", "button"); onClick { shownCount += 30 } }) { Text("Mostrar mais (${list.size - shownCount})"); Icon("expand_more", plain = true) }
             }
         }
     }
