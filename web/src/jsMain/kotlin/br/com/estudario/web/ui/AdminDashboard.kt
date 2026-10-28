@@ -47,14 +47,29 @@ internal fun TeamDashboard() {
     LaunchedEffect(reload) {
         data = null; error = null
         val token = Auth.accessToken() ?: run { error = "Entre de novo para ver o painel."; return@LaunchedEffect }
+        var failure: String? = null
         val response = runCatching {
             httpRequest("POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/admin_team_dashboard", mapOf("Authorization" to "Bearer $token", "apikey" to WebConfig.SUPABASE_KEY, "Content-Type" to "application/json", "Accept" to "application/json"), "{}")
-        }.getOrNull()
-        if (response == null || !response.ok) { error = "O painel ainda não está no servidor (falta aplicar a migração admin_team_dashboard)."; return@LaunchedEffect }
+        }.onFailure { failure = it.message ?: it::class.simpleName }.getOrNull()
+        if (response == null || !response.ok) {
+            // Mostra o que o servidor respondeu, para saber se é permissão, função ausente ou erro na consulta.
+            val detail = response?.body?.let { body -> runCatching { snapshotJson.parseToJsonElement(body).obj()?.let { o -> listOf(o.s("code"), o.s("message"), o.s("hint")).filter { it.isNotBlank() }.joinToString(" · ") } }.getOrNull() ?: body.take(300) }
+            error = when {
+                response == null -> "Não consegui falar com o servidor: ${failure ?: "sem resposta"}."
+                response.status == 404 -> "O servidor ainda não achou a consulta do painel (HTTP 404). Pode levar um minuto depois da migração; tente de novo. ${detail.orEmpty()}"
+                detail?.contains("FORBIDDEN") == true || detail?.contains("42501") == true -> "Sua conta não está na lista da equipe (app_admins) no servidor. ${detail.orEmpty()}"
+                else -> "O servidor respondeu HTTP ${response.status}: ${detail.orEmpty()}"
+            }
+            return@LaunchedEffect
+        }
         data = runCatching { snapshotJson.parseToJsonElement(response.body).obj() }.getOrNull() ?: run { error = "Resposta inesperada do servidor."; null }
     }
     val d = data
-    if (d == null) { CenterMessage { Folha("thinking", 80); Text(error ?: "Montando o painel…") }; return }
+    if (d == null) {
+        CenterMessage { Folha("thinking", 80); Text(error ?: "Montando o painel…") }
+        if (error != null) Div({ attr("style", "display:flex;justify-content:center;margin-top:12px") }) { Btn("Tentar de novo", { reload++ }, style = "primary", icon = "autorenew") }
+        return
+    }
 
     val lib = d.o("library"); val routes = d.o("routes"); val cat = d.o("catalog"); val unl = d.o("unlinked"); val misses = d.o("misses")
     val reports = d.o("reports"); val sims = d.o("simulados"); val users = d.o("users"); val subs = d.o("subscriptions"); val syl = d.o("userSyllabi"); val jobs = d.o("jobs7d")
