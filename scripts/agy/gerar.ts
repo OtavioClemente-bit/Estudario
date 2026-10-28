@@ -17,7 +17,8 @@ const AUD_MODEL = "claude-opus-5-5-medium";
 const AUD_GEMINI = "gemini-4-argon-high";
 const AUD_FLASH = "gemini-3.8-flash-high";
 const META = 150;            // um recorte com isso já está bom; passa para o próximo
-const LOTE = 50;
+// 25 por resposta: o Flash corta respostas maiores (com 50 dava "exceeded the output token limit").
+const LOTE = 25;
 const MIN_EDITAIS = 15;
 const PUBLICAR_A_CADA = 5;   // lotes aceitos entre uma publicação e outra
 const WORK = `${ROOT}conteudo/entrada/agy`;
@@ -387,6 +388,22 @@ async function loteTravado(item: Json): Promise<void> {
     if (c.ok.length < LOTE * 0.5) { retorno = c.motivos.slice(0, 20).join("\n"); continue; }
     aprovados = c.ok;
     break;
+  }
+  // Recorte novo precisa de 40+ questões, mas o Flash só aguenta 25 por resposta: pede mais 25 (sem cabeçalho),
+  // mostrando as já escritas para não repetir.
+  if (item.novo && aprovados.length) {
+    const mais = { ...item, novo: false };
+    const base2 = { ...recorte, questions: aprovados };
+    try {
+      const pedido2 = montarPedido(mais, base2, materia);
+      const resp2 = MODO_API ? await geminiApi(pedido2) : await agy(GEN_MODEL, pedido2, 20);
+      const it2 = extrairJson(resp2);
+      if (Array.isArray(it2)) {
+        const c2 = conferir(it2, mais, base2, materia);
+        log(`   segunda parte: ${it2.length} recebidas, ${c2.ok.length} passaram na conferência`);
+        aprovados = [...aprovados, ...c2.ok];
+      }
+    } catch (e) { if (e instanceof Cota) throw e; log(`   segunda parte falhou: ${String((e as Error).message ?? e).slice(0, 120)}`); }
   }
   est.lotes++; est.ultimo = Date.now();
   if (!aprovados.length) { est.falhasSeguidas++; salvarEstado(); log("   lote descartado"); return; }
