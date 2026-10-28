@@ -34,12 +34,17 @@ object FocusInsights {
     const val OTHERS = "Outras"
     private val WEEKDAYS = listOf("na segunda", "na terça", "na quarta", "na quinta", "na sexta", "no sábado", "no domingo")
 
-    fun report(all: List<Session>, today: Long, periodDays: Int, maxLegend: Int = 5): Report {
+    fun report(all: List<Session>, today: Long, periodDays: Int, maxLegend: Int = 8): Report {
         val from = today - periodDays + 1
         val now = all.filter { it.epochDay in from..today }
         val before = all.filter { it.epochDay in (from - periodDays) until from }
         val subjectTotals = now.groupBy { it.subject }.mapValues { (_, l) -> l.sumOf { it.minutes } }.entries.sortedByDescending { it.value }
-        val legend = subjectTotals.take(maxLegend).map { it.key }.let { if (subjectTotals.size > maxLegend) it + OTHERS else it }
+        // As matérias de hoje sempre ganham cor própria (antes, a barra de hoje podia sair toda cinza, em
+        // "Outras", e parecia que o foco do dia não tinha entrado); o resto vai pelas que mais somaram.
+        val todaySubjects = now.filter { it.epochDay == today }.groupBy { it.subject }.mapValues { (_, l) -> l.sumOf { it.minutes } }
+            .entries.sortedByDescending { it.value }.map { it.key }
+        val picked = (todaySubjects + subjectTotals.map { it.key }).distinct().take(maxLegend).toSet()
+        val legend = subjectTotals.map { it.key }.filter { it in picked }.let { if (subjectTotals.size > picked.size) it + OTHERS else it }
         fun keyOf(s: String) = if (s in legend) s else OTHERS
         val byDay = now.groupBy { it.epochDay }
         val days = (from..today).map { d ->

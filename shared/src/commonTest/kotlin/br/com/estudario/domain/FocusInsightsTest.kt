@@ -28,4 +28,14 @@ class FocusInsightsTest {
         assertEquals(listOf("M7", "M6", "M5", FocusInsights.OTHERS), r.legend)
         assertEquals(100.0, r.days.last().bySubject[FocusInsights.OTHERS])
     }
+
+    @Test
+    fun materiaDeHojeSempreTemCorPropria() {
+        // cinco matérias grandes nos dias anteriores e uma pequena só hoje: a de hoje entra na legenda
+        val all = (1..5).map { s(95, 10, 100.0 * it, "M$it") } + s(100, 8, 20.0, "Hoje")
+        val r = FocusInsights.report(all, 100, 7, maxLegend = 3)
+        assertTrue("Hoje" in r.legend)
+        assertEquals(20.0, r.days.last().bySubject["Hoje"])
+        assertEquals(null, r.days.last().bySubject[FocusInsights.OTHERS])
+    }
 }
