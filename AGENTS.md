@@ -3,6 +3,10 @@
 1. **Escreva cada questão, alternativa e explicação você mesmo, no texto da resposta.** É proibido usar
    script, código, modelo ou laço para gerar, completar, embaralhar, reordenar, alongar ou "equilibrar"
    questões e alternativas. O terminal serve só para validar se o JSON abre.
+   **Corrigir à mão é permitido e esperado:** quando o conferidor reprovar uma matéria ou recorte, reescreva você
+   mesmo, editando o arquivo (apply_patch), o texto de cada explicação e de cada alternativa apontada: alongar a
+   explicação, encurtar a certa ou alongar as erradas, trocar a letra da certa. A proibição acima é só de PROGRAMA
+   que faça isso; rodar o conferidor e reformatar o JSON com `deno fmt` também são permitidos.
    **Exceção autorizada pelo dono do projeto:** `scripts/banco2/gerar-lote.mjs` pode pedir a um modelo,
    pela API da Anthropic, que escreva um lote inteiro do banco 2 (cada lote é escrito pelo modelo numa
    única resposta, seguindo `conteudo/fila/banco-questoes-2/`). Continua proibido montar, completar,
