@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.foundation.clickable
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.estudario.data.local.ErrorWithQuestion
+import br.com.estudario.data.local.QuestionSessionEntity
 import br.com.estudario.domain.ErrorRetryLadder
 import br.com.estudario.domain.ErrorVirada
 import br.com.estudario.ui.AppViewModel
@@ -54,6 +56,7 @@ import br.com.estudario.ui.components.subjectAccentColor
 import br.com.estudario.ui.theme.EstudarioShapes
 import br.com.estudario.ui.theme.estudarioColors
 import br.com.estudario.ui.theme.screenPadding
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -415,6 +418,28 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
     var climbed by remember { mutableIntStateOf(0) }
     val sessionId = remember { "virada-$now" }
     val scheme = MaterialTheme.colorScheme
+    // O tempo da missão conta no Desempenho, como uma bateria de questões (ERROR_REVIEW, o mesmo do site)
+    val results = remember { mutableStateListOf<Boolean>() }
+    val topicIds = remember { mutableSetOf<Long>() }
+    var saved by remember { mutableStateOf(false) }
+    fun saveSession() {
+        if (saved || results.isEmpty()) return
+        saved = true
+        val end = System.currentTimeMillis()
+        val subjectIds = viewModel.topics.value.filter { it.id in topicIds }.map { it.subjectId }.distinct()
+        val session = QuestionSessionEntity(
+            id = sessionId, type = br.com.estudario.data.local.QuestionSessionType.ERROR_REVIEW,
+            startedAt = now, completedAt = end, durationSeconds = (end - now) / 1_000,
+            questionCount = results.size, correctCount = results.count { it },
+            subjectIdsText = subjectIds.joinToString(","), topicIdsText = topicIds.joinToString(","),
+        )
+        viewModel.viewModelScope.launch { viewModel.saveQuestionSession(session) }
+    }
+    // saiu no meio (Sair, voltar, fechou): o que foi respondido também vale
+    DisposableEffect(Unit) { onDispose { saveSession() } }
+    var elapsed by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) { while (true) { elapsed = (System.currentTimeMillis() - now) / 1_000; kotlinx.coroutines.delay(1_000) } }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val ids = missionIds ?: run {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         return
@@ -430,12 +455,17 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Icon(Icons.Outlined.Close, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Sair") }
             Text(if (index < ids.size) "Missão · ${index + 1} de ${ids.size}" else "Missão feita", Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Text("~${(ids.size * 1.2).toInt().coerceAtLeast(1)} min", style = MaterialTheme.typography.labelMedium, color = scheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Timer, "Tempo da missão (conta no Desempenho)", Modifier.size(16.dp), tint = scheme.primary)
+                Spacer(Modifier.width(4.dp))
+                Text("%02d:%02d".format(elapsed / 60, elapsed % 60), style = MaterialTheme.typography.labelMedium, color = scheme.primary, fontWeight = FontWeight.Bold)
+            }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             ids.indices.forEach { i -> Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(if (i <= index) Amber else scheme.outlineVariant)) }
         }
         if (index >= ids.size) {
+            LaunchedEffect(Unit) { saveSession(); br.com.estudario.ui.brand.EstudarioSom.play(context, "resultado") }
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Folha(110.dp, mood = if (climbed > 0) FolhaMood.PROUD else FolhaMood.TALKING)
                 Text(if (climbed > 0) "Virada feita!" else "Missão feita", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -444,6 +474,8 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
                     else "Desta vez não virou, e tudo bem: eles voltam, e agora você sabe o porquê.",
                     textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant,
                 )
+                val minutes = ((elapsed + 59) / 60).toInt()
+                Text("${results.count { it }} de ${results.size} certas em $minutes min. O tempo entrou no Desempenho.", textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                 Button(onClick = onBack) { Icon(Icons.Outlined.Replay, null); Spacer(Modifier.width(8.dp)); Text("Voltar à Virada") }
             }
         } else key(ids[index]) {
@@ -453,9 +485,9 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
             val topic = topics.firstOrNull { it.id == question.question.topicId }
             val subject = topic?.let { t -> subjects.firstOrNull { it.id == t.subjectId } }
             MissionItem(
-                viewModel, start, question, sessionId,
+                viewModel, start, question, sessionId, results,
                 meta = listOfNotNull(subject?.name, topic?.title, "errou ${start.entry.errorCount}×").joinToString(" · ").uppercase(),
-                onClimb = { climbed++ }, onNext = { index++ },
+                onAnswered = { ok -> results += ok; topicIds += question.question.topicId; if (ok) climbed++ }, onNext = { index++ },
             )
             }
         }
@@ -469,8 +501,9 @@ private fun MissionItem(
     start: ErrorWithQuestion,
     question: br.com.estudario.data.local.QuestionWithOptions,
     sessionId: String,
+    results: List<Boolean>,
     meta: String,
-    onClimb: () -> Unit,
+    onAnswered: (Boolean) -> Unit,
     onNext: () -> Unit,
 ) {
     val errors by viewModel.errors.collectAsState()
@@ -506,32 +539,51 @@ private fun MissionItem(
                 scope.launch {
                     val ok = viewModel.answer(question, key, sessionId)
                     right = ok
-                    if (ok) onClimb()
+                    onAnswered(ok)
                 }
             }
         }
     }
 
+    val qid = question.question.id
+    val inARow = results.asReversed().takeWhile { it }.size
+    val relief = right == true && inARow == 1 && results.size >= 2 && !results[results.size - 2]
+    val fire = right == true && inARow >= 3
+    val context = androidx.compose.ui.platform.LocalContext.current
     if (right == true) {
         val turned = (after?.entry?.retryStreak ?: 0) >= ErrorRetryLadder.days.size
+        LaunchedEffect(qid) { br.com.estudario.ui.brand.EstudarioSom.play(context, if (turned || fire) "combo" else "acerto") }
         var shown by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { shown = true }
         val pop by animateFloatAsState(if (shown) 1f else 0.7f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "virou")
         Surface(shape = RoundedCornerShape(16.dp), color = colors.completed.copy(alpha = 0.14f), border = BorderStroke(2.dp, colors.completed), modifier = Modifier.fillMaxWidth().scale(pop)) {
-            Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(if (turned) "VIROU! ★" else "VIROU UM DEGRAU!", color = colors.completed, fontWeight = FontWeight.Black, fontSize = 24.sp)
-                val streak = after?.entry?.retryStreak ?: 1
-                Text(
-                    if (turned) "Esse erro virou troféu: foi para o mural."
-                    else "Agora ela volta em ${ErrorRetryLadder.intervalDays(streak) ?: 30} dias. ${if (streak == ErrorRetryLadder.days.size - 1) "Mais um acerto e vira troféu." else "Continue subindo."}",
-                    textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium,
-                )
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                key(qid) { Folha(72.dp, mood = when { turned -> FolhaMood.ECSTATIC; fire -> FolhaMood.PROUD; relief -> FolhaMood.RELIEVED; else -> FolhaMood.HAPPY }) }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (turned) "VIROU! ★" else "VIROU UM DEGRAU!", color = colors.completed, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                    Text(
+                        when { fire -> br.com.estudario.ui.assistant.FolhaLines.forFire(qid); relief -> br.com.estudario.ui.assistant.FolhaLines.forRelief(qid); else -> br.com.estudario.ui.assistant.FolhaLines.forAnswer(true, qid) },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    val streak = after?.entry?.retryStreak ?: 1
+                    Text(
+                        if (turned) "Esse erro virou troféu: foi para o mural."
+                        else "Agora ela volta em ${ErrorRetryLadder.intervalDays(streak) ?: 30} dias. ${if (streak == ErrorRetryLadder.days.size - 1) "Mais um acerto e vira troféu." else "Continue subindo."}",
+                        style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                    )
+                    if (inARow >= 2) Text("🔥 $inARow seguidas", color = Amber, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
     if (right == false) Surface(shape = RoundedCornerShape(16.dp), color = scheme.surfaceContainerLow, border = BorderStroke(1.dp, scheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
+        LaunchedEffect(qid) { br.com.estudario.ui.brand.EstudarioSom.play(context, "erro") }
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Ainda não. Por que você errou de novo?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            // o Folha mesmo pergunta por que errou de novo; escolhido o motivo, dá a dica certa
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                key(qid, reason) { Folha(64.dp, mood = if (reason != null) FolhaMood.TALKING else FolhaMood.SAD) }
+                Text("Ainda não. Por que você errou de novo?", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ErrorVirada.Reason.entries.forEach { r ->
                     FilterChip(
@@ -546,7 +598,7 @@ private fun MissionItem(
                     )
                 }
             }
-            Text(reason?.let { "Dica do Folha: ${it.tip}" } ?: "Um toque já ajuda: o caderno aprende o seu padrão. A questão volta em 3 dias.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            Text(reason?.let { "Dica do Folha: ${it.tip}" } ?: "Um toque já ajuda: eu aprendo o seu padrão e dou a dica certa. A questão volta para a mesa e aparece de novo em 3 dias.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         }
     }
     if (right != null && question.question.explanation.isNotBlank()) Surface(shape = EstudarioShapes.panel, color = scheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {

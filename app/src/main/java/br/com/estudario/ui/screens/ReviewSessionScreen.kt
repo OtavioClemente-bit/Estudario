@@ -71,6 +71,7 @@ import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.MarkdownText
 import br.com.estudario.ui.components.QuestionProvenance
 import br.com.estudario.ui.theme.screenPadding
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -405,6 +406,17 @@ fun ReviewSessionScreen(
                 } else RateCard(review, reviews, recalled, forgotten, correct, questions.size) { difficulty ->
                     val days = nextDueDays(review, reviews, difficulty, correct, questions.size)
                     viewModel.completeReview(review, difficulty, correct, questions.size, recalled, forgotten, startedAt)
+                    // as questões da revisão contam no Desempenho (tempo e acertos), como no site
+                    if (results.isNotEmpty()) {
+                        val end = System.currentTimeMillis()
+                        val session = br.com.estudario.data.local.QuestionSessionEntity(
+                            id = sessionId, type = br.com.estudario.data.local.QuestionSessionType.REVIEW,
+                            startedAt = startedAt, completedAt = end, durationSeconds = (end - startedAt) / 1_000,
+                            questionCount = results.size, correctCount = results.count { it },
+                            subjectIdsText = topic?.subjectId?.toString().orEmpty(), topicIdsText = review.topicId.toString(),
+                        )
+                        viewModel.viewModelScope.launch { viewModel.saveQuestionSession(session) }
+                    }
                     onReviewCompleted(review.topicId, startedAt)
                     done = ReviewOutcome(review.topicId, days, review.stage.takeIf { difficulty == ReviewDifficulty.DIFICIL })
                 }

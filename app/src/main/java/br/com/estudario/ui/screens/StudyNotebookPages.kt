@@ -42,6 +42,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -75,6 +77,7 @@ import br.com.estudario.data.local.TopicStatus
 import br.com.estudario.domain.StudyNotebook
 import br.com.estudario.ui.AppViewModel
 import br.com.estudario.ui.theme.screenPadding
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -342,6 +345,24 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
     val startedAt = remember { System.currentTimeMillis() }
     val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
     val byId = topics.associateBy { it.id }
+    // as questões da folheada contam no Desempenho (tempo e acertos), como no site; saiu no meio também vale
+    val answers = remember { mutableStateListOf<Pair<Long, Boolean>>() }
+    var saved by remember { mutableStateOf(false) }
+    fun saveSession() {
+        if (saved || answers.isEmpty()) return
+        saved = true
+        val end = System.currentTimeMillis()
+        val topicIds = answers.map { it.first }.distinct()
+        val subjectIds = viewModel.topics.value.filter { it.id in topicIds }.map { it.subjectId }.distinct()
+        val session = br.com.estudario.data.local.QuestionSessionEntity(
+            id = sessionId, type = br.com.estudario.data.local.QuestionSessionType.QUICK,
+            startedAt = startedAt, completedAt = end, durationSeconds = (end - startedAt) / 1_000,
+            questionCount = answers.size, correctCount = answers.count { it.second },
+            subjectIdsText = subjectIds.joinToString(","), topicIdsText = topicIds.joinToString(","),
+        )
+        viewModel.viewModelScope.launch { viewModel.saveQuestionSession(session) }
+    }
+    DisposableEffect(Unit) { onDispose { saveSession() } }
     Column(Modifier.fillMaxWidth().padding(screenPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, "Fechar") }
@@ -351,7 +372,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
         if (pages.isEmpty()) { Text("Nada para folhear ainda: estude um tópico e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant); return@Column }
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { pages.indices.forEach { i -> Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (i <= index) Gold else MaterialTheme.colorScheme.surfaceVariant)) } }
         if (index >= pages.size) {
-            LaunchedEffect(Unit) { prefs.edit().putLong("folheada", daySeed()).apply() }
+            LaunchedEffect(Unit) { prefs.edit().putLong("folheada", daySeed()).apply(); saveSession() }
             Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 br.com.estudario.ui.assistant.Folha(110.dp, mood = br.com.estudario.ui.assistant.FolhaMood.PROUD)
                 Text("Folheada feita!", fontWeight = FontWeight.Black, fontSize = 24.sp)
@@ -392,7 +413,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
                         StampText("PEGADINHA")
                     }
                     is StudyNotebook.Page.Recall -> FlipRecall(page)
-                    is StudyNotebook.Page.Question -> FlipQuestion(viewModel, page.questionId, sessionId)
+                    is StudyNotebook.Page.Question -> FlipQuestion(viewModel, page.questionId, sessionId) { ok -> answers += page.topicId to ok }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -430,7 +451,7 @@ private fun ColumnScope.FlipRecall(page: StudyNotebook.Page.Recall) {
 }
 
 @Composable
-private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, sessionId: String) {
+private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, sessionId: String, onAnswered: (Boolean) -> Unit) {
     val questions by viewModel.questions.collectAsState()
     val question = questions.firstOrNull { it.question.id == questionId }
     if (question == null) { Text("Esta questão não está mais no banco.", color = Muted); return }
@@ -453,7 +474,7 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
     if (right == null) br.com.estudario.ui.components.ConfirmAnswerButton(enabled = picked != null && !sending) {
         val key = picked ?: return@ConfirmAnswerButton
         sending = true
-        scope.launch { right = viewModel.answer(question, key, sessionId) }
+        scope.launch { val ok = viewModel.answer(question, key, sessionId); right = ok; onAnswered(ok) }
     }
     if (right != null) {
         PostIt(if (right == true) "Agora foi! Acertando de novo depois, ela sai do caderno de erros." else "Ainda não. Leia a explicação: ela volta depois.", if (right == true) Color(0xFFC8F5DD) else Color(0xFFFFD9D2))
