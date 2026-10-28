@@ -27,17 +27,24 @@
   // a asa erguida: bordo grosso do ombro ao pulso e à mão; 9 penas longas em leque saindo da mão e
   // 8 secundárias caindo do braço. [side] -1 = esquerda, 1 = direita (espelho dos ângulos).
   function wing(shoulder, wrist, hand, side) {
-    const out = [], mir = (ang) => side < 0 ? ang : 180 - ang;
-    for (let i = 0; i < 8; i++) {
-      const k = i / 7, base = lerp2(shoulder, wrist, k);
-      out.push(plume(base, mir(150 + 30 * k), 230 - 40 * k, 40, 20 + i * 2.3 + (side > 0 ? 9 : 0), 26 * side, { wing: side }));
+    const out = [], mir = (ang) => side < 0 ? ang : 180 - ang, sd = side > 0 ? 9 : 0;
+    // secundárias: do braço, caindo para fora (a parte de trás da asa)
+    for (let i = 0; i < 10; i++) {
+      const k = i / 9, base = lerp2(shoulder, wrist, k);
+      out.push(plume(base, mir(146 + 36 * k), 250 - 50 * k, 42, 20 + i * 2.3 + sd, 30 * side, { wing: side, k: .2 + .3 * k }));
     }
-    for (let i = 0; i < 9; i++) {
-      const k = i / 8, base = lerp2(wrist, hand, k * .8);
-      out.push(plume(base, mir(196 + 66 * k), 250 + 120 * sin(k * PI * .9), 36 - 8 * k, i * 1.7 + (side > 0 ? 9 : 0), -34 * side, { wing: side }));
+    // primárias: da mão, em leque até lá em cima (as mais longas no meio)
+    for (let i = 0; i < 12; i++) {
+      const k = i / 11, base = lerp2(wrist, hand, k * .85);
+      out.push(plume(base, mir(194 + 70 * k), 270 + 150 * sin(k * PI * .88), 38 - 10 * k, i * 1.7 + sd, -38 * side, { wing: side, k: .5 + .5 * k, tip: i % 2 === 0 }));
+    }
+    // coberteiras: penas curtas por cima, perto do braço, dando volume
+    for (let i = 0; i < 8; i++) {
+      const k = i / 7, base = lerp2(lerp2(shoulder, wrist, .1), lerp2(wrist, hand, .35), k);
+      out.push(plume(base, mir(160 + 50 * k), 130 - 20 * k, 34, 90 + i * 3.1 + sd, 18 * side, { wing: side, k: .3 + .4 * k, covert: true }));
     }
     const m1 = lerp2(shoulder, wrist, .5), m2 = lerp2(wrist, hand, .5);
-    out.push({ c: [shoulder[0], shoulder[1], m1[0], m1[1] - 40, wrist[0], wrist[1], m2[0], m2[1]], w: 54, seed: 40 + (side > 0 ? 9 : 0), wing: side, bright: true });
+    out.push({ c: [shoulder[0], shoulder[1], m1[0], m1[1] - 40, wrist[0], wrist[1], m2[0], m2[1]], w: 58, seed: 40 + sd, wing: side, bright: true, k: .3 });
     return out;
   }
   const WING_L = wing(SHOULDER_L, [310, 250], [170, 70], -1);
@@ -45,9 +52,9 @@
   // a cauda: sete plumas largas em S abrindo para baixo, e fitas finas de fogo
   const TAIL_BASE = [512, 648];
   const TAIL = [];
-  for (let i = 0; i < 7; i++) {
-    const k = i / 6, ang = 168 - 156 * k;
-    TAIL.push(plume(TAIL_BASE, ang, 400 + 90 * sin(k * PI), 84 - 20 * Math.abs(k - .5), 51 + i, (i % 2 ? 1 : -1) * 80));
+  for (let i = 0; i < 9; i++) {
+    const k = i / 8, ang = 128 - 76 * k, base = [TAIL_BASE[0] - 40 + 80 * k, TAIL_BASE[1] - 20 + 30 * Math.abs(k - .5)];
+    TAIL.push(plume(base, ang, 430 + 130 * sin(k * PI), 80 - 20 * Math.abs(k - .5), 51 + i, (i % 2 ? 1 : -1) * (120 + 40 * Math.abs(k - .5)), { tail: k }));
   }
   TAIL.push(plume([500, 600], 200, 300, 14, 61, -60, { thin: true }));
   TAIL.push(plume([560, 600], -20, 300, 14, 62, 60, { thin: true }));
@@ -59,9 +66,10 @@
     { c: [578, 395, 595, 340, 612, 300, 628, 280], w: 56, seed: 73, bright: true }, // pescoço
   ];
   const CREST = [
-    { c: [612, 258, 584, 214, 552, 194, 506, 140], w: 26, seed: 81 },
-    { c: [620, 250, 606, 196, 596, 150, 560, 96], w: 24, seed: 82 },
-    { c: [630, 248, 642, 196, 654, 160, 642, 104], w: 20, seed: 83 },
+    { c: [612, 258, 580, 210, 540, 186, 486, 120], w: 30, seed: 81, tip: true },
+    { c: [620, 250, 604, 190, 592, 136, 552, 70], w: 28, seed: 82, tip: true },
+    { c: [630, 248, 644, 188, 660, 146, 646, 80], w: 24, seed: 83, tip: true },
+    { c: [636, 254, 664, 214, 690, 196, 720, 150], w: 18, seed: 84, tip: true },
   ];
   const HEAD = [632, 272];
 
@@ -170,14 +178,17 @@
       const flap = sin(time * 2.4) * .09 * e, bob = sin(time * 2.4) * 10 * e - fold * 30;
       const breathe = sin(time * 1.3);
       // as asas: abertas em V, batendo; dormindo, caídas e recolhidas
-      const wingL = WING_L.map(f => ({ ...f, c: rotatePts(f.c, SHOULDER_L, -1.55 * fold - flap, 1 - .38 * fold) }));
-      const wingR = WING_R.map(f => ({ ...f, c: rotatePts(f.c, SHOULDER_R, 1.55 * fold + flap, 1 - .38 * fold) }));
+      // cada pena bate um pouco depois da anterior (do ombro para a ponta), como asa de verdade
+      const lag = (k) => sin(time * 2.4 - (k || 0) * 1.3) * (.07 + .07 * (k || 0)) * e;
+      const wingL = WING_L.map(f => ({ ...f, c: rotatePts(f.c, SHOULDER_L, -1.55 * fold - lag(f.k), 1 - .38 * fold) }));
+      const wingR = WING_R.map(f => ({ ...f, c: rotatePts(f.c, SHOULDER_R, 1.55 * fold + lag(f.k), 1 - .38 * fold) }));
+      const tail = TAIL.map((f, i) => ({ ...f, c: rotatePts(f.c, TAIL_BASE, sin(time * 1.6 + i * .7) * .05 * e, 1) }));
       // a cabeça baixa quando dorme
       const neckPivot = [575, 400], headDrop = .55 * fold;
       const body = BODY.map((f, i) => i === 2 ? { ...f, c: rotatePts(f.c, neckPivot, headDrop, 1) } : f);
       const crest = CREST.map(f => ({ ...f, c: rotatePts(f.c, neckPivot, headDrop, 1) }));
       const head = rotatePts([HEAD[0], HEAD[1], 0, 0, 0, 0, 0, 0], neckPivot, headDrop, 1);
-      const all = [...TAIL, ...wingL, ...wingR, ...body, ...crest];
+      const all = [...tail, ...wingL, ...wingR, ...body, ...crest];
       const lift = (f) => ({ ...f, c: f.c.map((v, i) => i % 2 ? v + bob : v) });
       const feathers = all.map(lift);
       const hx = head[0], hy = head[1] + bob;
@@ -226,11 +237,22 @@
         const halo = g.createRadialGradient(540, 470 + bob, 0, 540, 470 + bob, 430);
         halo.addColorStop(0, `rgba(255,160,60,${.18 * e})`); halo.addColorStop(.55, `rgba(200,40,20,${.08 * e})`); halo.addColorStop(1, "rgba(200,40,20,0)");
         g.fillStyle = halo; g.fillRect(100, 40, 880, 900);
+        // a membrana: a área entre as penas da asa preenchida de fogo escuro (a asa fica cheia)
+        g.globalCompositeOperation = "source-over";
+        for (const [shoulder, wingF] of [[SHOULDER_L, feathers.filter(f => f.wing < 0 && !f.covert)], [SHOULDER_R, feathers.filter(f => f.wing > 0 && !f.covert)]]) {
+          const tips = wingF.map(f => bez(f.c, .72));
+          const cx = tips.reduce((a, p) => a + p[0], 0) / tips.length, cy = tips.reduce((a, p) => a + p[1], 0) / tips.length;
+          tips.sort((p, q) => Math.atan2(p[1] - cy, p[0] - cx) - Math.atan2(q[1] - cy, q[0] - cx));
+          const mem = new Path2D(); mem.moveTo(tips[0][0], tips[0][1]); for (const p of tips) mem.lineTo(p[0], p[1]); mem.closePath();
+          const mg = g.createRadialGradient(shoulder[0], shoulder[1] + bob, 20, shoulder[0], shoulder[1] + bob, 520);
+          mg.addColorStop(0, `rgba(255,120,40,${.55 * e})`); mg.addColorStop(.5, `rgba(190,30,25,${.45 * e})`); mg.addColorStop(1, `rgba(90,10,40,${.1 * e})`);
+          g.fillStyle = mg; g.fill(mem);
+        }
         // 1) a base de cada pena, pintada por cima (sem somar luz): vermelho profundo que vai a carmim e some
         g.globalCompositeOperation = "source-over";
         for (const f of feathers) {
           const a = bez(f.c, 0), b = bez(f.c, 1), lg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
-          if (f.bright) { lg.addColorStop(0, `rgba(255,150,50,${e})`); lg.addColorStop(.5, `rgba(235,80,25,${e})`); lg.addColorStop(1, `rgba(170,25,20,${.6 * e})`); }
+          if (f.bright || f.covert) { lg.addColorStop(0, `rgba(255,${f.covert ? 175 : 150},${f.covert ? 70 : 50},${e})`); lg.addColorStop(.5, `rgba(235,80,25,${e})`); lg.addColorStop(1, `rgba(170,25,20,${.6 * e})`); }
           else { lg.addColorStop(0, `rgba(250,110,35,${e})`); lg.addColorStop(.4, `rgba(205,40,25,${.95 * e})`); lg.addColorStop(.85, `rgba(120,12,30,${.55 * e})`); lg.addColorStop(1, "rgba(90,8,40,0)"); }
           g.fillStyle = lg; g.fill(strip(f.c, f.w, f.seed, time, 1, f.thin ? .9 : 1));
         }
@@ -245,7 +267,7 @@
         // 3) o eixo de cada pena: um fio dourado que brilha mais perto da raiz
         for (const f of feathers) {
           const a = bez(f.c, 0), b = bez(f.c, 1), cg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
-          cg.addColorStop(0, `rgba(255,248,210,${(f.bright ? .45 : .6) * e})`); cg.addColorStop(.5, `rgba(255,200,90,${.38 * e})`); cg.addColorStop(1, "rgba(255,140,40,0)");
+          cg.addColorStop(0, "rgba(255,248,210,0)"); cg.addColorStop(.14, `rgba(255,248,210,${(f.bright ? .45 : .6) * e})`); cg.addColorStop(.5, `rgba(255,200,90,${.38 * e})`); cg.addColorStop(1, "rgba(255,140,40,0)");
           g.fillStyle = cg; g.fill(strip(f.c, f.w, f.seed + .5, time, 1, f.thin ? .35 : .14));
         }
         g.restore();

@@ -114,9 +114,9 @@ private fun GameLootList(loot: List<Loot>) {
 }
 
 @Composable
-private fun GameSay(line: String) {
-    Div({ classes("lvx-say") }) {
-        Folha("proud", 64)
+private fun GameSay(line: String, mood: String = "proud", startled: Boolean = false) {
+    Div({ classes(*listOfNotNull("lvx-say", if (startled) "startled" else null).toTypedArray()) }) {
+        Div({ classes("lvx-say-folha") }) { Folha(mood, 64); if (startled) Span({ classes("lvx-bang") }) { Text("!") } }
         Span({ classes("lvx-bubble") }) { Text(line) }
     }
 }
@@ -214,6 +214,21 @@ private fun GameWeek(week: List<Pair<String, Boolean>>) {
     }
 }
 
+/**
+ * O contador da sequência: o número de ontem sobe e sai, o de hoje entra rolando de baixo com um pulo
+ * e acende em fogo (no mesmo instante em que a fênix acorda), com "dias de sequência" embaixo.
+ */
+@Composable
+private fun StreakCounter(days: Int) {
+    Div({ classes("lvx-count"); attr("aria-label", "$days ${if (days == 1) "dia" else "dias"} de sequência") }) {
+        Div({ classes("lvx-count-roll") }) {
+            Span({ classes("lvx-count-old") }) { Text("${(days - 1).coerceAtLeast(0)}") }
+            Span({ classes("lvx-count-new") }) { Text("$days") }
+        }
+        Span({ classes("lvx-count-label") }) { Text(if (days == 1) "DIA DE SEQUÊNCIA" else "DIAS DE SEQUÊNCIA") }
+    }
+}
+
 // ------------------------------------------------------------------ sequência do dia
 
 /** Os marcos da sequência (dias seguidos) que a cena mostra como próximo objetivo. */
@@ -237,13 +252,13 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
         GameStage(
             if (record) "RECORDE!" else null,
             before = { Div({ classes("lvx-phx") }) { Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
-            after = { Div({ classes("lvx-phx") }) { B({ classes("lvx-coin") }) { Text("$days") } } },
+            after = { Div({ classes("lvx-phx") }) },
             extra = {
-                FenixView(250, wakeAt = 1050)
+                FenixView(340, wakeAt = 1050)
                 Div({ classes("lvx-vortex") })
-                Div({ classes("lvx-scared") }) { Folha("surprised", 64); Span { Text("!") } }
             },
         )
+        StreakCounter(days)
         GameHead(if (days <= 1) "DORMINDO" else "DIA ${days - 1}", if (days == 1) "ACORDOU" else "DIA $days", "SEQUÊNCIA!") {
             B { Text(if (days == 1) "1 dia" else "$days dias") }
             Text(if (days == 1) " · a fênix acordou" else " seguidos estudando")
@@ -254,7 +269,7 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
             if (next != null) add(Loot("flag", "PRÓXIMO MARCO", "$next dias · ${if (next - days == 1) "falta 1 dia" else "faltam ${next - days} dias"}"))
             add(if (record) Loot("emoji_events", "NOVO RECORDE", "Sua maior sequência: $days dias") else Loot("emoji_events", "SEU RECORDE", "$best dias · faltam ${best - days} para bater"))
         })
-        GameSay(when {
+        GameSay(mood = "surprised", startled = true, line = when {
             days <= 1 -> "Que susto! A fênix acordou. Volte amanhã para ela não dormir de novo."
             record -> "Recorde! A fênix nunca esteve tão acesa. Amanhã tem mais."
             else -> "Ela acordou com tudo! Faltam ${best - days} para o seu recorde de $best."
@@ -277,13 +292,14 @@ internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, week: List<
         GameStage(
             "SALVA!",
             before = { Div({ classes("lvx-phx") }) { Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
-            after = { Div({ classes("lvx-phx") }) { B({ classes("lvx-coin") }) { Text("$days") } } },
+            after = { Div({ classes("lvx-phx") }) },
             extra = {
-                FenixView(250, wakeAt = 1050)
+                FenixView(340, wakeAt = 1050)
                 Div({ classes("lvx-tiptoe") }) { Folha("wink", 64); Img(bookmarkSrc(), "") }
                 Span({ classes("lvx-spark") })
             },
         )
+        StreakCounter(days)
         GameHead("QUASE APAGOU", "ACESA", "SEQUÊNCIA SALVA!") {
             B { Text("$days ${if (days == 1) "dia" else "dias"}") }
             Text(if (dayLabel.isNotBlank()) " · o Folha marcou $dayLabel" else " de sequência")

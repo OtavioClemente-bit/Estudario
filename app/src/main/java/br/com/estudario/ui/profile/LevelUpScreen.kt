@@ -140,6 +140,8 @@ internal fun GameScene(
     stageTall: Float = 1f, fxShift: Float = 0f,
     /** Peças a mais no palco que seguem o relógio (redemoinho, o Folha). */
     stageExtra: (@Composable BoxScope.(Float, androidx.compose.ui.unit.Dp) -> Unit)? = null,
+    /** O Folha da fala: o humor e se ele leva um susto (pula, com o "!"). */
+    folhaMood: FolhaMood = FolhaMood.PROUD, folhaStartled: Boolean = false,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -318,7 +320,12 @@ internal fun GameScene(
                 // o Folha
                 Appear(t, 2.7f) {
                     Row(Modifier.widthIn(max = 420.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Folha(56.dp, mood = FolhaMood.PROUD)
+                        Box(Modifier.graphicsLayer { if (folhaStartled) { val j = seg(t, 2.75f, 0.6f); translationY = (-22f * kotlin.math.sin(j * PI.toFloat())).dp.toPx(); rotationZ = -10f * kotlin.math.sin(j * PI.toFloat() * 2f) } }) {
+                            Folha(56.dp, mood = folhaMood)
+                            if (folhaStartled) Box(Modifier.align(Alignment.TopEnd).size(20.dp).clip(CircleShape).background(Color(0xFFFF5A7A)).border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                                Text("!", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                            }
+                        }
                         Text(
                             line,
                             Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White).padding(horizontal = 14.dp, vertical = 10.dp),
@@ -414,19 +421,6 @@ private fun SleepZ(size: androidx.compose.ui.unit.Dp) {
     }
 }
 
-/** O "depois": a moeda com o número do dia, no canto da fênix acesa. */
-@Composable
-private fun DayCoin(days: Int, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size)) {
-        val coin = size * 0.28f
-        Box(
-            Modifier.align(Alignment.BottomEnd).padding(end = size * 0.0f, bottom = size * 0.04f).size(coin).clip(CircleShape)
-                .background(Brush.verticalGradient(listOf(Color(0xFFFFF3B8), Color(0xFFFFC22E), Color(0xFFFF8A3D))))
-                .border(3.dp, Color.White, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Text("$days", color = Color(0xFF4A1800), fontWeight = FontWeight.Black, fontSize = (coin.value * 0.45f).sp) }
-    }
-}
 
 /** O redemoinho: um pontinho preto que gira cada vez mais rápido e cresce até o clarão. */
 @Composable
@@ -511,24 +505,39 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
         primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
         middle = { t -> GameWeekRow(week, t, FIRE1, FIRE2) },
         before = { s -> SleepZ(s) },
-        after = { s -> DayCoin(days, s) },
-        backdrop = { s, t -> FenixScene(s, wake = t >= IMPACT) },
+        after = { },
+        backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
         cues = listOf(0.25f to "tonto"),
+        folhaMood = FolhaMood.SURPRISED, folhaStartled = true,
         stageExtra = { t, s ->
             Vortex(t, s)
-            // o Folha leva um susto quando ela acorda
-            val p = seg(t, 1.1f, 0.55f)
-            if (p > 0f) {
-                val e = CubicBezierEasing(0.2f, 1.7f, 0.4f, 1f).transform(p)
-                Box(Modifier.align(Alignment.BottomStart).offset(x = (-14).dp).graphicsLayer { alpha = p.coerceAtMost(1f); translationY = (20f * (1f - e) - 18f * kotlin.math.sin(p * PI.toFloat())).dp.toPx(); rotationZ = -12f * (1f - e) }) {
-                    Folha(52.dp, mood = FolhaMood.SURPRISED)
-                    Box(Modifier.align(Alignment.TopEnd).size(20.dp).clip(CircleShape).background(Color(0xFFFF5A7A)).border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
-                        Text("!", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                    }
-                }
-            }
+            StreakCounter(days, t)
         },
     )
+}
+
+/**
+ * O contador da sequência (o mesmo do site): o número de ontem sobe e sai, o de hoje entra rolando de
+ * baixo com um pulo e acende em fogo, com "dias de sequência" embaixo. Fica na base da fênix.
+ */
+@Composable
+private fun BoxScope.StreakCounter(days: Int, t: Float) {
+    val out = seg(t, 1.02f, 0.4f)
+    val inP = seg(t, 1.1f, 0.62f)
+    val e = CubicBezierEasing(0.2f, 1.6f, 0.4f, 1f).transform(inP)
+    val fire = TextStyle(
+        brush = Brush.verticalGradient(listOf(Color(0xFFFFFBE0), Color(0xFFFFD24A), Color(0xFFFF7A1A), Color(0xFFC8261A))),
+        fontSize = 72.sp, fontWeight = FontWeight.Black, shadow = androidx.compose.ui.graphics.Shadow(Color(0xFF7A1A08), Offset(0f, 8f), 6f),
+    )
+    Column(Modifier.align(Alignment.BottomCenter).offset(y = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.height(84.dp).widthIn(min = 120.dp).clip(RoundedCornerShape(0.dp)), contentAlignment = Alignment.Center) {
+            if (out < 1f) Text("${(days - 1).coerceAtLeast(0)}", Modifier.graphicsLayer { translationY = (-90f * out).dp.toPx(); alpha = 1f - out },
+                style = fire.copy(brush = Brush.verticalGradient(listOf(Color(0xFFB3AFCB), Color(0xFF6E6A8A)))))
+            if (inP > 0f) Text("$days", Modifier.graphicsLayer { translationY = (90f * (1f - e)).dp.toPx(); alpha = inP.coerceAtMost(1f); scaleX = 0.7f + 0.3f * e; scaleY = scaleX }, style = fire)
+        }
+        Text(if (days == 1) "DIA DE SEQUÊNCIA" else "DIAS DE SEQUÊNCIA", Modifier.graphicsLayer { alpha = seg(t, 1.4f, 0.4f) },
+            color = Color(0xFFFFD9A0), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.6.sp)
+    }
 }
 
 /**
@@ -551,10 +560,11 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
         primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
         middle = { t -> GameWeekRow(days7, t, FIRE1, FIRE2) },
         before = { s -> SleepZ(s) },
-        after = { s -> DayCoin(days, s) },
-        backdrop = { s, t -> FenixScene(s, wake = t >= IMPACT) },
+        after = { },
+        backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
         cues = listOf(0.8f to "toque"),
-        stageExtra = { t, _ ->
+        stageExtra = { t, s ->
+            StreakCounter(days, t)
             // o Folha chega na ponta dos pés com o marca-página…
             val walk = seg(t, 0.05f, 0.9f)
             Box(Modifier.align(Alignment.BottomStart).offset(x = (-20).dp).graphicsLayer {
