@@ -506,12 +506,12 @@ private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
     androidx.compose.runtime.key(index) {
     Card(extra = "pad-lg q-card") {
         Div({ classes("stack") }) {
-            Div({ classes("row", "between") }) {
-                Div({ classes("row", "wrap") }) {
+            Div({ classes("row", "between", "q-head") }) {
+                Div({ classes("row", "wrap", "q-head-tags") }) {
                     topic?.let { Chip(it.title, "primary") }
                     listOfNotNull(question.board, question.agency, question.year?.toString()).filter { !it.contains("http") && it.length <= 60 }.takeIf { it.isNotEmpty() }?.let { Chip(it.joinToString(" · ")) }
                 }
-                Div({ classes("row"); attr("style", "gap:2px") }) {
+                Div({ classes("row", "q-head-tools"); attr("style", "gap:2px") }) {
                     IconButton("forum", "Comentar esta questão") { Reports.comment(ReportKindWeb.QUESTION, question.statement, topic?.title) }
                     IconButton("flag", "Reportar erro nesta questão") { Reports.report(ReportKindWeb.QUESTION, question.statement, topic?.title) }
                     IconButton(if (question.favorite) "star" else "star_outline", if (question.favorite) "Tirar dos favoritos" else "Favoritar") {
