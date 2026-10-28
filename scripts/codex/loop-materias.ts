@@ -65,7 +65,10 @@ Se não souber um número de lei, artigo, prazo ou valor, explique sem o número
   if (ok) { semAvanco = 0; log(`   ok: ${alvo.id} gravada e aprovada no conferidor`); await sleep(10_000); continue; }
   falhas.set(alvo.id, (falhas.get(alvo.id) ?? 0) + 1);
   semAvanco++;
-  const limite = /usage limit|rate limit|quota|too many requests|429/i.test(txt);
+  // Guarda a saída para eu ver o motivo. Limite do plano só pela mensagem do próprio Codex, no fim da saída
+  // (antes "quota"/"rate limit" casavam com o texto da matéria e ele esperava 30 minutos à toa).
+  Deno.writeTextFileSync(`${ROOT}conteudo/entrada/materias-codex-2-ultima-saida.txt`, txt.slice(-20_000));
+  const limite = /hit your usage limit|usage limit (reached|has been reached)|try again (in|at) \d|rate_limit_exceeded/i.test(txt.slice(-2_000));
   const espera = limite ? 30 : Math.min(2 * semAvanco, 20);
   log(`   não ficou pronta (${limite ? "limite do plano" : `tentativa ${falhas.get(alvo.id)} de 3`}); esperando ${espera} min`);
   await sleep(espera * 60_000);
