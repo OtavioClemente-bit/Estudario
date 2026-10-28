@@ -6,6 +6,7 @@
 // Para publicar: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente (nunca no repositório).
 // Nada é enviado se qualquer arquivo tiver problema.
 
+import { notePath, topicPath, uploadLibraryFile } from "./arquivos.ts";
 import {
   LibraryValidationError,
   normalizeAlias,
@@ -336,8 +337,18 @@ const topicRows = [...materials.values()].map((m) => ({
   updated_at: new Date().toISOString(),
 }));
 const topicDiff = diff("library_topics", topicRows, (r) => String(r.id));
+// A matéria vai como arquivo para o bucket "library" (o banco grátis tem 500 MB e já estava cheio);
+// no banco fica o caminho. O caminho leva o hash do conteúdo: cada versão publicada é um arquivo novo,
+// e o worker, que guarda os arquivos na memória, nunca serve a versão velha.
 for (let i = 0; i < topicDiff.send.length; i += 10) {
-  await rest("library_topics?on_conflict=id", "POST", topicDiff.send.slice(i, i + 10), "resolution=merge-duplicates,return=minimal");
+  const batch = [];
+  for (const row of topicDiff.send.slice(i, i + 10)) {
+    const material = row.material as Record<string, unknown>;
+    const path = topicPath(String(row.id), Number(row.version), material);
+    await uploadLibraryFile(url!, key!, path, material);
+    batch.push({ ...row, material: null, material_path: path, covers: ((material.scope as Record<string, unknown> | undefined)?.covers as string | undefined) ?? null });
+  }
+  await rest("library_topics?on_conflict=id", "POST", batch, "resolution=merge-duplicates,return=minimal");
 }
 topicDiff.commit();
 await saveCache();
@@ -398,7 +409,14 @@ if (!noteDiff.known) {
   }
 }
 for (let i = 0; i < noteDiff.send.length; i += 25) {
-  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", noteDiff.send.slice(i, i + 25), "resolution=merge-duplicates,return=minimal");
+  // O recorte também vai como arquivo (eram ~96 MB no banco); no banco fica o caminho.
+  const batch = [];
+  for (const row of noteDiff.send.slice(i, i + 25)) {
+    const path = notePath(String(row.topic_id), String(row.board_norm), String(row.role_norm), row.note);
+    await uploadLibraryFile(url!, key!, path, row.note);
+    batch.push({ ...row, note: null, note_path: path });
+  }
+  await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", batch, "resolution=merge-duplicates,return=minimal");
 }
 noteDiff.commit();
 await saveCache();

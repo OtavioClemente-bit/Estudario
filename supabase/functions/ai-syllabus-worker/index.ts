@@ -1382,6 +1382,28 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       headers: { ...workerBackendHeaders(this.environment), "content-type": "application/json", ...(init.headers ?? {}) },
     });
   }
+  /**
+   * A matéria ou o recorte guardado como arquivo no bucket "library" (a biblioteca saiu do banco:
+   * ver a migração library_in_storage). Guardado na memória do worker, porque o caminho muda a cada
+   * versão publicada.
+   */
+  private static libraryFiles = new Map<string, Record<string, unknown>>();
+  async libraryFile(path: string | null | undefined): Promise<Record<string, unknown> | null> {
+    if (!path) return null;
+    const cached = SupabaseSyllabusWorkerStore.libraryFiles.get(path);
+    if (cached) return cached;
+    const response = await this.fetcher(`${this.environment.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/library/${path.split("/").map(encodeURIComponent).join("/")}`, {
+      headers: workerBackendHeaders(this.environment),
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return null;
+    }
+    const value = await response.json() as Record<string, unknown>;
+    if (SupabaseSyllabusWorkerStore.libraryFiles.size > 200) SupabaseSyllabusWorkerStore.libraryFiles.clear();
+    SupabaseSyllabusWorkerStore.libraryFiles.set(path, value);
+    return value;
+  }
   async cachedContent(key: string, promptVersion: string, userId: string, maxAgeDays: number): Promise<Record<string, unknown> | null> {
     const k = encodeURIComponent(key);
     const served = await this.rest(`ai_content_cache_served?select=cache_key&cache_key=eq.${k}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
@@ -1473,16 +1495,22 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       await response.body?.cancel().catch(() => {});
       return null;
     }
-    const rows = await response.json() as Array<{ topic_id: string; version: number; material: Record<string, unknown>; note: Record<string, unknown> | null; focus?: { capitulos?: number[]; questoes?: string[] } | null }>;
+    const rows = await response.json() as Array<{ topic_id: string; version: number; material: Record<string, unknown> | null; note: Record<string, unknown> | null; focus?: { capitulos?: number[]; questoes?: string[] } | null; material_path?: string | null; note_path?: string | null }>;
     const row = rows[0];
-    return row ? { topicId: row.topic_id, version: row.version, material: row.material, note: row.note ?? null, focus: row.focus ?? null } : null;
+    if (!row) return null;
+    // A matéria (e o recorte) podem estar no banco (antigo) ou no arquivo da biblioteca (novo).
+    const material = row.material ?? await this.libraryFile(row.material_path);
+    if (!material) return null;
+    const note = row.note ?? await this.libraryFile(row.note_path);
+    return { topicId: row.topic_id, version: row.version, material, note: note ?? null, focus: row.focus ?? null };
   }
   async recordLibraryHit(topicId: string): Promise<void> {
     const response = await this.rest("rpc/library_record_hit", { method: "POST", body: JSON.stringify({ p_topic_id: topicId }) });
     await response.body?.cancel().catch(() => {});
   }
   async libraryCatalog(): Promise<Array<{ id: string; title: string; subject: string; covers: string }>> {
-    const response = await this.rest("library_topics?select=id,title,subject,covers:material->scope->>covers&status=eq.PUBLISHED&order=id");
+    // "covers" é coluna própria: ler material->scope abriria o JSON de cada matéria (e ele saiu do banco).
+    const response = await this.rest("library_topics?select=id,title,subject,covers&status=eq.PUBLISHED&order=id");
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return [];
@@ -1512,13 +1540,17 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
   }
   async libraryMaterials(ids: string[]): Promise<Record<string, unknown>[]> {
     const list = ids.map((id) => `"${id}"`).join(",");
-    const response = await this.rest(`library_topics?select=id,title,subject,version,material&status=eq.PUBLISHED&id=in.(${encodeURIComponent(list)})`);
+    const response = await this.rest(`library_topics?select=id,title,subject,version,material,material_path&status=eq.PUBLISHED&id=in.(${encodeURIComponent(list)})`);
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return [];
     }
-    const rows = await response.json() as Array<{ id: string; title: string; subject: string; version: number; material: Record<string, unknown> }>;
-    const byId = new Map<string, Record<string, unknown>>(rows.map((row) => [row.id, { ...row.material, id: row.id, title: row.title, subject: row.subject, version: row.version }]));
+    const rows = await response.json() as Array<{ id: string; title: string; subject: string; version: number; material: Record<string, unknown> | null; material_path: string | null }>;
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const row of rows) {
+      const material = row.material ?? await this.libraryFile(row.material_path);
+      if (material) byId.set(row.id, { ...material, id: row.id, title: row.title, subject: row.subject, version: row.version });
+    }
     return ids.map((id) => byId.get(id)).filter((m): m is Record<string, unknown> => m !== undefined);
   }
   async libraryBoardNote(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null> {
@@ -1526,12 +1558,13 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     // O PostgREST não acha texto vazio com in.("") (voltava sempre vazio e nenhum recorte era usado):
     // o recorte sem cargo vai como role_norm.eq. (vazio) dentro de um or.
     const roles = ["role_norm.eq.", roleNorm ? `role_norm.eq."${roleNorm.replace(/"/g, "")}"` : null].filter(Boolean).join(",");
-    const response = await this.rest(`library_board_notes?select=note&topic_id=eq.${encodeURIComponent(topicId)}&board_norm=eq.${encodeURIComponent(boardNorm)}&or=(${encodeURIComponent(roles)})&order=role_norm.desc&limit=1`);
+    const response = await this.rest(`library_board_notes?select=note,note_path&topic_id=eq.${encodeURIComponent(topicId)}&board_norm=eq.${encodeURIComponent(boardNorm)}&or=(${encodeURIComponent(roles)})&order=role_norm.desc&limit=1`);
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
       return null;
     }
-    return (await response.json() as Array<{ note: Record<string, unknown> }>)[0]?.note ?? null;
+    const row = (await response.json() as Array<{ note: Record<string, unknown> | null; note_path: string | null }>)[0];
+    return row ? row.note ?? await this.libraryFile(row.note_path) : null;
   }
   async boardProfile(boardNorm: string): Promise<Record<string, unknown> | null> {
     const response = await this.rest(`library_board_profiles?select=profile&board_norm=eq.${encodeURIComponent(boardNorm)}&limit=1`);

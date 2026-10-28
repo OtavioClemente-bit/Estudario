@@ -221,3 +221,28 @@ Deno.test("reconciliation lease store uses dedicated claim complete and fail RPC
   assertEquals(calls[1].body, { p_job_id: "job-1", p_lease_owner: "worker-a", p_lease_token: "token-a", p_lease_generation: 9 });
   assertEquals(calls[2].body, { p_job_id: "job-1", p_error_code: "PROVIDER_TIMEOUT", p_lease_owner: "worker-a", p_lease_token: "token-a", p_lease_generation: 9 });
 });
+
+Deno.test("library material and board note come from the library bucket when they left the database", async () => {
+  const storageCalls: string[] = [];
+  const fetcher: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("rpc/library_lookup")) {
+      return Response.json([{ topic_id: "portugues.crase", version: 3, material: null, note: null, focus: null, material_path: "topics/portugues.crase/v3-abc.json", note_path: "notes/portugues.crase/fgv/geral-def.json" }]);
+    }
+    if (url.includes("/storage/v1/object/library/topics/")) { storageCalls.push(url); return Response.json({ chapters: [{ title: "Crase" }], questions: [] }); }
+    if (url.includes("/storage/v1/object/library/notes/")) { storageCalls.push(url); return Response.json({ board: "FGV" }); }
+    if (url.includes("library_topics?select=id,title,subject,version,material,material_path")) {
+      return Response.json([{ id: "portugues.crase", title: "Crase", subject: "Português", version: 3, material: null, material_path: "topics/portugues.crase/v3-abc.json" }]);
+    }
+    throw new Error(`unexpected request ${url}`);
+  };
+  const store = new SupabaseSyllabusWorkerStore({ supabaseUrl: "https://supabase.test", serviceRoleKey: "service-test", fetcher }, {} as never, "worker-a");
+  const hit = await store.libraryLookup(["crase"], "fgv", "");
+  assertEquals(hit?.material, { chapters: [{ title: "Crase" }], questions: [] });
+  assertEquals(hit?.note, { board: "FGV" });
+  const materials = await store.libraryMaterials(["portugues.crase"]);
+  assertEquals(materials[0].title, "Crase");
+  assertEquals(materials[0].chapters, [{ title: "Crase" }]);
+  // o mesmo arquivo não é baixado de novo (fica na memória do worker)
+  assertEquals(storageCalls.filter((u) => u.includes("/topics/")).length, 1);
+});
