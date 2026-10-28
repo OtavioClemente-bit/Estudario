@@ -16,10 +16,10 @@ ao próximo. Pule itens que já tenham decisão gravada. Não pare para pergunta
 
 ## Para cada item da lista (linha n = 1, 2, 3...)
 
-Decida UMA de três coisas e grave `conteudo/entrada/itens-sem-materia/<n>.json` (n com 3 dígitos: 001, 002...):
+Decida UMA de quatro coisas e grave `conteudo/entrada/itens-sem-materia/<n>.json` (n com 3 dígitos: 001, 002...):
 
 ```json
-{ "n": 1, "texto": "texto do item, igual à lista", "decisao": "ligar | materia-nova | ignorar",
+{ "n": 1, "texto": "texto do item, igual à lista", "decisao": "ligar | materia-nova | amplo | ignorar",
   "id": "id da matéria (para ligar ou materia-nova; null para ignorar)", "motivo": "uma frase" }
 ```
 
@@ -30,7 +30,10 @@ Decida UMA de três coisas e grave `conteudo/entrada/itens-sem-materia/<n>.json`
 2. **materia-nova** — nenhuma matéria cobre o item e ele é conteúdo que se estuda (ex.: "Tuberculose", "Macros" do Excel,
    "Regime pluviométrico", "Gestão democrática" na educação). Escreva a matéria completa (abaixo) e use o id dela.
    Se um item posterior da lista for o mesmo assunto, ligue-o à matéria que você criou.
-3. **ignorar** — não é conteúdo de estudo: referência bibliográfica solta, nome de autor, título de capítulo vazio
+3. **amplo** — o item é uma disciplina ou lei inteira, grande demais para UMA matéria (ex.: "Constituição da República
+   Federativa do Brasil de 1988", "Raciocínio lógico", "Gramática normativa", "Conhecimentos gerais e atualidades",
+   "Direito Administrativo"). Não escreva nada: grave a decisão "amplo" (id null) e passe ao próximo. Eu cuido desses.
+4. **ignorar** — não é conteúdo de estudo: referência bibliográfica solta, nome de autor, título de capítulo vazio
    ("Capítulo I - Das Disposições Gerais"), pedaço de frase cortada, "Notícias do site da Prefeitura", atualidades do dia.
 
 ## Matéria nova (quando for o caso)
