@@ -57,7 +57,7 @@ object TopicFocus {
     /** Desconta o tempo parado como pausa. */
     fun discountIdle() {
         val gap = idleGap ?: return
-        if (active) { pausedTotal += gap.coerceAtMost(elapsedMs); persist() }
+        if (active) { pausedTotal += gap.coerceAtMost(elapsedMs); rev = Date.now().toLong(); persist() }
         idleGap = null
     }
 
@@ -66,14 +66,67 @@ object TopicFocus {
     // não perde a sessão: ela volta pausada no ponto em que estava (o tempo com a aba fechada não
     // conta) e é só continuar ou encerrar.
     private const val SAVE_KEY = "estudario.focus.active"
+    /**
+     * Focos já encerrados neste navegador (pela hora em que começaram, que é a identidade do foco e é a
+     * mesma em todas as janelas). Nenhuma janela volta a guardar, restaurar ou salvar um foco desta lista:
+     * é o que impede o foco duplicado quando há várias janelas abertas.
+     */
+    private const val DONE_KEY = "estudario.focus.done"
+    /** Momento da última ação da pessoa (começar, pausar, continuar, descontar): entre janelas, a mais nova vale. */
+    private var rev = 0L
+
+    private fun doneList(): List<Long> = runCatching {
+        (window.localStorage.getItem(DONE_KEY) ?: "").split(',').mapNotNull { it.trim().toLongOrNull() }
+    }.getOrDefault(emptyList())
+
+    private fun isDone(started: Long): Boolean = started > 0 && (started in doneList() || Store.data.focusSessions.any { it.startedAt == started })
+
+    private fun markDone(started: Long) {
+        runCatching { window.localStorage.setItem(DONE_KEY, (doneList().filter { it != started } + started).takeLast(60).joinToString(",")) }
+    }
+
+    private fun readSaved(): dynamic = runCatching { window.localStorage.getItem(SAVE_KEY)?.let { JSON.parse<Any>(it).asDynamic() } }.getOrNull()
+
+    /** Some o foco desta janela sem salvar nada (foi encerrado em outra). */
+    private fun dropLocal() {
+        ticker?.let { window.clearInterval(it) }
+        ticker = null
+        document.title = "Estudário"
+        topicId = null; taskId = null; subjectId = null; title = ""; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
+    }
+
+    /** Copia o foco guardado (de outra janela) para esta. */
+    private fun adopt(o: dynamic, keepRunning: Boolean) {
+        val started = (o.startedAt as? Number)?.toLong() ?: return
+        topicId = (o.topicId as? Number)?.toLong()
+        taskId = o.taskId as? String
+        subjectId = (o.subjectId as? Number)?.toLong()
+        title = (o.title as? String).orEmpty()
+        plannedMinutes = (o.plannedMinutes as? Number)?.toInt()
+        timeUpSeen = o.timeUpSeen == true
+        startedAt = started
+        pausedTotal = (o.pausedTotal as? Number)?.toLong() ?: 0L
+        val lastSeen = (o.lastSeen as? Number)?.toLong() ?: started
+        pausedAt = (o.pausedAt as? Number)?.toLong() ?: if (keepRunning) null else lastSeen
+        rev = (o.rev as? Number)?.toLong() ?: 0L
+        now = Date.now().toLong()
+        if (ticker == null) startTicker()
+    }
 
     private fun persist() {
         runCatching {
             if (!active) { window.localStorage.removeItem(SAVE_KEY); return }
+            // Encerrado em outra janela: esta não pode ressuscitar o foco.
+            if (isDone(startedAt)) { dropLocal(); window.localStorage.removeItem(SAVE_KEY); return }
+            // Outra janela mexeu depois (pausou, continuou, começou outro): vale o que ela guardou.
+            val saved = readSaved()
+            val savedRev = (saved?.rev as? Number)?.toLong() ?: 0L
+            val savedStart = (saved?.startedAt as? Number)?.toLong() ?: 0L
+            if (saved != null && savedRev > rev && !isDone(savedStart)) { adopt(saved, keepRunning = true); return }
             val o: dynamic = js("({})")
             o.topicId = topicId?.toDouble(); o.taskId = taskId; o.subjectId = subjectId?.toDouble(); o.title = title
             o.startedAt = startedAt.toDouble(); o.pausedAt = pausedAt?.toDouble(); o.pausedTotal = pausedTotal.toDouble()
-            o.plannedMinutes = plannedMinutes; o.timeUpSeen = timeUpSeen; o.lastSeen = Date.now()
+            o.plannedMinutes = plannedMinutes; o.timeUpSeen = timeUpSeen; o.lastSeen = Date.now(); o.rev = rev.toDouble()
             window.localStorage.setItem(SAVE_KEY, JSON.stringify(o))
         }
     }
@@ -89,24 +142,29 @@ object TopicFocus {
 
     init {
         runCatching {
-            val raw = window.localStorage.getItem(SAVE_KEY) ?: return@runCatching
-            val o: dynamic = JSON.parse<Any>(raw)
+            val o: dynamic = readSaved() ?: return@runCatching
             val started = (o.startedAt as? Number)?.toLong() ?: return@runCatching
+            // Já foi encerrado (nesta ou em outra janela): não volta.
+            if (started in doneList()) { window.localStorage.removeItem(SAVE_KEY); return@runCatching }
             val lastSeen = (o.lastSeen as? Number)?.toLong() ?: started
-            topicId = (o.topicId as? Number)?.toLong()
-            taskId = o.taskId as? String
-            subjectId = (o.subjectId as? Number)?.toLong()
-            title = (o.title as? String).orEmpty()
-            plannedMinutes = (o.plannedMinutes as? Number)?.toInt()
-            timeUpSeen = o.timeUpSeen == true
-            startedAt = started
-            pausedTotal = (o.pausedTotal as? Number)?.toLong() ?: 0L
-            // Já estava pausado: fica como estava. Rodando: pausa no último segundo visto.
-            pausedAt = (o.pausedAt as? Number)?.toLong() ?: lastSeen
-            now = Date.now().toLong()
-            startTicker()
-            window.setTimeout({ Toast.show("Seu foco foi guardado e está pausado. Continue quando quiser.") }, 1500)
+            // Outra janela está com ele rodando agora (guardou há poucos segundos): esta entra rodando junto.
+            // Senão (recarregou ou fechou a aba), volta pausado no último segundo visto.
+            val otherWindowAlive = o.pausedAt == null && Date.now().toLong() - lastSeen < 4_000
+            adopt(o, keepRunning = otherWindowAlive)
+            if (!otherWindowAlive) window.setTimeout({ Toast.show("Seu foco foi guardado e está pausado. Continue quando quiser.") }, 1500)
         }
+        // Janelas abertas ao mesmo tempo ficam iguais: pausar, continuar ou encerrar numa vale para todas.
+        window.addEventListener("storage", { event ->
+            val e = event.asDynamic()
+            if (e.key != SAVE_KEY && e.key != DONE_KEY) return@addEventListener
+            val saved = readSaved()
+            val savedStart = (saved?.startedAt as? Number)?.toLong() ?: 0L
+            when {
+                active && isDone(startedAt) -> { dropLocal(); Toast.show("Este foco foi encerrado em outra janela.") }
+                saved != null && savedStart > 0 && !isDone(savedStart) && ((saved.rev as? Number)?.toLong() ?: 0L) >= rev && (savedStart != startedAt || ((saved.rev as? Number)?.toLong() ?: 0L) > rev) -> adopt(saved, keepRunning = true)
+                saved == null && active && !isDone(startedAt) -> Unit
+            }
+        })
         // Com foco ativo, o navegador pergunta antes de recarregar ou fechar a aba.
         window.addEventListener("beforeunload", { event ->
             if (active) {
@@ -136,6 +194,7 @@ object TopicFocus {
         pausedAt = null
         pausedTotal = 0L
         timeUpSeen = false
+        rev = startedAt
         startTicker()
         persist()
     }
@@ -143,12 +202,25 @@ object TopicFocus {
     /** Compatível com a chamada antiga do tópico. */
     fun start(id: Long, name: String) = start(id, name, null, null, null)
 
-    fun pause() { if (running) { pausedAt = Date.now().toLong(); persist() } }
-    fun resume() { pausedAt?.let { pausedTotal += Date.now().toLong() - it; pausedAt = null; persist() } }
+    fun pause() { if (running) { pausedAt = Date.now().toLong(); rev = Date.now().toLong(); persist() } }
+    fun resume() { pausedAt?.let { pausedTotal += Date.now().toLong() - it; pausedAt = null; rev = Date.now().toLong(); persist() } }
+
+    /** O último encerrar não salvou porque esse foco já estava salvo (outra janela ou atualização). */
+    private var lastStopWasDuplicate = false
 
     /** Encerra e salva no histórico (menos de 1 minuto não conta). Devolve os minutos. */
     fun stop(): Int {
+        lastStopWasDuplicate = false
         if (!active) return 0
+        // Já salvo antes (em outra janela, ou a página voltou com ele): não salva de novo.
+        if (isDone(startedAt)) {
+            lastStopWasDuplicate = true
+            dropLocal()
+            runCatching { window.localStorage.removeItem(SAVE_KEY) }
+            Toast.show("Este foco já estava salvo no histórico. Nada foi duplicado.")
+            return 0
+        }
+        markDone(startedAt)
         val end = Date.now().toLong()
         val seconds = elapsedMs / 1000
         val id = topicId
@@ -159,10 +231,12 @@ object TopicFocus {
         ticker?.let { window.clearInterval(it) }
         ticker = null
         document.title = "Estudário"
-        topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false
+        topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
         persist()
         if (seconds < 60) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return 0 }
         Store.update {
+            // Última trava: o histórico não aceita duas sessões que começaram no mesmo instante.
+            if (it.focusSessions.any { s -> s.startedAt == savedStart }) return@update it
             it.append(
                 Keys.FOCUS_SESSIONS,
                 jsonOf(
@@ -185,6 +259,7 @@ object TopicFocus {
         val start = startedAt
         val complete = canComplete
         val minutes = stop()
+        if (lastStopWasDuplicate) return
         if (!complete) {
             Toast.show("Foco salvo. Finalize a bateria de questões para concluí-la no plano.")
             return
