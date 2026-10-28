@@ -1,0 +1,967 @@
+{
+  "id": "informatica.flyway-migracao-banco",
+  "subject": "Informática",
+  "title": "Flyway: migração e versionamento de banco de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Biblioteca Flyway (migração de banco de dados)",
+    "Ferramenta Flyway",
+    "Flyway migrations",
+    "Migração de banco de dados",
+    "Migrações de banco de dados",
+    "Versionamento de banco de dados",
+    "Versionamento de esquema de banco",
+    "Migração de esquema de banco de dados",
+    "Schema migration",
+    "Database migration",
+    "Flyway e Liquibase",
+    "Liquibase e Flyway",
+    "Flyway x Liquibase",
+    "Flyway com Spring Boot",
+    "Controle de versão do banco de dados",
+    "Evolução de esquema de banco de dados"
+  ],
+  "scope": {
+    "covers": "Migração e versionamento de esquema de banco de dados com Flyway: motivação, migrações versionadas, repetíveis e de desfazer, regras de nome e ordem, tabela flyway_schema_history, checksum, comandos migrate, info, validate, repair, baseline, clean e undo, out-of-order, placeholders, callbacks e migrações em Java; integração com Spring Boot, Maven, Gradle e linha de comando; comparação com Liquibase (changelog, changeSet e rollback); boas práticas em CI/CD e erros comuns.",
+    "excludes": "Modelagem relacional, SQL detalhado de cada SGBD, administração física de banco, backup e recuperação, ferramentas de ETL e detalhes de licenciamento ou de versões específicas do Flyway."
+  },
+  "theoryTitle": "Flyway e o versionamento do banco de dados",
+  "chapters": [
+    {
+      "title": "1. Por que versionar o banco de dados",
+      "markdown": "### O problema que este assunto resolve\n\nO código de um sistema fica no Git: cada mudança tem autor, data e ordem. Mas o **banco de dados** também muda — uma tabela nova, uma coluna a mais, um índice, uma correção de dado. Se essas mudanças forem feitas \"na mão\", direto no banco de cada ambiente, logo ninguém sabe dizer **em que estado** está o banco de desenvolvimento, o de homologação e o de produção. O sistema sobe em produção esperando uma coluna que ninguém criou lá, e quebra.\n\n**Migração de banco de dados** (ou *schema migration*) é a prática de escrever cada mudança do banco como um **script numerado**, guardado junto com o código, e deixar uma ferramenta aplicar esses scripts **na ordem certa**, **uma única vez** em cada banco, registrando o que já foi aplicado. O **Flyway** é uma dessas ferramentas; o **Liquibase** é outra muito cobrada.\n\n> **Siglas e termos deste capítulo**\n> - **Esquema (schema)**: a estrutura do banco — tabelas, colunas, índices, visões, restrições.\n> - **DDL**: Data Definition Language, comandos que mudam a estrutura (`CREATE`, `ALTER`, `DROP`).\n> - **DML**: Data Manipulation Language, comandos que mudam os dados (`INSERT`, `UPDATE`, `DELETE`).\n> - **Migração (migration)**: um script que leva o banco de uma versão para a seguinte.\n> - **Ambiente**: cada cópia do sistema — desenvolvimento, teste, homologação, produção.\n> - **CI/CD**: integração contínua e entrega contínua, a esteira automática que testa e publica o sistema.\n\n### A ideia central: o banco também tem versão\n\nPense no banco como um prédio em obra. Cada migração é uma etapa da planta: \"etapa 1, fundação\"; \"etapa 2, primeiro andar\". Ninguém constrói o segundo andar antes do primeiro, e ninguém refaz a fundação toda vez que chega um pedreiro novo. A ferramenta de migração é o mestre de obras que olha o **caderno de obra** (a tabela de histórico) e diz: \"aqui já fizemos até a etapa 5; faltam a 6 e a 7\".\n\nCom isso se ganha:\n\n| Benefício | O que significa na prática |\n| --- | --- |\n| **Reprodutibilidade** | Um banco vazio chega ao estado atual só aplicando os scripts em ordem |\n| **Rastreabilidade** | Cada mudança tem arquivo, versão, descrição e fica no controle de versão do código |\n| **Consistência entre ambientes** | Desenvolvimento, homologação e produção passam pelos mesmos scripts, na mesma ordem |\n| **Automação** | A esteira de CI/CD ou a própria aplicação aplica as pendências sem intervenção manual |\n| **Segurança contra adulteração** | A ferramenta percebe quando um script já aplicado foi modificado depois |\n\n### Migração não é backup nem ETL\n\nTrês ideias costumam ser misturadas em prova:\n\n- **Migração de esquema** (Flyway, Liquibase): controla a **evolução da estrutura** (e de dados de referência) por scripts versionados.\n- **Backup e recuperação**: guarda uma **cópia dos dados** para restaurar depois de uma falha. Flyway **não** faz backup nem restaura dados.\n- **ETL** (extração, transformação e carga, como no Pentaho): move e transforma **grandes volumes de dados** entre sistemas. Também não é papel do Flyway.\n\nOutra confusão: o recurso de alguns ORMs de \"gerar as tabelas automaticamente\" a partir das classes (por exemplo, a opção de atualização automática de esquema do Hibernate). Ele é cômodo no desenvolvimento, mas **não deixa histórico**, não garante ordem e pode tomar decisões ruins em produção. Por isso o uso recomendado em produção é desligar a geração automática e deixar a evolução do esquema por conta de migrações versionadas.\n\n### Duas abordagens de versionamento\n\n| Abordagem | Como funciona | Exemplo |\n| --- | --- | --- |\n| **Baseada em migrações** (imperativa) | Você escreve os passos: \"crie esta tabela\", \"adicione esta coluna\" | Flyway (SQL), Liquibase (changeSets) |\n| **Baseada em estado** (declarativa) | Você descreve como o banco deve ficar; a ferramenta calcula a diferença | Ferramentas de comparação de esquema |\n\nO Flyway é essencialmente **baseado em migrações**: o histórico é a sequência de scripts.\n\n### Como cai na prova\n\n- Item afirmando que o Flyway \"faz backup\" ou \"restaura dados\" está **errado**: ele controla scripts de mudança de esquema.\n- Questões descrevem o cenário \"cada ambiente com uma estrutura diferente, mudanças feitas à mão\" e pedem a solução: **migrações versionadas** com ferramenta como Flyway ou Liquibase.\n- Cuidado com a troca de papéis entre **migração** (estrutura), **ETL** (movimentação de dados) e **replicação** (cópia contínua entre servidores)."
+    },
+    {
+      "title": "2. Conceitos do Flyway: migrações e histórico",
+      "markdown": "### O problema que este assunto resolve\n\nPara aplicar cada script **uma vez só** e **na ordem**, o Flyway precisa de duas coisas: uma **regra de nome** que diga a versão de cada arquivo e um **registro** no próprio banco dizendo o que já rodou. Este capítulo é o coração da matéria.\n\n> **Siglas e termos deste capítulo**\n> - **Migração versionada**: script com versão, aplicado uma única vez, em ordem crescente.\n> - **Migração repetível**: script sem versão, reaplicado sempre que seu conteúdo muda.\n> - **Migração de desfazer (undo)**: script que reverte uma migração versionada; recurso das edições pagas.\n> - **flyway_schema_history**: tabela que o Flyway cria no banco para registrar o histórico.\n> - **Checksum**: número calculado a partir do conteúdo do arquivo; se o arquivo muda, o checksum muda.\n> - **Baseline**: marco que diz \"este banco já existente começa na versão X\".\n\n### Os três tipos de migração\n\n| Tipo | Prefixo | Exemplo de nome | Quando roda |\n| --- | --- | --- | --- |\n| **Versionada** | `V` | `V1__criar_tabela_cliente.sql` | Uma única vez, em ordem de versão |\n| **De desfazer (undo)** | `U` | `U1__criar_tabela_cliente.sql` | Só quando se pede para desfazer a versão correspondente (edições pagas) |\n| **Repetível** | `R` | `R__visao_resumo_vendas.sql` | Depois das versionadas, sempre que o checksum mudar |\n\n### A regra de nome, peça por peça\n\nTome `V2_1__adicionar_email.sql`:\n\n1. **Prefixo** `V` — diz que é versionada.\n2. **Versão** `2_1` — o sublinhado simples (ou o ponto) separa as partes; o Flyway entende como **2.1**.\n3. **Separador** `__` — **dois** sublinhados. Este detalhe é o mais cobrado.\n4. **Descrição** `adicionar_email` — os sublinhados viram espaços na descrição registrada.\n5. **Sufixo** `.sql`.\n\nAs versões são comparadas **numericamente, parte por parte**, e não como texto: `V1.10` vem **depois** de `V1.9`, e `V10` vem depois de `V9`. Versões não precisam ser consecutivas (pode existir `V1`, `V2`, `V5`), mas **não podem se repetir**: duas migrações com a mesma versão geram erro.\n\nA repetível **não tem versão**: é `R__` seguido da descrição. Ela serve para objetos cuja definição inteira cabe num script que pode ser rodado de novo — visões, procedimentos, funções. As repetíveis pendentes rodam **depois de todas as versionadas pendentes**, ordenadas pela descrição.\n\n### A tabela de histórico\n\nNa primeira execução, o Flyway cria no banco a tabela **`flyway_schema_history`** (nome padrão, configurável). Cada migração aplicada vira uma linha com, entre outros dados:\n\n| Coluna (ideia) | O que guarda |\n| --- | --- |\n| Ordem de instalação | A sequência em que foi aplicada |\n| Versão e descrição | Tirados do nome do arquivo (repetível fica sem versão) |\n| Tipo e script | SQL, Java, baseline...; nome do arquivo |\n| **Checksum** | A \"impressão digital\" do conteúdo |\n| Quem e quando | Usuário do banco e data/hora |\n| Tempo de execução | Quanto demorou |\n| **Sucesso** | Se terminou bem ou falhou |\n\nÉ por essa tabela que o Flyway sabe o que está **aplicado**, o que está **pendente** e se algo **diverge**.\n\n### Checksum: a proteção contra edição\n\nQuando aplica uma migração, o Flyway guarda o checksum do arquivo. Depois, ao validar, recalcula o checksum dos arquivos e compara. Se alguém **editou um script versionado já aplicado**, os números não batem e o Flyway acusa **divergência de checksum** — e por padrão se recusa a migrar. Para a repetível é o contrário: checksum diferente é justamente o **sinal para reaplicá-la**.\n\n### Baseline: começando de um banco que já existe\n\nE se o banco de produção já existia, com dezenas de tabelas, antes de o time adotar o Flyway? Não faz sentido rodar o script de criação de tudo de novo. O **baseline** grava na tabela de histórico um marco: \"este banco já está na versão X\". A partir daí, só as migrações **acima** dessa versão são aplicadas. Existe também a opção de fazer o baseline automaticamente na primeira migração quando o esquema não está vazio e ainda não tem histórico (*baseline on migrate*).\n\n### Recursos complementares\n\n- **Placeholders**: marcadores no SQL, no formato `${nome}`, substituídos por valores da configuração na hora de rodar — útil para nome de esquema ou de usuário que muda por ambiente.\n- **Callbacks**: scripts ou classes executados em **eventos do ciclo de vida**, como antes ou depois de migrar (por exemplo, arquivos chamados `beforeMigrate.sql` ou `afterMigrate.sql`). Servem para tarefas de apoio, como recompilar objetos ou registrar logs.\n- **Migrações em Java**: quando a mudança é difícil em SQL puro (transformar dados com lógica complexa), escreve-se uma classe Java cujo **nome segue a mesma regra** (`V3__Converter_telefones`), normalmente estendendo a classe base de migração Java do Flyway. Ela entra na mesma sequência de versões dos scripts SQL.\n- **Out-of-order**: por padrão, se o banco já está na versão 5 e aparece uma migração 4 nova, o Flyway **não** a aplica (ela fica ignorada e a validação reclama). Ligando a opção *out-of-order*, ele aplica essa versão atrasada mesmo assim. Útil quando ramos de desenvolvimento paralelos são integrados.\n\n### Como cai na prova\n\n- O separador entre versão e descrição tem **dois** sublinhados; item com `V1_criar_tabela.sql` (um só) descreve nome inválido.\n- **Versionada roda uma vez; repetível roda de novo quando o checksum muda** — é a dupla mais cobrada.\n- Repetíveis rodam **depois** das versionadas.\n- `V1.10` é **maior** que `V1.9` (comparação numérica).\n- Undo (`U`) é recurso das **edições pagas**; na edição gratuita, para \"voltar\" escreve-se uma nova migração versionada que desfaz a anterior."
+    },
+    {
+      "title": "3. Comandos do Flyway",
+      "markdown": "### O problema que este assunto resolve\n\nAs bancas gostam de perguntar \"qual comando faz isto?\". São poucos comandos, e cada um tem um papel bem delimitado. O segredo é separar os que **mudam o banco** dos que só **leem e comparam**.\n\n> **Siglas e termos deste capítulo**\n> - **Pendente (pending)**: migração disponível nos arquivos e ainda não aplicada.\n> - **Aplicada (success)**: registrada com sucesso no histórico.\n> - **Falha (failed)**: começou e deu erro; fica marcada no histórico.\n> - **Ignorada (ignored)**: versão menor que a atual que não foi aplicada (sem out-of-order).\n> - **Metadados**: os dados sobre as migrações, guardados na tabela de histórico.\n\n### Os comandos, um por um\n\n| Comando | O que faz | Mexe no esquema? |\n| --- | --- | --- |\n| **migrate** | Aplica todas as migrações pendentes, em ordem, e registra cada uma no histórico | **Sim** — é o principal |\n| **info** | Mostra a situação de cada migração: aplicada, pendente, falha, ignorada, futura | Não — só relata |\n| **validate** | Compara os arquivos disponíveis com o histórico: checksums, versões que sumiram, ignoradas | Não — só confere |\n| **repair** | Conserta o **histórico**: remove registros de migrações que falharam e realinha checksums, descrições e tipos com os arquivos atuais | Só a tabela de histórico |\n| **baseline** | Marca um banco existente com uma versão de partida | Só a tabela de histórico |\n| **clean** | **Apaga todos os objetos** (tabelas, visões, procedimentos...) dos esquemas configurados | **Sim — destrutivo** |\n| **undo** | Reverte a última migração versionada usando o script `U` correspondente | Sim (edições pagas) |\n\n### migrate, na prática\n\nAo rodar `migrate`, o Flyway:\n\n1. Conecta ao banco e cria a tabela de histórico, se ela ainda não existe.\n2. **Valida** (por padrão, a validação roda antes de migrar) para garantir que nada aplicado foi alterado.\n3. Procura os arquivos nas **locations** configuradas.\n4. Aplica as versionadas pendentes em ordem crescente e, depois, as repetíveis novas ou alteradas.\n5. Grava cada resultado no histórico.\n\nSe o banco já está atualizado, `migrate` simplesmente não faz nada — ele é **idempotente** do ponto de vista do conjunto: rodar duas vezes seguidas não reaplica nada.\n\n### validate e repair: o par que mais confunde\n\nImagine o caderno de obra com uma página rasurada:\n\n- **validate** é o fiscal que **aponta** a rasura: \"o arquivo V3 tem um checksum diferente do registrado\". Ele não conserta nada.\n- **repair** é quem **reescreve o caderno**: atualiza o checksum registrado para o do arquivo atual e apaga a linha da migração que falhou. Ele **não desfaz** SQL que já rodou, **não restaura dados** e **não corrige o banco** — mexe só nos metadados.\n\nPor isso a sequência típica depois de uma migração que falhou num banco sem DDL transacional é: corrigir à mão o que ficou pela metade no banco, corrigir o script, rodar **repair** para limpar o registro de falha e rodar **migrate** de novo.\n\n### clean: o botão vermelho\n\n`clean` derruba **tudo** que existe nos esquemas configurados — não só o que veio das migrações. É útil para recriar do zero um banco de desenvolvimento ou de testes automatizados. Em produção é um desastre. Por isso a configuração do Flyway permite **desabilitar o clean**, e as versões recentes já vêm com ele desabilitado por padrão; a recomendação é mantê-lo bloqueado em qualquer ambiente com dados reais.\n\n### Estados que o info mostra\n\n| Estado | Significado |\n| --- | --- |\n| **Success** | Aplicada com sucesso |\n| **Pending** | Ainda não aplicada |\n| **Failed** | Falhou durante a aplicação |\n| **Ignored** | Versão menor que a atual, não aplicada |\n| **Missing** | Registrada no histórico, mas o arquivo sumiu |\n| **Outdated / Superseded** | Repetível cujo conteúdo mudou / foi substituída por versão mais nova dela mesma |\n| **Baseline** | Marco de partida |\n\n### Como cai na prova\n\n- **validate** não altera nada; só detecta divergências.\n- **repair** altera **somente o histórico**; item dizendo que ele \"restaura os dados\" ou \"desfaz a migração\" está errado.\n- **clean** apaga todos os objetos do esquema — jamais em produção.\n- **info** é o \"relatório de situação\".\n- **baseline** é para adotar o Flyway num banco que **já existe**."
+    },
+    {
+      "title": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "markdown": "### O problema que este assunto resolve\n\nO Flyway pode ser chamado de vários jeitos: pela linha de comando, por um plugin de build, por uma API Java ou, o mais comum em projetos Java, **automaticamente pelo Spring Boot** quando a aplicação sobe. As provas cobram principalmente a integração com Spring Boot: onde ficam os scripts e quando eles rodam.\n\n> **Siglas e termos deste capítulo**\n> - **Classpath**: o conjunto de pastas e bibliotecas que a aplicação Java enxerga; `src/main/resources` vai para ele.\n> - **Location**: o lugar onde o Flyway procura as migrações (`classpath:` ou `filesystem:`).\n> - **Auto-configuração**: recurso do Spring Boot que configura bibliotecas sozinho ao encontrá-las no projeto.\n> - **CLI**: Command Line Interface, a ferramenta de linha de comando.\n> - **DataSource**: o objeto que representa a conexão com o banco na aplicação.\n\n### Spring Boot: basta a dependência\n\nAo encontrar o Flyway no classpath, a **auto-configuração** do Spring Boot:\n\n1. Usa o **mesmo DataSource** da aplicação (ou um próprio, se configurado).\n2. Procura migrações, por padrão, em **`classpath:db/migration`** — ou seja, na pasta `src/main/resources/db/migration`.\n3. Executa o **migrate na inicialização** da aplicação, **antes** de o JPA/Hibernate começar a usar o banco.\n\nSe uma migração falha, a aplicação **não sobe** — o que é bom: melhor falhar no início do que rodar com o banco pela metade.\n\nAs propriedades ficam sob o prefixo **`spring.flyway.*`** no `application.properties` ou `application.yml`. Alguns exemplos de ideia:\n\n| Propriedade | Para que serve |\n| --- | --- |\n| `spring.flyway.enabled` | Liga ou desliga a execução automática |\n| `spring.flyway.locations` | Muda ou acrescenta pastas de migrações |\n| `spring.flyway.baseline-on-migrate` | Faz baseline automático em banco existente sem histórico |\n| `spring.flyway.schemas` | Esquemas que o Flyway gerencia |\n| `spring.flyway.clean-disabled` | Bloqueia o comando clean |\n| `spring.flyway.placeholders.*` | Define valores para os placeholders |\n\nCom Flyway cuidando do esquema, a combinação recomendada é deixar o Hibernate **apenas validando** o mapeamento (ou sem gerar nada), em vez de criar ou atualizar tabelas por conta própria.\n\n### Maven e Gradle\n\nO Flyway oferece **plugins de build**. Configurados no `pom.xml` (Maven) ou no script do Gradle, eles expõem os comandos como tarefas — por exemplo, um objetivo do plugin para `migrate`, outro para `info`, outro para `validate`. Isso permite rodar as migrações como etapa da esteira de build, separada da subida da aplicação.\n\n### Linha de comando (CLI)\n\nA ferramenta de linha de comando executa os mesmos comandos (`flyway migrate`, `flyway info`, `flyway validate`...). A configuração — URL do banco, usuário, locations — vem de um arquivo de configuração, de variáveis de ambiente ou de parâmetros na própria chamada. É a opção natural para quem não usa Java, para DBAs e para pipelines de CI/CD.\n\n### API Java\n\nTambém dá para chamar o Flyway pelo código: monta-se a configuração (DataSource, locations) e chama-se o método de migrar. É o que a auto-configuração do Spring Boot faz por baixo dos panos.\n\n### Onde ficam os arquivos\n\n| Forma de uso | Local típico das migrações |\n| --- | --- |\n| Spring Boot | `src/main/resources/db/migration` (padrão `classpath:db/migration`) |\n| Plugins Maven/Gradle | Também o classpath `db/migration`, salvo configuração diferente |\n| CLI | Uma pasta de SQL indicada como location `filesystem:` na configuração |\n\nÉ possível ter **várias locations** — por exemplo, uma pasta comum e outra só com dados de teste, ativada apenas no ambiente de desenvolvimento.\n\n### Como cai na prova\n\n- Local padrão no Spring Boot: **`db/migration`** no classpath.\n- O Spring Boot roda as migrações **automaticamente na inicialização**, antes do uso do banco pelo JPA.\n- Propriedades começam com **`spring.flyway`**.\n- Item dizendo que o Flyway \"só funciona com Spring\" está errado: há CLI, plugins Maven e Gradle e API Java."
+    },
+    {
+      "title": "5. Flyway x Liquibase",
+      "markdown": "### O problema que este assunto resolve\n\nQuase toda questão que fala de Flyway oferece **Liquibase** como alternativa — às vezes como resposta certa, às vezes como pegadinha. As duas ferramentas resolvem o mesmo problema (versionar o banco), mas com vocabulário e estilo diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **Changelog**: no Liquibase, o arquivo (ou conjunto de arquivos) que lista as mudanças.\n> - **ChangeSet**: no Liquibase, a unidade de mudança; identificada por **id**, **autor** e caminho do arquivo.\n> - **Change type**: no Liquibase, uma mudança descrita de forma abstrata (por exemplo, \"criar tabela\"), traduzida para o SQL de cada banco.\n> - **Rollback**: desfazer mudanças já aplicadas.\n> - **DATABASECHANGELOG**: tabela de histórico do Liquibase.\n> - **DATABASECHANGELOGLOCK**: tabela de trava do Liquibase, que impede duas execuções simultâneas.\n\n### Como o Liquibase organiza as mudanças\n\nNo Liquibase, não é o nome do arquivo que define a ordem. Existe um **changelog** — em **XML, YAML, JSON ou SQL formatado** — que contém uma sequência de **changeSets**. Cada changeSet tem um `id` e um `author`; a ordem é a ordem em que aparecem no changelog (e um changelog principal pode incluir outros). Dentro do changeSet, usam-se *change types* abstratos (como criar tabela ou adicionar coluna), que o Liquibase traduz para o dialeto de cada banco, ou SQL direto.\n\nO histórico vai para a tabela **DATABASECHANGELOG**, que também guarda um checksum de cada changeSet.\n\n### Quadro comparativo\n\n| Aspecto | Flyway | Liquibase |\n| --- | --- | --- |\n| Unidade de mudança | Arquivo de migração (`V1__...sql`) | ChangeSet dentro de um changelog |\n| Como define a ordem | **Versão no nome do arquivo** | **Posição no changelog** |\n| Formatos | Principalmente SQL; também Java | XML, YAML, JSON e SQL |\n| Abstração de banco | Escreve-se o SQL do banco usado | Change types abstratos geram SQL para vários bancos |\n| Tabela de histórico | `flyway_schema_history` | `DATABASECHANGELOG` (e a de trava) |\n| Desfazer | Scripts `U` nas edições pagas; na gratuita, nova migração corretiva | **Rollback** previsto no próprio changeSet; muitos change types geram o rollback sozinhos |\n| Estilo | Simplicidade, \"SQL primeiro\" | Mais recursos e flexibilidade, mais configuração |\n| Integração com Spring Boot | Sim (`spring.flyway.*`) | Sim (`spring.liquibase.*`) |\n\n### Rollback, a diferença mais cobrada\n\nNo Liquibase, cada changeSet pode trazer um bloco de **rollback** dizendo como desfazê-lo; para mudanças simples (criar tabela, por exemplo), o próprio Liquibase sabe gerar o inverso. Assim, dá para pedir \"volte até a tag tal\" ou \"desfaça as últimas N mudanças\".\n\nNo Flyway, o mecanismo equivalente são as migrações **undo** (`U`), presentes nas **edições pagas**. Na prática, muitos times — usando qualquer das duas ferramentas — preferem a estratégia **roll forward**: em vez de desfazer, escrevem uma **nova migração** que corrige a anterior. Ela é mais segura porque nem toda mudança é reversível (uma coluna apagada leva os dados junto).\n\n### Outros pontos de contato\n\n- As duas usam **checksum** para detectar mudança em algo já aplicado.\n- As duas têm comandos de status, validação e de marcação de banco existente.\n- As duas rodam por CLI, plugins de build e Spring Boot.\n- O Liquibase usa **contextos** e **labels** para escolher quais changeSets rodam em cada ambiente; no Flyway, o efeito parecido se obtém com **locations** diferentes por ambiente ou placeholders.\n\n### Como cai na prova\n\n- **changelog** e **changeSet** são termos do **Liquibase**, não do Flyway.\n- Ordem no Flyway = **versão no nome**; no Liquibase = **ordem no changelog**.\n- Liquibase aceita **XML, YAML, JSON e SQL**; item dizendo que o Flyway \"exige XML\" está errado.\n- Rollback nativo e abrangente é marca do **Liquibase**; no Flyway, undo é recurso pago."
+    },
+    {
+      "title": "6. Boas práticas e erros comuns",
+      "markdown": "### O problema que este assunto resolve\n\nSaber os comandos não basta: a maior parte dos problemas com Flyway nasce de **maus hábitos** — editar script antigo, rodar clean no lugar errado, deixar cada ambiente divergir. As provas de nível mais alto trazem cenários assim e pedem o diagnóstico.\n\n> **Siglas e termos deste capítulo**\n> - **Imutabilidade da migração**: depois de aplicada, uma migração versionada não muda mais.\n> - **Roll forward**: corrigir o problema com uma nova migração, em vez de desfazer a antiga.\n> - **DDL transacional**: capacidade do banco de desfazer comandos de estrutura com `ROLLBACK` (o PostgreSQL tem; MySQL e Oracle confirmam DDL automaticamente).\n> - **Pipeline**: a sequência automatizada de etapas de build, teste e implantação.\n\n### Boas práticas\n\n| Prática | Por quê |\n| --- | --- |\n| **Nunca editar uma migração versionada já aplicada** | Quebra o checksum e, pior, os bancos que já a rodaram não recebem a mudança nova |\n| **Uma mudança lógica por migração** | Facilita revisar, localizar falhas e reaplicar |\n| **Scripts no controle de versão, junto do código** | Código e esquema evoluem juntos; revisão por pull request |\n| **Mesmos scripts em todos os ambientes** | Garante que produção chegue ao mesmo estado testado em homologação |\n| **Rodar as migrações na esteira de CI/CD** | Testa os scripts contra um banco real antes de chegar à produção |\n| **Corrigir com nova migração (roll forward)** | Mantém o histórico honesto e não depende de reversões perigosas |\n| **Desabilitar clean fora do desenvolvimento** | Evita apagar todo o esquema por engano |\n| **Mudanças compatíveis com a versão anterior** | Em implantações sem parada, a versão antiga e a nova da aplicação convivem com o mesmo banco por um tempo |\n| **Repetíveis para visões, funções e procedimentos** | A definição completa fica num só arquivo, fácil de manter |\n| **Nunca alterar o banco gerenciado \"na mão\"** | Toda mudança passa por migração, senão os ambientes divergem |\n\n### Erro 1: divergência de checksum\n\n**Sintoma**: a validação acusa que o checksum de uma migração aplicada não confere com o arquivo, e o migrate é recusado.\n\n**Causa**: alguém editou o script depois de aplicado (às vezes só um espaço ou uma quebra de linha, ou mudança de codificação do arquivo).\n\n**Tratamento correto**: desfazer a edição no arquivo e colocar a mudança desejada numa **nova migração**. Se a alteração foi apenas cosmética e se tem certeza de que o banco está correto, o **repair** realinha o checksum registrado — mas ele não aplica nada no banco.\n\n### Erro 2: migração que falhou pela metade\n\n**Sintoma**: o histórico mostra uma migração como **falha** e os próximos `migrate` se recusam a prosseguir.\n\n**Causa**: erro de SQL no meio do script. Em bancos com **DDL transacional**, o Flyway consegue desfazer a migração inteira e nada fica pela metade. Em bancos que confirmam DDL automaticamente, parte dos comandos pode ter ficado aplicada.\n\n**Tratamento**: limpar manualmente o que ficou aplicado, corrigir o script, rodar **repair** (que remove o registro da falha) e rodar **migrate** de novo.\n\n### Erro 3: clean em produção\n\n**Sintoma**: todas as tabelas sumiram.\n\n**Causa**: alguém rodou `clean` (ou a aplicação tinha configuração que limpava o banco na subida) apontando para o banco errado.\n\n**Prevenção**: manter o clean **desabilitado** na configuração de qualquer ambiente com dados reais, separar credenciais por ambiente e ter **backup** — que é responsabilidade de outra ferramenta, não do Flyway.\n\n### Erro 4: versão repetida ou migração atrasada\n\n- Dois desenvolvedores criam `V7__...` em ramos diferentes: ao juntar, o Flyway acusa **versão duplicada**. Solução: renumerar a que ainda **não foi aplicada** em lugar nenhum. Usar versões com data e hora (por exemplo, `V20261028_1430__...`) reduz o risco.\n- Uma migração de versão menor chega depois de outras maiores já aplicadas: ela fica **ignorada** e a validação reclama. Soluções: renumerá-la para uma versão maior ou habilitar **out-of-order** com consciência.\n\n### Erro 5: arquivo que sumiu\n\nSe um arquivo de migração aplicado é apagado do projeto, o `info` passa a mostrar a versão como **ausente (missing)** e a validação pode falhar. Migrações aplicadas também não devem ser apagadas.\n\n### Como cai na prova\n\n- A prática número um: **migração aplicada não se edita** — cria-se outra.\n- Checksum divergente é detectado por **validate** (que também roda antes do migrate).\n- **repair** limpa falhas e realinha checksums no histórico, sem tocar nos dados.\n- **clean** em produção é o erro clássico; a prevenção é desabilitá-lo.\n- Migração que falhou em banco sem DDL transacional pode deixar o esquema pela metade."
+    }
+  ],
+  "summary": "Migração de banco de dados é escrever cada mudança de esquema como um script versionado, guardado com o código e aplicado por uma ferramenta na ordem certa, uma única vez por banco. No Flyway, as migrações versionadas seguem o nome V<versão>__<descrição>.sql (dois sublinhados), são comparadas numericamente e rodam uma vez; as repetíveis (R__) rodam depois das versionadas sempre que o checksum muda; as de desfazer (U) existem nas edições pagas. A tabela flyway_schema_history registra versão, descrição, checksum, autor, data e sucesso. Comandos: migrate aplica pendências; info mostra a situação; validate compara arquivos e histórico; repair corrige só o histórico (falhas e checksums); baseline marca banco existente; clean apaga todos os objetos do esquema e deve ficar desabilitado em produção. Recursos: out-of-order, placeholders ${...}, callbacks e migrações em Java. No Spring Boot, as migrações ficam em classpath:db/migration, rodam na inicialização e são configuradas por spring.flyway.*; há também CLI, plugins Maven/Gradle e API Java. O Liquibase usa changelog (XML, YAML, JSON ou SQL) com changeSets identificados por id e autor, tabela DATABASECHANGELOG e rollback nativo. Boas práticas: nunca editar migração aplicada, uma mudança por script, roll forward, mesmos scripts em todos os ambientes e execução na esteira de CI/CD.",
+  "flashcards": [
+    { "front": "O que é migração de banco de dados (schema migration)?", "back": "Prática de registrar cada mudança de esquema como script versionado, guardado com o código e aplicado em ordem, uma única vez em cada banco, por uma ferramenta como Flyway ou Liquibase." },
+    { "front": "Qual é o formato do nome de uma migração versionada no Flyway?", "back": "V<versão>__<descrição>.sql — prefixo V, versão, DOIS sublinhados, descrição e sufixo. Ex.: V1__criar_tabela_cliente.sql." },
+    { "front": "Quantos sublinhados separam a versão da descrição no nome da migração?", "back": "Dois (`__`). Com um só, o arquivo não segue a regra de nome." },
+    { "front": "Como o Flyway entende a versão em V2_1__adicionar_email.sql?", "back": "Como 2.1: o sublinhado simples (ou ponto) separa as partes da versão." },
+    { "front": "V1.10 vem antes ou depois de V1.9?", "back": "Depois. As versões são comparadas numericamente, parte por parte, e não como texto." },
+    { "front": "Quando roda uma migração repetível (R__)?", "back": "Depois de todas as versionadas pendentes, e de novo sempre que seu checksum muda (o conteúdo foi alterado)." },
+    { "front": "Para que servem as migrações repetíveis?", "back": "Para objetos cuja definição inteira cabe num script reexecutável: visões, funções, procedimentos." },
+    { "front": "O que é a migração com prefixo U?", "back": "Migração de desfazer (undo), que reverte a versionada de mesma versão; recurso das edições pagas do Flyway." },
+    { "front": "Qual o nome padrão da tabela de histórico do Flyway?", "back": "flyway_schema_history (o nome é configurável)." },
+    { "front": "O que a tabela de histórico guarda de cada migração?", "back": "Ordem, versão, descrição, tipo, script, checksum, usuário, data/hora, tempo de execução e se teve sucesso." },
+    { "front": "Para que serve o checksum no Flyway?", "back": "Detectar se o conteúdo de uma migração aplicada foi alterado; na repetível, checksum novo provoca reaplicação." },
+    { "front": "O que faz o comando migrate?", "back": "Aplica as migrações pendentes em ordem e registra cada uma no histórico; por padrão valida antes." },
+    { "front": "O que faz o comando info?", "back": "Mostra a situação de cada migração (aplicada, pendente, falha, ignorada, ausente, baseline) sem alterar nada." },
+    { "front": "O que faz o comando validate?", "back": "Compara arquivos e histórico (checksums, versões ausentes ou ignoradas) e acusa divergências, sem alterar o banco." },
+    { "front": "O que faz o comando repair?", "back": "Corrige só a tabela de histórico: remove registros de migrações que falharam e realinha checksums, descrições e tipos. Não restaura dados." },
+    { "front": "O que faz o comando baseline?", "back": "Marca um banco já existente com uma versão de partida; só migrações acima dela serão aplicadas." },
+    { "front": "O que faz o comando clean e qual o cuidado?", "back": "Apaga todos os objetos dos esquemas configurados. Deve ficar desabilitado em produção e em qualquer ambiente com dados reais." },
+    { "front": "O que é a opção out-of-order?", "back": "Permite aplicar uma migração de versão menor que a atual do banco; sem ela, essa migração fica ignorada." },
+    { "front": "O que são placeholders no Flyway?", "back": "Marcadores ${nome} no SQL, trocados por valores da configuração na execução (ex.: nome de esquema por ambiente)." },
+    { "front": "O que são callbacks no Flyway?", "back": "Scripts ou classes executados em eventos do ciclo de vida, como beforeMigrate e afterMigrate." },
+    { "front": "Quando usar migração em Java no Flyway?", "back": "Quando a mudança exige lógica difícil em SQL; a classe segue a mesma regra de nome (V3__Descricao) e entra na mesma sequência." },
+    { "front": "Onde o Spring Boot procura as migrações por padrão?", "back": "Em classpath:db/migration, isto é, src/main/resources/db/migration." },
+    { "front": "Quando o Spring Boot executa as migrações do Flyway?", "back": "Automaticamente na inicialização da aplicação, antes de o JPA usar o banco; se falhar, a aplicação não sobe." },
+    { "front": "Changelog e changeSet são termos de qual ferramenta?", "back": "Do Liquibase: o changelog (XML, YAML, JSON ou SQL) lista changeSets, cada um identificado por id e autor." },
+    { "front": "Qual a regra de ouro das migrações versionadas?", "back": "Depois de aplicada, não se edita: a correção vai numa nova migração (roll forward)." }
+  ],
+  "tips": [
+    "Decore o nome pelo exemplo V1__criar_tabela.sql: letra do tipo, versão, dois sublinhados, descrição.",
+    "Separe os comandos em dois grupos: mudam o banco (migrate, clean, undo) e só leem ou mexem nos metadados (info, validate, repair, baseline).",
+    "Versionada roda uma vez; repetível roda quando o checksum muda e sempre depois das versionadas.",
+    "Viu changelog, changeSet, id e author, ou DATABASECHANGELOG, pense em Liquibase; viu V__, R__ e flyway_schema_history, pense em Flyway.",
+    "No Spring Boot, guarde a tríade: dependência no classpath, pasta db/migration e execução na inicialização.",
+    "Em cenário de erro, pergunte primeiro se alguém editou um script aplicado: é a causa mais comum de checksum divergente."
+  ],
+  "traps": [
+    "A prova diz que o repair desfaz a migração que falhou e restaura os dados. Errado: ele só corrige o histórico (remove a falha e realinha checksums).",
+    "A prova diz que as migrações repetíveis rodam antes das versionadas. Errado: rodam depois de todas as versionadas pendentes.",
+    "A prova compara versões como texto e diz que V1.10 vem antes de V1.9. Errado: a comparação é numérica, parte por parte.",
+    "A prova afirma que, para corrigir uma migração já aplicada em produção, basta editar o arquivo. Errado: isso quebra o checksum; cria-se nova migração.",
+    "A prova atribui ao Flyway o changelog em XML com changeSets. Errado: isso é Liquibase; o Flyway trabalha com arquivos SQL (ou classes Java) versionados pelo nome.",
+    "A prova apresenta o clean como forma segura de limpar dados de teste em produção. Errado: ele apaga todos os objetos do esquema e deve ficar desabilitado."
+  ],
+  "activeRecall": [
+    { "question": "Explique, com suas palavras, que problema as ferramentas de migração de banco resolvem.", "answer": "Evitam que cada ambiente tenha uma estrutura de banco diferente por causa de mudanças manuais: cada alteração vira um script versionado, aplicado em ordem e uma única vez, com histórico no próprio banco." },
+    { "question": "Desmonte o nome V3_2__adicionar_coluna_cpf.sql.", "answer": "V = versionada; 3_2 = versão 3.2; __ = separador de dois sublinhados; adicionar_coluna_cpf = descrição (sublinhados viram espaços); .sql = sufixo." },
+    { "question": "Qual a diferença de comportamento entre migração versionada e repetível?", "answer": "A versionada tem versão e roda uma única vez, em ordem crescente. A repetível não tem versão, roda depois das versionadas e é reaplicada sempre que o conteúdo (checksum) muda." },
+    { "question": "Diferencie validate e repair.", "answer": "Validate só compara arquivos e histórico e acusa divergências. Repair altera a tabela de histórico: remove registros de falha e realinha checksums, sem mexer nos dados nem desfazer SQL." },
+    { "question": "Um banco de produção já tem 80 tabelas e o time quer adotar o Flyway. O que fazer?", "answer": "Usar baseline (manual ou baseline on migrate) para marcar o banco numa versão de partida; dali em diante, só migrações acima dessa versão são aplicadas." },
+    { "question": "Como o Flyway se integra ao Spring Boot?", "answer": "Com a dependência no classpath, a auto-configuração usa o DataSource da aplicação, lê classpath:db/migration e roda o migrate na inicialização, antes do JPA; ajustes ficam em spring.flyway.*." },
+    { "question": "Cite três diferenças entre Flyway e Liquibase.", "answer": "Ordem: versão no nome (Flyway) x posição no changelog (Liquibase). Formatos: SQL e Java x XML, YAML, JSON e SQL. Desfazer: undo pago no Flyway x rollback nativo por changeSet no Liquibase. Histórico: flyway_schema_history x DATABASECHANGELOG." },
+    { "question": "Uma migração falhou no meio num banco que confirma DDL automaticamente. Qual o roteiro de correção?", "answer": "Desfazer manualmente o que ficou aplicado, corrigir o script, rodar repair para remover o registro de falha e rodar migrate novamente." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Regra de nome e ordem trocadas", "summary": "Separador tem dois sublinhados; prefixos V (versionada), R (repetível) e U (undo); versões comparadas numericamente; repetíveis rodam depois das versionadas e não têm versão." },
+    { "key": "e2", "title": "Papel de cada comando confundido", "summary": "Migrate aplica; info relata; validate só compara; repair mexe só no histórico; baseline marca banco existente; clean apaga tudo do esquema." },
+    { "key": "e3", "title": "Checksum e imutabilidade ignorados", "summary": "Editar migração aplicada quebra o checksum; correção é nova migração. Na repetível, checksum novo é o gatilho de reaplicação." },
+    { "key": "e4", "title": "Integração com Spring Boot mal lembrada", "summary": "Local padrão classpath:db/migration, execução automática na inicialização antes do JPA, propriedades spring.flyway.*; há também CLI, Maven, Gradle e API Java." },
+    { "key": "e5", "title": "Flyway e Liquibase misturados", "summary": "Changelog, changeSet (id e autor), XML/YAML/JSON e rollback nativo são do Liquibase; versões no nome do arquivo e flyway_schema_history são do Flyway." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe percebeu que os bancos de desenvolvimento, homologação e produção têm estruturas diferentes, porque cada DBA aplica alterações manualmente. Qual prática resolve diretamente esse problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Gerar backups diários de cada ambiente e restaurá-los semanalmente nos demais.", "correct": false },
+        { "key": "B", "text": "Versionar as mudanças em scripts aplicados em ordem por ferramenta de migração.", "correct": true },
+        { "key": "C", "text": "Configurar replicação contínua de produção para os bancos de desenvolvimento.", "correct": false },
+        { "key": "D", "text": "Usar processo de ETL para copiar as tabelas de produção a cada implantação.", "correct": false },
+        { "key": "E", "text": "Criar índices iguais em todos os ambientes para padronizar o desempenho.", "correct": false }
+      ],
+      "explanation": "Ferramentas como Flyway e Liquibase guardam cada mudança como script versionado, aplicado na mesma ordem em todos os ambientes, com histórico no banco. Backup e replicação copiam dados, não controlam a evolução do esquema; ETL movimenta dados; índices iguais não resolvem divergência estrutural.",
+      "section": "1. Por que versionar o banco de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Flyway é uma ferramenta de backup e restauração que permite recuperar os dados do banco a partir dos scripts registrados na tabela de histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O Flyway versiona e aplica mudanças de esquema por scripts de migração; a tabela de histórico registra quais scripts rodaram, não cópias dos dados. Backup e recuperação ficam a cargo de outros mecanismos do SGBD ou de ferramentas próprias.",
+      "section": "1. Por que versionar o banco de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Manter os scripts de migração no mesmo repositório do código-fonte permite que a evolução do esquema seja revisada e rastreada junto com as mudanças da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Guardar os scripts no controle de versão dá autor, data e revisão a cada mudança de banco, e garante que a versão do código e a do esquema caminhem juntas, o que é um dos principais benefícios da migração versionada.",
+      "section": "1. Por que versionar o banco de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer explicar por que não deve depender, em produção, da opção do ORM que atualiza tabelas automaticamente a partir das classes. Qual argumento é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O ORM só consegue criar tabelas em bancos em memória, nunca em servidores reais.", "correct": false },
+        { "key": "B", "text": "A atualização automática exige que o Flyway esteja desabilitado no projeto.", "correct": false },
+        { "key": "C", "text": "A geração automática apaga todos os dados a cada inicialização da aplicação.", "correct": false },
+        { "key": "D", "text": "Ela não deixa histórico ordenado e revisável das mudanças feitas no esquema.", "correct": true },
+        { "key": "E", "text": "O ORM grava as alterações na tabela flyway_schema_history sem checksum.", "correct": false }
+      ],
+      "explanation": "A atualização automática do ORM é cômoda no desenvolvimento, mas não registra o que mudou, nem em que ordem, e pode tomar decisões ruins em produção. Ela não se limita a bancos em memória, não apaga necessariamente os dados, não depende de desligar o Flyway e não usa a tabela de histórico do Flyway.",
+      "section": "1. Por que versionar o banco de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em relação às abordagens de versionamento de banco, a abordagem baseada em estado descreve a sequência de passos a executar, enquanto a baseada em migrações descreve apenas o estado final desejado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado, os papéis estão invertidos. Na abordagem baseada em migrações, como a do Flyway, escrevem-se os passos (crie, altere, remova). Na baseada em estado, descreve-se como o banco deve ficar e a ferramenta calcula a diferença a aplicar.",
+      "section": "1. Por que versionar o banco de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão usa Pentaho para levar dados do sistema transacional ao data warehouse e quer também controlar a criação de colunas novas nas tabelas do sistema. Qual divisão de papéis está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Pentaho cuida das colunas novas; Flyway movimenta os dados para o warehouse.", "correct": false },
+        { "key": "B", "text": "Os dois são intercambiáveis, pois ambos aplicam scripts DDL versionados.", "correct": false },
+        { "key": "C", "text": "Pentaho faz o ETL; Flyway versiona e aplica as alterações de esquema.", "correct": true },
+        { "key": "D", "text": "Flyway substitui o Pentaho, já que suas migrações transformam dados em lote.", "correct": false },
+        { "key": "E", "text": "Pentaho registra checksums das cargas na tabela de histórico do Flyway.", "correct": false }
+      ],
+      "explanation": "Pentaho é ferramenta de ETL: extrai, transforma e carrega volumes de dados entre sistemas. Flyway controla a evolução da estrutura por migrações versionadas. Inverter os papéis, tratá-los como equivalentes ou misturar seus históricos descreve um cenário que não corresponde a nenhuma das duas ferramentas.",
+      "section": "1. Por que versionar o banco de dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual dos nomes de arquivo abaixo segue corretamente a convenção de migração versionada do Flyway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "V1_criar_tabela_cliente.sql", "correct": false },
+        { "key": "B", "text": "1__V_criar_tabela_cliente.sql", "correct": false },
+        { "key": "C", "text": "V-1-criar_tabela_cliente.sql", "correct": false },
+        { "key": "D", "text": "R1__criar_tabela_cliente.sql", "correct": false },
+        { "key": "E", "text": "V1__criar_tabela_cliente.sql", "correct": true }
+      ],
+      "explanation": "A regra é prefixo V, versão, dois sublinhados e descrição. O nome com um só sublinhado não tem o separador; o que começa pelo número inverte prefixo e versão; hífens não são o separador; e o prefixo R indica repetível, que não leva versão.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Flyway, migrações repetíveis, identificadas pelo prefixo R, são reaplicadas sempre que o seu checksum muda e são executadas depois das migrações versionadas pendentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A repetível não tem versão; o gatilho para rodá-la de novo é a mudança de conteúdo, percebida pelo checksum. Na execução, as versionadas pendentes vão primeiro e as repetíveis novas ou alteradas vêm em seguida.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma pasta de migrações contém V1__base.sql, V1.9__ajuste.sql, V1.10__indice.sql e V2__auditoria.sql, todas pendentes. Em que ordem o Flyway as aplica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "V1, V1.10, V1.9 e V2, pois as versões são ordenadas como texto.", "correct": false },
+        { "key": "B", "text": "V1, V1.9, V1.10 e V2, pois cada parte da versão é comparada como número.", "correct": true },
+        { "key": "C", "text": "V2, V1.10, V1.9 e V1, pois a versão mais recente é aplicada primeiro.", "correct": false },
+        { "key": "D", "text": "Na ordem de criação dos arquivos no sistema operacional, não pelo nome.", "correct": false },
+        { "key": "E", "text": "Nenhuma é aplicada, pois versões com ponto são consideradas inválidas.", "correct": false }
+      ],
+      "explanation": "O Flyway compara as versões numericamente, parte por parte: 1.9 é menor que 1.10, porque 9 é menor que 10. A ordenação textual colocaria 1.10 antes, o que não ocorre; a ordem não é inversa nem pela data dos arquivos, e o ponto é separador válido de versão.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual tabela o Flyway cria, por padrão, no banco gerenciado para registrar as migrações aplicadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "DATABASECHANGELOG", "correct": false },
+        { "key": "B", "text": "migration_changeset_log", "correct": false },
+        { "key": "C", "text": "DATABASECHANGELOGLOCK", "correct": false },
+        { "key": "D", "text": "flyway_schema_history", "correct": true },
+        { "key": "E", "text": "schema_backup_versions", "correct": false }
+      ],
+      "explanation": "O nome padrão é flyway_schema_history, configurável. DATABASECHANGELOG e DATABASECHANGELOGLOCK são as tabelas de histórico e de trava do Liquibase; os outros dois nomes não correspondem a tabelas padrão de nenhuma das ferramentas.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na convenção do Flyway, duas migrações versionadas podem ter a mesma versão, desde que suas descrições sejam diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A versão é o identificador da migração versionada e precisa ser única; duas migrações com a mesma versão provocam erro, mesmo com descrições distintas. As versões, porém, não precisam ser consecutivas.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um time precisa manter uma visão de banco que muda com frequência e cuja definição completa cabe num script CREATE OR REPLACE. Qual tipo de migração é o mais indicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Uma repetível, reaplicada sempre que o conteúdo do script for alterado.", "correct": true },
+        { "key": "B", "text": "Uma versionada nova editada no mesmo arquivo a cada mudança da visão.", "correct": false },
+        { "key": "C", "text": "Uma de desfazer, executada antes de cada nova definição da visão.", "correct": false },
+        { "key": "D", "text": "Um callback afterClean que recria a visão depois de limpar o esquema.", "correct": false },
+        { "key": "E", "text": "Um baseline com a versão da visão, refeito a cada alteração do script.", "correct": false }
+      ],
+      "explanation": "Repetíveis servem justamente para objetos cuja definição inteira é reexecutável, como visões e procedimentos: muda o arquivo, muda o checksum, e o Flyway reaplica. Editar uma versionada quebra o checksum; undo, callback de clean e baseline não foram feitos para manter a definição de um objeto.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O banco de um sistema já tem dezenas de tabelas criadas antes da adoção do Flyway, e a equipe não quer reexecutar os scripts de criação. Qual recurso atende a essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Clean, para zerar o esquema e reaplicar desde a primeira migração.", "correct": false },
+        { "key": "B", "text": "Out-of-order, para que as tabelas antigas sejam aplicadas fora da ordem.", "correct": false },
+        { "key": "C", "text": "Repair, para registrar as tabelas existentes como migrações repetíveis.", "correct": false },
+        { "key": "D", "text": "Undo, para desfazer as tabelas e recriá-las com versionamento correto.", "correct": false },
+        { "key": "E", "text": "Baseline, que marca o banco existente com uma versão de partida.", "correct": true }
+      ],
+      "explanation": "O baseline grava no histórico que o banco já está numa versão inicial; a partir dela só as migrações superiores são aplicadas. Clean apagaria os dados; out-of-order trata versões atrasadas; repair corrige registros de histórico; undo reverte migrações e não serve para adotar a ferramenta.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Placeholders do Flyway, escritos no formato ${nome} dentro dos scripts SQL, são enviados ao SGBD sem alteração e resolvidos por ele como variáveis de ligação de cada consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Quem resolve os placeholders é o próprio Flyway: antes de executar o SQL, ele troca cada marcador pelo valor definido na configuração. Isso permite que o mesmo script sirva a ambientes diferentes, trocando, por exemplo, o nome de esquema ou de usuário.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um banco está na versão 8 quando chega, vinda de outro ramo, a migração V6__ajuste_permissoes.sql, nunca aplicada. Com a configuração padrão, o que acontece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ela é aplicada normalmente, pois toda migração pendente roda no migrate.", "correct": false },
+        { "key": "B", "text": "Ela é convertida em repetível e executada após as demais pendentes.", "correct": false },
+        { "key": "C", "text": "Ela fica ignorada; aplicá-la exige renumerar ou ativar out-of-order.", "correct": true },
+        { "key": "D", "text": "O Flyway desfaz as versões 7 e 8 para aplicar a 6 na ordem correta.", "correct": false },
+        { "key": "E", "text": "O histórico é recriado e todas as migrações rodam de novo em sequência.", "correct": false }
+      ],
+      "explanation": "Por padrão, uma versão menor que a atual do banco não é aplicada e aparece como ignorada, e a validação acusa o problema. Para aplicá-la, renumera-se para versão maior ou habilita-se out-of-order. O Flyway não converte tipos, não desfaz versões sozinho e não recria o histórico.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Flyway, migrações escritas em Java seguem uma convenção de nome própria, sem versão, e por isso são sempre executadas depois de todas as migrações SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A classe Java segue a mesma regra de nome das migrações SQL, como V3__Converter_telefones, e entra na mesma sequência de versões. Ela é escolhida quando a mudança exige lógica difícil de expressar em SQL, sem prioridade fixa sobre os scripts.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Sobre os tipos de migração do Flyway, assinale a afirmação correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A migração U reverte a versionada de mesma versão e é recurso das edições pagas.", "correct": true },
+        { "key": "B", "text": "A migração R leva versão no nome e roda antes das versionadas pendentes.", "correct": false },
+        { "key": "C", "text": "A migração V é reaplicada automaticamente quando seu checksum se altera.", "correct": false },
+        { "key": "D", "text": "A migração U é obrigatória para cada V e está presente em todas as edições.", "correct": false },
+        { "key": "E", "text": "A migração R é registrada só no arquivo, sem linha na tabela de histórico.", "correct": false }
+      ],
+      "explanation": "As migrações de desfazer revertem a versionada correspondente e pertencem às edições pagas. A repetível não tem versão, roda depois das versionadas e é registrada no histórico. A versionada não é reaplicada: checksum diferente nela é divergência. Undo não é obrigatório nem gratuito.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer registrar em log o total de objetos do esquema toda vez que uma migração terminar, sem misturar essa tarefa com os scripts versionados. Qual recurso do Flyway é o adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Placeholder ${afterMigrate} colocado no fim de cada migração versionada.", "correct": false },
+        { "key": "B", "text": "Migração repetível nomeada com prefixo V para rodar após cada versão.", "correct": false },
+        { "key": "C", "text": "Baseline automático, que grava estatísticas a cada execução do migrate.", "correct": false },
+        { "key": "D", "text": "Callback executado no evento posterior à migração, como afterMigrate.", "correct": true },
+        { "key": "E", "text": "Comando info, que escreve o log do esquema na tabela de histórico.", "correct": false }
+      ],
+      "explanation": "Callbacks são scripts ou classes ligados a eventos do ciclo de vida, como antes e depois de migrar, e servem a tarefas de apoio como logs. Placeholder só substitui valores; repetível tem prefixo R e roda por mudança de conteúdo; baseline marca versão inicial; info apenas relata a situação.",
+      "section": "2. Conceitos do Flyway: migrações e histórico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando do Flyway aplica ao banco as migrações pendentes, na ordem das versões, registrando cada uma no histórico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "info", "correct": false },
+        { "key": "B", "text": "migrate", "correct": true },
+        { "key": "C", "text": "validate", "correct": false },
+        { "key": "D", "text": "repair", "correct": false },
+        { "key": "E", "text": "baseline", "correct": false }
+      ],
+      "explanation": "O migrate é o comando principal: aplica as versionadas pendentes em ordem, depois as repetíveis alteradas, e grava os resultados. Info apenas mostra a situação, validate compara arquivos e histórico, repair ajusta metadados e baseline marca a versão inicial de um banco existente.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando validate do Flyway compara as migrações disponíveis com as registradas no histórico e, ao encontrar divergência de checksum, corrige automaticamente o banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O validate só detecta e relata divergências, como checksums diferentes ou migrações ausentes; ele não altera o banco nem o histórico. Ajustar metadados é papel do repair, e a correção do esquema exige nova migração.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer apenas consultar quais migrações já foram aplicadas, quais estão pendentes e se alguma falhou, sem alterar nada. Que comando ele deve usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "clean", "correct": false },
+        { "key": "B", "text": "repair", "correct": false },
+        { "key": "C", "text": "migrate", "correct": false },
+        { "key": "D", "text": "undo", "correct": false },
+        { "key": "E", "text": "info", "correct": true }
+      ],
+      "explanation": "O info é o relatório de situação: lista cada migração com estados como aplicada, pendente, falha, ignorada ou ausente. Clean apaga objetos, repair mexe no histórico, migrate aplica pendências e undo reverte uma versão, todos com efeito no banco.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando clean do Flyway remove todos os objetos dos esquemas configurados, inclusive os que não foram criados por migrações, motivo pelo qual não deve ser usado em produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O clean derruba tabelas, visões, procedimentos e demais objetos dos esquemas gerenciados, sem distinguir sua origem. É útil para recriar bancos de desenvolvimento ou de teste, e a configuração permite desabilitá-lo para evitar perdas.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de uma migração falhar, um técnico afirmou que rodar repair desfaria os comandos já executados e devolveria o banco ao estado anterior. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Correta, pois repair executa o script U correspondente à migração falha.", "correct": false },
+        { "key": "B", "text": "Correta, pois repair restaura o último backup registrado pelo Flyway.", "correct": false },
+        { "key": "C", "text": "Incorreta, pois repair só ajusta o histórico, sem desfazer comandos.", "correct": true },
+        { "key": "D", "text": "Incorreta, pois repair apaga o esquema inteiro e reaplica as migrações.", "correct": false },
+        { "key": "E", "text": "Incorreta, pois repair apenas lista as falhas, igual ao comando info.", "correct": false }
+      ],
+      "explanation": "O repair atua sobre a tabela de histórico: remove registros de migrações que falharam e realinha checksums, descrições e tipos. Ele não roda scripts de desfazer, não restaura backup e não apaga o esquema; também não é mero relatório, porque altera os metadados.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar o migrate num banco já atualizado, sem migrações pendentes, o Flyway reaplica todas as migrações versionadas para garantir que o esquema continue consistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O histórico informa o que já rodou, e as versionadas só são aplicadas uma vez. Rodar o migrate repetidamente num banco em dia não produz efeito, o que permite chamá-lo com segurança em toda implantação ou subida da aplicação.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Considere os comandos do Flyway: migrate, info, validate, repair, baseline e clean. Quais deles alteram objetos do esquema, e não apenas a tabela de histórico ou a saída de relatório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Apenas migrate e repair, que gravam mudanças no esquema gerenciado.", "correct": false },
+        { "key": "B", "text": "Apenas validate e clean, que corrigem e limpam objetos divergentes.", "correct": false },
+        { "key": "C", "text": "Apenas baseline e migrate, que criam as tabelas da versão inicial.", "correct": false },
+        { "key": "D", "text": "Apenas migrate e clean, que criam ou removem objetos no esquema.", "correct": true },
+        { "key": "E", "text": "Todos eles, pois cada comando grava uma nova versão do esquema.", "correct": false }
+      ],
+      "explanation": "Migrate aplica scripts que criam e alteram objetos; clean remove todos os objetos. Repair e baseline mexem só na tabela de histórico; validate e info apenas leem e relatam. Por isso as combinações que incluem repair, baseline ou validate como alteradores do esquema estão erradas.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No relatório do comando info, uma migração aparece como registrada no histórico, mas seu arquivo não existe mais nas locations configuradas. Que situação isso indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Pendente, pois o arquivo ainda será lido no próximo migrate.", "correct": false },
+        { "key": "B", "text": "Ausente, pois foi aplicada mas o arquivo saiu do projeto.", "correct": true },
+        { "key": "C", "text": "Ignorada, pois a versão é menor que a atual do banco.", "correct": false },
+        { "key": "D", "text": "Baseline, pois o banco foi marcado com versão de partida.", "correct": false },
+        { "key": "E", "text": "Repetível, pois perdeu a versão ao ter o arquivo removido.", "correct": false }
+      ],
+      "explanation": "Quando o histórico registra uma migração aplicada e o arquivo correspondente sumiu, o estado é de ausência (missing), e a validação pode falhar. Pendente é o contrário: arquivo sem registro. Ignorada é versão menor não aplicada; baseline é o marco inicial; remover o arquivo não o transforma em repetível.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando baseline do Flyway executa novamente, num banco já existente, todos os scripts das versões até o marco informado, para sincronizar o esquema com o histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O baseline não executa scripts: ele só registra no histórico uma versão de partida. Serve para adotar o Flyway num banco que já tem estrutura: ele registra a versão de partida, e somente migrações com versão superior serão aplicadas pelos próximos migrate, sem recriar o que já existe.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Num ambiente de testes automatizados, a equipe precisa recriar o banco do zero antes de cada bateria, aplicando todas as migrações. Qual sequência de comandos atende a isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "repair seguido de info, para zerar e listar as versões.", "correct": false },
+        { "key": "B", "text": "baseline seguido de validate, para recriar e conferir.", "correct": false },
+        { "key": "C", "text": "validate seguido de repair, para limpar e reaplicar tudo.", "correct": false },
+        { "key": "D", "text": "info seguido de baseline, para apagar e marcar a versão.", "correct": false },
+        { "key": "E", "text": "clean seguido de migrate, para apagar e reaplicar tudo.", "correct": true }
+      ],
+      "explanation": "Clean derruba todos os objetos do esquema e migrate reaplica todas as migrações desde a primeira, recriando o banco. Repair, info, validate e baseline não apagam objetos nem reaplicam scripts; em ambiente de testes descartável, o uso do clean é aceitável.",
+      "section": "3. Comandos do Flyway",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Spring Boot com Flyway, em qual local os scripts de migração são procurados por padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "classpath:db/changelog", "correct": false },
+        { "key": "B", "text": "classpath:sql/flyway", "correct": false },
+        { "key": "C", "text": "classpath:db/migration", "correct": true },
+        { "key": "D", "text": "classpath:migrations", "correct": false },
+        { "key": "E", "text": "classpath:schema/sql", "correct": false }
+      ],
+      "explanation": "O padrão é classpath:db/migration, ou seja, a pasta src/main/resources/db/migration. O caminho db/changelog lembra o padrão do Liquibase no Spring Boot; os demais não são padrão, embora qualquer pasta possa ser configurada nas locations.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em aplicações Spring Boot com a dependência do Flyway no classpath, as migrações pendentes são executadas automaticamente durante a inicialização da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A auto-configuração do Spring Boot detecta o Flyway, usa o DataSource da aplicação e roda o migrate na subida, antes de o JPA usar o banco. A execução automática pode ser desligada por propriedade quando se prefere rodar as migrações na esteira.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto Spring Boot, as propriedades de configuração do Flyway, como locations e baseline automático, são definidas sob qual prefixo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "spring.jpa.flyway", "correct": false },
+        { "key": "B", "text": "spring.flyway", "correct": true },
+        { "key": "C", "text": "spring.liquibase", "correct": false },
+        { "key": "D", "text": "flyway.spring.boot", "correct": false },
+        { "key": "E", "text": "spring.datasource.migration", "correct": false }
+      ],
+      "explanation": "As propriedades do Flyway no Spring Boot ficam sob spring.flyway, como spring.flyway.enabled e spring.flyway.locations. O prefixo spring.liquibase pertence à outra ferramenta, e os demais não são os prefixos usados pela auto-configuração do Flyway.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Flyway só pode ser executado dentro de aplicações Spring Boot, pois depende da auto-configuração do framework para se conectar ao banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O Flyway tem ferramenta de linha de comando, plugins para Maven e Gradle e API Java própria. A integração com Spring Boot é apenas uma das formas de uso, muito comum em projetos Java, mas não a única.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Numa aplicação Spring Boot com JPA, uma migração do Flyway contém erro de sintaxe SQL. Considerando a integração padrão, qual é o comportamento esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A aplicação sobe e o Hibernate cria a tabela que faltou no lugar do script.", "correct": false },
+        { "key": "B", "text": "A aplicação sobe e a migração é adiada para a próxima reinicialização.", "correct": false },
+        { "key": "C", "text": "O Flyway ignora o script defeituoso e continua com as versões seguintes.", "correct": false },
+        { "key": "D", "text": "A inicialização falha, evitando que a aplicação rode com o banco incompleto.", "correct": true },
+        { "key": "E", "text": "O Spring Boot executa o clean automaticamente e reaplica as migrações.", "correct": false }
+      ],
+      "explanation": "O migrate roda na subida e, se uma migração falha, a inicialização é interrompida, o que é desejável para não operar com esquema pela metade. O Hibernate não substitui o script, a migração não é adiada nem pulada, e o clean jamais é disparado automaticamente por falha.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao adotar o Flyway como responsável pelo esquema numa aplicação Spring Boot com Hibernate, qual configuração do ORM é a mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Deixar o Hibernate apenas validar o mapeamento, sem gerar ou alterar tabelas.", "correct": true },
+        { "key": "B", "text": "Deixar o Hibernate recriar as tabelas a cada subida, antes das migrações.", "correct": false },
+        { "key": "C", "text": "Deixar o Hibernate atualizar o esquema e o Flyway só registrar o histórico.", "correct": false },
+        { "key": "D", "text": "Desligar o Flyway em produção e usar a geração do Hibernate nesse ambiente.", "correct": false },
+        { "key": "E", "text": "Gerar as migrações versionadas a partir do Hibernate a cada inicialização.", "correct": false }
+      ],
+      "explanation": "Com o Flyway controlando a evolução do esquema, o ORM não deve criar nem alterar tabelas por conta própria; no máximo valida que o mapeamento confere com o banco. Recriar ou atualizar pelo Hibernate gera conflito e perde o histórico, e usar a geração automática em produção é justamente o que se quer evitar.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe sem projeto Java precisa aplicar migrações SQL num banco PostgreSQL dentro de uma esteira de CI/CD. Qual forma de uso do Flyway é a mais natural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Auto-configuração do Spring Boot, criada só para rodar a migração.", "correct": false },
+        { "key": "B", "text": "Plugin Maven no pom.xml, mesmo sem nenhum outro código em Java.", "correct": false },
+        { "key": "C", "text": "Ferramenta de linha de comando, com locations do tipo filesystem.", "correct": true },
+        { "key": "D", "text": "Callback afterMigrate disparado pelo próprio servidor PostgreSQL.", "correct": false },
+        { "key": "E", "text": "Placeholder configurado no banco para executar scripts pendentes.", "correct": false }
+      ],
+      "explanation": "A CLI do Flyway executa os mesmos comandos a partir de configuração em arquivo, variáveis de ambiente ou parâmetros, e lê scripts de uma pasta do sistema de arquivos, o que encaixa em qualquer esteira. Criar aplicação Spring ou projeto Maven só para isso é desnecessário; callbacks e placeholders não disparam migrações.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "É possível configurar mais de uma location no Flyway, por exemplo uma pasta comum a todos os ambientes e outra com dados de teste ativada apenas em desenvolvimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As locations aceitam várias pastas, do classpath ou do sistema de arquivos, e as migrações de todas elas entram na mesma sequência de versões. Variar as locations por ambiente é a forma usual de rodar scripts só em desenvolvimento.",
+      "section": "4. Integração com Spring Boot, Maven, Gradle e CLI",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma ferramenta de versionamento de banco, as mudanças ficam num changelog escrito em YAML, organizado em changeSets identificados por id e autor. De qual ferramenta se trata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Flyway, com migrações versionadas pelo nome", "correct": false },
+        { "key": "B", "text": "Hibernate, com geração automática do esquema", "correct": false },
+        { "key": "C", "text": "Pentaho, com transformações de carga de dados", "correct": false },
+        { "key": "D", "text": "Liquibase, com changelog e changeSets", "correct": true },
+        { "key": "E", "text": "Maven, com objetivos de build declarados", "correct": false }
+      ],
+      "explanation": "Changelog e changeSet, com id e autor, e os formatos XML, YAML, JSON e SQL são marcas do Liquibase. O Flyway ordena pela versão no nome dos arquivos; o Hibernate é ORM; o Pentaho faz ETL; o Maven é ferramenta de build, que apenas pode chamar as ferramentas de migração.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Flyway, a ordem de aplicação das migrações versionadas é dada pela versão no nome dos arquivos, enquanto no Liquibase ela segue a posição dos changeSets no changelog.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. É a diferença estrutural entre as duas ferramentas: o Flyway lê a versão de cada arquivo e ordena numericamente; o Liquibase percorre o changelog, que pode incluir outros changelogs, e aplica os changeSets na sequência em que aparecem.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Flyway exige que as migrações sejam escritas em XML, enquanto o Liquibase aceita somente scripts SQL puros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado, a afirmação inverte as ferramentas. O Flyway trabalha principalmente com scripts SQL, além de classes Java. É o Liquibase que oferece changelogs em XML, YAML, JSON e também em SQL formatado.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão exige que toda mudança de banco traga a instrução para desfazê-la, executável por comando nativo e sem custo de licença. Entre Flyway e Liquibase, qual análise é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O Flyway gratuito gera rollback sozinho a partir da tabela de histórico.", "correct": false },
+        { "key": "B", "text": "O Liquibase prevê rollback no changeSet, muitas vezes gerado sozinho.", "correct": true },
+        { "key": "C", "text": "Nenhum dos dois permite desfazer mudanças, só aplicar novas versões.", "correct": false },
+        { "key": "D", "text": "O Flyway desfaz pelo repair, que reverte a última migração aplicada.", "correct": false },
+        { "key": "E", "text": "O Liquibase desfaz pelo clean, que remove só o último changeSet.", "correct": false }
+      ],
+      "explanation": "No Liquibase, o changeSet pode declarar o bloco de rollback, e para muitos change types o inverso é gerado automaticamente. No Flyway, desfazer depende das migrações undo, que são das edições pagas. Repair não reverte migração e clean apaga o esquema inteiro, não um changeSet.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Sobre as tabelas de controle do Liquibase, assinale a opção correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "flyway_schema_history guarda os changeSets e a trava de execução.", "correct": false },
+        { "key": "B", "text": "DATABASECHANGELOG guarda só a trava, sem registrar os changeSets.", "correct": false },
+        { "key": "C", "text": "DATABASECHANGELOGLOCK guarda o checksum de cada changeSet aplicado.", "correct": false },
+        { "key": "D", "text": "O Liquibase não usa tabelas, pois o histórico fica só no changelog.", "correct": false },
+        { "key": "E", "text": "DATABASECHANGELOG registra os changeSets; a LOCK evita execução dupla.", "correct": true }
+      ],
+      "explanation": "O Liquibase registra cada changeSet aplicado, com checksum, na DATABASECHANGELOG e usa a DATABASECHANGELOGLOCK como trava para impedir execuções simultâneas. A flyway_schema_history é do Flyway; inverter os papéis das duas tabelas ou negar o uso de tabelas está incorreto.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa que o mesmo conjunto de mudanças gere SQL adequado para Oracle e PostgreSQL, descrevendo operações como criar tabela de forma independente do banco. Qual escolha atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Flyway com placeholders, que traduzem o SQL para o dialeto de cada banco.", "correct": false },
+        { "key": "B", "text": "Flyway com repetíveis, que convertem a sintaxe ao detectar o banco usado.", "correct": false },
+        { "key": "C", "text": "Liquibase com change types abstratos, traduzidos para cada dialeto.", "correct": true },
+        { "key": "D", "text": "Liquibase com rollback, que gera automaticamente o SQL de outro banco.", "correct": false },
+        { "key": "E", "text": "Flyway com callbacks, que reescrevem os scripts antes de cada migrate.", "correct": false }
+      ],
+      "explanation": "Os change types do Liquibase descrevem a mudança de forma abstrata e a ferramenta gera o SQL de cada banco suportado. No Flyway escreve-se o SQL do banco usado: placeholders só substituem valores, repetíveis não traduzem sintaxe e callbacks não reescrevem scripts. Rollback trata de desfazer, não de traduzir.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Tanto o Flyway quanto o Liquibase calculam checksums das mudanças aplicadas para detectar alterações posteriores no que já foi executado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O Flyway guarda o checksum de cada migração na flyway_schema_history e o Liquibase guarda o de cada changeSet na DATABASECHANGELOG. Nas duas ferramentas, editar algo já aplicado gera divergência acusada na validação.",
+      "section": "5. Flyway x Liquibase",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em produção, a migração V12__adicionar_coluna.sql já foi aplicada, e um desenvolvedor descobriu que faltou um índice. Qual é a forma correta de corrigir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Editar a V12 incluindo o índice e rodar o migrate de novo.", "correct": false },
+        { "key": "B", "text": "Criar a V13 com o índice, sem alterar a V12 já aplicada.", "correct": true },
+        { "key": "C", "text": "Apagar a V12 do projeto e recriá-la com o índice incluído.", "correct": false },
+        { "key": "D", "text": "Rodar clean em produção e reaplicar a V12 já corrigida.", "correct": false },
+        { "key": "E", "text": "Criar o índice direto no banco, fora do controle de migração.", "correct": false }
+      ],
+      "explanation": "Migração aplicada não se edita: a correção entra numa nova versão, mantendo o histórico honesto. Editar a V12 quebra o checksum e os bancos que já a rodaram não recebem o índice; apagar o arquivo deixa a versão ausente; clean destrói os dados; mudança manual faz os ambientes divergirem.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Alterar apenas um comentário dentro de uma migração versionada já aplicada pode provocar falha de validação no Flyway, porque o checksum do arquivo deixa de corresponder ao registrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O checksum é calculado sobre o conteúdo do arquivo, e mesmo uma alteração cosmética pode mudá-lo. A validação, que roda por padrão antes do migrate, acusa a divergência e impede a migração até que a situação seja resolvida.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao subir uma nova versão do sistema, o Flyway acusou divergência de checksum na migração V5, aplicada há meses. A investigação mostrou que alguém mudou o tipo de uma coluna nesse arquivo. Qual é a conduta mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Rodar repair para aceitar o novo checksum, pois ele também aplica a mudança.", "correct": false },
+        { "key": "B", "text": "Desativar a validação no migrate, pois a mudança será aplicada mesmo assim.", "correct": false },
+        { "key": "C", "text": "Rodar clean e migrate em produção, pois só assim a V5 nova será executada.", "correct": false },
+        { "key": "D", "text": "Renumerar a V5 alterada para V5.1, mantendo o mesmo arquivo no projeto.", "correct": false },
+        { "key": "E", "text": "Voltar a V5 ao original e levar a mudança de tipo para uma nova migração.", "correct": true }
+      ],
+      "explanation": "A edição de uma migração aplicada nunca chegaria aos bancos que já a rodaram; o correto é restaurar o arquivo e criar nova migração com a mudança. Repair só realinha o checksum, sem aplicar nada; desligar a validação esconde o problema; clean destrói dados; renomear deixaria a V5 original ausente.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração falhou no meio, num SGBD que confirma comandos DDL automaticamente, deixando parte das alterações aplicada. O histórico registra a falha. Qual é o roteiro adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Desfazer à mão o parcial, corrigir o script, rodar repair e depois migrate.", "correct": true },
+        { "key": "B", "text": "Rodar repair, que desfaz o parcial e reaplica a migração corrigida em seguida.", "correct": false },
+        { "key": "C", "text": "Rodar migrate de novo, pois o Flyway retoma do comando em que parou.", "correct": false },
+        { "key": "D", "text": "Rodar validate, que reverte o parcial e libera o histórico para nova tentativa.", "correct": false },
+        { "key": "E", "text": "Criar migração de versão menor para desfazer o parcial, sem tocar no histórico.", "correct": false }
+      ],
+      "explanation": "Sem DDL transacional, o Flyway não consegue desfazer o que já foi confirmado. É preciso limpar manualmente, corrigir o script, usar repair para remover o registro de falha e migrar novamente. Repair e validate não revertem comandos, o migrate não retoma do meio e uma versão menor ficaria ignorada.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em bancos que suportam DDL transacional, como o PostgreSQL, uma migração que falha pode ser desfeita por inteiro, sem deixar alterações parciais no esquema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando o banco permite desfazer comandos de estrutura com rollback, o Flyway executa a migração dentro de uma transação e, na falha, nada fica pela metade. Em bancos que confirmam DDL automaticamente, essa proteção não existe e a limpeza vira tarefa manual.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida previne o erro clássico de apagar todo o esquema de produção com o Flyway?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Rodar validate antes de qualquer clean executado em produção.", "correct": false },
+        { "key": "B", "text": "Usar migrações repetíveis para todas as tabelas do sistema.", "correct": false },
+        { "key": "C", "text": "Manter o clean desabilitado na configuração desse ambiente.", "correct": true },
+        { "key": "D", "text": "Ativar out-of-order para que o clean respeite as versões.", "correct": false },
+        { "key": "E", "text": "Fazer baseline diário para recuperar o esquema após o clean.", "correct": false }
+      ],
+      "explanation": "Bloquear o clean na configuração de ambientes com dados reais impede a execução acidental. Validate não protege contra a limpeza; repetíveis e out-of-order não têm relação com o clean; baseline só marca versão no histórico e não recupera objetos apagados, que dependeriam de backup.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois desenvolvedores criaram, em ramos diferentes, migrações com a mesma versão V20. Ao integrar os ramos, o Flyway acusa versão duplicada, e nenhuma delas foi aplicada ainda. Como resolver?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Rodar repair para que o Flyway escolha qual das duas manter.", "correct": false },
+        { "key": "B", "text": "Juntar as duas num único arquivo repetível sem nenhuma versão.", "correct": false },
+        { "key": "C", "text": "Ativar out-of-order para aplicar as duas V20 em qualquer ordem.", "correct": false },
+        { "key": "D", "text": "Renumerar uma delas para versão livre, como V21, antes de aplicar.", "correct": true },
+        { "key": "E", "text": "Apagar a tabela de histórico para que as duas sejam aceitas.", "correct": false }
+      ],
+      "explanation": "Como nenhuma foi aplicada, basta dar a uma delas uma versão livre. Repair não escolhe entre arquivos; transformar alterações estruturais em repetível muda a semântica; out-of-order não admite versões duplicadas; apagar o histórico faria o Flyway tentar reaplicar tudo. Versões com data e hora reduzem esse conflito.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Entre as boas práticas de uso do Flyway, assinale a que está correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Reunir todas as mudanças do semestre num único script grande.", "correct": false },
+        { "key": "B", "text": "Aplicar scripts diferentes em homologação e em produção.", "correct": false },
+        { "key": "C", "text": "Ajustar o banco de produção à mão quando houver urgência.", "correct": false },
+        { "key": "D", "text": "Editar migrações antigas para deixar o histórico mais limpo.", "correct": false },
+        { "key": "E", "text": "Executar as migrações na esteira de CI/CD antes da produção.", "correct": true }
+      ],
+      "explanation": "Rodar as migrações na esteira testa os scripts contra um banco real antes da produção. Scripts gigantes dificultam revisão e localização de falhas; scripts diferentes por ambiente e ajustes manuais fazem os bancos divergirem; editar migrações antigas quebra checksums e o próprio sentido do histórico.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em implantações sem parada, nas quais a versão antiga e a nova da aplicação usam o mesmo banco por algum tempo, recomenda-se que as migrações sejam compatíveis com a versão anterior, por exemplo adicionando uma coluna antes de remover a antiga em etapa posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Se a migração remover ou renomear de imediato algo que a versão antiga ainda usa, essa versão quebra durante a transição. Dividir a mudança em etapas compatíveis, primeiro acrescentando e só depois retirando o que ficou sem uso, evita a indisponibilidade.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A estratégia de roll forward consiste em corrigir um problema causado por uma migração aplicada escrevendo uma nova migração, em vez de reverter a anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Em vez de desfazer, segue-se adiante com uma correção versionada. É a abordagem preferida por muitos times com Flyway ou Liquibase, porque nem toda mudança é reversível, como a remoção de uma coluna que leva os dados junto.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para economizar espaço no repositório, a equipe pode apagar os arquivos de migrações versionadas já aplicadas em todos os ambientes, sem qualquer efeito na validação do Flyway.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Se o arquivo de uma migração registrada some, o Flyway passa a tratá-la como ausente e a validação pode falhar. Além disso, sem os arquivos não é mais possível recriar um banco novo do zero aplicando as migrações em sequência.",
+      "section": "6. Boas práticas e erros comuns",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Migrations",
+      "publisher": "Redgate",
+      "reference": "Migrações versionadas, repetíveis e de desfazer; regras de nome",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations",
+      "accessedAt": "2026-10-28"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Schema History Table",
+      "publisher": "Redgate",
+      "reference": "Tabela flyway_schema_history, checksums e estados",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations/flyway-schema-history-table",
+      "accessedAt": "2026-10-28"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Repeatable Migrations",
+      "publisher": "Redgate",
+      "reference": "Reaplicação por mudança de checksum e ordem de execução",
+      "url": "https://documentation.red-gate.com/flyway/flyway-concepts/migrations/repeatable-migrations",
+      "accessedAt": "2026-10-28"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flyway — Documentação",
+      "publisher": "Redgate",
+      "reference": "Comandos migrate, info, validate, repair, baseline, clean e undo; callbacks e placeholders",
+      "url": "https://documentation.red-gate.com/flyway",
+      "accessedAt": "2026-10-28"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Boot — Database Initialization (Flyway e Liquibase)",
+      "publisher": "Spring",
+      "reference": "Execução na inicialização, local padrão db/migration e propriedades spring.flyway",
+      "url": "https://docs.spring.io/spring-boot/how-to/data-initialization.html",
+      "accessedAt": "2026-10-28"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Liquibase — Documentação",
+      "publisher": "Liquibase",
+      "reference": "Changelog, changeSet, DATABASECHANGELOG e rollback",
+      "url": "https://docs.liquibase.com/",
+      "accessedAt": "2026-10-28"
+    }
+  ]
+}
