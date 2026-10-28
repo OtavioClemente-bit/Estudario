@@ -24,17 +24,50 @@ const args = new Set(Deno.args);
 type Json = Record<string, any>;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-Deno.mkdirSync(`${WORK}/_trabalho`, { recursive: true });
+// --api: segundo gerador em paralelo, que escreve pela API grátis do Google (Flash) e audita pelo agy.
+const MODO_API = args.has("--api");
+const TRAB = `${WORK}/_trabalho${MODO_API ? "-api" : ""}`;
+Deno.mkdirSync(TRAB, { recursive: true });
+Deno.mkdirSync(`${WORK}/travas`, { recursive: true });
 Deno.mkdirSync(`${WORK}/aceitos`, { recursive: true });
 function log(msg: string) {
-  const line = `[${new Date().toLocaleString("pt-BR")}] ${msg}`;
+  const line = `[${new Date().toLocaleString("pt-BR")}] ${MODO_API ? "[api] " : ""}${msg}`;
   console.log(line);
   Deno.writeTextFileSync(`${WORK}/log.txt`, line + "\n", { append: true });
 }
-const estadoPath = `${WORK}/estado.json`;
+const estadoPath = `${WORK}/estado${MODO_API ? "-api" : ""}.json`;
 let estado: Json = { pares: {}, aceitosDesdePublicacao: 0, totalAceitas: 0 };
 try { estado = JSON.parse(Deno.readTextFileSync(estadoPath)); } catch { /* primeira vez */ }
 const salvarEstado = () => Deno.writeTextFileSync(estadoPath, JSON.stringify(estado, null, 1));
+
+// ------------------------------------------------------------------ travas (os dois geradores não pegam o mesmo recorte)
+const arquivoTrava = (key: string) => `${WORK}/travas/${key.replace(/[^a-z0-9.-]+/gi, "_")}`;
+function travado(key: string) {
+  try { return Date.now() - Deno.statSync(arquivoTrava(key)).mtime!.getTime() < 3_600_000; } catch { return false; }
+}
+const travar = (key: string) => Deno.writeTextFileSync(arquivoTrava(key), MODO_API ? "api" : "agy");
+const destravar = (key: string) => { try { Deno.removeSync(arquivoTrava(key)); } catch { /* já saiu */ } };
+
+// ------------------------------------------------------------------ API grátis do Google (gerador --api)
+const API_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
+async function geminiApi(prompt: string): Promise<string> {
+  const key = Deno.readTextFileSync(`${ROOT}.env.google`).match(/GEMINI_API_KEY=(.+)/)![1].trim();
+  let ultimo = "";
+  for (const model of API_MODELS) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 65000 } }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 429) { ultimo = `${model}: cota`; continue; }
+    if (!r.ok) { ultimo = `${model}: ${r.status}`; continue; }
+    const txt = (j.candidates?.[0]?.content?.parts ?? []).map((p: Json) => p.text ?? "").join("");
+    if (txt) { log(`   escrito por ${model}`); return txt; }
+    ultimo = `${model}: resposta vazia`;
+  }
+  if (/cota/.test(ultimo)) throw new Cota(ultimo);
+  throw new Error(`API do Google indisponível (${ultimo})`);
+}
 
 // ------------------------------------------------------------------ fila
 function walk(dir: string, out: string[] = []) {
@@ -68,7 +101,7 @@ function montarFila() {
   const agora = Date.now();
   return [...recortes.entries()]
     .map(([key, r]) => ({ key, ...r, uso: uso.get(key) ?? 0, est: estado.pares[key] ?? {} }))
-    .filter((x) => x.uso >= MIN_EDITAIS && x.n < META)
+    .filter((x) => x.uso >= MIN_EDITAIS && x.n < META && !travado(x.key))
     // par que falhou 3 vezes seguidas descansa um dia
     .filter((x) => !((x.est.falhasSeguidas ?? 0) >= 3 && agora - (x.est.ultimo ?? 0) < 86_400_000))
     .sort((a, b) => b.uso * (META - b.n) - a.uso * (META - a.n));
@@ -133,13 +166,13 @@ ANTES DE RESPONDER, CONFIRA: ${LOTE} questões; distribuição; nenhuma repetida
 // ------------------------------------------------------------------ chamada ao agy
 class Cota extends Error {}
 async function agy(model: string, prompt: string, minutos: number): Promise<string> {
-  const pedido = `${WORK}/_trabalho/pedido.txt`;
+  const pedido = `${TRAB}/pedido.txt`;
   Deno.writeTextFileSync(pedido, prompt);
   // O pedido vai num arquivo (a linha de comando do Windows tem limite de tamanho).
   const cmd = new Deno.Command(AGY, {
     args: ["-p", "Leia o arquivo pedido.txt desta pasta e cumpra exatamente o que ele pede. Responda só o que ele pede.",
       "--model", model, "--output-format", "json", "--print-timeout", `${minutos}m`, "--disable-slash-commands"],
-    cwd: `${WORK}/_trabalho`, stdout: "piped", stderr: "piped",
+    cwd: TRAB, stdout: "piped", stderr: "piped",
   });
   const out = await cmd.output();
   const stdout = new TextDecoder().decode(out.stdout), stderr = new TextDecoder().decode(out.stderr);
@@ -200,7 +233,7 @@ function conferir(itens: Json[], item: Json, recorte: Json, materia: Json) {
 
 // ------------------------------------------------------------------ auditoria por outro modelo
 async function auditar(itens: Json[], recorte: Json, materia: Json): Promise<Set<number>> {
-  Deno.writeTextFileSync(`${WORK}/_trabalho/lote.json`, JSON.stringify(itens.map((q, i) => ({ n: i + 1, ...q })), null, 1));
+  Deno.writeTextFileSync(`${TRAB}/lote.json`, JSON.stringify(itens.map((q, i) => ({ n: i + 1, ...q })), null, 1));
   const prompt = `Você é um revisor rigoroso de questões de concurso (banca ${recorte.board}, assunto "${materia.title}").
 Leia o arquivo lote.json desta pasta. Para CADA questão, confira:
 1. o gabarito marcado está certo;
@@ -277,6 +310,10 @@ async function publicarEGravar() {
 
 // ------------------------------------------------------------------ um lote
 async function umLote(item: Json): Promise<void> {
+  travar(item.key);
+  try { await loteTravado(item); } finally { destravar(item.key); }
+}
+async function loteTravado(item: Json): Promise<void> {
   const recorte = JSON.parse(Deno.readTextFileSync(item.path));
   const [dir, arq] = String(recorte.topic).split(".");
   const materia = JSON.parse(Deno.readTextFileSync(`${ROOT}conteudo/materias/${dir}/${arq}.json`));
@@ -284,7 +321,8 @@ async function umLote(item: Json): Promise<void> {
   log(`lote para ${item.key} (${item.uso} editais, ${item.n} questões, ${item.ce ? "Certo/Errado" : "múltipla escolha"})`);
   let retorno = "", aprovados: Json[] = [];
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
-    const resp = await agy(GEN_MODEL, montarPedido(item, recorte, materia, retorno), 20);
+    const pedidoTxt = montarPedido(item, recorte, materia, retorno);
+    const resp = MODO_API ? await geminiApi(pedidoTxt) : await agy(GEN_MODEL, pedidoTxt, 20);
     let itens: Json[];
     try { itens = extrairJson(resp); } catch { retorno = "A resposta não era um JSON válido."; log("   resposta sem JSON válido"); continue; }
     if (!Array.isArray(itens)) { retorno = "A resposta não era um array."; continue; }
@@ -306,7 +344,8 @@ async function umLote(item: Json): Promise<void> {
   if (juntadas) { estado.aceitosDesdePublicacao = (estado.aceitosDesdePublicacao ?? 0) + 1; estado.aceitosDesdePublicacaoQuestoes = (estado.aceitosDesdePublicacaoQuestoes ?? 0) + juntadas; }
   salvarEstado();
   log(`   auditoria removeu ${remover.size}; ${juntadas} questões entraram no recorte (total do gerador: ${estado.totalAceitas})`);
-  if ((estado.aceitosDesdePublicacao ?? 0) >= PUBLICAR_A_CADA) await publicarEGravar();
+  // Só o gerador principal publica e grava (o da API só junta ao recorte; o principal leva junto).
+  if (!MODO_API && (estado.aceitosDesdePublicacao ?? 0) >= PUBLICAR_A_CADA) await publicarEGravar();
 }
 
 // ------------------------------------------------------------------ laço principal
@@ -314,7 +353,7 @@ if (args.has("--fila")) {
   for (const x of montarFila().slice(0, 40)) console.log(`${x.uso}\t${x.n}\t${x.ce ? "C/E" : "ME"}\t${x.key}`);
   Deno.exit(0);
 }
-log(`gerador iniciado (gera com ${GEN_MODEL}, audita com ${AUD_MODEL})`);
+log(`gerador ${MODO_API ? "da API " : ""}iniciado (gera com ${MODO_API ? API_MODELS.join("/") : GEN_MODEL}, audita com ${AUD_MODEL}/${AUD_GEMINI})`);
 while (true) {
   const fila = montarFila();
   if (!fila.length) { log("fila vazia; esperando 1 hora"); await sleep(3_600_000); continue; }
