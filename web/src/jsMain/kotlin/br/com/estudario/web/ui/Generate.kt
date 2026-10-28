@@ -108,7 +108,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
     val hasQuestions = "QUESTIONS" in blocks
 
     fun start() {
-        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else emptyList(), purpose = AiContent.purposeFor(Store.data, topicId)))
+        Generation.start(topicId, AiContent.Options(blocks = blocks, depth = depth, questionCount = count, style = style, difficulty = difficulty, board = board, avoid = if (questionsOnly) avoidFor(topicId) else avoidForMaterial(topicId), purpose = AiContent.purposeFor(Store.data, topicId)))
     }
     // Reaberta pela faixa do canto, a janela vem sem o pedido: o tipo fica guardado em Generation.
     val showQuestions = questionsOnly || Generation.questionsOnly[topicId] == true
@@ -400,4 +400,15 @@ private fun FreeMixedNotice() {
         Span({ classes("pro-cta") }) { Text("Fazer upgrade do plano"); Icon("arrow_forward") }
     }
     if (offer) UpgradeModal(UpgradeReason.QUESTION_STYLE) { offer = false }
+}
+
+/**
+ * Material completo: as questões que a pessoa já tem, primeiro as da mesma matéria. Tópicos vizinhos
+ * usam a mesma matéria da biblioteca, e as repetidas eram descartadas ao salvar (pedia 20, ficavam 13).
+ */
+private fun avoidForMaterial(topicId: Long): List<String> {
+    val subjectId = Store.data.topics.firstOrNull { it.id == topicId }?.subjectId
+    val subjectTopics = Store.data.topics.filter { it.subjectId == subjectId }.map { it.id }.toSet()
+    val (same, others) = Store.data.questions.filter { it.statement.isNotBlank() }.partition { it.topicId in subjectTopics }
+    return (same.asReversed() + others.asReversed()).map { it.statement }.take(150)
 }

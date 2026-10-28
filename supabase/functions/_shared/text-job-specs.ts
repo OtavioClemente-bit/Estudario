@@ -92,8 +92,9 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     const fromLibrary = await libraryContent(job, input, dependencies).catch(() => null);
     if (fromLibrary) return fromLibrary;
     if (!store.cachedContent || !store.markServed) return null;
-    // Pedido de "mais questões" depende do que a pessoa já tem: nunca vem do material guardado.
-    if (input.avoidStatements.length > 0) return null;
+    // Pedido de "mais questões" depende do que a pessoa já tem: nunca vem do material guardado. O material
+    // completo também leva a lista (para a biblioteca não repetir), mas pode sair do guardado.
+    if (moreQuestions(input)) return null;
     const key = await contentCacheKey(input);
     const proposal = await store.cachedContent(key, CONTENT_PROMPT_VERSION, job.userId, CACHE_MAX_AGE_DAYS);
     if (!proposal) return null;
@@ -141,7 +142,7 @@ async function libraryContent(
     if (routed) ({ hit: found, primary } = routed);
   }
   if (!found || !primary) {
-    if (input.avoidStatements.length === 0) {
+    if (!moreQuestions(input)) {
       await store.recordLibraryMiss?.({
         subject: input.subjectName,
         topic: input.topicPath.join(" › "),
@@ -180,7 +181,7 @@ async function libraryContent(
     const extra = (general?.questions as unknown[] | undefined) ?? [];
     if (extra.length > 0) found.note = { ...found.note, questions: [...own, ...extra], borrowedQuestions: own.length === 0, ownQuestions: own.length };
   }
-  const fresh = input.avoidStatements.length === 0;
+  const fresh = !moreQuestions(input);
   const servedKey = `lib:${found.topicId}@${found.version}:${await contentCacheKey(input)}`;
   // Sem recorte cadastrado, o nome do tópico escolhe os capítulos (pedir "HTML5" traz só HTML5).
   const focus = found.focus ?? inferFocus(found.material, input.topicPath[input.topicPath.length - 1], found.topicId);
@@ -624,4 +625,9 @@ export function textSpecFor(job: SyllabusWorkerJob): AiJobSpec {
   if (job.feature === "SIMULATION_GENERATION") return SIMULATION_JOB_SPEC;
   // A fila de texto só entrega esses três; qualquer outro é dado corrompido.
   throw new Error("TEXT_JOB_INPUT_INVALID");
+}
+
+/** "Mais questões": só o bloco de questões, com a lista do que a pessoa já tem. */
+function moreQuestions(input: ContentJobInput): boolean {
+  return input.avoidStatements.length > 0 && input.options.blocks.length === 1 && input.options.blocks[0] === "QUESTIONS";
 }

@@ -375,9 +375,13 @@ Deno.test("more-questions requests list what already exists and never come from 
   assert(contentUserPrompt(input).includes("1. Qual o prazo da posse?"));
   assertEquals(parseContentJobInput(contentInput).avoidStatements, []);
   const spec = textSpecFor(textJob("CONTENT_GENERATION", contentInput));
-  const job = textJob("CONTENT_GENERATION", { ...contentInput, avoidStatements: ["Q?"] });
+  const questionsOnly = { ...parseContentJobInput(contentInput).options, blocks: ["QUESTIONS"] };
+  const job = textJob("CONTENT_GENERATION", { ...contentInput, options: questionsOnly, avoidStatements: ["Q?"] });
   let asked = false;
   const deps = { jobs: { cachedContent: () => { asked = true; return Promise.resolve({}); }, markServed: () => Promise.resolve() } };
   assertEquals(await spec.cached!(job, deps as never), null);
   assert(!asked);
+  // Material completo leva a lista só para a biblioteca não repetir: o guardado continua valendo.
+  const full = textJob("CONTENT_GENERATION", { ...contentInput, avoidStatements: ["Q?"] });
+  assertEquals(await spec.cached!(full, deps as never), {} as never);
 });
