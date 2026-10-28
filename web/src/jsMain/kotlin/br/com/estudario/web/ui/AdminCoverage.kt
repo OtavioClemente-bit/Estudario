@@ -51,14 +51,15 @@ fun AdminCoverageScreen() {
     var open by remember { mutableStateOf<CatalogEntry?>(null) }
     LaunchedEffect(Unit) { entries = runCatching { Catalog.entries() }.getOrElse { error = it.message ?: "Não deu para carregar o catálogo."; emptyList() } }
 
-    var tab by remember { mutableStateOf("uso") }
-    PageHead("Cobertura dos editais", "Os editais que as pessoas estão usando e quanto de cada um já tem matéria pronta")
+    var tab by remember { mutableStateOf("painel") }
+    PageHead("Equipe", "O painel da biblioteca e do catálogo, os editais em uso e o que falta preparar")
     Div({ classes("filter-chips"); attr("style", "margin-bottom:14px") }) {
-        listOf("uso" to "Em uso pelas contas", "catalogo" to "Todo o catálogo", "magros" to "Recortes magros").forEach { (k, label) ->
+        listOf("painel" to "Painel", "uso" to "Em uso pelas contas", "catalogo" to "Todo o catálogo", "magros" to "Recortes magros").forEach { (k, label) ->
             Button({ classes(*listOfNotNull("fchip", if (tab == k) "on" else null).toTypedArray()); onClick { tab = k } }) { Text(label) }
         }
     }
     val all = entries
+    if (tab == "painel") { TeamDashboard(); return }
     if (tab == "magros") { ThinSlices(); return }
     if (tab == "uso") {
         EditaisInUse { id -> all?.firstOrNull { it.id == id }?.let { open = it } }
