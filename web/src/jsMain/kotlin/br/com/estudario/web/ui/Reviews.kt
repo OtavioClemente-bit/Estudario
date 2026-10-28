@@ -40,6 +40,38 @@ private fun stageName(review: Review): String = "${review.stage}ª revisão" + (
 /** Revisar tudo em sequência: ao terminar uma, a próxima do dia abre sozinha. */
 private object ReviewRun { var active = false }
 
+/** O "?" das revisões: o que são as etapas, de quanto em quanto tempo voltam e o que cada botão faz. */
+@Composable
+private fun ReviewHelp(onClose: () -> Unit) {
+    Modal(onDismiss = onClose, extraClass = "gx-sheetmodal rv-help-modal") {
+        Div({ classes("gx-top") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Text("COMO FUNCIONA") }
+                H2 { Text("Revisão espaçada, etapa por etapa") }
+                P({ classes("gx-topic") }) { Text("A gente esquece rápido o que estuda. Revisar na hora certa, um pouco antes de esquecer, é o que faz o conteúdo ficar.") }
+            }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+        }
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("menu_book", "Estudou um tópico, nasceu uma revisão", "Cada tópico que você estuda entra aqui sozinho, com a data certa de voltar.", "#A78BFF") {}
+            GxSection("event_repeat", "O que é a etapa", "É a vez daquela revisão: 1ª, 2ª, 3ª... A cada etapa feita, o tópico demora mais para voltar.", "#22D3EE") {
+                Div({ classes("vr-help-ladder") }) {
+                    listOf("1ª · 1 dia" to "#A78BFF", "2ª · 7 dias" to "#22D3EE", "3ª · 30 dias" to "#2FD39A", "depois o tempo dobra" to "#FFC94D").forEach { (label, color) ->
+                        Span({ attr("style", "--c:$color") }) { Text(label) }
+                    }
+                }
+            }
+            GxSection("star", "Como foi? Você decide o ritmo", "Difícil: a mesma etapa volta amanhã, até ficar Normal ou Fácil. Normal: avança no tempo de sempre. Fácil: avança e o próximo encontro fica mais longe.", "#FFC94D") {}
+            GxSection("timer", "Cada revisão leva poucos minutos", "Lembrar (cartões que viram), rever o resumo e testar com questões. Na engrenagem você escolhe quantas questões e flashcards entram em cada uma.", "#2FD39A") {}
+            GxSection("warning", "Atrasadas vêm primeiro", "Passou do dia? Ela fica em vermelho no topo da lista. Pular tira essa revisão da lista: use só quando o tópico não importar mais.", "#FF5A7A") {}
+            Div({ classes("gx-go", "row") }) {
+                Span {}
+                GxLaunch("Entendi", icon = "check_circle") { onClose() }
+            }
+        }
+    }
+}
+
 @Composable
 fun ReviewsScreen() {
     val data = Store.data
@@ -53,7 +85,12 @@ fun ReviewsScreen() {
     val upcoming = data.reviews.filter { it.completedAt == null && it.ignoredAt == null && it.dueAt >= Queries.endOfToday() && it.topicId in scope }.sortedBy { it.dueAt }
     val doneToday = data.reviews.count { (it.completedAt ?: 0) >= Queries.startOfToday() && it.topicId in scope }
 
-    PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar", actions = { IconButton("settings", "Configurar revisão") { ReviewPracticePanels.openSettings() } })
+    var help by remember { mutableStateOf(false) }
+    if (help) ReviewHelp { help = false }
+    PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar", actions = {
+        Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funcionam as etapas"); attr("title", "Como funcionam as etapas"); onClick { help = true } }) { Text("?") }
+        IconButton("settings", "Configurar revisão") { ReviewPracticePanels.openSettings() }
+    })
     CompetitionTabs()
 
     // ---- o topo: quantas para hoje e o botão de começar, no visual do estúdio
@@ -109,7 +146,7 @@ fun ReviewsScreen() {
                                         )
                                     }
                                 }
-                                Span({ classes("rvx-go") }) { Icon("play_arrow", plain = true) }
+                                Span({ classes("rvx-go") }) { Icon("play_arrow", plain = true); Span({ classes("rvx-go-l") }) { Text("Revisar") } }
                             }
                             Button({ classes("rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
                         }
