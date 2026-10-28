@@ -1,6 +1,9 @@
 package br.com.estudario.web.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -315,31 +318,51 @@ fun ViradaMissionScreen() {
     var index by remember { mutableStateOf(0) }
     var climbed by remember { mutableStateOf(0) }
     val sessionId = remember { Actions.newSessionId() }
+    // O tempo da missão conta no Desempenho, como uma bateria de questões (tipo ERROR_REVIEW, o mesmo do app).
+    val startedAt = remember { Date.now().toLong() }
+    val results = remember { mutableStateListOf<Boolean>() }
+    val topicIds = remember { mutableSetOf<Long>() }
+    var saved by remember { mutableStateOf(false) }
+    fun saveSession() {
+        if (saved || results.isEmpty()) return
+        saved = true
+        val subjectIds = Store.data.topics.filter { it.id in topicIds }.mapTo(hashSetOf()) { it.subjectId }
+        Store.update { Actions.saveQuestionSession(it, "ERROR_REVIEW", startedAt, results.size, results.count { ok -> ok }, subjectIds, topicIds.toSet(), sessionId) }
+    }
+    // saiu no meio (Sair, outra tela, fechou): o que foi respondido também vale
+    DisposableEffect(Unit) { onDispose { saveSession() } }
+    var elapsed by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) { while (true) { elapsed = (Date.now().toLong() - startedAt) / 1000; kotlinx.coroutines.delay(1000) } }
     if (missionIds.isEmpty()) { Card { Empty("task_alt", "Nada vencendo hoje", "Os erros voltam no dia certo. Volte amanhã!", action = { Btn("Voltar", { Router.go(Route.Errors) }) }) }; return }
+    HoldCelebrations()
     Div({ classes("vr-wrap", "vr-mission-screen") }) {
         Div({ classes("vr-mtop") }) {
-            Btn("Sair", { Router.go(Route.Errors) }, style = "ghost", small = true, icon = "close")
+            Btn("Sair", { saveSession(); Router.go(Route.Errors) }, style = "ghost", small = true, icon = "close")
             B { Text(if (index < missionIds.size) "Missão · ${index + 1} de ${missionIds.size}" else "Missão feita") }
-            Span({ classes("cb-hand") }) { Text("~${(missionIds.size * 1.2).toInt().coerceAtLeast(1)} min") }
+            Span({ classes("chip", "quiz-timer"); attr("title", "Tempo da missão (conta no Desempenho)") }) {
+                Icon("timer"); Text("${(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}")
+            }
         }
         Div({ classes("cb-dots") }) { missionIds.indices.forEach { i -> I({ classes(*listOfNotNull(if (i <= index) "on" else null).toTypedArray()) }) } }
         if (index >= missionIds.size) {
+            LaunchedEffect(Unit) { saveSession(); som("resultado") }
             Div({ classes("cb-done", "rise") }) {
                 Folha(if (climbed > 0) "proud" else "talking", 110)
                 H2 { Text(if (climbed > 0) "Virada feita!" else "Missão feita") }
                 P { Text(if (climbed > 0) "Você subiu $climbed ${if (climbed == 1) "degrau" else "degraus"} hoje. Erro virado é questão a mais na prova." else "Desta vez não virou, e tudo bem: eles voltam amanhã, e agora você sabe o porquê.") }
+                P({ classes("xs", "muted") }) { Text("${results.count { it }} de ${results.size} certas em ${Queries.minutesLabel(((elapsed + 59) / 60).toInt())}. O tempo entrou no Desempenho.") }
                 Btn("Voltar à Virada", { Router.go(Route.Errors) }, style = "primary", icon = "replay")
             }
             return@Div
         }
         key(missionIds[index]) {
-            MissionItem(missionIds[index], sessionId, onClimb = { climbed++ }) { index++ }
+            MissionItem(missionIds[index], sessionId, results, onAnswered = { ok, topic -> results += ok; topic?.let { topicIds += it }; if (ok) climbed++ }) { index++ }
         }
     }
 }
 
 @Composable
-private fun MissionItem(errorId: Long, sessionId: String, onClimb: () -> Unit, onNext: () -> Unit) {
+private fun MissionItem(errorId: Long, sessionId: String, results: List<Boolean>, onAnswered: (Boolean, Long?) -> Unit, onNext: () -> Unit) {
     val data = Store.data
     val start = remember { data.errors.firstOrNull { it.id == errorId } }
     val question = start?.let { s -> data.questions.firstOrNull { it.id == s.questionId } }
@@ -362,30 +385,60 @@ private fun MissionItem(errorId: Long, sessionId: String, onClimb: () -> Unit, o
             var ok = false
             Store.update { s -> Actions.answer(s, question.id, key, sessionId).also { ok = it.second }.first }
             right = ok
-            if (ok) onClimb()
+            onAnswered(ok, question.topicId)
         }
     }
-    if (right == true) Div({ classes("vr-virou") }) {
-        val turned = (after?.retryStreak ?: 0) >= ErrorRetryLadder.days.size
-        Span({ classes("vr-big") }) { Text(if (turned) "VIROU! ★" else "VIROU UM DEGRAU!") }
-        P { Text(if (turned) "Esse erro virou troféu: foi para o mural." else "Agora ela volta em ${ErrorRetryLadder.intervalDays(after?.retryStreak ?: 1) ?: 30} dias. ${if ((after?.retryStreak ?: 0) == ErrorRetryLadder.days.size - 1) "Mais um acerto e vira troféu." else "Continue subindo."}") }
-    }
-    if (right == false) Div({ classes("vr-reason") }) {
-        B { Text("Ainda não. Por que você errou de novo?") }
-        Div({ classes("vr-chips") }) {
-            ErrorVirada.Reason.entries.forEach { r ->
-                Button({
-                    classes(*listOfNotNull("vr-chip", if (reason == r) "on" else null).toTypedArray())
-                    onClick {
-                        reason = r
-                        val current = Store.data.errors.firstOrNull { it.id == errorId }?.comment ?: start.comment
-                        Store.update { Actions.setErrorComment(it, errorId, ErrorVirada.withReason(current, r)) }
-                    }
-                }) { Text(r.label) }
-            }
-        }
-        Span({ classes("xs", "muted") }) { Text(reason?.let { "Dica do Folha: ${it.tip}" } ?: "Um toque já ajuda: o caderno aprende o seu padrão. A questão volta em 3 dias.") }
-    }
+    val answered = right
+    if (answered != null) MissionReaction(
+        right = answered, questionId = question.id, results = results,
+        turned = (after?.retryStreak ?: 0) >= ErrorRetryLadder.days.size,
+        nextDays = (ErrorRetryLadder.intervalDays(after?.retryStreak ?: 1) ?: 30L).toInt(),
+        lastStep = (after?.retryStreak ?: 0) == ErrorRetryLadder.days.size - 1,
+        reason = reason,
+        onReason = { r ->
+            reason = r
+            val current = Store.data.errors.firstOrNull { it.id == errorId }?.comment ?: start.comment
+            Store.update { Actions.setErrorComment(it, errorId, ErrorVirada.withReason(current, r)) }
+        },
+    )
     if (right != null && question.explanation.isNotBlank()) Div({ classes("vr-card", "vr-explain") }) { B { Text("Por quê") }; Markdown(question.explanation, compact = true) }
     if (right != null) Div({ classes("cb-flip-nav") }) { Btn("Próximo erro", onNext, style = "primary", icon = "arrow_forward") }
+}
+
+/**
+ * O Folha reage à resposta da missão (com o som, como no Treinar): no acerto comemora o degrau; no erro
+ * ele mesmo pergunta por que você errou de novo e, escolhido o motivo, dá a dica certa para ele.
+ */
+@Composable
+private fun MissionReaction(right: Boolean, questionId: Long, results: List<Boolean>, turned: Boolean, nextDays: Int, lastStep: Boolean, reason: ErrorVirada.Reason?, onReason: (ErrorVirada.Reason) -> Unit) {
+    val F = br.com.estudario.domain.FolhaFalas
+    val streak = results.asReversed().takeWhile { it }.size
+    val relief = right && streak == 1 && results.size >= 2 && !results[results.size - 2]
+    val fire = right && streak >= 3
+    LaunchedEffect(questionId) { som(if (turned || fire) "combo" else if (right) "acerto" else "erro") }
+    val mood = when { turned -> "ecstatic"; fire -> "proud"; relief -> "relieved"; right -> "happy"; reason != null -> "talking"; else -> "sad" }
+    Div({ classes("answer-reaction", "vr-react", if (right) "ok" else "bad", "pop-in") }) {
+        Div({ classes(if (right) "folha-cheer" else "folha-shake") }) { key(questionId, mood) { Folha(mood, 72) } }
+        Div({ classes("grow") }) {
+            if (right) {
+                B({ classes("reaction-title", "vr-big") }) { Text(if (turned) "VIROU! ★" else "VIROU UM DEGRAU!") }
+                P({ classes("small") }) { Text(when { fire -> F.fire(questionId); relief -> F.relief(questionId); else -> F.answer(true, questionId) }) }
+                P({ classes("xs", "muted") }) {
+                    Text(if (turned) "Esse erro virou troféu: foi para o mural." else "Agora ela volta em $nextDays dias. ${if (lastStep) "Mais um acerto e vira troféu." else "Continue subindo."}")
+                }
+                if (streak >= 2) Span({ classes("streak-chip") }) { Icon("local_fire_department", filled = true); Text("$streak seguidas") }
+            } else {
+                B({ classes("reaction-title") }) { Text("Ainda não. Por que você errou de novo?") }
+                Div({ classes("vr-chips") }) {
+                    ErrorVirada.Reason.entries.forEach { r ->
+                        Button({ classes(*listOfNotNull("vr-chip", if (reason == r) "on" else null).toTypedArray()); attr("type", "button"); onClick { onReason(r) } }) { Text(r.label) }
+                    }
+                }
+                P({ classes("small", "vr-tip") }) {
+                    if (reason != null) { B { Text("Dica do Folha: ") }; Text(reason.tip) }
+                    else Text("Um toque já ajuda: eu aprendo o seu padrão e dou a dica certa. A questão volta para a mesa e aparece de novo em 3 dias.")
+                }
+            }
+        }
+    }
 }

@@ -659,7 +659,14 @@ private fun RateStep(review: Review, recalled: Int, forgotten: Int, correct: Int
         Div({ classes("rv-choice") }) {
             Btn(if (pick == ReviewDifficulty.DIFICIL) "Salvar e repetir amanhã" else "Concluir etapa", {
                 val days = nextDueWith(review.id, pick, correct, total)?.let { br.com.estudario.time.daysBetween(Queries.todayDate(), Queries.dateOf(it)).toInt().coerceAtLeast(1) }
-                Store.update { Actions.completeReviewWithPlan(it, review.id, pick, correct, total, startedAt, recalled, forgotten) }
+                Store.update {
+                    val next = Actions.completeReviewWithPlan(it, review.id, pick, correct, total, startedAt, recalled, forgotten)
+                    // As questões da revisão contam o tempo no Desempenho, como uma bateria (tipo REVIEW, o mesmo do app).
+                    if (total <= 0) next else {
+                        val subjectIds = next.topics.filter { t -> t.id == review.topicId }.mapTo(hashSetOf()) { t -> t.subjectId }
+                        Actions.saveQuestionSession(next, "REVIEW", startedAt, total, correct, subjectIds, setOf(review.topicId))
+                    }
+                }
                 ReviewDone.state = ReviewDone.State(review.id, review.topicId, days, review.stage.takeIf { pick == ReviewDifficulty.DIFICIL })
             }, style = "primary", icon = "check", size = "lg")
         }

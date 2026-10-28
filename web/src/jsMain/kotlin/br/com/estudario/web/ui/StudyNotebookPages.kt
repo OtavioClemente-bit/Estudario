@@ -179,6 +179,17 @@ fun NotebookFlipScreen() {
     var index by remember { mutableStateOf(0) }
     val sessionId = remember { Actions.newSessionId() }
     val started = remember { Date.now() }
+    // As questões da folheada contam o tempo no Desempenho, como uma bateria (tipo QUICK, o mesmo do app).
+    val answers = remember { androidx.compose.runtime.mutableStateListOf<Pair<Long, Boolean>>() }
+    var answersSaved by remember { mutableStateOf(false) }
+    fun saveAnswers() {
+        if (answersSaved || answers.isEmpty()) return
+        answersSaved = true
+        val topicIds = answers.mapTo(hashSetOf()) { it.first }
+        val subjectIds = Store.data.topics.filter { it.id in topicIds }.mapTo(hashSetOf()) { it.subjectId }
+        Store.update { Actions.saveQuestionSession(it, "QUICK", started.toLong(), answers.size, answers.count { a -> a.second }, subjectIds, topicIds, sessionId) }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { saveAnswers() } }
     if (pages.isEmpty()) { Card { Empty("auto_stories", "Nada para folhear ainda", "Estude um tópico e ele vira página do seu caderno.", action = { Btn("Voltar ao caderno", { Router.go(Route.Notebook) }) }) }; return }
     val done = index >= pages.size
     Div({ classes("cb-flip") }) {
@@ -189,7 +200,7 @@ fun NotebookFlipScreen() {
         }
         Div({ classes("cb-dots") }) { pages.indices.forEach { i -> org.jetbrains.compose.web.dom.I({ classes(*listOfNotNull(if (i <= index) "on" else null).toTypedArray()) }) } }
         if (done) {
-            DisposableOnce { writeLocal(FLIP_DONE_KEY, daySeed().toString()) }
+            DisposableOnce { writeLocal(FLIP_DONE_KEY, daySeed().toString()); saveAnswers() }
             Div({ classes("cb-done", "rise") }) {
                 Folha("proud", 110)
                 H2 { Text("Folheada feita!") }
@@ -224,7 +235,7 @@ fun NotebookFlipScreen() {
                         Span({ classes("cb-stamp") }) { Text("PEGADINHA") }
                     }
                     is StudyNotebook.Page.Recall -> FlipRecall(page)
-                    is StudyNotebook.Page.Question -> FlipQuestion(page.questionId, sessionId)
+                    is StudyNotebook.Page.Question -> FlipQuestion(page.questionId, sessionId) { ok -> answers += page.topicId to ok }
                 }
                 Div({ classes("cb-page-foot") }) {
                     Button({ classes("cb-link"); onClick { Router.go(Route.NotebookPage(page.topicId)) } }) { Icon("description"); Text("Abrir a página do tópico") }
@@ -253,7 +264,7 @@ private fun FlipRecall(page: StudyNotebook.Page.Recall) {
 }
 
 @Composable
-private fun FlipQuestion(questionId: Long, sessionId: String) {
+private fun FlipQuestion(questionId: Long, sessionId: String, onAnswered: (Boolean) -> Unit) {
     val question = Store.data.questions.firstOrNull { it.id == questionId }
     if (question == null) { P { Text("Esta questão não está mais no banco.") }; return }
     var picked by remember(questionId) { mutableStateOf<String?>(null) }
@@ -266,6 +277,8 @@ private fun FlipQuestion(questionId: Long, sessionId: String) {
         var ok = false
         Store.update { s -> Actions.answer(s, question.id, key, sessionId).also { ok = it.second }.first }
         right = ok
+        som(if (ok) "acerto" else "erro")
+        onAnswered(ok)
     }
     if (right != null) {
         Div({ classes("cb-postit", if (right == true) "ok" else "bad") }) { Text(if (right == true) "Agora foi! Ela sai do caderno de erros quando você acertar de novo." else "Ainda não. Leia a explicação e ela volta depois.") }
