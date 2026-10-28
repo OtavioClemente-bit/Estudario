@@ -424,13 +424,13 @@ private fun PerformanceAndStanding(data: Snapshot, streakDays: Int, best: Int) {
 
 @Composable
 private fun LevelCard(progress: br.com.estudario.domain.ProgressEngine.ProgressSummary) {
-    // O livro evolui em cores, detalhes e gestos com o nível, como no perfil do app.
+    // O brasão da patente: o metal muda a cada título e as estrelas contam os níveis dentro dele.
     val pct = (progress.levelProgress * 100).toInt().coerceIn(0, 100)
     val missing = progress.xpForNextLevel - progress.xpIntoLevel
     Div({ classes("lvl-card"); attr("role", "button"); attr("tabindex", "0"); onClick { Router.go(Route.Profile) } }) {
         Div({ classes("lvl-top") }) {
-            Div({ classes("lvl-seal", "lvl-book") }) {
-                LevelBookView(progress.level, 84)
+            Div({ classes("lvl-seal", "lvl-crest") }) {
+                LevelCrestView(progress.level, 84)
             }
             Div({ classes("grow") }) {
                 Span({ classes("lvl-eyebrow") }) { Text("SEU NÍVEL") }

@@ -83,7 +83,7 @@ fun CelebrationHost() {
             val sample = br.com.estudario.domain.BadgeCatalog.all.firstOrNull { it.tier == 3 } ?: return@LaunchedEffect
             CelebrationQueue.items += Celebration.StreakDay(5, 7, listOf("S" to true, "T" to true, "Q" to false, "Q" to true, "S" to true, "S" to true, "D" to true), 86)
             CelebrationQueue.items += Celebration.NewBadge(sample)
-            CelebrationQueue.items += Celebration.LevelUp(4, "Estudioso", 820)
+            CelebrationQueue.items += Celebration.LevelUp(10, "Concurseiro", 4_720)
             br.com.estudario.domain.FolhaWardrobe.collection("militar")?.let { c ->
                 CelebrationQueue.items += Celebration.NewPiece(br.com.estudario.domain.FolhaWardrobe.piecesOf(c).takeLast(2) + listOfNotNull(br.com.estudario.domain.FolhaWardrobe.rewardOf(c)))
             }
@@ -203,6 +203,11 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
         window.addEventListener("keydown", keys)
         onDispose { window.removeEventListener("keydown", keys) }
     }
+    // Subiu de nível: a cena de jogo (LevelUpGame), com o brasão da patente.
+    if (item is Celebration.LevelUp) {
+        LevelUpGame(item.level, item.title, item.totalXp, leaving, onClose, onProfile = { onCloseNow(); Router.go(Route.Profile) })
+        return
+    }
     val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece" }
     val r = revealAt(item)
     Div({ classes(*listOfNotNull("celebrate", "cn", kind, if (leaving) "out" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) {
@@ -212,7 +217,7 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                 when (item) {
                     is Celebration.StreakDay -> StreakText(item, r)
                     is Celebration.NewBadge -> BadgeText(item.badge, r)
-                    is Celebration.LevelUp -> LevelText(item, r)
+                    is Celebration.LevelUp -> Unit
                     is Celebration.NewPiece -> PieceText(item.items, r)
                 }
             }
@@ -246,11 +251,6 @@ private fun Scene(item: Celebration) {
         is Celebration.NewBadge -> "Medalha do emblema ${item.badge.name}"
         is Celebration.StreakDay -> "${item.days} dias de sequência"
         is Celebration.NewPiece -> if (item.items.size == 1) "O Folha ganha ${item.items[0].name}" else "O Folha ganha ${item.items.size} peças novas"
-    }
-    // Subiu de nível: o livro de Folhas abre, o Folha traz a folha nova e a medalha gira o número.
-    if (item is Celebration.LevelUp) {
-        Div({ classes("cn-stage", "cn-book"); attr("aria-label", label) }) { LevelBookView(item.level, 230, animateFrom = (item.level - 1).coerceAtLeast(1)) }
-        return
     }
     Div({ classes("cn-stage") }) {
         org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
@@ -291,21 +291,6 @@ private fun BadgeText(badge: Badge, r: Double) {
     Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("NOVO EMBLEMA · ${tierName(badge.tier).uppercase()}") }
     H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text(badge.name) }
     P({ classes("cel-body", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) { Text(badge.requirement) }
-}
-
-@Composable
-private fun LevelText(item: Celebration.LevelUp, r: Double) {
-    val old = (item.level - 1).coerceAtLeast(1)
-    val newTitle = br.com.estudario.domain.ProgressEngine.levelTitle(old) != item.title
-    Span({ classes("cel-eyebrow", "lv-late"); attr("style", "--ld:${r}s") }) { Text("SUBIU DE NÍVEL") }
-    H2({ classes("cel-title", "lv-late"); attr("style", "--ld:${r + 0.1}s") }) { Text("Nível ${item.level} · ${item.title}") }
-    // Título novo é capa nova no livro de Folhas.
-    if (newTitle) Span({ classes("lv-badge", "lv-late"); attr("style", "--ld:${r + 0.25}s") }) { Icon("military_tech", filled = true); Text("Novo título e capa nova: ${br.com.estudario.domain.LevelBook.tiers[br.com.estudario.domain.LevelBook.tierOf(item.level)].name}!") }
-    else P({ classes("small", "lv-late"); attr("style", "--ld:${r + 0.25}s; opacity:.8; margin:0") }) { Text("Mais uma folha no seu livro.") }
-    Div({ classes("lv-xp", "lv-late"); attr("style", "--ld:${r + 0.2}s") }) {
-        Span({ classes("lv-xp-fill") })
-        B { Text("${item.totalXp} XP") }
-    }
 }
 
 /** As peças para a cena do presente (atributo pieces de <estudario-cena>), em JSON. */
