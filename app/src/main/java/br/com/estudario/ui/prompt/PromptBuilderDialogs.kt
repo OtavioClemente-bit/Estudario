@@ -456,7 +456,7 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
                 // repetidas eram descartadas ao salvar (pedia 20, ficavam 13). As da matéria vêm primeiro.
                 val subjectIds = topics.map { it.id }.toSet()
                 val (sameSubject, others) = questions.filter { !it.question.isHidden }.partition { it.question.topicId in subjectIds }
-                val avoid = (sameSubject.asReversed() + others.asReversed()).map { it.question.statement }.take(150)
+                val avoid = (sameSubject.asReversed() + others.asReversed()).map { it.question.statement }.take(400)
                 // No Grátis o servidor confere para que é a matéria: dia do plano, adiantar ou extra.
                 application.aiContentGenerator.generate(competition, subject, topics, target, options, avoid, purpose = viewModel.contentPurposeFor(target.id)).collect { value ->
                     when (value) {

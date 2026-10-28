@@ -410,5 +410,5 @@ private fun avoidForMaterial(topicId: Long): List<String> {
     val subjectId = Store.data.topics.firstOrNull { it.id == topicId }?.subjectId
     val subjectTopics = Store.data.topics.filter { it.subjectId == subjectId }.map { it.id }.toSet()
     val (same, others) = Store.data.questions.filter { it.statement.isNotBlank() }.partition { it.topicId in subjectTopics }
-    return (same.asReversed() + others.asReversed()).map { it.statement }.take(150)
+    return (same.asReversed() + others.asReversed()).map { it.statement }.take(400)
 }
