@@ -158,7 +158,7 @@ fun ViradaScreen() {
                 Div({ classes("vr-legend") }) {
                     Span({ attr("style", "--c:#2FBF8A") }) { Text("${won.size} viraram") }
                     Span({ attr("style", "--c:#FFB421") }) { Text("$turning virando") }
-                    Span({ attr("style", "--c:rgba(255,255,255,.4)") }) { Text("$table na mesa") }
+                    Span({ attr("style", "--c:var(--cx-faint)") }) { Text("$table na mesa") }
                 }
                 if (week > 0) Span({ classes("vr-gain") }) { Text("▲ $week ${if (week == 1) "degrau subido" else "degraus subidos"} esta semana") }
             }

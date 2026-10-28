@@ -174,7 +174,7 @@ fun StatsScreen() {
     // ---------- anel de acerto
     Div({ classes("stats-hero", "rise") }) {
         Div({ classes("donut-wrap") }) {
-            Donut(listOf((accuracy ?: 0) to accuracyColor(accuracy)), 100, 132, 16, "rgba(255,255,255,.55)")
+            Donut(listOf((accuracy ?: 0) to accuracyColor(accuracy)), 100, 132, 16, "var(--cx-track)")
             Div({ classes("donut-center") }) { B { Text(accuracy?.let { "$it%" } ?: "--") }; Span { Text("acerto") } }
         }
         Div({ classes("grow", "stack", "tight") }) {
