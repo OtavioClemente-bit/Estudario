@@ -42,7 +42,7 @@ private sealed interface Block {
     data class Heading(val level: Int, val text: String) : Block
     data class Paragraph(val text: String) : Block
     data class ListBlock(val ordered: Boolean, val items: List<String>) : Block
-    data class Quote(val text: String) : Block
+    data class Quote(val blocks: List<Block>) : Block
     data class TableBlock(val header: List<String>, val rows: List<List<String>>) : Block
     data object Rule : Block
     data class Math(val tex: String) : Block
@@ -105,9 +105,10 @@ private fun parseBlocks(source: String): List<Block> {
             trimmed == "---" || trimmed == "***" -> { flush(); blocks += Block.Rule; i++ }
             trimmed.startsWith(">") -> {
                 flush()
+                // O miolo da citação é Markdown também: o quadro "Siglas e termos" é uma lista dentro dela.
                 val quote = StringBuilder()
-                while (i < lines.size && lines[i].trim().startsWith(">")) { quote.append(lines[i].trim().removePrefix(">").trim()).append(' '); i++ }
-                blocks += Block.Quote(quote.toString().trim())
+                while (i < lines.size && lines[i].trim().startsWith(">")) { quote.append(lines[i].trim().removePrefix(">").trim()).append('\n'); i++ }
+                blocks += Block.Quote(parseBlocks(quote.toString()))
             }
             trimmed.startsWith("|") && i + 1 < lines.size && lines[i + 1].trim().matches(Regex("^\\|?\\s*:?-{2,}.*")) -> {
                 flush()
@@ -150,7 +151,13 @@ private fun RenderBlock(block: Block) {
             else -> H4 { Inline(block.text) }
         }
         is Block.Paragraph -> P { Inline(block.text) }
-        is Block.Quote -> Blockquote { Inline(block.text) }
+        is Block.Quote -> Blockquote {
+            val glossary = block.blocks.any { it is Block.Paragraph && it.text.startsWith("**Siglas") }
+            block.blocks.forEach { inner ->
+                val pairs = if (glossary && inner is Block.ListBlock && !inner.ordered) glossaryPairs(inner.items) else null
+                if (pairs != null) GlossaryTable(pairs) else RenderBlock(inner)
+            }
+        }
         is Block.ListBlock -> if (block.ordered) Ol { block.items.forEach { Li { Inline(it) } } } else Ul { block.items.forEach { Li { Inline(it) } } }
         is Block.TableBlock -> Div({ classes("table-wrap") }) { Table {
             Thead { Tr { block.header.forEach { Th { Inline(it) } } } }
@@ -161,6 +168,38 @@ private fun RenderBlock(block: Block) {
         is Block.CodeBlock -> org.jetbrains.compose.web.dom.Pre({ classes("code-block") }) { Code { Text(block.code) } }
         is Block.Chart -> ChartBlock(block.source)
     }
+}
+
+private val glossaryTerm = Regex("""\*\*((?:[^*]|\*[^*]+\*)+)\*\*(\s*\([^)]*\))?\s*[:=]\s*""")
+
+/**
+ * Cada item do quadro "Siglas e termos" junta um ou mais "**Termo**: o que é" (ou "=") na mesma linha.
+ * Vira uma linha de tabela por termo. Item que não começa com termo (um subitem) completa a linha de
+ * cima; se nem o primeiro item tiver esse formato, fica a lista normal.
+ */
+private fun glossaryPairs(items: List<String>): List<Pair<String, String>>? {
+    val pairs = mutableListOf<Pair<String, String>>()
+    for (item in items) {
+        val terms = glossaryTerm.findAll(item).toList()
+        if (terms.isEmpty() || terms.first().range.first != 0) {
+            if (pairs.isEmpty()) return null
+            pairs[pairs.lastIndex] = pairs.last().let { it.first to it.second + " " + item.trim() }
+            continue
+        }
+        terms.forEachIndexed { k, m ->
+            val end = if (k + 1 < terms.size) terms[k + 1].range.first else item.length
+            pairs += (m.groupValues[1] + m.groupValues[2]).trim() to item.substring(m.range.last + 1, end).trim()
+        }
+    }
+    return pairs.takeIf { it.isNotEmpty() }
+}
+
+@Composable
+private fun GlossaryTable(pairs: List<Pair<String, String>>) {
+    Div({ classes("table-wrap", "glossary") }) { Table {
+        Thead { Tr { Th { Text("Termo") }; Th { Text("O que é") } } }
+        Tbody { pairs.forEach { (term, meaning) -> Tr { Td { B { Inline(term) } }; Td { Inline(meaning) } } } }
+    } }
 }
 
 /**
