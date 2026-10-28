@@ -177,22 +177,25 @@
     /** As labaredas no canvas do fogo: cada uma é uma língua que afina para cima, tremendo. */
     _paintFire(time, view) {
       const fg = this._fg; fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, this._fire.width, this._fire.height);
-      view(fg, .25); fg.globalCompositeOperation = "lighter";
+      view(fg, .4); fg.globalCompositeOperation = "lighter";
+      const bands = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
       for (const q of this._flames) {
         const L = q.life, sz = q.s * (.55 + .45 * L), lean = sin(time * 6 + q.seed) * sz * .35;
-        const gch = Math.round(50 + 200 * Math.pow(L, 1.4)), bch = Math.round(15 + 170 * Math.max(0, L - .62) * 2.6);
-        fg.fillStyle = `rgba(255,${gch},${bch},${(.7 * L).toFixed(3)})`;
-        fg.beginPath();
-        fg.moveTo(q.x + lean, q.y - sz * 2.3);
-        fg.quadraticCurveTo(q.x + sz * 1.05, q.y - sz * .3, q.x, q.y + sz * .7);
-        fg.quadraticCurveTo(q.x - sz * 1.05, q.y - sz * .3, q.x + lean, q.y - sz * 2.3);
-        fg.fill();
+        const p = bands[L > .75 ? 0 : L > .5 ? 1 : L > .25 ? 2 : 3];
+        p.moveTo(q.x + lean, q.y - sz * 2.3);
+        p.quadraticCurveTo(q.x + sz * 1.05, q.y - sz * .3, q.x, q.y + sz * .7);
+        p.quadraticCurveTo(q.x - sz * 1.05, q.y - sz * .3, q.x + lean, q.y - sz * 2.3);
+        p.closePath();
       }
+      const colors = ["rgba(255,236,170,.6)", "rgba(255,170,60,.45)", "rgba(255,95,30,.32)", "rgba(200,40,20,.16)"];
+      bands.forEach((p, i) => { fg.fillStyle = colors[i]; fg.fill(p); });
     }
     _size() {
-      const r = this.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const r = this.getBoundingClientRect(), side = Math.max(r.width, r.height) * 1.7 || 1;
+      // no máximo ~1000 px de lado: no celular (tela 3x) o canvas passaria de 2500 px e cada quadro pesaria
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5, 1000 / side);
       const w = Math.max(1, Math.round(r.width * 1.7 * dpr)), h = Math.max(1, Math.round(r.height * 1.7 * dpr));
-      if (this._c.width !== w || this._c.height !== h) { this._c.width = w; this._c.height = h; this._glow.width = Math.ceil(w / 4); this._glow.height = Math.ceil(h / 4); this._fire.width = Math.ceil(w / 4); this._fire.height = Math.ceil(h / 4); this._soft.width = this._glow.width; this._soft.height = this._glow.height; }
+      if (this._c.width !== w || this._c.height !== h) { this._c.width = w; this._c.height = h; this._glow.width = Math.ceil(w / 4); this._glow.height = Math.ceil(h / 4); this._fire.width = Math.ceil(w * .4); this._fire.height = Math.ceil(h * .4); this._soft.width = this._glow.width; this._soft.height = this._glow.height; }
     }
     _loop() {
       let odd = false;
@@ -260,8 +263,9 @@
       // ---- acordada: fogo (brilho borrado + chama + núcleo, tudo somando luz)
       if (e > 0) {
         // brilho de fundo: as penas largas num canvas pela metade, borrado e somado (só ele estoura a luz)
+        for (const f of feathers) f._p = strip(f.c, f.w, f.seed, time, 1, f.thin ? .9 : 1);
         const gg = this._gg; gg.setTransform(1, 0, 0, 1, 0, 0); gg.clearRect(0, 0, this._glow.width, this._glow.height);
-        view(gg, .25); gg.globalCompositeOperation = "lighter";
+        view(gg, .25); gg.globalCompositeOperation = "lighter"; 
         for (const f of feathers) { if (f.covert || f.thin) continue; gg.fillStyle = `rgba(255,${f.bright ? 80 : 45},15,${.4 * e})`; gg.fill(strip(f.c, f.w, f.seed, time, 1, 1.8)); }
         g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter";
         const sg = this._sg; sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, this._soft.width, this._soft.height);
@@ -294,7 +298,6 @@
           const a = bez(f.c, 0), b = bez(f.c, 1), lg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
           if (f.bright || f.covert) { lg.addColorStop(0, `rgba(255,${f.covert ? 175 : 150},${f.covert ? 70 : 50},${e})`); lg.addColorStop(.5, `rgba(235,80,25,${e})`); lg.addColorStop(1, `rgba(170,25,20,${.6 * e})`); }
           else { lg.addColorStop(0, `rgba(250,110,35,${e})`); lg.addColorStop(.4, `rgba(205,40,25,${.95 * e})`); lg.addColorStop(.85, `rgba(120,12,30,${.55 * e})`); lg.addColorStop(1, "rgba(90,8,40,0)"); }
-          f._p = strip(f.c, f.w, f.seed, time, 1, f.thin ? .9 : 1);
           g.fillStyle = lg; g.fill(f._p);
         }
         // a borda dourada: o contorno das penas acende, desenhando a forma da fênix
@@ -302,13 +305,9 @@
         for (const f of feathers) { if (f.thin) continue; g.strokeStyle = `rgba(255,${f.bright ? 215 : 175},${f.bright ? 120 : 80},${(f.covert ? .3 : .42) * e})`; g.stroke(f._p); }
         // 2) as barbas: fios finos saindo do eixo de cada pena, inclinados para trás (a textura de pincelada)
         g.globalCompositeOperation = "lighter";
-        for (const f of feathers) {
-          if (f.covert || f.thin || f.bright) continue;
-          const path = barbs(f.c, f.w * (f.thin ? .9 : 1), f.seed, time);
-          const a = bez(f.c, 0), b = bez(f.c, 1), bg = g.createLinearGradient(a[0], a[1], b[0], b[1]);
-          bg.addColorStop(0, `rgba(255,236,150,${.4 * e})`); bg.addColorStop(.5, `rgba(255,170,60,${.3 * e})`); bg.addColorStop(1, "rgba(255,90,30,0)");
-          g.strokeStyle = bg; g.lineWidth = f.bright ? 2 : 1.5; g.lineCap = "round"; g.stroke(path);
-        }
+        const allBarbs = new Path2D();
+        for (const f of feathers) { if (!(f.covert || f.thin || f.bright)) allBarbs.addPath(barbs(f.c, f.w, f.seed, time)); }
+        g.strokeStyle = `rgba(255,200,100,${.3 * e})`; g.lineWidth = 1.5; g.lineCap = "round"; g.stroke(allBarbs);
         // 3) o eixo de cada pena: um fio dourado que brilha mais perto da raiz
         for (const f of feathers) {
           const a = bez(f.c, 0), b = bez(f.c, 1), cg = g.createLinearGradient(a[0], a[1], b[0], b[1]);

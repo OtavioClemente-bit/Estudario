@@ -206,7 +206,8 @@ internal fun GameScene(
             ) {
                 // palco (com a forja no fundo, quando houver; o impacto pode subir até a medalha)
                 Box(Modifier.width(stageSize + 30.dp).height((stageSize + 30.dp) * stageTall), contentAlignment = Alignment.Center) {
-                backdrop?.invoke(stageSize, t)
+                // o fundo pode passar do palco (a fênix na WebView é recortada pela caixa de quem a contém)
+                if (backdrop != null) Box(Modifier.requiredSize(stageSize * 2.6f), contentAlignment = Alignment.Center) { backdrop(stageSize, t) }
                 Box(Modifier.size(stageSize + 30.dp).offset(y = (stageSize + 30.dp) * stageTall * fxShift), contentAlignment = Alignment.Center) {
                     // halo
                     val haloA = seg(t, IMPACT, 0.5f)
@@ -258,7 +259,7 @@ internal fun GameScene(
                         val st = seg(t, 1.6f, 0.45f)
                         if (st > 0f) Text(
                             stamp,
-                            Modifier.align(Alignment.TopEnd).padding(top = 6.dp).rotate(12f)
+                            Modifier.align(Alignment.TopEnd).offset(x = 14.dp, y = -30.dp).rotate(12f)
                                 .graphicsLayer { val e = CubicBezierEasing(0.2f, 1.6f, 0.4f, 1f).transform(st); alpha = (st * 1.5f).coerceAtMost(1f); scaleX = 2.6f + (1f - 2.6f) * e; scaleY = scaleX }
                                 .clip(RoundedCornerShape(10.dp)).background(Brush.verticalGradient(listOf(Color(0xFFFFF3B8), Color(0xFFFFC22E), Color(0xFFE08A00))))
                                 .border(2.dp, Color.White, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 5.dp),
@@ -380,7 +381,7 @@ private fun FenixScene(size: androidx.compose.ui.unit.Dp, wake: Boolean) {
     val px = size.value.toInt()
     val html = remember(px) {
         """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}estudario-fenix{display:block;width:${px}px;height:${px}px;margin:${px / 2}px auto 0}</style></head>
+<style>html{overflow:hidden}html,body{margin:0;padding:0;background:transparent;height:100%}estudario-fenix{display:block;width:${px}px;height:${px}px;margin:${px / 2}px auto 0}</style></head>
 <body><script src="phoenix.js"></script><estudario-fenix state="sleep"></estudario-fenix></body></html>"""
     }
     val lit = remember { booleanArrayOf(false) }
@@ -538,7 +539,12 @@ private fun BoxScope.StreakCounter(days: Int, t: Float) {
         Box(Modifier.height(84.dp).widthIn(min = 120.dp).clip(RoundedCornerShape(0.dp)), contentAlignment = Alignment.Center) {
             if (out < 1f) Text("${(days - 1).coerceAtLeast(0)}", Modifier.graphicsLayer { translationY = (-90f * out).dp.toPx(); alpha = 1f - out },
                 style = fire.copy(brush = Brush.verticalGradient(listOf(Color(0xFFB3AFCB), Color(0xFF6E6A8A)))))
-            if (inP > 0f) Text("$days", Modifier.graphicsLayer { translationY = (90f * (1f - e)).dp.toPx(); alpha = inP.coerceAtMost(1f); scaleX = 0.7f + 0.3f * e; scaleY = scaleX }, style = fire)
+            if (inP > 0f) {
+                // contorno escuro por baixo: o número não se perde no fogo da fênix
+                val pop = Modifier.graphicsLayer { translationY = (90f * (1f - e)).dp.toPx(); alpha = inP.coerceAtMost(1f); scaleX = 0.7f + 0.3f * e; scaleY = scaleX }
+                Text("$days", pop, style = TextStyle(color = Color(0xFF2A0606), fontSize = 72.sp, fontWeight = FontWeight.Black, drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = 22f, join = androidx.compose.ui.graphics.StrokeJoin.Round)))
+                Text("$days", pop, style = fire)
+            }
         }
         Text(if (days == 1) "DIA DE SEQUÊNCIA" else "DIAS DE SEQUÊNCIA", Modifier.graphicsLayer { alpha = seg(t, 1.4f, 0.4f) },
             color = Color(0xFFFFD9A0), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.6.sp)
