@@ -3,7 +3,8 @@
 //   deno run -A scripts/codex/loop-itens.ts
 // O Codex continua sendo quem escreve (como na tarefa feita à mão); este programa só repete o pedido.
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const CODEX = `${Deno.env.get("APPDATA")}/npm/codex.cmd`;
+// O Deno não abre .cmd direto no Windows: chama o node com o script do Codex.
+const CODEX_JS = `${Deno.env.get("APPDATA")}/npm/node_modules/@openai/codex/bin/codex.js`;
 const LISTA = `${ROOT}conteudo/fila/itens-sem-materia.tsv`;
 const SAIDA = `${ROOT}conteudo/entrada/itens-sem-materia`;
 const LOG = `${ROOT}conteudo/entrada/itens-sem-materia-log.txt`;
@@ -29,8 +30,8 @@ let semAvanco = 0;
 while (feitos() < total) {
   const antes = feitos();
   log(`rodada começando no item ${antes + 1}`);
-  const o = await new Deno.Command(CODEX, {
-    args: ["exec", "-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, PEDIDO],
+  const o = await new Deno.Command("node", {
+    args: [CODEX_JS, "exec","-s", "workspace-write", "--skip-git-repo-check", "-C", ROOT, PEDIDO],
     stdin: "null", stdout: "piped", stderr: "piped",
   }).output();
   const txt = new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr);
