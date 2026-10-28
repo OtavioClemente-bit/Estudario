@@ -69,6 +69,8 @@ fun TrainScreen() {
     val errors = Queries.pendingErrors(data)
     val scope = "m-$mode~s-$subject~t-$topic~b-${js("encodeURIComponent")(board)}~d-$difficulty~n-$count"
     val available = pickQuestions(data, scope, preview = true).size
+    var help by remember { mutableStateOf(false) }
+    if (help) TrainHelp { help = false }
 
     PageHead("Treinar questões", "Treinos recomendados e o seu treino do seu jeito. Os simulados ganharam aba própria.")
     CompetitionTabs()
@@ -158,6 +160,7 @@ fun TrainScreen() {
                 Span({ classes("gx-kicker") }) { Text("ESTÚDIO DE TREINO") }
                 H2 { Text("Monte o seu treino") }
             }
+            Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como funciona o treino"); attr("title", "Como funciona o treino"); onClick { help = true } }) { Text("?") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("gps_fixed", "Modo", "Como as questões vão ser escolhidas", "#A78BFF") {
@@ -198,6 +201,44 @@ fun TrainScreen() {
     }
 
     TrainPreferences()
+}
+
+/** O "?" do Treinar: os modos, os filtros e o que dá para fazer durante a bateria. */
+@Composable
+private fun TrainHelp(onClose: () -> Unit) {
+    Modal(onDismiss = onClose, extraClass = "gx-sheetmodal th-help") {
+        Div({ classes("gx-top") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Text("COMO FUNCIONA") }
+                H2 { Text("Treinar do seu jeito") }
+                P({ classes("gx-topic") }) { Text("Escolha o modo, filtre se quiser e comece. O que você erra vai para o caderno de erros sozinho.") }
+            }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+        }
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("insights", "Seu diagnóstico", "O medidor mostra seu acerto geral. Embaixo, até 3 treinos prontos (o primeiro é o recomendado agora) e as matérias da mais fraca para a mais forte: toque numa para treinar só ela.", "#22D3EE") {}
+            GxSection("gps_fixed", "Os modos", "Como as questões são escolhidas:", "#A78BFF") {
+                Div({ classes("th-help-list") }) {
+                    modes.forEach { (key, label) -> Span({ attr("style", "--c:${MODE_COLORS[key] ?: "#A78BFF"}") }) { B { Text("$label: ") }; Text(modeInfo[key]?.second.orEmpty()) } }
+                }
+            }
+            GxSection("tune", "Filtros", "Matéria e tópico, dificuldade (fácil, média, difícil ou todas) e banca. A quantidade vai de 5 a 60 questões; embaixo aparece quantas existem com esses filtros.", "#FFC94D") {}
+            GxSection("quiz", "Respondendo", null, "#2FD39A") {
+                Div({ classes("th-help-list") }) {
+                    Span { B { Text("Marque e confirme: ") }; Text("toque na alternativa e em \"Confirmar resposta\". No teclado: A a E (ou 1 a 5) e Enter; Enter ou → passa para a próxima.") }
+                    Span { B { Text("Riscar alternativa: ") }; Text("o botão de riscar ao lado dela, ou o botão direito do mouse. Riscada, clicar desfaz o risco (não marca sem querer).") }
+                    Span { B { Text("★ Favoritar: ") }; Text("guarda a questão para o modo Favoritas.") }
+                    Span { B { Text("Reportar ou comentar: ") }; Text("achou erro na questão? Os botões ficam em cima dela.") }
+                }
+            }
+            GxSection("description", "Explicação na hora ou no fim", "Em \"Suas preferências de treino\", logo abaixo, você escolhe ver a explicação logo após responder ou só a correção no fim.", "#6F9BFF") {}
+            GxSection("autorenew", "Errou? Não se perde", "As erradas vão para o caderno de erros e voltam em 3 dias. Acertando de novo, sobem a escada da Virada (3, 10 e 30 dias).", "#FF5A7A") {}
+            Div({ classes("gx-go", "row") }) {
+                Span {}
+                GxLaunch("Entendi, bora treinar", icon = "check_circle") { onClose() }
+            }
+        }
+    }
 }
 
 /** Cor do acerto: vermelho abaixo de 50%, amarelo até 69%, verde dali para cima. */
