@@ -69,6 +69,8 @@ fun ReviewsScreen(
     val subjects by viewModel.subjects.collectAsState()
     val options by viewModel.reviewPractice.collectAsState()
     var settingsOpen by remember { mutableStateOf(false) }
+    var helpOpen by remember { mutableStateOf(false) }
+    if (helpOpen) br.com.estudario.ui.help.ReviewsHelp { helpOpen = false }
     if (settingsOpen) options?.let { initial -> ReviewPracticeSettings(initial, onClose = { settingsOpen = false }, onSave = { viewModel.setReviewPractice(it); settingsOpen = false }) }
     val pending = reviews.filter { it.completedAt == null && it.ignoredAt == null }
     val due = pending.filter { ReviewPolicy.status(it) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }.sortedBy { it.dueAt }
@@ -87,6 +89,7 @@ fun ReviewsScreen(
                     Text("Revisões", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(start = 3.dp).marker())
                     Text("Revisar na hora certa é o que faz o conteúdo ficar", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                br.com.estudario.ui.help.HelpButton("Como funcionam as etapas") { helpOpen = true }
                 IconButton(onClick = { settingsOpen = true }, enabled = options != null, modifier = Modifier.semantics { contentDescription = "Configurar revisão" }) { BrandIcon(Glyph.Gear) }
             }
         }

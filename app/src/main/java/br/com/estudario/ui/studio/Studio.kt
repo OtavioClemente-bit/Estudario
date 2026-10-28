@@ -89,7 +89,7 @@ object Gx {
     val bg2: Color get() = if (d) Color(0xFF1C1B52) else Color(0xFFFFFFFF)
     val bg3: Color get() = if (d) Color(0xFF262467) else Color(0xFFECE8FF)
     val bg0: Color get() = if (d) Color(0xFF0B0C26) else Color(0xFFE9E5FF)
-    val accentText: Color get() = if (d) Gx.accentText else Color(0xFF5B44E0)
+    val accentText: Color get() = if (d) Color(0xFFC9BEFF) else Color(0xFF5B44E0)
     val soft: Color get() = if (d) Color(0xFFC9C5F0) else Color(0xFF48447A)
     /** Fundo de botão desligado. */
     val off: Color get() = if (d) Color(0xFF2A2860) else Color(0xFFDCD8F2)

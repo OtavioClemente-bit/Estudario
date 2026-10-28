@@ -139,10 +139,12 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
             else -> Unit
         }
     }
+    var helpOpen by remember { mutableStateOf(false) }
+    if (helpOpen) br.com.estudario.ui.help.TrainHelp(onClose = { helpOpen = false }, onTour = onHelp)
     fun target(key: TourKey) = Modifier.tourTarget(key, tourStep?.key) { viewModel.reportTourTargetBounds(key, it) }
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { ScreenTitle("Treinar", "Questões que mudam o seu estudo", stackActionsWhenNarrow = false) { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
+        item { ScreenTitle("Treinar", "Questões que mudam o seu estudo", stackActionsWhenNarrow = false) { br.com.estudario.ui.help.HelpButton("Como funciona o treino") { helpOpen = true } } }
         if (questions.isEmpty()) {
             item { EmptyState("Sem questões ainda", "Na aba Concursos, abra um tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
             return@LazyColumn

@@ -161,9 +161,11 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
     val groups = remember(entries) { ErrorVirada.byTopic(entries, now) }
     val byId = remember(errors) { errors.associateBy { it.entry.id } }
     var expandedTopics by remember { mutableStateOf(setOf<Long>()) }
+    var helpOpen by remember { mutableStateOf(false) }
+    if (helpOpen) br.com.estudario.ui.help.ViradaHelp { helpOpen = false }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { ScreenTitle("Caderno de erros", "Aqui erro vira acerto") }
+        item { ScreenTitle("Caderno de erros", "Aqui erro vira acerto", stackActionsWhenNarrow = false) { br.com.estudario.ui.help.HelpButton("O que é a Virada?") { helpOpen = true } } }
 
         // O placar: fundo azul-noite próprio nos dois temas, texto claro.
         item {

@@ -521,6 +521,9 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         )
                         ExpandableText(topic.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, collapsedLines = 4)
                     }
+                    var helpOpen by remember { mutableStateOf(false) }
+                    if (helpOpen) br.com.estudario.ui.help.ReaderHelp { helpOpen = false }
+                    br.com.estudario.ui.help.HelpButton("Como usar esta página") { helpOpen = true }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "Mais ações") }
                         DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {

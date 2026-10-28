@@ -44,7 +44,7 @@ internal fun ReviewPracticeSettings(initial: ReviewPracticeOptions, onClose: () 
                     Text("Personalize as próximas sessões", style = MaterialTheme.typography.bodySmall, color = Gx.mute)
                 }
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.06f)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Close, "Fechar", tint = Color.White)
+                    Icon(Icons.Rounded.Close, "Fechar", tint = Gx.strong)
                 }
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

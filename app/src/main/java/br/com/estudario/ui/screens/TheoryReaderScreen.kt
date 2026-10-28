@@ -54,6 +54,8 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
     val toneBg = when (pageTone) { 1 -> androidx.compose.ui.graphics.Color(0xFFF4ECD8); 2 -> androidx.compose.ui.graphics.Color(0xFF101114); else -> null }
     val toneInk = when (pageTone) { 1 -> androidx.compose.ui.graphics.Color(0xFF4A3B28); 2 -> androidx.compose.ui.graphics.Color(0xFFD9D4C7); else -> null }
     var readerSettings by remember { mutableStateOf(false) }
+    var helpOpen by remember { mutableStateOf(false) }
+    if (helpOpen) br.com.estudario.ui.help.ReaderHelp { helpOpen = false }
     // Anotação aberta: o parágrafo e o trecho (o parágrafo inteiro ou só a parte selecionada).
     var editing by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // Nota aberta para ler (tocando no trecho grifado ou no balão da nota).
@@ -174,7 +176,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                 TopAppBar(
                     title = { Column { Text(theory.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis); Text("${(progress * 100).toInt()}% lido • ${marks.size} grifo(s)", style = MaterialTheme.typography.labelSmall) } },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Voltar") } },
-                    actions = { if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }; ReportTheoryButton() },
+                    actions = { br.com.estudario.ui.help.HelpButton("Como usar a leitura") { helpOpen = true }; if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Índice") }; IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }; ReportTheoryButton() },
                 )
                 ReadLine(progress)
             }
@@ -239,6 +241,7 @@ fun TheoryReaderScreen(viewModel: AppViewModel, theoryId: Long, showInternalTopB
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        br.com.estudario.ui.help.HelpButton("Como usar a leitura") { helpOpen = true }
                         if (chapters.size > 1) IconButton(onClick = { tocOpen = true }) { Icon(Icons.Outlined.Toc, "Capítulos") }
                         IconButton(onClick = { readerSettings = true }) { Text("Aa", fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif) }
                         ReportTheoryButton()
