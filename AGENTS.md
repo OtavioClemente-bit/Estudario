@@ -10,6 +10,10 @@
    **Segunda exceção autorizada:** `scripts/biblioteca/simulados-explicar.mjs` pode pedir a um modelo que
    reescreva a EXPLICAÇÃO (só ela) das questões de `conteudo/simulados/`, mantendo enunciado, alternativas e
    gabarito; se o modelo achar o gabarito errado, ele só aponta, para revisão humana.
+   **Terceira exceção autorizada (28/10/2026):** `scripts/agy/gerar.ts` pode pedir pelo Antigravity CLI
+   (`agy -p`) que um modelo escreva lotes inteiros de questões para recortes existentes e que outro modelo
+   audite cada lote. O script só envia o pedido, grava a resposta, confere, descarta os itens apontados e
+   junta os aprovados ao recorte; nunca escreve, completa, embaralha nem "equilibra" questões por conta própria.
 2. **Salve os arquivos em `conteudo/entrada/`** (a matéria e o recorte). Nunca grave em
    `conteudo/materias/`, `conteudo/recortes/` nem `conteudo/editais/`: essas pastas são conferidas e
    publicadas por outro processo.
