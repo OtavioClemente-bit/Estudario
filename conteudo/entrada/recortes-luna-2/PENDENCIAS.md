@@ -2,9 +2,7 @@
 
 # Pendências
 
-* Item 441 — Instituto Quadrix, Plano Distrital de Educação: teoria integral lida (cinco capítulos) e pasta de partes criada, mas não foram concluídas as 40 questões nem a auditoria C/E 20/20 e dificuldade 12/16/12. Não há arquivo final; requer elaboração e validação.
 
-* Item 432 — Instituto Quadrix, Ordem social na Constituição: fonte completa lida e destino ausente, mas não foi possível concluir a redação e auditoria das 40 questões nesta execução. Nenhum bloco ou arquivo final foi salvo; requer elaboração manual com 20 Certo/20 Errado, dificuldade 12/16/12 e validação.
 
 
 
@@ -12,10 +10,8 @@
 
 * Item 350 — IBAM, Crase: teoria consultada, mas não foi possível concluir e auditar as 40 questões (16 de pontuação e 24 de crase) nesta execução. Nenhum arquivo parcial foi mantido; requer reautoria completa e validação.
 * Item 314 — Instituto de Avaliação Nacional (IAN), Lei Orgânica Municipal: pendente. Havia um JSON com validação estrutural OK e distribuição manual de dificuldade 12/16/12, mas não foi possível certificar por UI a distribuição completa dos gabaritos e o limite de corretas mais longas. O arquivo foi removido; requer reautoria e auditoria manual completas.
-* Item 419 — Instituto AOCP, Medicina, Código de Ética Médica: recorte removido após auditoria manual identificar distribuição de dificuldade incorreta (15/17/8 em vez de 12/16/12) e gabarito desequilibrado. Requer reescrita integral; o arquivo não foi mantido como válido.
 * Item 316 — Vunesp, Políticas Nacionais de Saúde: pendente. A teoria dos cinco capítulos foi lida, mas o rascunho manual foi auditado com apenas 33 questões e gabarito excessivamente concentrado na letra A; foi removido antes de validar. Não há recorte parcial mantido. Requer reautoria integral com 40 questões, dificuldades 12/16/12 e gabarito equilibrado (8 por letra).
 * Item 317 — Cotec/Fadenor, Lógica proposicional e tabela-verdade: pendente. A teoria foi consultada, mas não foi possível concluir nesta frente a autoria e auditoria manual de um conjunto completo de 40 questões com distribuição de dificuldade 12/16/12, gabarito equilibrado e alternativas dentro do escopo. Nenhum arquivo parcial foi gravado.
-* Item 420 — IBAM, Argumentação, pertinência e adequação textual: pendente. As tentativas não produziram arquivo final conforme: contagem acima de 40, enunciados/opções repetidos e impossibilidade de concluir revisão e validação. Nenhum arquivo final foi salvo.
 | 319 | Cotec/Fadenor | Raciocínio Lógico e Matemático | Pendente: o recorte redigido não cumpriu com segurança os critérios de equilíbrio do gabarito (A10/B8/C13/D7/E2) e de auditoria do comprimento das respostas corretas. Arquivo removido; requer nova elaboração e conferência manual. |
 | 320 | Cotec/Fadenor | Matemática | Pendente: o arquivo redigido excedeu a contagem exigida (55 questões em vez de 40); removido para não manter material não conforme. Requer nova autoria com contagem controlada e auditoria manual. |
 | 321 | Cotec/Fadenor | Raciocínio Lógico | Pendente: o draft excedeu a contagem (44 questões em vez de 40), continha alternativas duplicadas/equivalentes e exigia correção de gabaritos. Arquivo removido; requer nova autoria e auditoria completa. |
@@ -55,18 +51,10 @@
 
 
 
-* Item 419 — Instituto AOCP, Código de Ética Médica: retomada sem arquivo final. Confirmei ausência de final publicado e de destino, e reli o JSON completo da matéria pelo terminal. Não foi possível produzir nesta execução os quatro blocos manuais com 40 questões e auditoria de dificuldade/gabarito/extensão; requer reautoria integral. Nenhum parcial novo foi criado.
 
-* Item 420 — IBAM, Argumentação, pertinência e adequação textual: sem arquivo parcial ou final. Pré-checagem sem final publicado/de destino; matéria completa (cerca de 335 KB) foi lida pelo terminal. Não foi possível concluir nesta execução a autoria manual e auditoria das 40 questões, distribuição 12/16/12 e balanceamento das alternativas; requer reautoria integral e validação.
 
-* Item 421 — Instituto Quadrix, Gêneros textuais e tipos textuais: sem arquivo parcial ou final. Pré-checagem sem final publicado/de destino; matéria completa (cerca de 365 KB) foi lida pelo terminal. Não foi possível concluir nesta execução a autoria manual e auditoria das 40 questões C/E (20/20), dificuldade 12/16/12 e explicações; requer reautoria integral e validação.
 
-* Item 422 — Instituto Quadrix, Subordinação entre orações e entre termos: sem arquivo parcial ou final. Pré-checagem sem final publicado/de destino; matéria completa foi lida pelo terminal. Não foi possível concluir nesta execução a autoria manual e auditoria de 40 itens C/E (20/20), dificuldade 12/16/12 e explicações; requer reautoria integral e validação.
 
-* Item 423 — Instituto Quadrix, Figuras de linguagem: sem arquivo parcial ou final. Pré-checagem sem final publicado/de destino; matéria completa foi lida pelo terminal. Não foi possível concluir nesta execução 40 itens C/E autorais, com 20/20 e dificuldade 12/16/12, nem validar; requer reautoria integral e auditoria.
 
-* Item 424 — Instituto Quadrix, Segurança: sem arquivo parcial ou final. Pré-checagem sem final publicado/de destino; matéria completa foi lida pelo terminal. Não foi possível concluir nesta execução 40 itens C/E autorais com 20/20, dificuldade 12/16/12 e auditoria integral; requer reautoria e validação.
 
-* Item 433 — Instituto Quadrix, LDB, BNCC e didática: sem arquivo parcial ou final. Pré-checagem sem final publicado/de destino; matéria completa foi lida pelo terminal. Não foi possível concluir nesta execução a autoria e auditoria de 40 itens C/E (20/20), dificuldade 12/16/12 e validação; requer elaboração integral.
 
-* Item 442 — Instituto Quadrix, Currículo em Movimento do Distrito Federal — pressupostos teóricos: sem arquivo parcial ou final. Pré-checagem sem publicado/de destino; teoria completa lida no terminal. Não foi possível concluir 40 questões autorais C/E (20/20), dificuldade 12/16/12 e validação nesta execução; requer autoria integral e auditoria.
