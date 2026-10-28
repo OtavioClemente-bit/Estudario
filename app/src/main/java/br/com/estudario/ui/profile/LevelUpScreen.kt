@@ -1,5 +1,7 @@
 package br.com.estudario.ui.profile
 
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.foundation.layout.BoxScope
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -122,26 +124,41 @@ internal data class GameLoot(val glyph: Glyph, val kicker: String, val text: Str
  */
 @Composable
 internal fun GameScene(
-    c1: Color, c2: Color, c3: Color, sound: String, stamp: String?,
+    c1: Color, c2: Color, c3: Color, sound: String?, stamp: String?,
     from: String, to: String, word: String, sub: String, loot: List<GameLoot>, line: String,
     primary: String, onPrimary: () -> Unit, onClose: () -> Unit,
     middle: (@Composable (Float) -> Unit)? = null,
     before: @Composable (androidx.compose.ui.unit.Dp) -> Unit,
     after: @Composable (androidx.compose.ui.unit.Dp) -> Unit,
+    /** Sons antes do impacto: (segundo da cena, nome). */
+    cues: List<Pair<Float, String>> = emptyList(),
+    /** Segundos antes da linha do tempo começar (a forja do emblema roda primeiro). */
+    delay: Float = 0f,
+    /** Algo desenhado no fundo do palco (a forja), com o tamanho do palco. */
+    backdrop: (@Composable (androidx.compose.ui.unit.Dp) -> Unit)? = null,
+    /** Altura do palco em relação à largura, e quanto o impacto sobe ou desce nele (fração da altura). */
+    stageTall: Float = 1f, fxShift: Float = 0f,
+    /** Peças a mais no palco que seguem o relógio (redemoinho, o Folha). */
+    stageExtra: (@Composable BoxScope.(Float, androidx.compose.ui.unit.Dp) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val reduced = remember { runCatching { android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false) }
-    val clock = remember { Animatable(if (reduced) END else 0f) }
+    val clock = remember { Animatable(if (reduced) END + delay else 0f) }
     LaunchedEffect(Unit) {
         if (reduced) return@LaunchedEffect
-        clock.animateTo(IMPACT, tween((IMPACT * 1000).toInt(), easing = LinearEasing))
-        EstudarioSom.play(context, sound)
+        var at = 0f
+        for ((cueAt, name) in cues.sortedBy { it.first }.filter { it.first < IMPACT }) {
+            clock.animateTo(delay + cueAt, tween(((delay + cueAt - at) * 1000).toInt(), easing = LinearEasing)); at = delay + cueAt
+            EstudarioSom.play(context, name)
+        }
+        clock.animateTo(delay + IMPACT, tween(((delay + IMPACT - at) * 1000).toInt(), easing = LinearEasing))
+        if (sound != null) EstudarioSom.play(context, sound)
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        clock.animateTo(END, tween(((END - IMPACT) * 1000).toInt(), easing = LinearEasing))
+        clock.animateTo(delay + END, tween(((END - IMPACT) * 1000).toInt(), easing = LinearEasing))
     }
-    val t = clock.value
+    val t = clock.value - delay
     val loop = rememberInfiniteTransition(label = "lvx")
     val spin by loop.animateFloat(0f, 360f, infiniteRepeatable(tween(26_000, easing = LinearEasing)), label = "spin")
     val bob by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "bob")
@@ -153,7 +170,7 @@ internal fun GameScene(
         BoxWithConstraints(
             Modifier.fillMaxSize()
                 .background(Brush.radialGradient(listOf(lerp(Color(0xFF0B0A24), c2, 0.42f), Color(0xFF0B0A24), Color(0xFF050414)), radius = 1600f, center = Offset.Unspecified))
-                .clickable(remember { MutableInteractionSource() }, indication = null) { if (t < END) scope.launch { clock.snapTo(END) } },
+                .clickable(remember { MutableInteractionSource() }, indication = null) { if (t < END) scope.launch { clock.snapTo(END + delay) } },
         ) {
             // fundo: raios girando e pontinhos subindo
             val raysA = seg(t, IMPACT, 0.6f)
@@ -185,8 +202,10 @@ internal fun GameScene(
                     .padding(horizontal = 18.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
             ) {
-                // palco
-                Box(Modifier.size(stageSize + 30.dp), contentAlignment = Alignment.Center) {
+                // palco (com a forja no fundo, quando houver; o impacto pode subir até a medalha)
+                Box(Modifier.width(stageSize + 30.dp).height((stageSize + 30.dp) * stageTall), contentAlignment = Alignment.Center) {
+                backdrop?.invoke(stageSize)
+                Box(Modifier.size(stageSize + 30.dp).offset(y = (stageSize + 30.dp) * stageTall * fxShift), contentAlignment = Alignment.Center) {
                     // halo
                     val haloA = seg(t, IMPACT, 0.5f)
                     if (haloA > 0f) Box(Modifier.size(stageSize).graphicsLayer { alpha = haloA * (0.75f + 0.25f * bob); scaleX = 0.95f + 0.1f * bob; scaleY = scaleX }
@@ -244,6 +263,8 @@ internal fun GameScene(
                             color = Color(0xFF2B1600), fontWeight = FontWeight.Black, fontSize = 15.sp, letterSpacing = 1.sp,
                         )
                     }
+                    stageExtra?.invoke(this, t, stageSize)
+                }
                 }
                 // letreiro
                 Appear(t, 0.2f) {
@@ -343,15 +364,122 @@ private fun levelLine(level: Int, title: String, promo: Boolean): String = when 
     else -> "Subiu! Quem estuda todo dia chega lá. Você está chegando."
 }
 
+// ---------------------------------------------------------------- a fênix
+
+/**
+ * A fênix da sequência (Phoenix, o mesmo desenho do site, desenhado pelo AndroidSVG em partes): cauda,
+ * as duas asas batendo ([flap] de 0 a 1) em torno do ombro e o corpo respirando ([breath]).
+ */
+@Composable
+internal fun PhoenixImage(awake: Boolean, size: androidx.compose.ui.unit.Dp, flap: Float = 0f, breath: Float = 0f, modifier: Modifier = Modifier) {
+    val parts = remember(awake) {
+        br.com.estudario.domain.Phoenix.Part.entries.associateWith { part ->
+            runCatching { com.caverock.androidsvg.SVG.getFromString(br.com.estudario.domain.Phoenix.svg(awake, "px${part.ordinal}", setOf(part))) }.getOrNull()
+        }
+    }
+    Canvas(modifier.size(size)) {
+        val k = this.size.width / 200f
+        val native = drawContext.canvas.nativeCanvas
+        fun part(p: br.com.estudario.domain.Phoenix.Part, block: android.graphics.Canvas.() -> Unit) {
+            val svg = parts[p] ?: return
+            native.save(); native.block()
+            svg.documentWidth = this.size.width; svg.documentHeight = this.size.height
+            svg.renderToCanvas(native); native.restore()
+        }
+        val (lx, ly) = br.com.estudario.domain.Phoenix.WING_L_PIVOT
+        val (rx, ry) = br.com.estudario.domain.Phoenix.WING_R_PIVOT
+        part(br.com.estudario.domain.Phoenix.Part.TAIL) { rotate((breath - 0.5f) * 8f, 100f * k, 150f * k) }
+        part(br.com.estudario.domain.Phoenix.Part.WING_L) { rotate(-16f * flap, lx * k, ly * k) }
+        part(br.com.estudario.domain.Phoenix.Part.WING_R) { rotate(16f * flap, rx * k, ry * k) }
+        part(br.com.estudario.domain.Phoenix.Part.BODY) { scale(1f - 0.02f * breath, 1f + 0.04f * breath, 100f * k, 158f * k) }
+    }
+}
+
+/** A fênix no palco: dormindo (respirando devagar, com "z" subindo) ou acordada (batendo as asas, com a moeda do dia). */
+@Composable
+private fun PhoenixStage(awake: Boolean, days: Int, size: androidx.compose.ui.unit.Dp) {
+    val loop = rememberInfiniteTransition(label = "px")
+    val flap by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "flap")
+    val breath by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(if (awake) 700 else 1200), RepeatMode.Reverse), label = "breath")
+    val z by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "z")
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        PhoenixImage(awake, size * 0.95f, flap = if (awake) flap else 0f, breath = breath)
+        if (!awake) Box(Modifier.align(Alignment.TopEnd).padding(end = size * 0.1f, top = size * 0.12f)) {
+            listOf(0f, 0.33f, 0.66f).forEachIndexed { i, off ->
+                val p = (z + off) % 1f
+                Text("z", Modifier.offset(x = (i * 12).dp + (10f * p).dp, y = (-i * 16).dp - (14f * p).dp).graphicsLayer { alpha = if (p < 0.3f) p / 0.3f else 1f - p },
+                    color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Black, fontSize = (16 + i * 6).sp)
+            }
+        }
+        if (awake) {
+            val coin = size * 0.3f
+            Box(
+                Modifier.align(Alignment.BottomEnd).padding(end = size * 0.02f, bottom = size * 0.06f).size(coin).clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(Color(0xFFFFF3B8), Color(0xFFFFC22E), Color(0xFFFF8A3D))))
+                    .border(3.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Text("$days", color = Color(0xFF4A1800), fontWeight = FontWeight.Black, fontSize = (coin.value * 0.45f).sp) }
+        }
+    }
+}
+
+/** O redemoinho: um pontinho preto que gira cada vez mais rápido e cresce até o clarão. */
+@Composable
+private fun BoxScope.Vortex(t: Float, size: androidx.compose.ui.unit.Dp) {
+    val p = seg(t, 0.2f, 0.82f)
+    if (t >= IMPACT + 0.1f) return
+    Canvas(Modifier.size(size).align(Alignment.Center)) {
+        val scale = 0.035f + (1.5f - 0.035f) * (p * p)
+        val r = this.size.minDimension * 0.42f * scale
+        val alpha = if (p > 0.92f) ((1f - p) / 0.08f).coerceIn(0f, 1f) else 1f
+        rotate(1700f * p * p) {
+            for (i in 0 until 12) drawArc(if (i % 2 == 0) Color(0xFF0B0618).copy(alpha = alpha) else Color(0xFF3B1E55).copy(alpha = alpha), i * 30f, 22f, true, topLeft = center - Offset(r, r), size = androidx.compose.ui.geometry.Size(r * 2, r * 2))
+        }
+        drawCircle(Color(0xFF05030C).copy(alpha = alpha), r * 0.34f, center)
+    }
+}
+
+/** Os dias da semana: chama acesa nos dias estudados, apagada nos outros; hoje maior, escrito HOJE. */
+@Composable
+private fun GameWeekRow(week: List<Pair<String, Boolean>>, t: Float, c1: Color, c2: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+        week.forEachIndexed { i, (letter, done) ->
+            val p = seg(t, 1.9f + i * 0.09f, 0.42f)
+            val e = CubicBezierEasing(0.2f, 1.6f, 0.45f, 1f).transform(p)
+            val today = i == week.lastIndex
+            Column(
+                Modifier.width(if (today) 52.dp else 40.dp)
+                    .graphicsLayer { alpha = p.coerceAtMost(1f); translationY = (16f * (1f - e) - if (today && done) 4f else 0f).dp.toPx(); scaleX = 0.6f + 0.4f * e; scaleY = scaleX }
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (done) Brush.verticalGradient(listOf(c1.copy(alpha = 0.4f), c2.copy(alpha = 0.3f))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.06f))))
+                    .border(if (today) 2.dp else 1.dp, if (done) c1.copy(alpha = if (today) 1f else 0.7f) else Color.White.copy(alpha = if (today) 0.4f else 0.12f), RoundedCornerShape(14.dp))
+                    .padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(if (today) "HOJE" else letter, color = if (today) c1 else if (done) Color.White else Color.White.copy(alpha = 0.55f), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                Box(Modifier.graphicsLayer { alpha = if (done) 1f else 0.45f }) { StreakFlame(lit = done, size = if (today) 28.dp else 20.dp, glow = false) }
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- sequência do dia
 
 /** Os marcos da sequência (dias seguidos) que a cena mostra como próximo objetivo (os mesmos do site). */
 private val STREAK_MARKS = listOf(3, 7, 14, 21, 30, 45, 60, 90, 120, 180, 270, 365)
+private val FIRE1 = Color(0xFFFFE08A)
+private val FIRE2 = Color(0xFFFF8A3D)
+private val FIRE3 = Color(0xFFB23A0E)
+
+private fun weekOf(summary: br.com.estudario.domain.StreakSummary): List<Pair<String, Boolean>> {
+    val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
+    return summary.week.filter { !it.future }.takeLast(7).map { letters[it.date.dayOfWeek.ordinal] to it.done }
+}
 
 /**
- * Dia cumprido, com cara de jogo (a mesma cena do site): a chama apagada com a conta de ontem treme e
- * estoura, a acesa cai com a moeda do dia, os dias da semana acendem um por um e entram os prêmios
- * (XP de hoje, próximo marco, recorde). Recorde novo ganha o carimbo. Uma vez por dia, ao fechar a meta.
+ * Dia cumprido, com cara de jogo (a mesma cena do site): a fênix dorme cinza; um pontinho preto gira
+ * cada vez mais rápido, vira redemoinho e, no clarão, ela acorda pegando fogo (o Folha leva um susto).
+ * Os dias da semana acendem com a chama, hoje em destaque, e entram os prêmios.
  */
 @Composable
 fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit) {
@@ -360,63 +488,82 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
     val best = maxOf(summary.best, days)
     val record = days > 1 && days >= best
     val next = STREAK_MARKS.firstOrNull { it > days }
-    val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
-    val week = summary.week.filter { !it.future }.takeLast(7).map { letters[it.date.dayOfWeek.ordinal] to it.done }
-    val c1 = Color(0xFFFFE08A); val c2 = Color(0xFFFF8A3D)
+    val week = weekOf(summary)
     GameScene(
-        c1, c2, Color(0xFFB23A0E), sound = "cena_sequencia", stamp = if (record) "RECORDE!" else null,
-        from = if (days <= 1) "COMEÇOU" else "DIA ${days - 1}", to = "DIA $days", word = "SEQUÊNCIA!",
-        sub = if (days == 1) "1 dia · a chama acendeu" else "$days dias seguidos estudando",
+        FIRE1, FIRE2, FIRE3, sound = "combo", stamp = if (record) "RECORDE!" else null,
+        from = if (days <= 1) "DORMINDO" else "DIA ${days - 1}", to = if (days == 1) "ACORDOU" else "DIA $days", word = "SEQUÊNCIA!",
+        sub = if (days == 1) "1 dia · a fênix acordou" else "$days dias seguidos estudando",
         loot = buildList {
             if (celebration.xpToday > 0) add(GameLoot(Glyph.Bolt, "XP DE HOJE", "+${celebration.xpToday} XP no dia", gold = true))
             if (next != null) add(GameLoot(Glyph.Flag, "PRÓXIMO MARCO", "$next dias · ${if (next - days == 1) "falta 1 dia" else "faltam ${next - days} dias"}"))
             add(if (record) GameLoot(Glyph.Trophy, "NOVO RECORDE", "Sua maior sequência: $days dias") else GameLoot(Glyph.Trophy, "SEU RECORDE", "$best dias · faltam ${best - days} para bater"))
         },
         line = when {
-            days <= 1 -> "A chama acendeu! Volte amanhã para ela não apagar."
-            record -> "Recorde! Ninguém te para. Amanhã tem mais."
-            else -> "Mais um dia aceso. Faltam ${best - days} para o seu recorde de $best."
+            days <= 1 -> "Que susto! A fênix acordou. Volte amanhã para ela não dormir de novo."
+            record -> "Recorde! A fênix nunca esteve tão acesa. Amanhã tem mais."
+            else -> "Ela acordou com tudo! Faltam ${best - days} para o seu recorde de $best."
         },
         primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
-        // os dias da semana acendendo um por um
-        middle = { t ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                week.forEachIndexed { i, (letter, done) ->
-                    val p = seg(t, 1.9f + i * 0.09f, 0.42f)
-                    val e = CubicBezierEasing(0.2f, 1.6f, 0.45f, 1f).transform(p)
-                    val today = i == week.lastIndex
-                    Column(
-                        Modifier.width(40.dp).graphicsLayer { alpha = p.coerceAtMost(1f); translationY = (16f * (1f - e) - if (today && done) 3f else 0f).dp.toPx(); scaleX = 0.6f + 0.4f * e; scaleY = scaleX }
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (done) Brush.verticalGradient(listOf(c1.copy(alpha = 0.4f), c2.copy(alpha = 0.3f))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.06f))))
-                            .border(if (today && done) 2.dp else 1.dp, if (done) c1.copy(alpha = if (today) 1f else 0.7f) else Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                            .padding(vertical = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(letter, color = if (done) Color.White else Color.White.copy(alpha = 0.55f), fontSize = 11.sp, fontWeight = FontWeight.Black)
-                        Text(if (done) "✓" else "·", color = if (done) Color.White else Color.White.copy(alpha = 0.55f), fontSize = 16.sp, fontWeight = FontWeight.Black)
+        middle = { t -> GameWeekRow(week, t, FIRE1, FIRE2) },
+        before = { s -> PhoenixStage(false, days, s) },
+        after = { s -> PhoenixStage(true, days, s) },
+        cues = listOf(0.25f to "tonto"),
+        stageExtra = { t, s ->
+            Vortex(t, s)
+            // o Folha leva um susto quando ela acorda
+            val p = seg(t, 1.1f, 0.55f)
+            if (p > 0f) {
+                val e = CubicBezierEasing(0.2f, 1.7f, 0.4f, 1f).transform(p)
+                Box(Modifier.align(Alignment.BottomStart).offset(x = (-14).dp).graphicsLayer { alpha = p.coerceAtMost(1f); translationY = (20f * (1f - e) - 18f * kotlin.math.sin(p * PI.toFloat())).dp.toPx(); rotationZ = -12f * (1f - e) }) {
+                    Folha(52.dp, mood = FolhaMood.SURPRISED)
+                    Box(Modifier.align(Alignment.TopEnd).size(20.dp).clip(CircleShape).background(Color(0xFFFF5A7A)).border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("!", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
                     }
                 }
             }
         },
-        before = { s -> FlameCoin(days - 1, lit = false, size = s) },
-        after = { s -> FlameCoin(days, lit = true, size = s) },
     )
 }
 
-/** A chama da sequência com a moeda do número no canto (apagada e cinza no "antes"). */
+/**
+ * O Folha salva a sequência com o marca-página (a mesma cena do site): a fênix dorme cinza, ele chega na
+ * ponta dos pés com o marca-página, solta uma faísca e ela acorda em fogo. Uma vez por dia salvo.
+ */
 @Composable
-private fun FlameCoin(n: Int, lit: Boolean, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-        StreakFlame(lit = lit, size = size * 0.9f, glow = lit)
-        val coin = size * 0.32f
-        Box(
-            Modifier.align(Alignment.BottomEnd).padding(end = size * 0.06f, bottom = size * 0.06f).size(coin).clip(CircleShape)
-                .background(if (lit) Brush.verticalGradient(listOf(Color(0xFFFFF3B8), Color(0xFFFFC22E), Color(0xFFFF8A3D))) else Brush.verticalGradient(listOf(Color(0xFFE6E3F5), Color(0xFFA9A5C6))))
-                .border(3.dp, Color.White, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Text("$n", color = if (lit) Color(0xFF4A1800) else Color(0xFF2A2440), fontWeight = FontWeight.Black, fontSize = (coin.value * 0.45f).sp) }
-    }
+fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<String, Int>> = emptyList(), onClose: () -> Unit) {
+    val days7 = week.ifEmpty { listOf("T" to 1, "Q" to 1, "Q" to 1, "S" to 1, "S" to 1, "D" to 2, "S" to 0) }.map { it.first to (it.second != 0) }
+    GameScene(
+        FIRE1, FIRE2, FIRE3, sound = "combo", stamp = "SALVA!",
+        from = "QUASE APAGOU", to = "ACESA", word = "SEQUÊNCIA SALVA!",
+        sub = "$days ${if (days == 1) "dia" else "dias"}" + if (dayLabel.isNotBlank()) " · o Folha marcou $dayLabel" else " de sequência",
+        loot = listOf(
+            GameLoot(Glyph.Bookmark, "MARCA-PÁGINA USADO", if (dayLabel.isNotBlank()) "No dia sem estudo: $dayLabel" else "No dia sem estudo", gold = true),
+            GameLoot(Glyph.Notebook, "SOBRAM", if (left > 0) "$left ${if (left == 1) "marca-página guardado" else "marca-páginas guardados"}" else "Nenhum. Estude 7 dias seguidos para ganhar outro"),
+            GameLoot(Glyph.Fire, "SEQUÊNCIA", "$days ${if (days == 1) "dia" else "dias"} e contando"),
+        ),
+        line = "Shhh… ela quase apagou, mas eu acendi de novo pra você. Bora não deixar dormir hoje?",
+        primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
+        middle = { t -> GameWeekRow(days7, t, FIRE1, FIRE2) },
+        before = { s -> PhoenixStage(false, days, s) },
+        after = { s -> PhoenixStage(true, days, s) },
+        cues = listOf(0.8f to "toque"),
+        stageExtra = { t, _ ->
+            // o Folha chega na ponta dos pés com o marca-página…
+            val walk = seg(t, 0.05f, 0.9f)
+            Box(Modifier.align(Alignment.BottomStart).offset(x = (-20).dp).graphicsLayer {
+                alpha = (walk * 5f).coerceAtMost(1f); translationX = (-120f * (1f - walk)).dp.toPx(); translationY = (-6f * kotlin.math.abs(kotlin.math.sin(walk * PI.toFloat() * 4f))).dp.toPx()
+            }) {
+                Folha(52.dp, mood = FolhaMood.WINK)
+                Box(Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp).rotate(if (t > 0.7f) -20f else 18f)) { BrandIcon(Glyph.Bookmark, size = 26.dp) }
+            }
+            // …e solta a faísca que acende a fênix
+            val sp = seg(t, 0.78f, 0.32f)
+            if (sp in 0.001f..0.999f) Box(
+                Modifier.align(Alignment.Center).offset(x = (-80f * (1f - sp)).dp, y = (80f * (1f - sp)).dp).size((10f + 8f * sp).dp).clip(CircleShape)
+                    .background(Brush.radialGradient(listOf(Color.White, Color(0xFFFFC22E), Color.Transparent))),
+            )
+        },
+    )
 }
 
 // ---------------------------------------------------------------- emblema novo
@@ -425,10 +572,13 @@ private fun faixaLabel(tier: Int) = when (tier) {
     1 -> "Bronze"; 2 -> "Prata"; 3 -> "Ouro"; 4 -> "Safira"; 5 -> "Rubi"; else -> "Esmeralda"
 }
 
+/** Quando a medalha sai da forja na cena do Folha (folha-live.js, cena "emblema"). */
+private const val FORGE_REVEAL = 4.35f
+
 /**
- * Emblema novo, com cara de jogo (a mesma cena do site): a silhueta escura do emblema (a arte de
- * drawable-nodpi/emblema_<id>) treme e estoura, ele cai colorido com a faixa carimbada, e entram o que
- * a pessoa fez, a faixa e a categoria. Quando cai mais de um de uma vez, cada um ganha a sua cena.
+ * Emblema novo: a forja do Folha (a mesma cena do site: ele cunha a medalha em três marteladas e ela
+ * sobe com a arte de drawable-nodpi/emblema_<id>). Quando ela sai, onda de choque, faíscas e a faixa
+ * carimbada; depois o letreiro e os prêmios. Quando cai mais de um de uma vez, cada um ganha a sua cena.
  */
 @Composable
 fun BadgeCelebrationScreen(badges: List<br.com.estudario.domain.Badge>, onClose: () -> Unit) {
@@ -438,9 +588,18 @@ fun BadgeCelebrationScreen(badges: List<br.com.estudario.domain.Badge>, onClose:
     val last = index >= badges.lastIndex
     val tier = faixaLabel(badge.tier)
     val rank = LevelCrest.ranks.first { it.metal == tier }
+    val ctx = LocalContext.current
+    // a arte ilustrada do emblema vai para a cena como data URL (a WebView não lê res/drawable)
+    val arte = remember(badge.id) {
+        val res = ctx.resources.getIdentifier("emblema_" + badge.id.replace('-', '_'), "drawable", ctx.packageName)
+        if (res == 0) null else runCatching {
+            "data:image/webp;base64," + android.util.Base64.encodeToString(ctx.resources.openRawResource(res).use { it.readBytes() }, android.util.Base64.NO_WRAP)
+        }.getOrNull()
+    }
+    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     androidx.compose.runtime.key(index) {
         GameScene(
-            hex(rank.light), hex(rank.mid), hex(rank.dark), sound = "cena_emblema", stamp = tier.uppercase() + "!",
+            hex(rank.light), hex(rank.mid), hex(rank.dark), sound = null, stamp = tier.uppercase() + "!",
             from = "BLOQUEADO", to = "DESBLOQUEADO", word = "CONQUISTA!",
             sub = "${badge.name} · emblema $tier" + if (badges.size > 1) "  (${index + 1}/${badges.size})" else "",
             loot = listOf(
@@ -449,27 +608,21 @@ fun BadgeCelebrationScreen(badges: List<br.com.estudario.domain.Badge>, onClose:
                 GameLoot(Glyph.Star, "CATEGORIA", badge.category.label),
             ),
             line = when (badge.tier) {
-                in 1..2 -> "Primeiro de muitos! Cada emblema é prova de que você está indo."
-                in 3..4 -> "Esse é pesado! Pouca gente chega aqui."
-                else -> "Lendário! Isso aqui é de quem estuda de verdade."
+                in 1..2 -> "Saiu quentinha da forja! Cada emblema é prova de que você está indo."
+                in 3..4 -> "Essa deu trabalho de martelar! Pouca gente chega aqui."
+                else -> "Lendário! Até a bigorna tremeu. Isso aqui é de quem estuda de verdade."
             },
             primary = if (last) "Continuar" else "Próximo emblema", onPrimary = { if (last) onClose() else index++ }, onClose = onClose,
-            before = { s -> BadgeSilhouette(badge, s) },
-            after = { s -> MedalArt(badge, earned = true, size = s) },
+            before = { }, after = { },
+            delay = FORGE_REVEAL - IMPACT, stageTall = 1.1f, fxShift = -0.25f,
+            backdrop = { s ->
+                val w = s + 30.dp
+                val bleed = w * 0.34f
+                FolhaScene(
+                    listOf("tipo" to "emblema", "tier" to badge.tier.toString(), "categoria" to badge.id.substringBefore("-"), "faixa" to tier) + listOfNotNull(arte?.let { "arte" to it }),
+                    Modifier.requiredSize(screenW, w * 1.1f + bleed * 2), stageWidthDp = w.value.toInt(), bleedDp = bleed.value.toInt(),
+                )
+            },
         )
-    }
-}
-
-/** A silhueta escura do emblema, com "?" (o "antes" da cena). */
-@Composable
-private fun BadgeSilhouette(badge: br.com.estudario.domain.Badge, size: androidx.compose.ui.unit.Dp) {
-    val ctx = LocalContext.current
-    val res = remember(badge.id) { ctx.resources.getIdentifier("emblema_" + badge.id.replace('-', '_'), "drawable", ctx.packageName) }
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
-        if (res != 0) androidx.compose.foundation.Image(
-            androidx.compose.ui.res.painterResource(res), contentDescription = null, modifier = Modifier.size(size), alpha = 0.75f,
-            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.Black),
-        ) else MedalArt(badge, earned = false, size = size)
-        Text("?", color = Color.White.copy(alpha = 0.55f), fontSize = (size.value * 0.28f).sp, fontWeight = FontWeight.Black)
     }
 }
