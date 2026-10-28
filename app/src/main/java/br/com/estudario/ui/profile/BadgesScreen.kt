@@ -136,14 +136,7 @@ fun BadgesScreen(viewModel: AppViewModel, onBack: () -> Unit, showInternalTopBar
                     }
                 }
             }
-            item {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilterChip(categoria == null, { categoria = null }, { Text("Todos") })
-                    BadgeCategory.entries.forEach { item ->
-                        FilterChip(categoria == item, { categoria = item }, { Text(item.label) })
-                    }
-                }
-            }
+            // sem a fileira de filtros (poluía a tela): as conquistas já vêm separadas por categoria
             porCategoria.forEach { (category, badges) ->
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

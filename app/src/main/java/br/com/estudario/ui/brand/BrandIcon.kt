@@ -124,5 +124,20 @@ internal fun glyphFor(vectorName: String): Glyph? = when (vectorName.substringAf
     "PhoneAndroid", "Devices" -> Glyph.Phone
     "FiberNew" -> Glyph.Gem
     "EmojiEventsOutlined" -> Glyph.Trophy
+    // pedidos do dono: a lupa do topo, editar, conferido, data, aviso desligado... também desenhados
+    "Search", "ManageSearch" -> Glyph.Lupa
+    "Edit" -> Glyph.Pencil
+    "Verified" -> Glyph.Check
+    "StarOutline" -> Glyph.Star
+    "Gavel" -> Glyph.Martelo
+    "Balance" -> Glyph.Balanca
+    "DateRange" -> Glyph.Calendar
+    "NotificationsOff" -> Glyph.Bell
+    "LockOpen" -> Glyph.Lock
+    "StickyNote" -> Glyph.Doc
+    "TouchApp" -> Glyph.Hand
+    "AccountTree" -> Glyph.Folder
+    "PlaylistAdd" -> Glyph.Clipboard
+    "ThumbUp" -> Glyph.Heart
     else -> null
 }
