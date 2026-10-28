@@ -206,9 +206,12 @@ class Cota extends Error {}
 async function agy(model: string, prompt: string, minutos: number): Promise<string> {
   const pedido = `${TRAB}/pedido.txt`;
   Deno.writeTextFileSync(pedido, prompt);
-  // O pedido vai num arquivo (a linha de comando do Windows tem limite de tamanho).
+  // O Flash, mandado ler um arquivo, tenta rodar um comando (bloqueado no modo automático) e volta vazio:
+  // pedido de até ~28 mil caracteres vai na própria linha de comando; maior que isso (só a auditoria), por arquivo.
+  const pedidoLinha = prompt.length <= 28_000 ? prompt
+    : "Leia o arquivo pedido.txt desta pasta com a ferramenta de leitura de arquivos (não rode comandos) e cumpra exatamente o que ele pede.";
   const cmd = new Deno.Command(AGY, {
-    args: ["-p", "Leia o arquivo pedido.txt desta pasta e cumpra exatamente o que ele pede. Responda só o que ele pede.",
+    args: ["-p", pedidoLinha,
       "--model", model, "--output-format", "json", "--print-timeout", `${minutos}m`, "--disable-slash-commands"],
     cwd: TRAB, stdout: "piped", stderr: "piped",
   });
@@ -271,9 +274,12 @@ function conferir(itens: Json[], item: Json, recorte: Json, materia: Json) {
 
 // ------------------------------------------------------------------ auditoria por outro modelo
 async function auditar(itens: Json[], recorte: Json, materia: Json): Promise<Set<number>> {
-  Deno.writeTextFileSync(`${TRAB}/lote.json`, JSON.stringify(itens.map((q, i) => ({ n: i + 1, ...q })), null, 1));
+  // As questões vão dentro do pedido (sem ferramentas), só com o que o revisor precisa ler.
+  const compacto = JSON.stringify(itens.map((q, i) => ({ n: i + 1, enunciado: q.statement,
+    alternativas: (q.options as Json[]).map((o) => `${o.key}) ${o.text}${o.correct ? "  [GABARITO]" : ""}`), explicacao: q.explanation })));
+  Deno.writeTextFileSync(`${TRAB}/lote.json`, compacto);
   const prompt = `Você é um revisor rigoroso de questões de concurso (banca ${recorte.board}, assunto "${materia.title}").
-Leia o arquivo lote.json desta pasta. Para CADA questão, confira:
+As questões estão no JSON abaixo. Para CADA questão, confira:
 1. o gabarito marcado está certo;
 2. não há outra alternativa também correta (ou, em Certo/Errado, o item não é ambíguo);
 3. o gabarito não depende de ponto em que a lei, a doutrina ou a gramática admitem dois entendimentos;
@@ -281,7 +287,10 @@ Leia o arquivo lote.json desta pasta. Para CADA questão, confira:
 5. o enunciado não entrega a resposta e nenhuma alternativa é absurda;
 6. a explicação está de acordo com o gabarito.
 Responda SÓ com um bloco \`\`\`json no formato {"remover": [números das questões com qualquer problema acima], "motivos": {"número": "motivo curto"}}.
-Na dúvida, remova. Não use outras ferramentas além de ler o arquivo.`;
+Na dúvida, remova. Não use ferramentas.
+
+QUESTÕES:
+${compacto}`;
   // A cota semanal do Claude acaba bem antes da do Gemini (~2% por auditoria): o Opus audita 1 lote a
   // cada 4 e, nos outros, o Argon no esforço alto. Se a cota do Claude acabar, o Argon assume.
   estado.auditorias = (estado.auditorias ?? 0) + 1;
