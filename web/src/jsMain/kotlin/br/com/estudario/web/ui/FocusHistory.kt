@@ -69,12 +69,14 @@ fun FocusHistoryScreen() {
         Empty("timer", "Nenhuma sessão de foco", "Use o Modo foco para cronometrar o estudo; cada sessão aparece aqui, com gráficos do que você estudou.")
         return
     }
-    Div({ classes("fh-periods"); attr("role", "tablist") }) {
+    Div({ classes("st2-period"); attr("role", "tablist") }) {
         PERIODS.forEach { (days, label) ->
-            Button({ classes(*listOfNotNull("fh-period", if (period == days) "on" else null).toTypedArray()); onClick { period = days } }) { Text(label) }
+            Button({ classes(*listOfNotNull("st2-pill", if (period == days) "on" else null).toTypedArray()); attr("type", "button"); onClick { period = days } }) { Text(label) }
         }
     }
 
+    // Trocar o período refaz a página: as colunas crescem e a rosca gira de novo.
+    key(period) { Div({ classes("st2", "fh2") }) {
     // ---- os números do período
     Div({ classes("fh-kpis") }) {
         val delta = if (r.previousTotal > 0) ((r.total - r.previousTotal) / r.previousTotal * 100).roundToInt() else null
@@ -86,8 +88,7 @@ fun FocusHistoryScreen() {
 
     if (r.total <= 0) {
         Card { Empty("timer", "Sem foco neste período", "Troque o período acima ou ligue o Modo foco hoje.") }
-        return
-    }
+    } else {
 
     // ---- o que aconteceu, em frases
     if (r.insights.isNotEmpty()) Div({ classes("fh-insights") }) {
@@ -233,6 +234,8 @@ fun FocusHistoryScreen() {
             }
         }
     }
+    }
+    } }
 }
 
 @Composable

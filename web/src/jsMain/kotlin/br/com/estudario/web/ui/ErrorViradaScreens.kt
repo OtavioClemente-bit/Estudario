@@ -86,6 +86,38 @@ private fun Ladder(step: Int) {
 
 // ------------------------------------------------------------------ a entrada
 
+/** O "?" do caderno de erros: o que é a Virada, a escada de 3, 10 e 30 dias e como usar a página. */
+@Composable
+private fun ViradaHelp(onClose: () -> Unit) {
+    Modal(onDismiss = onClose, extraClass = "gx-sheetmodal vr-help-modal") {
+        Div({ classes("gx-top") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Text("COMO FUNCIONA") }
+                H2 { Text("A Virada: erro que vira acerto") }
+                P({ classes("gx-topic") }) { Text("O caderno de erros não é um depósito. Cada erro é uma questão que você ainda vai acertar na prova.") }
+            }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+        }
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("error", "1. Errou, foi para a mesa", "Toda questão que você erra vem para cá sozinha, com o tópico e o motivo do erro.", "#FF5A7A") {}
+            GxSection("autorenew", "2. Sobe a escada de reencontro", "Acertou a questão de novo? Ela sobe um degrau e volta daqui a 3 dias, depois 10, depois 30. Errou no caminho, volta para a mesa.", "#FFC94D") {
+                Div({ classes("vr-help-ladder") }) {
+                    listOf("Na mesa" to "#FF5A7A", "3 dias" to "#FFC94D", "10 dias" to "#22D3EE", "30 dias" to "#A78BFF", "Virou!" to "#2FD39A").forEach { (label, color) ->
+                        Span({ attr("style", "--c:$color") }) { Text(label) }
+                    }
+                }
+            }
+            GxSection("check_circle", "3. Acertou os três degraus, virou", "Só vira quem acertou nos três reencontros: aí o conteúdo ficou de verdade. O placar mostra quantos já viraram.", "#2FD39A") {}
+            GxSection("gps_fixed", "Missão de hoje", "Todo dia eu separo até 5 erros: os da mesa e os que vencem hoje. Uns 6 minutos.", "#A78BFF") {}
+            GxSection("lightbulb", "Por que você erra", "Marque o motivo ao errar (não sabia, confundi, li rápido, pegadinha). Eu junto o padrão e dou a dica certa para cada um.", "#22D3EE") {}
+            Div({ classes("gx-go", "row") }) {
+                Span {}
+                GxLaunch("Entendi, bora virar", icon = "check_circle") { onClose() }
+            }
+        }
+    }
+}
+
 @Composable
 fun ViradaScreen() {
     val data = Store.data
@@ -104,9 +136,12 @@ fun ViradaScreen() {
     val concepts = data.errorConcepts.filter { !it.mastered && it.errorCount > 0 && it.topicId in CompetitionFilter.topicIds(data) }.sortedByDescending { it.errorCount }.take(3)
     val pct = { n: Int -> if (all.isEmpty()) 0 else n * 100 / all.size }
 
+    var help by remember { mutableStateOf(false) }
+    if (help) ViradaHelp { help = false }
     CompetitionTabs()
     Div({ classes("vr-wrap") }) {
         Div({ classes("vr-score", "rise") }) {
+            Button({ classes("vr-help"); attr("type", "button"); attr("aria-label", "O que é a Virada?"); attr("title", "O que é a Virada?"); onClick { help = true } }) { Text("?") }
             Div({ classes("vr-score-row") }) {
                 Folha(if (all.isEmpty()) "happy" else if (won.size * 2 >= all.size) "proud" else "talking", 72)
                 Div {

@@ -90,7 +90,7 @@ fun HomeScreen() {
         Div({ classes("stack", "loose") }) {
             if (plan != null && data.attempts.size < 5) FirstSteps(data.attempts.size)
             // Com o plano do dia, a missão vem primeiro e já diz por onde começar; sem tarefas hoje, o "agora" de sempre.
-            if (plan != null && tasks.isNotEmpty()) DailyMission(tasks, data, onGenerate = { generatingFor = it }) { completing = it }
+            if (plan != null && tasks.isNotEmpty()) DailyMission(tasks, data, hour, seed, daysToExam, onGenerate = { generatingFor = it }) { completing = it }
             else NowPanel(data, plan != null, tasks, hour, seed, daysToExam, onGenerate = { generatingFor = it })
             WeekReportCard(data, view)
             WeakSpotCard(data)
@@ -191,7 +191,7 @@ private fun NowPanel(data: Snapshot, hasPlan: Boolean, tasks: List<PlanTask>, ho
  * seguintes esperam a vez. Quem nunca usou sabe exatamente por onde começar.
  */
 @Composable
-private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Long) -> Unit, onComplete: (PlanTask) -> Unit) {
+private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, hour: Int, seed: Long, daysToExam: Long?, onGenerate: (Long) -> Unit, onComplete: (PlanTask) -> Unit) {
     val done = tasks.count { it.status == "CONCLUIDA" }
     val total = tasks.size
     val complete = done == total
@@ -219,6 +219,10 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
                 }
                 Span { Text(if (complete) "+$earned XP no bolso. Amanhã tem mais." else "${Queries.minutesLabel(leftMinutes)} de estudo · até +${possible - earned} XP") }
             }
+        }
+        // O Folha volta ao Início: fala da missão de hoje; tocar nele leva ao próximo passo.
+        Div({ classes("ms2-folha") }) {
+            FolhaTalking(missionLine(done, total, current, hour, seed, daysToExam), 76, onFolhaClick = { current?.let { openTask(it) } }, restMood = when { complete -> "proud"; done > 0 -> "happy"; else -> "idle" })
         }
         Div({ classes("ms2-steps") }) {
             tasks.forEachIndexed { i, t ->
@@ -273,6 +277,52 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, onGenerate: (Lon
             Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.Plan) } }) { Icon("calendar_month"); Span { Text("Ver o plano inteiro") } }
         }
         if (planned > 0 && !complete && done == 0) P({ classes("gx-note", "ms2-hint") }) { Text("Dica: siga os passos na ordem, de cima para baixo. Toque em qualquer passo para abrir; o ✓ ao lado marca como feito o que você já fez fora daqui.") }
+    }
+}
+
+/**
+ * A fala do Folha sobre a missão de hoje, mudando com o que já foi feito, o próximo passo, a hora
+ * do dia e a prova chegando. Várias frases para cada situação, sorteadas pelo dia (não repete a toda hora).
+ */
+private fun missionLine(done: Int, total: Int, next: PlanTask?, hour: Int, seed: Long, daysToExam: Long?): String {
+    fun pick(vararg options: String) = options[(((seed / 7 + done * 3 + hour) % options.size).toInt() + options.size) % options.size]
+    val nextName = next?.let { taskTitle(it).substringBefore(':').substringBefore('(').trim().take(48) }
+    val kind = when (next?.type) { "QUESTIONS" -> "questões"; "REVIEW" -> "revisão"; "THEORY" -> "teoria"; "FLASHCARDS" -> "flashcards"; else -> "tarefa" }
+    return when {
+        total > 0 && done == total -> pick(
+            "Missão cumprida! Hoje você fez tudo o que o plano pedia. Orgulho define.",
+            "Fechou o dia! Agora é descansar a cabeça: o que você estudou fica mais firme dormindo.",
+            "Todas as $total feitas. Quer um bônus? Umas questões do caderno de erros caem bem.",
+            "Dia completo! Amanhã eu separo os próximos passos para você.",
+        )
+        daysToExam != null && daysToExam in 0..15 && done == 0 -> pick(
+            "Faltam $daysToExam dias para a prova. Cada passo de hoje conta em dobro.",
+            "Reta final: $daysToExam dias. Começa pelo primeiro passo, eu vou junto.",
+        )
+        done == 0 && hour < 12 -> pick(
+            "Bom dia! Hoje são $total passos. Começa pelo primeiro: ${nextName ?: "a primeira tarefa"}.",
+            "Café na mão? O primeiro passo de hoje é $kind. Vamos nessa!",
+            "Manhã é ótima para estudar. Primeiro passo: ${nextName ?: kind}.",
+        )
+        done == 0 && hour >= 18 -> pick(
+            "Ainda dá tempo de salvar o dia! Começa por ${nextName ?: "o primeiro passo"}.",
+            "Noite boa para estudar. Um passo de cada vez, começando pelo primeiro.",
+            "Hoje são $total passos. Que tal só o primeiro agora? Depois a gente vê.",
+        )
+        done == 0 -> pick(
+            "Hoje são $total passos. Toque no primeiro e eu te levo direto para ele.",
+            "Seu plano de hoje está pronto. Primeiro passo: ${nextName ?: kind}.",
+            "Bora começar? O primeiro é $kind, coisa de poucos minutos para pegar o ritmo.",
+        )
+        total - done == 1 -> pick(
+            "Falta só um! ${nextName ?: "O último passo"} e o dia está fechado.",
+            "Último passo do dia. Vai lá que eu já estou preparando a comemoração.",
+        )
+        else -> pick(
+            "Mandou bem! $done de $total feitos. O próximo é $kind.",
+            "Isso aí! Agora vem ${nextName ?: "o próximo passo"}.",
+            "Você está no ritmo: faltam ${total - done}. Um de cada vez.",
+        )
     }
 }
 

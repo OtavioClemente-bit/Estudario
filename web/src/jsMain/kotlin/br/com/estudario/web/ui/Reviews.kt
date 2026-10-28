@@ -56,73 +56,144 @@ fun ReviewsScreen() {
     PageHead("Revisões espaçadas", "Revisar na hora certa é o que faz o conteúdo ficar", actions = { IconButton("settings", "Configurar revisão") { ReviewPracticePanels.openSettings() } })
     CompetitionTabs()
 
-    Div({ classes("rv-hero", "rise") }) {
-        Div({ classes("rv-hero-folha") }) {
-            Folha(if (due.isEmpty()) "proud" else if (late > 0) "talking" else "happy", 88)
-        }
-        Div({ classes("rv-hero-main") }) {
-            Span({ classes("eyebrow") }) { Text("REVISÃO ESPAÇADA") }
-            H2 { Text(if (due.isEmpty()) "Tudo em dia por hoje" else "${due.size} ${if (due.size == 1) "revisão" else "revisões"} para hoje") }
-            P { Text(if (due.isEmpty()) "Quando um tópico estudado chegar no dia de revisar, ele aparece aqui." else "Cada uma leva poucos minutos: lembrar, rever o resumo e testar com questões.") }
-            if (due.isNotEmpty()) Button({ classes("rv-cta"); onClick { ReviewRun.active = true; Router.go(Route.ReviewSession(due.first().id)) } }) {
-                Icon("play_arrow", filled = true); Text(if (due.size > 1) "Revisar tudo em sequência" else "Começar a revisão")
+    // ---- o topo: quantas para hoje e o botão de começar, no visual do estúdio
+    Div({ classes("gx-panel", "rvx-hero") }) {
+        Div({ classes("rvx-hero-top") }) {
+            Div({ classes("rvx-folha") }) { Folha(if (due.isEmpty()) "proud" else if (late > 0) "talking" else "happy", 88) }
+            Div({ classes("rvx-hero-txt") }) {
+                Span({ classes("gx-kicker") }) { Text("REVISÃO ESPAÇADA") }
+                H2 { Text(if (due.isEmpty()) "Tudo em dia por hoje" else "${due.size} ${if (due.size == 1) "revisão" else "revisões"} para hoje") }
+                P { Text(if (due.isEmpty()) "Quando um tópico estudado chegar no dia de revisar, ele aparece aqui." else "Cada uma leva poucos minutos: lembrar, rever o resumo e testar com questões.") }
             }
         }
-        Div({ classes("rv-hero-stats") }) {
-            RvStat("${due.size}", "para hoje", "event_available", "#FFB421")
-            RvStat("$late", "atrasadas", "schedule", "#FF8A80")
-            RvStat("${upcoming.count { it.dueAt < weekEnd }}", "nos próximos 7 dias", "date_range", "#ABA2FF")
-            RvStat("$doneToday", "feitas hoje", "task_alt", "#7EE0B8")
+        if (due.isNotEmpty()) Div({ classes("rvx-cta") }) {
+            GxLaunch(if (due.size > 1) "Revisar tudo em sequência" else "Começar a revisão", icon = "play_circle") { ReviewRun.active = true; Router.go(Route.ReviewSession(due.first().id)) }
+        }
+        Div({ classes("rvx-stats") }) {
+            RvxStat("${due.size}", "para hoje", "event_available", "#FFC94D")
+            RvxStat("$late", "atrasadas", "schedule", "#FF5A7A")
+            RvxStat("${upcoming.count { it.dueAt < weekEnd }}", "nos próximos 7 dias", "date_range", "#A78BFF")
+            RvxStat("$doneToday", "feitas hoje", "task_alt", "#2FD39A")
         }
     }
 
+    // ---- para fazer agora: uma lista curta, as atrasadas primeiro
     if (due.isNotEmpty()) {
-        H3({ classes("rv-section") }) { Text("Para fazer agora") }
-        Div({ classes("rv-grid") }) {
-            due.forEach { review ->
-                key(review.id) {
-                    val topic = topics[review.topicId]
-                    val daysLate = ((now - review.dueAt) / DAY).toInt()
-                    Div({ classes(*listOfNotNull("rv-card", if (daysLate > 0) "late" else null).toTypedArray()) }) {
-                        Div({ classes("rv-card-top") }) {
-                            Span({ classes("rv-subject"); attr("style", "--c:${subjectColor(subjects[topic?.subjectId]?.name ?: "")}") }) { Text((subjects[topic?.subjectId]?.name ?: "").uppercase()) }
-                            if (daysLate > 0) Span({ classes("rv-late") }) { Text("atrasada $daysLate ${if (daysLate == 1) "dia" else "dias"}") }
-                            else if (review.perceivedDifficulty == "DIFICIL") Span({ classes("rv-late", "repeat") }) { Text("repetindo") }
-                        }
-                        B({ classes("rv-title") }) { Text(topic?.title ?: "Tópico") }
-                        StageLadder(review.stage, review.perceivedDifficulty == "DIFICIL", note = false)
-                        Div({ classes("rv-card-foot") }) {
-                            Btn("Pular", { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") }, style = "ghost", small = true)
-                            Btn("Revisar", { ReviewRun.active = false; Router.go(Route.ReviewSession(review.id)) }, style = "primary", small = true, icon = "play_arrow")
+        var allDue by remember { mutableStateOf(false) }
+        val ordered = due.sortedWith(compareBy({ it.dueAt >= Queries.startOfToday() }, { it.dueAt }))
+        Div({ classes("gx-panel", "rvx-panel") }) {
+            Div({ classes("rvx-head") }) {
+                Span({ classes("rvx-head-ic"); attr("style", "--c:#FFC94D") }) { Icon("event_available", filled = true) }
+                Div({ classes("grow") }) { B { Text("Para fazer agora") }; Span { Text(if (late > 0) "$late ${if (late == 1) "atrasada vem" else "atrasadas vêm"} primeiro" else "Na ordem do dia") } }
+                Span({ classes("rvx-count") }) { Text("${due.size}") }
+            }
+            Div({ classes("rvx-list") }) {
+                (if (allDue) ordered else ordered.take(5)).forEach { review ->
+                    key(review.id) {
+                        val topic = topics[review.topicId]
+                        val subjectName = subjects[topic?.subjectId]?.name ?: ""
+                        val daysLate = ((now - review.dueAt) / DAY).toInt()
+                        Div({ classes(*listOfNotNull("rvx-row", "now", if (daysLate > 0) "late" else null).toTypedArray()); attr("style", "--c:${subjectColor(subjectName)}") }) {
+                            Button({ classes("rvx-row-main"); attr("type", "button"); onClick { ReviewRun.active = false; Router.go(Route.ReviewSession(review.id)) } }) {
+                                Span({ classes("rvx-stage") }) { B { Text("${review.stage}ª") }; Span { Text("etapa") } }
+                                Span({ classes("rvx-row-txt") }) {
+                                    Span({ classes("rvx-subject") }) { Text(subjectName.ifBlank { "Matéria" }) }
+                                    B { Text(topic?.title ?: "Tópico") }
+                                    Span({ classes("rvx-meta") }) {
+                                        Text(
+                                            when {
+                                                daysLate > 0 -> "atrasada $daysLate ${if (daysLate == 1) "dia" else "dias"} · ${stageName(review)}"
+                                                review.perceivedDifficulty == "DIFICIL" -> "repetindo · ${stageName(review)}"
+                                                else -> stageName(review)
+                                            },
+                                        )
+                                    }
+                                }
+                                Span({ classes("rvx-go") }) { Icon("play_arrow", plain = true) }
+                            }
+                            Button({ classes("rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
                         }
                     }
                 }
             }
+            if (ordered.size > 5) Button({ classes("gx-more"); attr("type", "button"); onClick { allDue = !allDue } }) {
+                Text(if (allDue) "Mostrar menos" else "Ver todas (${ordered.size})")
+                Icon(if (allDue) "expand_less" else "expand_more", plain = true)
+            }
         }
-    } else Card { Empty("task_alt", "Revisões em dia", "Nenhuma revisão pendente. Estude um tópico e marque como estudado: as revisões entram sozinhas em D+1, D+7 e D+30.") }
+    } else Div({ classes("gx-panel", "rvx-panel", "rvx-empty") }) {
+        Span({ classes("rvx-head-ic"); attr("style", "--c:#2FD39A") }) { Icon("task_alt", filled = true) }
+        Div { B { Text("Revisões em dia") }; P { Text("Nenhuma revisão pendente. Estude um tópico e marque como estudado: as revisões entram sozinhas em D+1, D+7 e D+30.") } }
+    }
 
+    // ---- próximas: linha do tempo por quando, cada grupo fechado em poucas linhas
     if (upcoming.isNotEmpty()) {
-        H3({ classes("rv-section") }) { Text("Próximas") }
-        Card {
-            Div({ classes("rv-timeline") }) {
-                upcoming.take(30).groupBy { Queries.dateOf(it.dueAt) }.entries.take(10).forEach { (date, list) ->
-                    Div({ classes("rv-day") }) {
-                        Div({ classes("rv-day-date") }) {
-                            B { Text("${date.day}") }
-                            Span { Text(Queries.monthShort(date)) }
-                        }
-                        Div({ classes("rv-day-items") }) {
-                            list.forEach { review ->
-                                Div({ classes("rv-day-item") }) {
-                                    Span({ classes("rv-stage-pill") }) { Text("${review.stage}ª") }
-                                    Span { Text(topics[review.topicId]?.title ?: "Tópico") }
+        var subjectFilter by remember { mutableStateOf(-1L) }
+        val subjectOptions = listOf(-1L to "Todas") + upcoming.mapNotNull { topics[it.topicId]?.subjectId }.distinct()
+            .mapNotNull { id -> subjects[id]?.let { id to it.name } }.sortedBy { it.second }
+        val filtered = if (subjectFilter < 0) upcoming else upcoming.filter { topics[it.topicId]?.subjectId == subjectFilter }
+        val tomorrowEnd = Queries.endOfToday() + DAY
+        val monthEnd = Queries.endOfToday() + 30 * DAY
+        val groups = listOf(
+            Triple("Amanhã", "#FFC94D", filtered.filter { it.dueAt < tomorrowEnd }),
+            Triple("Nesta semana", "#A78BFF", filtered.filter { it.dueAt in tomorrowEnd until weekEnd }),
+            Triple("Neste mês", "#22D3EE", filtered.filter { it.dueAt in weekEnd until monthEnd }),
+            Triple("Mais adiante", "#2FD39A", filtered.filter { it.dueAt >= monthEnd }),
+        ).filter { it.third.isNotEmpty() }
+        Div({ classes("gx-panel", "rvx-panel") }) {
+            Div({ classes("rvx-head") }) {
+                Span({ classes("rvx-head-ic"); attr("style", "--c:#A78BFF") }) { Icon("date_range", filled = true) }
+                Div({ classes("grow") }) { B { Text("Próximas") }; Span { Text("O que volta para revisar, por quando") } }
+                Span({ classes("rvx-count") }) { Text("${upcoming.size}") }
+            }
+            if (subjectOptions.size > 2) Div({ classes("rvx-filter") }) {
+                Span({ classes("gx-label") }) { Text("Matéria") }
+                GxPicker(subjectOptions, subjectFilter, limit = 6, searchHint = "Buscar matéria") { subjectFilter = it }
+            }
+            if (groups.isEmpty()) P({ classes("gx-note") }) { Text("Nada dessa matéria nas próximas revisões.") }
+            Div({ classes("rvx-groups") }) {
+                groups.forEach { (label, color, list) ->
+                    key(label) {
+                        var open by remember(subjectFilter) { mutableStateOf(false) }
+                        Div({ classes("rvx-group"); attr("style", "--g:$color") }) {
+                            Div({ classes("rvx-group-head") }) {
+                                Span({ classes("rvx-dot") })
+                                B { Text(label) }
+                                Span({ classes("rvx-group-n") }) { Text("${list.size} ${if (list.size == 1) "revisão" else "revisões"}") }
+                            }
+                            Div({ classes("rvx-list", "soon") }) {
+                                (if (open) list else list.take(3)).forEach { review ->
+                                    key(review.id) {
+                                        val topic = topics[review.topicId]
+                                        val date = Queries.dateOf(review.dueAt)
+                                        val subjectName = subjects[topic?.subjectId]?.name ?: ""
+                                        Div({ classes("rvx-row", "soon"); attr("style", "--c:${subjectColor(subjectName)}") }) {
+                                            Span({ classes("rvx-date") }) { B { Text("${date.day}") }; Span { Text(Queries.monthShort(date)) } }
+                                            Span({ classes("rvx-row-txt") }) {
+                                                B { Text(topic?.title ?: "Tópico") }
+                                                Span({ classes("rvx-meta") }) { Text(listOf(subjectName, "${review.stage}ª revisão").filter { it.isNotBlank() }.joinToString(" · ")) }
+                                            }
+                                        }
+                                    }
                                 }
+                            }
+                            if (list.size > 3) Button({ classes("gx-more"); attr("type", "button"); onClick { open = !open } }) {
+                                Text(if (open) "Mostrar menos" else "Ver todas (${list.size})")
+                                Icon(if (open) "expand_less" else "expand_more", plain = true)
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RvxStat(value: String, label: String, icon: String, color: String) {
+    Div({ classes("rvx-stat"); attr("style", "--c:$color") }) {
+        Span({ classes("rvx-stat-ic") }) { Icon(icon, filled = true) }
+        Div { B { Text(value) }; Span { Text(label) } }
     }
 }
 
