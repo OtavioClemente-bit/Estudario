@@ -140,8 +140,8 @@ internal fun GameScene(
     stageTall: Float = 1f, fxShift: Float = 0f,
     /** Peças a mais no palco que seguem o relógio (redemoinho, o Folha). */
     stageExtra: (@Composable BoxScope.(Float, androidx.compose.ui.unit.Dp) -> Unit)? = null,
-    /** O Folha da fala: o humor e se ele leva um susto (pula, com o "!"). */
-    folhaMood: FolhaMood = FolhaMood.PROUD, folhaStartled: Boolean = false,
+    /** O Folha da fala: o humor, e se ele aparece ali (na sequência ele fica do lado da fênix, no palco). */
+    folhaMood: FolhaMood = FolhaMood.PROUD, folhaInLine: Boolean = true,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -320,15 +320,11 @@ internal fun GameScene(
                 // o Folha
                 Appear(t, 2.7f) {
                     Row(Modifier.widthIn(max = 420.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.graphicsLayer { if (folhaStartled) { val j = seg(t, 2.75f, 0.6f); translationY = (-22f * kotlin.math.sin(j * PI.toFloat())).dp.toPx(); rotationZ = -10f * kotlin.math.sin(j * PI.toFloat() * 2f) } }) {
-                            Folha(56.dp, mood = folhaMood)
-                            if (folhaStartled) Box(Modifier.align(Alignment.TopEnd).size(20.dp).clip(CircleShape).background(Color(0xFFFF5A7A)).border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
-                                Text("!", color = Color.White, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                            }
-                        }
+                        if (folhaInLine) Folha(56.dp, mood = folhaMood)
                         Text(
                             line,
                             Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White).padding(horizontal = 14.dp, vertical = 10.dp),
+                            textAlign = if (folhaInLine) TextAlign.Start else TextAlign.Center,
                             color = Color(0xFF1A1440), fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 19.sp,
                         )
                     }
@@ -384,7 +380,7 @@ private fun FenixScene(size: androidx.compose.ui.unit.Dp, wake: Boolean) {
     val px = size.value.toInt()
     val html = remember(px) {
         """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}estudario-fenix{display:block;width:${px}px;height:${px}px;margin:${px / 4}px auto 0}</style></head>
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}estudario-fenix{display:block;width:${px}px;height:${px}px;margin:${px / 2}px auto 0}</style></head>
 <body><script src="phoenix.js"></script><estudario-fenix state="sleep"></estudario-fenix></body></html>"""
     }
     val lit = remember { booleanArrayOf(false) }
@@ -402,7 +398,8 @@ private fun FenixScene(size: androidx.compose.ui.unit.Dp, wake: Boolean) {
         },
         update = { view -> if (wake && !lit[0]) { lit[0] = true; view.evaluateJavascript("document.querySelector('estudario-fenix').ignite()", null) } },
         onRelease = { it.destroy() },
-        modifier = Modifier.requiredSize(size * 1.5f),
+        // a fênix pinta além da própria caixa (35% dos lados, 45% em cima, para o fogo subir)
+        modifier = Modifier.requiredSize(size * 1.8f).offset(y = -(size * 0.15f)),
     )
 }
 
@@ -508,9 +505,17 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
         after = { },
         backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
         cues = listOf(0.25f to "tonto"),
-        folhaMood = FolhaMood.SURPRISED, folhaStartled = true,
+        folhaInLine = false,
         stageExtra = { t, s ->
             Vortex(t, s)
+            // o Folha do lado, assustado com a fênix pegando fogo: aparece no clarão e recua um pouco
+            val r = seg(t, 1.12f, 0.7f)
+            if (r > 0f) {
+                val e = CubicBezierEasing(0.2f, 1.2f, 0.4f, 1f).transform(r)
+                Box(Modifier.align(Alignment.BottomStart).offset(x = (-30).dp, y = (-20).dp).graphicsLayer { alpha = (r * 3f).coerceAtMost(1f); translationX = (16f - 24f * e).dp.toPx(); rotationZ = 4f - 10f * e }) {
+                    Folha(64.dp, mood = FolhaMood.SURPRISED)
+                }
+            }
             StreakCounter(days, t)
         },
     )
@@ -563,6 +568,7 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
         after = { },
         backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
         cues = listOf(0.8f to "toque"),
+        folhaInLine = false,
         stageExtra = { t, s ->
             StreakCounter(days, t)
             // o Folha chega na ponta dos pés com o marca-página…

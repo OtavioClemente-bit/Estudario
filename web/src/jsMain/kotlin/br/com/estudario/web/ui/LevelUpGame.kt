@@ -114,9 +114,9 @@ private fun GameLootList(loot: List<Loot>) {
 }
 
 @Composable
-private fun GameSay(line: String, mood: String = "proud", startled: Boolean = false) {
-    Div({ classes(*listOfNotNull("lvx-say", if (startled) "startled" else null).toTypedArray()) }) {
-        Div({ classes("lvx-say-folha") }) { Folha(mood, 64); if (startled) Span({ classes("lvx-bang") }) { Text("!") } }
+private fun GameSay(line: String, mood: String = "proud", showFolha: Boolean = true) {
+    Div({ classes(*listOfNotNull("lvx-say", if (!showFolha) "solo" else null).toTypedArray()) }) {
+        if (showFolha) Div({ classes("lvx-say-folha") }) { Folha(mood, 64) }
         Span({ classes("lvx-bubble") }) { Text(line) }
     }
 }
@@ -256,6 +256,8 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
             extra = {
                 FenixView(340, wakeAt = 1050)
                 Div({ classes("lvx-vortex") })
+                // o Folha do lado, assustado com a fênix pegando fogo (recua um pouco)
+                Div({ classes("lvx-side-folha") }) { Folha("surprised", 78) }
             },
         )
         StreakCounter(days)
@@ -269,7 +271,7 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
             if (next != null) add(Loot("flag", "PRÓXIMO MARCO", "$next dias · ${if (next - days == 1) "falta 1 dia" else "faltam ${next - days} dias"}"))
             add(if (record) Loot("emoji_events", "NOVO RECORDE", "Sua maior sequência: $days dias") else Loot("emoji_events", "SEU RECORDE", "$best dias · faltam ${best - days} para bater"))
         })
-        GameSay(mood = "surprised", startled = true, line = when {
+        GameSay(showFolha = false, line = when {
             days <= 1 -> "Que susto! A fênix acordou. Volte amanhã para ela não dormir de novo."
             record -> "Recorde! A fênix nunca esteve tão acesa. Amanhã tem mais."
             else -> "Ela acordou com tudo! Faltam ${best - days} para o seu recorde de $best."
@@ -310,7 +312,7 @@ internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, week: List<
             add(Loot("bookmarks", "SOBRAM", if (left > 0) "$left ${if (left == 1) "marca-página" else "marca-páginas"} guardado${if (left == 1) "" else "s"}" else "Nenhum. Estude 7 dias seguidos para ganhar outro"))
             add(Loot("local_fire_department", "SEQUÊNCIA", "$days ${if (days == 1) "dia" else "dias"} e contando"))
         })
-        GameSay("Shhh… ela quase apagou, mas eu acendi de novo pra você. Bora não deixar dormir hoje?")
+        GameSay("Shhh… ela quase apagou, mas eu acendi de novo pra você. Bora não deixar dormir hoje?", showFolha = false)
         GameActions("Bora continuar", onClose)
     }
 }

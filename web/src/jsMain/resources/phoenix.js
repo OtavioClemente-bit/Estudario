@@ -4,7 +4,7 @@
 //   awake  : penas de fogo (três camadas somadas: brilho, chama e núcleo), asas batendo, brasas subindo
 //   wake-at: acorda sozinha depois de tantos milissegundos (explode em fogo e abre as asas)
 // O desenho é feito num espaço de 1000 x 1000 e escalado para o tamanho do elemento; o canvas passa da
-// caixa (sobra de 22%) para o brilho não cortar.
+// caixa (sobra de 35% dos lados, 45% em cima, para o fogo subir) para o brilho não cortar.
 (function () {
   "use strict";
   if (!window.customElements || customElements.get("estudario-fenix")) return;
@@ -131,9 +131,10 @@
     constructor() {
       super();
       this.attachShadow({ mode: "open" });
-      this.shadowRoot.innerHTML = '<style>:host{display:block;position:relative;pointer-events:none}canvas{position:absolute;left:-22%;top:-22%;width:144%;height:144%}</style><canvas></canvas>';
+      this.shadowRoot.innerHTML = '<style>:host{display:block;position:relative;pointer-events:none}canvas{position:absolute;left:-35%;top:-45%;width:170%;height:170%}</style><canvas></canvas>';
       this._c = this.shadowRoot.querySelector("canvas"); this._g = this._c.getContext("2d");
       this._glow = document.createElement("canvas"); this._gg = this._glow.getContext("2d");
+      this._fire = document.createElement("canvas"); this._fg = this._fire.getContext("2d"); this._flames = [];
       this._wake = 0; this._wakeStart = -1; this._embers = []; this._smoke = []; this._t0 = 0; this._raf = 0;
     }
     connectedCallback() {
@@ -154,11 +155,42 @@
         const a = Math.random() * PI * 2, s = 4 + Math.random() * 14;
         this._embers.push({ x: 540, y: 460, vx: cos(a) * s, vy: sin(a) * s - 3, life: 1, r: 3 + Math.random() * 7 });
       }
+      for (let i = 0; i < 180; i++) {
+        const a = -PI / 2 + (Math.random() - .5) * 2.6, sp = 2 + Math.random() * 9;
+        this._flames.push({ x: 520 + (Math.random() - .5) * 160, y: 520 + (Math.random() - .5) * 160, vx: cos(a) * sp, vy: sin(a) * sp, life: 1, decay: .012 + Math.random() * .012, s: 18 + Math.random() * 34, seed: Math.random() * 10 });
+      }
+    }
+    /** Labaredas novas ao longo das penas e o movimento das que já existem. */
+    _burn(feathers, time, e) {
+      const spawn = reduced.matches ? 0 : Math.round(17 * e);
+      for (let i = 0; i < spawn; i++) {
+        const f = feathers[(Math.random() * feathers.length) | 0], t = .12 + Math.random() * .88, p = bez(f.c, t);
+        const sz = (20 + Math.random() * 38) * (f.thin ? .55 : 1) * (1 - t * .4) * (f.bright ? 1.35 : 1);
+        this._flames.push({ x: p[0] + (Math.random() - .5) * f.w * .7, y: p[1], vx: (Math.random() - .5) * .8, vy: -(1.4 + Math.random() * 2.6), life: 1, decay: .01 + Math.random() * .012, s: sz, seed: Math.random() * 10 });
+      }
+      if (this._flames.length > 1600) this._flames.splice(0, this._flames.length - 1600);
+      this._flames = this._flames.filter(q => (q.life -= q.decay) > 0);
+      for (const q of this._flames) { q.x += q.vx + sin(time * 4 + q.seed + q.y * .02) * .7; q.y += q.vy; q.vy -= .035; q.vx *= .98; }
+    }
+    /** As labaredas no canvas do fogo: cada uma é uma língua que afina para cima, tremendo. */
+    _paintFire(time, view) {
+      const fg = this._fg; fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, this._fire.width, this._fire.height);
+      view(fg, .5); fg.globalCompositeOperation = "lighter";
+      for (const q of this._flames) {
+        const L = q.life, sz = q.s * (.55 + .45 * L), lean = sin(time * 6 + q.seed) * sz * .35;
+        const gch = Math.round(50 + 200 * Math.pow(L, 1.4)), bch = Math.round(15 + 170 * Math.max(0, L - .62) * 2.6);
+        fg.fillStyle = `rgba(255,${gch},${bch},${(.54 * L).toFixed(3)})`;
+        fg.beginPath();
+        fg.moveTo(q.x + lean, q.y - sz * 2.3);
+        fg.quadraticCurveTo(q.x + sz * 1.05, q.y - sz * .3, q.x, q.y + sz * .7);
+        fg.quadraticCurveTo(q.x - sz * 1.05, q.y - sz * .3, q.x + lean, q.y - sz * 2.3);
+        fg.fill();
+      }
     }
     _size() {
       const r = this.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = Math.max(1, Math.round(r.width * 1.44 * dpr)), h = Math.max(1, Math.round(r.height * 1.44 * dpr));
-      if (this._c.width !== w || this._c.height !== h) { this._c.width = w; this._c.height = h; this._glow.width = Math.ceil(w / 2); this._glow.height = Math.ceil(h / 2); }
+      const w = Math.max(1, Math.round(r.width * 1.7 * dpr)), h = Math.max(1, Math.round(r.height * 1.7 * dpr));
+      if (this._c.width !== w || this._c.height !== h) { this._c.width = w; this._c.height = h; this._glow.width = Math.ceil(w / 2); this._glow.height = Math.ceil(h / 2); this._fire.width = Math.ceil(w / 2); this._fire.height = Math.ceil(h / 2); }
     }
     _loop() {
       const step = () => { this._frame(); if (!reduced.matches) this._raf = requestAnimationFrame(step); };
@@ -171,7 +203,7 @@
       const g = this._g, W = this._c.width, H = this._c.height;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
       // o desenho (1000 x 1000) ocupa a caixa do elemento, que fica no meio do canvas
-      const s = Math.min(W, H) / 1.44 / 1000, ox = (W - 1000 * s) / 2, oy = (H - 1000 * s) / 2;
+      const s = Math.min(W, H) / 1.7 / 1000, ox = (W - 1000 * s) / 2, oy = (H - 1000 * s) * (45 / 70);
       const view = (ctx, k) => ctx.setTransform(s * k, 0, 0, s * k, ox * k, oy * k);
       const e = wake < 1 ? 1 - Math.pow(1 - wake, 3) : 1;
       const fold = 1 - e;
@@ -237,6 +269,11 @@
         const halo = g.createRadialGradient(540, 470 + bob, 0, 540, 470 + bob, 430);
         halo.addColorStop(0, `rgba(255,160,60,${.18 * e})`); halo.addColorStop(.55, `rgba(200,40,20,${.08 * e})`); halo.addColorStop(1, "rgba(200,40,20,0)");
         g.fillStyle = halo; g.fillRect(100, 40, 880, 900);
+        // o fogo: nasce nas penas e sobe; atrás dela, borrado (o calor)
+        this._burn(feathers, time, e); this._paintFire(time, view);
+        g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter";
+        g.filter = `blur(${Math.max(4, Math.round(10 * s * 1000 / 400))}px)`; g.drawImage(this._fire, 0, 0, W, H);
+        g.filter = "none"; g.restore();
         // a membrana: a área entre as penas da asa preenchida de fogo escuro (a asa fica cheia)
         g.globalCompositeOperation = "source-over";
         for (const [shoulder, wingF] of [[SHOULDER_L, feathers.filter(f => f.wing < 0 && !f.covert)], [SHOULDER_R, feathers.filter(f => f.wing > 0 && !f.covert)]]) {
@@ -289,6 +326,10 @@
         g.fillStyle = "#FFFFFF"; g.shadowColor = "#FFF3B0"; g.shadowBlur = 16; g.beginPath(); g.arc(21, -12, 2.6, 0, PI * 2); g.fill();
         g.shadowBlur = 0; g.strokeStyle = "rgba(60,10,4,.75)"; g.lineWidth = 3; g.beginPath(); g.moveTo(2, -20); g.quadraticCurveTo(18, -24, 32, -18); g.stroke();
         g.restore();
+        // o fogo por cima: ela queimando (fino, um pouco borrado)
+        g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter"; g.globalAlpha = .7;
+        g.filter = `blur(${Math.max(1, Math.round(2.5 * s * 1000 / 400))}px)`; g.drawImage(this._fire, 0, 0, W, H);
+        g.filter = "none"; g.restore();
         // brasas saindo das pontas
         if (!reduced.matches && Math.random() < .9 * e) {
           const f = feathers[(Math.random() * feathers.length) | 0], p = bez(f.c, .7 + Math.random() * .3);
