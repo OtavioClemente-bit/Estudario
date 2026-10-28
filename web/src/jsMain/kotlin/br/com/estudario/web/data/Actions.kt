@@ -396,7 +396,7 @@ object Actions {
 
     /** Grifo de um trecho da teoria (o mesmo registro do app): vai para o Caderno de estudo. */
     fun addTheoryMark(data: Snapshot, theoryId: Long, blockIndex: Int, quote: String, note: String = "", color: Int = 0): Snapshot =
-        data.append("theoryMarks", jsonOf("id" to data.nextId("theoryMarks"), "theoryId" to theoryId, "blockIndex" to blockIndex, "quote" to quote.trim().take(6000), "note" to note.trim().take(1000), "color" to color, "createdAt" to now()))
+        data.append("theoryMarks", jsonOf("id" to data.nextId("theoryMarks"), "theoryId" to theoryId, "blockIndex" to blockIndex, "quote" to quote.trim().take(6000), "note" to note.trim().take(4000), "color" to color, "createdAt" to now()))
 
     /** A cor do grifo (0 cai muito, 1 entendi, 2 revisar), a mesma do app. */
     fun setTheoryMarkColor(data: Snapshot, id: Long, color: Int): Snapshot =

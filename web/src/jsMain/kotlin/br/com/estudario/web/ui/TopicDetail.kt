@@ -137,6 +137,74 @@ fun deckCards(markdown: String): List<DeckCard> {
 // ------------------------------------------------------------------ foco do tópico (fica rodando enquanto a pessoa lê)
 
 
+// ------------------------------------------------------------------ o "?" da leitura
+
+/**
+ * O "?" da página do tópico: tudo o que dá para fazer na leitura (grifar, anotar, fixar, ajustar a
+ * letra), com os limites de verdade, para ninguém deixar de usar uma função por não saber que existe.
+ */
+@Composable
+private fun TopicHelp(onClose: () -> Unit) {
+    Modal(onDismiss = onClose, extraClass = "gx-sheetmodal th-help") {
+        Div({ classes("gx-top") }) {
+            Div({ classes("gx-top-id") }) {
+                Span({ classes("gx-kicker") }) { Text("COMO USAR A LEITURA") }
+                H2 { Text("Tudo o que dá para fazer aqui") }
+                P({ classes("gx-topic") }) { Text("Grifar, anotar, fixar na tela e ajustar a letra. Grifos e notas vão para o Caderno de estudo e aparecem no app e no site.") }
+            }
+            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close", plain = true) }
+        }
+        Div({ classes("gx-controls", "solo") }) {
+            GxSection("menu_book", "Ler e voltar de onde parou", "O progresso sobe sozinho conforme você rola o texto e vai para o celular. \"Continuar leitura\" leva ao ponto onde você parou.", "#A78BFF") {
+                Div({ classes("th-help-list") }) {
+                    Span { B { Text("Capítulos: ") }; Text("os botões no topo do texto pulam para cada parte (✓ já lida, ▶ onde você está).") }
+                    Span { B { Text("Sumário da leitura: ") }; Text("na lateral, com o quanto você leu. No celular, é o botão \"Capítulos\" que aparece enquanto você lê.") }
+                }
+            }
+            GxSection("edit", "Grifar: selecione o trecho", "Selecionou, aparece uma barrinha em cima com as 3 cores. Não tem limite de grifos.", "#F2B300") {
+                Div({ classes("th-help-chips") }) {
+                    MarkColors.all.forEach { tone -> Span({ attr("style", "--c:${tone.hex}") }) { Text(tone.label) } }
+                }
+                Div({ classes("th-help-list") }) {
+                    Span { Text("Pegou mais de um parágrafo? Vira um grifo por parágrafo.") }
+                    Span { Text("Clique num grifo para trocar a cor, anotar ou tirar o grifo. Grifar de novo por cima troca a cor e mantém a nota.") }
+                    Span { B { Text("Tabelas: ") }; Text("o botão \"Grifar tabela\" grifa a tabela inteira de uma vez.") }
+                }
+            }
+            GxSection("bookmarks", "Anotar num trecho", "\"Grifar com nota\" abre uma folha de caderno para escrever com suas palavras.", "#22D3EE") {
+                Div({ classes("th-help-list") }) {
+                    Span { B { Text("Etiquetas: ") }; Text(NoteTags.all.joinToString(", ") + ". Uma por nota.") }
+                    Span { B { Text("Até 4000 caracteres ") }; Text("por nota. Apagar a nota não apaga o grifo.") }
+                    Span { Text("Passe o mouse num trecho com nota para ler sem abrir. No fim da página, \"Minhas anotações\" guarda notas do tópico inteiro.") }
+                }
+            }
+            GxSection("bookmark", "Fixar na tela: até 3 janelas", "\"Fixar\" deixa um trecho, parágrafo ou tabela numa janelinha que fica por cima enquanto você lê. Ótimo para tabela de prazos ou um conceito que volta toda hora.", "#FF8A3D") {
+                Div({ classes("th-help-list") }) {
+                    Span { Text("Arraste pelo título, aumente pelo canto, minimize ou feche.") }
+                    Span { Text("No máximo 3 ao mesmo tempo: feche uma para fixar outra.") }
+                    Span { Text("Ficam só neste navegador e só nesta teoria (não vão para o app).") }
+                }
+            }
+            GxSection("list_alt", "Botão direito no texto", "Grifar, grifar com nota, fixar, copiar o trecho ou o parágrafo, pesquisar no Google e mudar o tamanho da letra (A− A+).", "#6F9BFF") {}
+            GxSection("tune", "Aa: ajustar a leitura", "4 tamanhos de letra, fonte Livro ou Simples, página Normal, Sépia ou Noite e \"Só texto\" (tira animações e o que se mexe). Fica salvo neste navegador.", "#2FD39A") {}
+            GxSection("lightbulb", "Caixas que importam", "\"Atenção\" marca pegadinha e erro comum; \"Dica\" marca bizu e macete. As siglas aparecem numa tabela Termo | O que é. As fontes ficam em \"Sobre este conteúdo\".", "#FFC94D") {}
+            GxSection("timer", "Foco e concluir o estudo", "\"Modo foco\" conta o seu tempo de estudo nas estatísticas. \"Concluir estudo\" marca o tópico como estudado e agenda as revisões de 1, 7 e 30 dias.", "#F472B6") {}
+            GxSection("style", "As outras abas", null, "#A78BFF") {
+                Div({ classes("th-help-list") }) {
+                    Span { B { Text("Revisão: ") }; Text("flashcards, resumos e perguntas de memorização ativa (★ guarda no Caderno).") }
+                    Span { B { Text("Dicas: ") }; Text("dicas que decidem questão e pegadinhas da banca.") }
+                    Span { B { Text("Questões, Erros e Histórico: ") }; Text("treine o tópico, veja onde você erra e tudo o que já fez nele.") }
+                }
+            }
+            GxSection("library_books", "Onde tudo fica depois", "No Caderno de estudo, em \"Grifos, notas e salvos\". Lá, \"Abrir na teoria\" traz você de volta ao trecho, piscando. Achou erro no material? Use ⋮ › Reportar erro.", "#22A06B") {}
+            Div({ classes("gx-go", "row") }) {
+                Span {}
+                GxLaunch("Entendi, bora ler", icon = "check_circle") { onClose() }
+            }
+        }
+    }
+}
+
 // ------------------------------------------------------------------ tela do tópico
 
 private val topicTabs = listOf("Teoria", "Revisão", "Dicas", "Questões", "Erros", "Histórico")
@@ -188,6 +256,8 @@ fun TopicScreen(topicId: Long) {
     var finishAsk by remember(topicId) { mutableStateOf(false) }
     var focusAsk by remember(topicId) { mutableStateOf<(() -> Unit)?>(null) }
     var deletingMaterial by remember(topicId) { mutableStateOf(false) }
+    var helpOpen by remember { mutableStateOf(false) }
+    if (helpOpen) TopicHelp { helpOpen = false }
     val hasMaterial = theories.isNotEmpty() || summaries.isNotEmpty() || snippets.isNotEmpty()
     val focusHere = TopicFocus.topicId == topicId
 
@@ -209,7 +279,8 @@ fun TopicScreen(topicId: Long) {
                 if (inPlanToday) Span({ classes("tchip", "tertiary") }) { Icon("event"); Text("No plano de hoje") }
             }
         }
-        Div({ attr("style", "position:relative") }) {
+        Div({ classes("row"); attr("style", "position:relative;gap:8px;align-items:center") }) {
+            Button({ classes("vr-help", "inline"); attr("type", "button"); attr("aria-label", "Como usar esta página"); attr("title", "Como usar esta página: grifar, anotar, fixar e mais"); onClick { helpOpen = true } }) { Text("?") }
             IconButton("more_vert", "Mais ações") { menuOpen = !menuOpen }
             if (menuOpen) Div({ classes("menu-pop") }) {
                 if (children.isEmpty() && !Store.demo) MenuItem("auto_awesome", "Gerar material com o Estudário") { menuOpen = false; generating = true }
@@ -511,6 +582,7 @@ private fun TheoryReader(theory: Theory) {
     val blocks = remember(theory.markdown) { studyBlocks(theory.markdown) }
     val chapters = remember(blocks) { chaptersOf(blocks) }
     var readUpTo by remember(theory.id) { mutableStateOf(theory.lastReadBlock) }
+    var helpOpen by remember { mutableStateOf(false) }
     val shown = maxOf(readUpTo, theory.lastReadBlock)
     val percent = if (shown < 0) 0 else ((shown + 1) * 100 / blocks.size.coerceAtLeast(1)).coerceIn(0, 100)
     val theoryMarks = Store.data.theoryMarks.filter { it.theoryId == theory.id }
@@ -723,6 +795,8 @@ private fun TheoryReader(theory: Theory) {
                 B({ classes("theory-name") }) { Text(theory.title.ifBlank { "Teoria" }) }
                 Div({ classes("small", "muted") }) { Text(listOfNotNull("${chapters.size.coerceAtLeast(1)} capítulo(s)", "$percent% lido", if (marks > 0) "$marks grifo(s)" else null).joinToString(" · ")) }
             }
+            org.jetbrains.compose.web.dom.Button({ classes("reader-aa", "reader-help"); attr("aria-label", "Como usar a leitura"); attr("title", "Como usar a leitura: grifar, anotar, fixar"); onClick { helpOpen = true } }) { Text("?") }
+            if (helpOpen) TopicHelp { helpOpen = false }
             // Ajustes de leitura: tamanho da letra e fonte (ficam neste navegador).
             Div({ attr("style", "position:relative") }) {
                 org.jetbrains.compose.web.dom.Button({ classes("reader-aa"); attr("aria-label", "Ajustar a leitura"); onClick { readerOpen = !readerOpen } }) { Text("Aa") }
