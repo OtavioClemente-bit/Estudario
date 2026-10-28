@@ -64,27 +64,10 @@ fun StreakSaveHost() {
 
 @Composable
 private fun StreakSaveScene(days: Int, left: Int, dayLabel: String, semana: String, onClose: () -> Unit) {
-    // A cena desenhada (folha-live.js, <estudario-cena tipo="salvou">): a fênix dorme quase apagada, o
-    // Folha chega na ponta dos pés pedindo silêncio e acende a chama ele mesmo. O texto entra no fim.
-    var done by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { kotlinx.coroutines.delay(5600); done = true }
-    Div({ classes("ss-back"); onClick { if (done) onClose() } }) {
-        Div({ classes("ss-stage"); onClick { it.stopPropagation() } }) {
-            Div({ classes("ss-cena") }) {
-                org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
-                    elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-cena"),
-                    applyAttrs = { attr("tipo", "salvou"); attr("dias", days.toString()); attr("semana", semana); attr("bleed", "34"); attr("aria-label", "O Folha acende a chama da fênix e salva a sequência") },
-                    content = null,
-                )
-            }
-            Div({ classes(*listOfNotNull("ss-text", if (done) "on" else null).toTypedArray()) }) {
-                Span({ classes("ss-eyebrow") }) { Text("SEQUÊNCIA SALVA" + if (dayLabel.isNotBlank()) " · $dayLabel" else "") }
-                H2 { Text("Shhh… o Folha reacendeu a sua fênix") }
-                P { Text("Num dia sem estudo ela quase apagou, e o Folha usou um marca-página para acender de novo: são $days ${if (days == 1) "dia" else "dias"} de sequência. " + if (left > 0) "Ainda sobra $left ${if (left == 1) "marca-página" else "marca-páginas"}." else "Estude 7 dias seguidos para ele guardar outro.") }
-                Btn("Bora continuar", onClose, style = "primary", icon = "local_fire_department")
-            }
-        }
-    }
+    // A cena de jogo da sequência salva (StreakSavedGame): a fênix dorme cinza, o Folha chega na ponta
+    // dos pés com o marca-página e a acende. Na semana, o dia salvo conta como aceso.
+    val week = semana.split(",").filter { it.length >= 2 }.map { it.dropLast(1) to (it.last() != '0') }
+    StreakSavedGame(days, left, dayLabel, week, onClose)
 }
 
 private const val SS_FLAME = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="f" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FF4D2E"/><stop offset=".55" stop-color="#FF9A1F"/><stop offset="1" stop-color="#FFD84A"/></linearGradient><linearGradient id="i" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FFB13B"/><stop offset="1" stop-color="#FFF4B8"/></linearGradient></defs><path d="M33 4c3 10 15 16 15 31a16 16 0 0 1-32 0c0-8 4-12 7-16 1 5 3 8 6 9-2-9 0-17 4-24z" fill="url(#f)"/><path d="M32 30c2 5 8 8 8 15a8 8 0 0 1-16 0c0-4 2-6 4-8 0 3 2 5 3 5-1-5 0-9 1-12z" fill="url(#i)"/></svg>"""
