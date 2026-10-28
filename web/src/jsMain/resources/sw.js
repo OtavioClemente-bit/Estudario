@@ -2,7 +2,7 @@
 // ônibus. Sempre tenta a rede primeiro (o site novo chega na hora); sem rede, usa o que guardou.
 // Os dados da conta (Supabase) nunca passam por aqui: a cópia deles fica no IndexedDB (offline.js).
 const CACHE = "estudario-site-v3";
-const SHELL = ["./", "index.html", "estudario.js", "styles.css", "reviews.css", "icon.png", "folha.js", "folha-live.js", "turma.js", "splash.js",
+const SHELL = ["./", "index.html", "estudario.js", "styles.css", "icon.png", "folha.js", "folha-live.js", "turma.js", "splash.js",
   "profile-art.js", "forecast-worker.js", "process.js", "katex.min.js", "highlight.js", "ambient.js", "rocket.js", "workshop.js", "offline.js"];
 
 self.addEventListener("install", (event) => {
