@@ -2,6 +2,9 @@
 
 # Pendências
 
+* Item 354 — Instituto Quadrix, Classes de palavras: não foi possível acessar a teoria pela interface compartilhada (erro persistente de solicitação ativa); nenhum recorte parcial foi criado. Requer leitura integral, elaboração e validação.
+* Item 355 — Instituto Quadrix, Colocação pronominal: interface compartilhada permaneceu bloqueada, impedindo consulta integral da teoria e auditoria das 40 questões, incluindo 16 questões de pontuação. Nenhum recorte parcial foi criado.
+
 * Item 350 — IBAM, Crase: teoria consultada, mas não foi possível concluir e auditar as 40 questões (16 de pontuação e 24 de crase) nesta execução. Nenhum arquivo parcial foi mantido; requer reautoria completa e validação.
 * Item 314 — Instituto de Avaliação Nacional (IAN), Lei Orgânica Municipal: pendente. Havia um JSON com validação estrutural OK e distribuição manual de dificuldade 12/16/12, mas não foi possível certificar por UI a distribuição completa dos gabaritos e o limite de corretas mais longas. O arquivo foi removido; requer reautoria e auditoria manual completas.
 * Item 419 — Instituto AOCP, Medicina, Código de Ética Médica: recorte removido após auditoria manual identificar distribuição de dificuldade incorreta (15/17/8 em vez de 12/16/12) e gabarito desequilibrado. Requer reescrita integral; o arquivo não foi mantido como válido.

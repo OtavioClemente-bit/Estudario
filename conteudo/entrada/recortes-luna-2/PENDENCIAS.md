@@ -6,7 +6,6 @@
 
 * Item 432 — Instituto Quadrix, Ordem social na Constituição: fonte completa lida e destino ausente, mas não foi possível concluir a redação e auditoria das 40 questões nesta execução. Nenhum bloco ou arquivo final foi salvo; requer elaboração manual com 20 Certo/20 Errado, dificuldade 12/16/12 e validação.
 
-* Item 391 — IBGP, Variação linguística e norma linguística: teoria lida e quatro blocos rascunhados, mas auditoria encontrou distribuição de gabarito muito desequilibrada (A19/B13/C7/D1/E0), dificuldade 11/17/12 e correta mais longa em 13/40. Não foi montado arquivo final. Requer revisão manual das alternativas e auditoria integral.
 
 
 
@@ -52,13 +51,8 @@
 * • Item 352 | Instituto Quadrix | Interpretação de textos | Pendente: teoria aberta (compreensão global e localizada, informações explícitas/implícitas, inferências, tema, tese, argumento, organização das ideias, coesão, conectores, paráfrase, fato/opinião, intencionalidade, contexto, intertextualidade, literatura e multimodalidade), mas não foi possível concluir 40 questões com a distribuição exigida (16 de pontuação) e auditoria integral nesta execução. Nenhum recorte parcial foi gravado; requer elaboração completa e validação.
 
 
-- Item 392 — Instituto Consulplan, "portugues.classes-de-palavras": teoria integral lida e partes q1–q4 redigidas em _partes/consulplan/portugues.classes-de-palavras/, mas não finalizado. Na auditoria, gabarito ficou desbalanceado (A26, B10, C2, D2, E0), dificuldade 11/16/13 e correta mais longa em 22/40; não foi possível corrigir manualmente com segurança nesta etapa. Não há arquivo final. Retomar reorganizando manualmente objetos de alternativas e reclassificando dificuldades antes de validar.
 
-- Item 394 — Cebraspe, "maranhao.conhecimentos-estaduais": pendente por ausência do arquivo de teoria. A busca completa em conteudo/materias/ e g --files conteudo não encontrou matéria de Maranhão; não redigi questões sem fonte para evitar inventar fatos ou dados. Preflight não encontrou recorte publicado nem destino final. Retomar quando a matéria estiver disponível em conteudo/materias/ .
 
-- Item 395 — IBGP, "saude-publica.politicas-nacionais-saude": teoria integral lida e questões/chunks q1–q4 redigidos. Auditoria de conteúdo encontrou gabarito equilibrado A–E (8 cada), dificuldade 12/16/12 e correta mais longa em 12/40. O validador rejeitou opções em ordem de chaves não A–E nas questões 13, 31 e 37, após ajustes manuais de gabarito; não concluí uma correção manual segura. Arquivo final removido; partes mantidas para revisão e reordenação manual dos objetos de opções.
-
-- Item 399 — Instituto de Avaliação Nacional (IAN), saude-publica.sus-legislacao: incompleto. Existem cabecalho.json e q1.json/q2.json em _partes; q3/q4 e arquivo final não foram produzidos. q2 contém comentário-placeholder na questão 20 que precisa ser corrigido antes da montagem. Teoria lida; não validado.
 
 
 * Item 419 — Instituto AOCP, Código de Ética Médica: retomada sem arquivo final. Confirmei ausência de final publicado e de destino, e reli o JSON completo da matéria pelo terminal. Não foi possível produzir nesta execução os quatro blocos manuais com 40 questões e auditoria de dificuldade/gabarito/extensão; requer reautoria integral. Nenhum parcial novo foi criado.
