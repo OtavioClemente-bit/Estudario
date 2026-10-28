@@ -74,7 +74,9 @@ const fullOptions = parseContentJobInput(contentInput).options;
 Deno.test("content input keeps known fields, strips control characters and rejects oversize text", () => {
   const parsed = parseContentJobInput({ ...contentInput, subjectName: "Noções\nde\u0000 Direito" });
   assertEquals(parsed.subjectName, "Noções de Direito");
-  assertThrows(() => parseContentJobInput({ ...contentInput, subjectName: "x".repeat(301) }), TextJobInputError);
+  // nome comprido é cortado (150), não recusado; absurdo (mais de 5 mil) é recusado
+  assertEquals(parseContentJobInput({ ...contentInput, subjectName: "x".repeat(301) }).subjectName.length, 150);
+  assertThrows(() => parseContentJobInput({ ...contentInput, subjectName: "x".repeat(5_001) }), TextJobInputError);
   assertThrows(() => parseContentJobInput({ ...contentInput, topicPath: [] }), TextJobInputError);
   assertThrows(() => parseContentJobInput({ ...contentInput, sphere: "GALACTICA" }), TextJobInputError);
 });

@@ -17,6 +17,9 @@ if (!url || !key) {
   Deno.exit(1);
 }
 const move = Deno.args.includes("--mover");
+// --limite N: move só N matérias e N recortes (para testar antes de mover tudo).
+const limitArg = Deno.args.indexOf("--limite");
+const limit = limitArg >= 0 ? Number(Deno.args[limitArg + 1]) : Infinity;
 const headers = { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json" };
 
 async function get<T>(path: string): Promise<T> {
@@ -50,7 +53,9 @@ for (;;) {
     "library_topics?select=id,version,material&material=not.is.null&order=id&limit=10",
   );
   if (page.length === 0) break;
+  if (topics >= limit) break;
   for (const row of page) {
+    if (topics >= limit) break;
     const path = topicPath(row.id, row.version, row.material);
     await uploadLibraryFile(url, key, path, row.material);
     const covers = (row.material.scope as Record<string, unknown> | undefined)?.covers ?? null;
@@ -67,7 +72,9 @@ for (;;) {
     "library_board_notes?select=topic_id,board_norm,role_norm,note&note=not.is.null&order=topic_id,board_norm,role_norm&limit=50",
   );
   if (page.length === 0) break;
+  if (notes >= limit) break;
   for (const row of page) {
+    if (notes >= limit) break;
     const path = notePath(row.topic_id, row.board_norm, row.role_norm, row.note);
     await uploadLibraryFile(url, key, path, row.note);
     await patch(
