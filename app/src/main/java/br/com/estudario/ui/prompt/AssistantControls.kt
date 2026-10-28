@@ -231,32 +231,20 @@ fun DifficultySelector(selected: QuestionDifficulty, onSelect: (QuestionDifficul
         QuestionDifficulty.HARD -> "Pegadinhas e detalhes"
         QuestionDifficulty.MIXED -> "Um pouco de cada"
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(QuestionDifficulty.EASY, QuestionDifficulty.MEDIUM, QuestionDifficulty.HARD, QuestionDifficulty.MIXED).chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { level ->
-                    val isSelected = level == selected
-                    val tone = accent(level)
-                    br.com.estudario.ui.brand.BrandChoice(isSelected, { onSelect(level) }, Modifier.weight(1f), accent = tone) {
-                        Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Nível em barrinhas, como sinal de celular: uma, duas, três; mista alterna.
-                                val bars = when (level) { QuestionDifficulty.EASY -> 1; QuestionDifficulty.MEDIUM -> 2; QuestionDifficulty.HARD -> 3; QuestionDifficulty.MIXED -> 0 }
-                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    for (i in 1..3) Box(
-                                        Modifier.width(5.dp).height((6 + i * 4).dp).clip(RoundedCornerShape(2.dp))
-                                            .background(if (bars == 0 && i % 2 == 1 || i <= bars) tone else tone.copy(alpha = 0.25f)),
-                                    )
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Text(level.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            }
-                            Text(hint(level), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        }
+    // Os cartões do estúdio, com o nível em barrinhas (verde, amarelo, vermelho; misturada, as três).
+    val order = listOf(QuestionDifficulty.EASY, QuestionDifficulty.MEDIUM, QuestionDifficulty.HARD, QuestionDifficulty.MIXED)
+    val studio = order.map { level ->
+        br.com.estudario.ui.studio.GxOption(level, level.label, hint(level), color = when (level) {
+            QuestionDifficulty.EASY -> br.com.estudario.ui.studio.Gx.mint
+            QuestionDifficulty.MEDIUM -> br.com.estudario.ui.studio.Gx.gold
+            QuestionDifficulty.HARD -> br.com.estudario.ui.studio.Gx.red
+            QuestionDifficulty.MIXED -> br.com.estudario.ui.studio.Gx.violet
+        })
+    }
+    @Suppress("UNUSED_VARIABLE") val unusedAccent = accent(selected)
+    br.com.estudario.ui.studio.GxSeg(studio, selected, onPick = onSelect) { option ->
+        val bars = when (option.key) { QuestionDifficulty.EASY -> 1; QuestionDifficulty.MEDIUM -> 2; QuestionDifficulty.HARD -> 3; QuestionDifficulty.MIXED -> 0 }
+        br.com.estudario.ui.studio.GxMeter(bars, option.color)
     }
 }
 

@@ -3,6 +3,7 @@ package br.com.estudario.ui.prompt
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -110,63 +111,65 @@ fun GenerationWizard(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         BackHandler(onBack = onDismiss)
-        Surface(Modifier.fillMaxSize(), color = scheme.background) {
+        // O estúdio (como no site): painéis escuros de console, cada parte com a cor e o desenho dela,
+        // e no rodapé o pedido resumido numa frase (sem repetir as escolhas) e o botão grande.
+        br.com.estudario.ui.studio.StudioBackdrop(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-                // cabeçalho: o que está sendo pedido e para onde
-                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Folha(44.dp, enter = false)
-                    Spacer(Modifier.width(10.dp))
+                Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 12.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        br.com.estudario.ui.studio.GxKicker("Estúdio do Estudário")
+                        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    if (tutorial != null) IconButton(onClick = { showTutorial = true }) { Icon(Icons.Outlined.HelpOutline, "Ver vídeo de ajuda") }
-                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
+                    if (tutorial != null) IconButton(onClick = { showTutorial = true }) { Icon(Icons.Outlined.HelpOutline, "Ver vídeo de ajuda", tint = Color.White) }
+                    Box(
+                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.06f)).clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Outlined.Close, "Fechar", tint = Color.White) }
                 }
-                HorizontalDivider()
+                HorizontalDivider(color = br.com.estudario.ui.studio.Gx.line)
 
-                // as partes do pedido, todas à vista
                 Column(
-                    Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 14.dp),
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(horizontal = 14.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     steps.forEachIndexed { i, step ->
-                        Section(i + 1, step, Modifier.onGloballyPositioned { tops[i] = it.positionInParent().y.toInt() })
+                        Box(Modifier.onGloballyPositioned { tops[i] = it.positionInParent().y.toInt() }) {
+                            br.com.estudario.ui.studio.GxSection(stepGlyph(step.title), step.question, step.hint, StepColors[i % StepColors.size], error = step.error) { step.content(this) }
+                        }
                     }
                     if (externalWarning != null) Notice(externalWarning, scheme.errorContainer, scheme.onErrorContainer)
                     Spacer(Modifier.height(4.dp))
                 }
 
-                // rodapé fixo: o resumo do pedido e o botão
-                Surface(color = scheme.surfaceContainer, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp), tonalElevation = 3.dp) {
-                    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            summary.forEach { item ->
-                                Surface(onClick = { goTo(item.step) }, shape = RoundedCornerShape(12.dp), color = scheme.surface, border = BorderStroke(1.dp, scheme.outlineVariant)) {
-                                    Column(Modifier.widthIn(max = 220.dp).padding(horizontal = 12.dp, vertical = 7.dp)) {
-                                        Text(item.label.uppercase(), fontSize = 9.5.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant)
-                                        Text(item.value, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                            }
+                Column(
+                    Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, br.com.estudario.ui.studio.Gx.bg)))
+                        .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    val recipe = summary.map { it.value }.filter { it.isNotBlank() }.joinToString(" · ")
+                    if (recipe.isNotBlank()) Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.28f))
+                            .border(1.dp, br.com.estudario.ui.studio.Gx.violet.copy(alpha = 0.3f), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 9.dp),
+                    ) {
+                        br.com.estudario.ui.studio.GxKicker("Seu pacote")
+                        Text(recipe, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFFE9E5FF), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    }
+                    val reason = steps.getOrNull(firstInvalid)?.error ?: server?.disabledReason?.takeIf { !server.enabled }
+                    if (reason != null) Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = firstInvalid >= 0) { goTo(firstInvalid) }.background(Color(0x33FF5A7A)).padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(reason, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFC2CD))
+                        if (firstInvalid >= 0) Text("Ajustar", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                    if (server != null) {
+                        br.com.estudario.ui.studio.GxLaunch("Gerar com o Estudário", enabled = ready, onClick = server.onGenerate)
+                        TextButton(onClick = { showHow = !showHow }, modifier = Modifier.align(Alignment.CenterHorizontally), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                            Icon(Icons.Outlined.Info, null, Modifier.size(16.dp), tint = br.com.estudario.ui.studio.Gx.mute); Spacer(Modifier.width(4.dp))
+                            Text(if (showHow) "Fechar" else "Como o Estudário gera e quanto usa do saldo", style = MaterialTheme.typography.labelMedium, color = br.com.estudario.ui.studio.Gx.mute)
                         }
-                        val reason = steps.getOrNull(firstInvalid)?.error ?: server?.disabledReason?.takeIf { !server.enabled }
-                        if (reason != null) Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = firstInvalid >= 0) { goTo(firstInvalid) }.background(scheme.errorContainer).padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(reason, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = scheme.onErrorContainer)
-                            if (firstInvalid >= 0) Text("Ajustar", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = scheme.onErrorContainer)
-                        }
-                        if (server != null) {
-                            Button(onClick = server.onGenerate, enabled = ready, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) {
-                                Folha(26.dp, enter = false); Spacer(Modifier.width(8.dp)); Text("Gerar com o Estudário", fontWeight = FontWeight.Bold)
-                            }
-                            TextButton(onClick = { showHow = !showHow }, modifier = Modifier.align(Alignment.CenterHorizontally), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-                                Icon(Icons.Outlined.Info, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(if (showHow) "Fechar" else "Como o Estudário gera e quanto usa do saldo", style = MaterialTheme.typography.labelMedium)
-                            }
-                            AnimatedVisibility(showHow) { Text(server.description, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant) }
-                        }
+                        AnimatedVisibility(showHow) { Text(server.description, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute) }
                     }
                 }
             }
@@ -175,7 +178,25 @@ fun GenerationWizard(
     if (showTutorial && tutorial != null) TutorialVideoDialog(tutorial) { showTutorial = false }
 }
 
+/** A cor de cada parte do pedido, na ordem (a mesma paleta do site). */
+private val StepColors = listOf(
+    br.com.estudario.ui.studio.Gx.violet, br.com.estudario.ui.studio.Gx.cyan, br.com.estudario.ui.studio.Gx.mint,
+    br.com.estudario.ui.studio.Gx.gold, br.com.estudario.ui.studio.Gx.orange, br.com.estudario.ui.studio.Gx.pink,
+)
+
+/** O desenho da turma de cada parte, pelo título. */
+private fun stepGlyph(title: String): br.com.estudario.ui.brand.Glyph = when {
+    title.startsWith("O que gerar") -> br.com.estudario.ui.brand.Glyph.Books
+    title.startsWith("Abrang") -> br.com.estudario.ui.brand.Glyph.Target
+    title.startsWith("Quest") || title.startsWith("Quantidade") -> br.com.estudario.ui.brand.Glyph.Clipboard
+    title.startsWith("Nível") -> br.com.estudario.ui.brand.Glyph.Colunas
+    title.startsWith("Edital") || title.startsWith("Fonte") -> br.com.estudario.ui.brand.Glyph.Doc
+    title.startsWith("Rotina") || title.startsWith("Tempo") || title.startsWith("Prazo") -> br.com.estudario.ui.brand.Glyph.Calendar
+    else -> br.com.estudario.ui.brand.Glyph.Pencil
+}
+
 /** Uma parte do pedido: número (vira ✓ quando completa), a pergunta, a dica e as escolhas. */
+@Suppress("unused")
 @Composable
 private fun Section(number: Int, step: WizardStep, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme

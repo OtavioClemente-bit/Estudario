@@ -309,7 +309,37 @@ fun HomeScreen(
             }
         }
 
-        item {
+        // Com tarefas do plano hoje, a missão do dia vem primeiro e já diz por onde começar (o cartão do
+        // "agora" sairia repetindo o mesmo passo). A fila manual continua no cartão de sempre.
+        val todayLoadTop = planState.todayTasks.filter { it.entity.status.countsAsPlannedLoad() }
+        val missionFirst = activePlan != null && todayLoadTop.isNotEmpty() && queueTask == null
+        val startCurrent: () -> Unit = {
+            if (focusTask?.entity?.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) {
+                val task = focusTask.entity
+                scope.launch {
+                    val count = runCatching { planViewModel.startQuestionTask(task.id) }.getOrDefault(0)
+                    if (count > 0) onPlanQuestions(task, count)
+                    else if (count < 0) allDoneTask = task
+                    else startTask(viewModel, focusTask, onStudyTask, onFocus)
+                }
+            } else startTask(viewModel, focusTask, onStudyTask, onFocus)
+        }
+        if (missionFirst) item(key = "daily-mission") {
+            val missingTopic = focusTask?.entity?.topicId
+                ?.takeIf { id -> theories.none { it.topicId == id } && questions.none { it.question.topicId == id } }
+                ?.let { id -> topics.firstOrNull { it.id == id } }
+            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                DailyMissionCard(
+                    missionUi(planState, todayLoadTop, focusTask),
+                    onOpenPlan = onPlan,
+                    modifier = Modifier.tourTarget(TourKey.HOME_MISSION, tourStep?.key) { viewModel.reportTourTargetBounds(TourKey.HOME_MISSION, it) },
+                    onStartCurrent = startCurrent,
+                    onGenerate = missingTopic?.let { topic -> { generateFor = topic } },
+                )
+            }
+        }
+
+        if (!missionFirst) item {
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
                 // a memória do Folha: saudade, prova chegando, o que você estudou por último, seu nome
                 val memory = remember(streak, attempts.size, profile.name, activePlan?.examEpochDay) {
@@ -383,25 +413,11 @@ fun HomeScreen(
         }
         // Missão do dia: o checklist do plano de hoje, logo abaixo do que fazer agora.
         val todayLoad = planState.todayTasks.filter { it.entity.status.countsAsPlannedLoad() }
-        if (activePlan != null && todayLoad.isNotEmpty()) {
+        if (activePlan != null && todayLoad.isNotEmpty() && !missionFirst) {
             item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
             item {
                 Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                    DailyMissionCard(
-                        DailyMissionUi(
-                            items = todayLoad.map {
-                                MissionItemUi(
-                                    title = it.entity.taskTitlePtBr(),
-                                    subtitle = listOfNotNull(it.entity.type.displayNamePtBr(), minutesLabelPtBr(it.entity.plannedMinutes), it.entity.subjectNameSnapshot.takeIf { _ -> it.entity.topicNameSnapshot != null }).joinToString(" · "),
-                                    done = it.entity.status == PlanTaskStatus.CONCLUIDA,
-                                    current = it.entity.id == focusTask?.entity?.id && it.entity.status != PlanTaskStatus.CONCLUIDA,
-                                )
-                            },
-                            plannedMinutes = planState.todayPlannedMinutes,
-                            doneMinutes = planState.todayActualMinutes,
-                        ),
-                        onOpenPlan = onPlan,
-                    )
+                    DailyMissionCard(missionUi(planState, todayLoad, focusTask), onOpenPlan = onPlan)
                 }
             }
         }
@@ -558,6 +574,25 @@ private fun PlannerTaskUi.toStudyTaskUi(): StudyTaskUi = StudyTaskUi(
     durationLabel = minutesLabelPtBr(entity.plannedMinutes),
     ctaLabel = completionActionPtBr(entity.status),
     scheduledForToday = true,
+)
+
+/** As tarefas de hoje no formato da missão do dia (o passo atual é o mesmo do "agora"). */
+private fun missionUi(planState: br.com.estudario.ui.planner.ActivePlanUiState, load: List<PlannerTaskUi>, focusTask: PlannerTaskUi?) = DailyMissionUi(
+    items = load.map {
+        MissionItemUi(
+            title = it.entity.taskTitlePtBr(),
+            subtitle = listOfNotNull(it.entity.type.displayNamePtBr(), minutesLabelPtBr(it.entity.plannedMinutes), it.entity.subjectNameSnapshot.takeIf { _ -> it.entity.topicNameSnapshot != null }).joinToString(" · "),
+            done = it.entity.status == PlanTaskStatus.CONCLUIDA,
+            current = it.entity.id == focusTask?.entity?.id && it.entity.status != PlanTaskStatus.CONCLUIDA,
+            kind = it.entity.type,
+            typeLabel = it.entity.type.displayNamePtBr(),
+            minutes = it.entity.plannedMinutes,
+            subject = it.entity.subjectNameSnapshot.takeIf { _ -> it.entity.topicNameSnapshot != null },
+            inProgress = it.entity.status == PlanTaskStatus.EM_ANDAMENTO,
+        )
+    },
+    plannedMinutes = planState.todayPlannedMinutes,
+    doneMinutes = planState.todayActualMinutes,
 )
 
 private fun startTask(

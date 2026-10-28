@@ -179,7 +179,7 @@ fun ProfileScreen() {
     Div({ classes("gm-grid") }) {
         Div({ classes("gm-col") }) {
             // ---- missão do dia: as tarefas do plano de hoje, as questões e o combo
-            GamePanel("flag", "Missão do dia", if (todayTasks.isNotEmpty()) "$tasksDone/${todayTasks.size}" else null, accent = "#2FD39A") {
+            GamePanel("gps_fixed", "Missão do dia", if (todayTasks.isNotEmpty()) "$tasksDone/${todayTasks.size}" else null, accent = "#2FD39A") {
                 if (todayTasks.isNotEmpty()) Quest(
                     "flag", "Termine a missão do dia",
                     if (missionDone) "todas as tarefas de hoje feitas" else "$tasksDone de ${todayTasks.size} ${if (todayTasks.size == 1) "tarefa" else "tarefas"} do plano · faltam ${todayTasks.size - tasksDone}",
@@ -290,7 +290,7 @@ fun ProfileScreen() {
             }
 
             // ---- o menu: só o que não está no menu lateral (ajustes, plano e sair)
-            GamePanel("sports_esports", "Menu", accent = "#22D3EE") {
+            GamePanel("settings", "Menu", accent = "#22D3EE") {
                 Div({ classes("gm-menu") }) {
                     GameLink("tune", "Ajustes", "Aparência e sons", Route.Settings, "#22D3EE")
                     GameLink("workspace_premium", "Planos", "Seu plano e o mês", Route.PlanLimits, "#A78BFF")

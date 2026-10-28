@@ -1,5 +1,6 @@
 package br.com.estudario.ui.screens
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -261,9 +262,9 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
     val hello = when { hour < 12 -> "Bom dia"; hour < 18 -> "Boa tarde"; else -> "Boa noite" }
     val first = profile.name.trim().split(" ").firstOrNull()?.takeIf { it.isNotBlank() }
 
-    LazyColumn(contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+    LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         item {
-            Column(Modifier.fillMaxWidth().notebookPaper(34f).padding(start = 46.dp, end = 16.dp, top = 18.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     br.com.estudario.ui.assistant.Folha(60.dp, mood = if (topics.isEmpty()) br.com.estudario.ui.assistant.FolhaMood.TALKING else br.com.estudario.ui.assistant.FolhaMood.HAPPY)
                     Column(Modifier.weight(1f)) {
@@ -370,7 +371,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
             val turn by animateFloatAsState(if (shown) 1f else 0f, tween(450), label = "folhear")
             Column(
                 Modifier.fillMaxWidth().heightIn(min = 360.dp).graphicsLayer { alpha = turn; rotationY = (1 - turn) * 24f; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
-                    .notebookPaper(30f).padding(start = 42.dp, end = 18.dp, top = 20.dp, bottom = 16.dp),
+                    .notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 20.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val (label, color) = kindOf(page)
@@ -471,7 +472,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
     LaunchedEffect(topicId) { prefs.edit().putLong("ultima", topicId).apply() }
     val topic = topics.firstOrNull { it.id == topicId }
     val now = remember { System.currentTimeMillis() }
-    LazyColumn(contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar") }; Text("Caderno", fontWeight = FontWeight.Black) } }
         if (topic == null) {
             item { Text("Esta página ainda está em branco: estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -482,7 +483,7 @@ fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Uni
             val lines = StudyNotebook.summaryLines(topic.summary, max = 14)
             val quotes = topic.marks.map { it.quote.trim() }.filter { it.length >= 8 }
             val thin = lines.size < 3 && topic.tips.size < 3 && topic.recall.size < 4
-            Column(Modifier.fillMaxWidth().notebookPaper(34f).padding(start = 46.dp, end = 16.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text((subjects.firstOrNull { it.id == topic.subjectId }?.name ?: "").uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF5B4BE8), letterSpacing = 0.5.sp)
                 Text(topic.title, fontWeight = FontWeight.Black, fontSize = 23.sp, color = Ink)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -316,9 +316,10 @@ private fun MainNavigation(viewModel: AppViewModel) {
     // chamada "Mais" para guardar o que não coube.
     val destinations = listOf(
         br.com.estudario.ui.brand.BrandTab("home", "Início", br.com.estudario.ui.brand.Glyph.House),
-        br.com.estudario.ui.brand.BrandTab("syllabus", "Meus concursos", br.com.estudario.ui.brand.Glyph.Books),
+        br.com.estudario.ui.brand.BrandTab("syllabus", "Concursos", br.com.estudario.ui.brand.Glyph.Books),
         br.com.estudario.ui.brand.BrandTab("plan", "Plano", br.com.estudario.ui.brand.Glyph.Calendar),
         br.com.estudario.ui.brand.BrandTab("train", "Treinar", br.com.estudario.ui.brand.Glyph.Target),
+        br.com.estudario.ui.brand.BrandTab("simulations", "Simulados", br.com.estudario.ui.brand.Glyph.Timer),
         br.com.estudario.ui.brand.BrandTab("notebook", "Caderno", br.com.estudario.ui.brand.Glyph.Notebook),
     )
     val showBottom = currentRoute in destinations.map { it.route }
@@ -397,6 +398,7 @@ private fun MainNavigation(viewModel: AppViewModel) {
                         onSyllabus = { abrirAbaDoMenu("syllabus") },
                         onPlan = { abrirAbaDoMenu("plan") },
                         onTrain = { abrirAbaDoMenu("train") },
+                        onSimulations = { abrirAbaDoMenu("simulations") },
                         onReviews = { abrirDoMenu("reviews") },
                         onErrors = { abrirDoMenu("errors") },
                         onFocus = { drawerScope.launch { drawerState.close() }; showFocusOverlay = true },

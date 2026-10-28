@@ -1,5 +1,10 @@
 package br.com.estudario.ui.simulation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+
 import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -121,13 +126,12 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
     LaunchedEffect(competition.id) { official = service.officialSimulation(competition.id) }
     val officialDone = mine.any { it.mode == SimulationService.OFFICIAL_MODE }
 
+    // A sala de prova (como no site): o carro-chefe, em console escuro. No alto, o placar com a
+    // última nota contra a meta e os números; depois as provas em cartões coloridos.
+    val scores = finished.sortedBy { it.finishedAt ?: it.createdAt }.mapNotNull { it.scorePercent }
+    br.com.estudario.ui.studio.StudioBackdrop(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Simulados", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Questões inéditas no estilo da sua banca, na proporção do seu edital, corrigidas no final como na prova.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        item { ExamRoomHeader(competition.name, profile?.board, finished.size, scores, profile?.targetPercent ?: 70) }
         if (competitions.size > 1) item {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 competitions.forEach { value -> FilterChip(value.id == competition.id, { competitionId = value.id }, { Text(value.name, maxLines = 1) }) }
@@ -154,7 +158,10 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Novo simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    br.com.estudario.ui.studio.GxKicker("Provas")
+                    Text("Monte um simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                }
                 remainingParts?.let {
                     Text("Saldo: ${it * 30} questões", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
@@ -198,10 +205,11 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
             }
         }
         if (finished.isNotEmpty()) {
-            item { Text("Seus resultados", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item { br.com.estudario.ui.studio.GxKicker("Sua evolução e histórico") }
             if (finished.size >= 2) item { EvolutionChart(finished.sortedBy { it.finishedAt }.mapNotNull { it.scorePercent }, profile?.targetPercent ?: 70) }
             items(finished, key = { "done-${it.id}" }) { simulation -> HistoryRow(simulation, profile?.targetPercent ?: 70) { onOpenResult(simulation.id) } }
         }
+    }
     }
 
     if (boardDialog) BoardDialog(profile?.board, onDismiss = { boardDialog = false }) { board ->
@@ -360,34 +368,123 @@ private fun ActiveSimulationCard(simulation: SimulationEntity, onStart: () -> Un
 @Composable
 private fun ModeCard(mode: SimulationMode, lock: SimulationLock, sizes: List<Int>, rematchCount: Int?, busy: Boolean, style: String, onGenerate: (Int) -> Unit) {
     var size by remember(sizes) { mutableIntStateOf(sizes.first()) }
-    ElevatedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (lock.unlocked) Icons.Outlined.AutoAwesome else Icons.Outlined.Lock, null, tint = if (lock.unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
-                Spacer(Modifier.width(10.dp))
-                Text(mode.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    val color = modeColor(mode)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = if (lock.unlocked) 0.20f else 0.06f), br.com.estudario.ui.studio.Gx.bg2, br.com.estudario.ui.studio.Gx.bg)))
+            .border(1.5.dp, if (lock.unlocked) color.copy(alpha = 0.5f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f), shape)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Box(
+                Modifier.size(58.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp)).background(color.copy(alpha = 0.18f))
+                    .border(1.5.dp, color.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(18.dp)),
+                contentAlignment = Alignment.Center,
+            ) { br.com.estudario.ui.brand.BrandIcon(if (lock.unlocked) modeGlyph(mode) else br.com.estudario.ui.brand.Glyph.Lock, size = 46.dp, muted = !lock.unlocked) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(mode.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                    if (!lock.unlocked) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("TRANCADO", Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f)).padding(horizontal = 7.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.mute)
+                    }
+                }
+                Text(mode.description, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFFC9C5F0))
             }
-            Text(mode.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (!lock.unlocked) {
-                LinearProgressIndicator({ lock.progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth(), strokeCap = StrokeCap.Round)
-                Text(lock.requirement, style = MaterialTheme.typography.labelMedium)
-                return@Column
+        }
+        if (!lock.unlocked) {
+            br.com.estudario.ui.studio.GxBar(lock.progress, color, 10.dp)
+            Text(lock.requirement, style = MaterialTheme.typography.labelMedium, color = br.com.estudario.ui.studio.Gx.mute)
+            return@Column
+        }
+        if (mode == SimulationMode.REMATCH) {
+            val count = (rematchCount ?: 0).coerceAtMost(30)
+            Text("$count questão(ões) para refazer com outro cenário.", style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
+            br.com.estudario.ui.studio.GxLaunch("Gerar revanche", br.com.estudario.ui.brand.Glyph.Cycle, enabled = !busy && count > 0, colors = listOf(color.copy(alpha = 0.85f), color), ink = androidx.compose.ui.graphics.Color(0xFF1A1440)) { onGenerate(count) }
+            return@Column
+        }
+        if (sizes.size > 1) br.com.estudario.ui.studio.GxChips(sizes.map { it to "$it questões" }, size) { size = it }
+        Text("${BoardStyle.minutesFor(style, size)} min de prova · usa ${SimulationUnlock.partsFor(size)} parte(s) da cota", style = MaterialTheme.typography.labelMedium, color = br.com.estudario.ui.studio.Gx.mute)
+        br.com.estudario.ui.studio.GxLaunch("Gerar ${mode.title.lowercase()}", br.com.estudario.ui.brand.Glyph.Play, enabled = !busy, colors = listOf(color.copy(alpha = 0.85f), color), ink = androidx.compose.ui.graphics.Color(0xFF1A1440)) { onGenerate(size) }
+    }
+}
+
+private fun modeColor(mode: SimulationMode): androidx.compose.ui.graphics.Color = when (mode) {
+    SimulationMode.DIAGNOSTIC -> br.com.estudario.ui.studio.Gx.cyan
+    SimulationMode.STUDIED -> br.com.estudario.ui.studio.Gx.mint
+    SimulationMode.FULL -> br.com.estudario.ui.studio.Gx.gold
+    SimulationMode.REMATCH -> br.com.estudario.ui.studio.Gx.red
+}
+
+private fun modeGlyph(mode: SimulationMode): br.com.estudario.ui.brand.Glyph = when (mode) {
+    SimulationMode.DIAGNOSTIC -> br.com.estudario.ui.brand.Glyph.Lupa
+    SimulationMode.STUDIED -> br.com.estudario.ui.brand.Glyph.Check
+    SimulationMode.FULL -> br.com.estudario.ui.brand.Glyph.Medal
+    SimulationMode.REMATCH -> br.com.estudario.ui.brand.Glyph.Cycle
+}
+
+/** O alto da sala de prova: o concurso, a banca, o medidor da última nota contra a meta e o placar. */
+@Composable
+private fun ExamRoomHeader(competition: String, board: String?, delivered: Int, scores: List<Int>, target: Int) {
+    val last = scores.lastOrNull()
+    val best = scores.maxOrNull()
+    val fill by androidx.compose.animation.core.animateFloatAsState((last ?: 0) / 100f, androidx.compose.animation.core.tween(1_000), label = "sala-medidor")
+    br.com.estudario.ui.studio.GxPanel {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column {
+                br.com.estudario.ui.studio.GxKicker("Sala de prova")
+                Text("Simulados", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                Text(competition + (board?.let { " · banca $it" } ?: ""), style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
             }
-            if (mode == SimulationMode.REMATCH) {
-                val count = (rematchCount ?: 0).coerceAtMost(30)
-                Text("$count questão(ões) para refazer com outro cenário.", style = MaterialTheme.typography.bodySmall)
-                Button(onClick = { onGenerate(count) }, enabled = !busy && count > 0, modifier = Modifier.fillMaxWidth()) { Text("Gerar revanche") }
-                return@Column
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(168.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                        val stroke = 16.dp.toPx()
+                        val inset = stroke / 2 + 6.dp.toPx()
+                        val arc = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2)
+                        val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+                        drawArc(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f), -90f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                        drawArc(androidx.compose.ui.graphics.Brush.sweepGradient(listOf(androidx.compose.ui.graphics.Color(0xFF7C5CFF), br.com.estudario.ui.studio.Gx.mint, androidx.compose.ui.graphics.Color(0xFF7C5CFF))), -90f, 360f * fill, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                        // a marca dourada da meta
+                        drawArc(br.com.estudario.ui.studio.Gx.gold, -90f + 360f * target / 100f - 2f, 4f, false, androidx.compose.ui.geometry.Offset(2.dp.toPx(), 2.dp.toPx()), androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(4.dp.toPx()))
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(last?.let { "$it%" } ?: "—", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                        Text(if (last == null) "FAÇA O PRIMEIRO" else if (last >= target) "ACIMA DA META" else "ÚLTIMA NOTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.mute)
+                    }
+                }
             }
-            if (sizes.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                sizes.forEach { value -> FilterChip(size == value, { size = value }, { Text("$value questões") }) }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RoomStat(br.com.estudario.ui.brand.Glyph.Clipboard, "$delivered", if (delivered == 1) "entregue" else "entregues", br.com.estudario.ui.studio.Gx.violet, Modifier.weight(1f))
+                RoomStat(br.com.estudario.ui.brand.Glyph.Trophy, best?.let { "$it%" } ?: "—", "melhor nota", br.com.estudario.ui.studio.Gx.gold, Modifier.weight(1f))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Timer, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(4.dp))
-                Text("${BoardStyle.minutesFor(style, size)} min de prova · usa ${SimulationUnlock.partsFor(size)} parte(s) da cota", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RoomStat(br.com.estudario.ui.brand.Glyph.Target, "$target%", "sua meta", br.com.estudario.ui.studio.Gx.mint, Modifier.weight(1f))
+                val delta = if (scores.size >= 2) scores.last() - scores.first() else null
+                RoomStat(br.com.estudario.ui.brand.Glyph.Chart, delta?.let { if (it >= 0) "+$it" else "$it" } ?: "—", "desde o primeiro", br.com.estudario.ui.studio.Gx.cyan, Modifier.weight(1f))
             }
-            Button(onClick = { onGenerate(size) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Gerar ${mode.title.lowercase()}") }
+        }
+    }
+}
+
+@Composable
+private fun RoomStat(glyph: br.com.estudario.ui.brand.Glyph, value: String, label: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    Row(
+        modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.04f))
+            .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            br.com.estudario.ui.brand.BrandIcon(glyph, size = 32.dp)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 1)
         }
     }
 }

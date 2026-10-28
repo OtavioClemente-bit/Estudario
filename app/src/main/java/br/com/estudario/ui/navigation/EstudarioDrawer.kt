@@ -212,6 +212,7 @@ fun estudarioDrawerSections(
     onNotebook: () -> Unit = {},
     onHome: () -> Unit = {},
     onPlans: () -> Unit = {},
+    onSimulations: () -> Unit = {},
 ): List<DrawerSection> = listOf(
     DrawerSection(
         "Estudos",
@@ -220,6 +221,7 @@ fun estudarioDrawerSections(
             DrawerEntry("Meus concursos", Icons.AutoMirrored.Outlined.LibraryBooks, onSyllabus, "syllabus"),
             DrawerEntry("Plano de estudos", Icons.Outlined.CalendarMonth, onPlan, "plan"),
             DrawerEntry("Treinar questões", Icons.Outlined.GpsFixed, onTrain, "train"),
+            DrawerEntry("Simulados", Icons.Outlined.Timer, onSimulations, "simulations"),
             DrawerEntry("Caderno de estudo", Icons.Outlined.Bookmarks, onNotebook, "notebook"),
             DrawerEntry("Revisões espaçadas", Icons.Outlined.Autorenew, onReviews, "reviews"),
             DrawerEntry("Caderno de erros", Icons.Outlined.ErrorOutline, onErrors, "errors"),

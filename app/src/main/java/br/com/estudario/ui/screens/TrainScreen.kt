@@ -2,6 +2,7 @@ package br.com.estudario.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.estudario.data.prompt.QuestionDifficulty
 import br.com.estudario.ui.AppViewModel
+import br.com.estudario.ui.studio.gxClick
 import br.com.estudario.ui.components.EmptyState
 import br.com.estudario.ui.components.ScreenTitle
 import br.com.estudario.ui.prompt.BigValueSlider
@@ -75,7 +77,6 @@ private val trainModes = listOf(
     TrainMode("new", "Questões novas", "Só as que você nunca respondeu. Bom para avançar no conteúdo.", Icons.Outlined.FiberNew),
     TrainMode("favorites", "Favoritas", "As que você marcou com o coração para rever.", Icons.Outlined.Favorite),
     TrainMode("random", "Aleatórias", "Sorteio livre, sem critério.", Icons.Outlined.Shuffle),
-    TrainMode("simulation", "Simulado", "Como na prova: sem correção a cada questão, resultado só no final.", Icons.Outlined.Timer),
 )
 
 /** Treino pronto que a tela sugere a partir do desempenho, com o motivo escrito. */
@@ -103,7 +104,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
     var mode by rememberSaveable { mutableStateOf("smart") }
     var board by rememberSaveable { mutableStateOf<String?>(null) }
     var difficulty by rememberSaveable { mutableStateOf(QuestionDifficulty.MIXED) }
-    var builderOpen by rememberSaveable { mutableStateOf(false) }
+    var builderOpen by rememberSaveable { mutableStateOf(true) }
 
     val subjectByTopic = remember(topics) { topics.associate { it.id to it.subjectId } }
     val answered = questions.sumOf { it.question.answerCount }
@@ -142,139 +143,200 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { ScreenTitle("Treinar", "Questões que mudam o seu estudo", stackActionsWhenNarrow = false) { IconButton(onClick = onHelp) { Icon(Icons.Outlined.HelpOutline, "Como treinar") } } }
-        // Simulado antes de tudo: o diagnóstico funciona até para quem ainda não tem questões.
-        item {
-            Surface(onClick = onSimulations, shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("SIMULADOS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
-                        Text("Prova inédita no estilo da sua banca", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Text("Com cronômetro, gabarito no final e nota por matéria. Comece pelo diagnóstico.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                    }
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
-                }
-            }
-        }
         if (questions.isEmpty()) {
             item { EmptyState("Sem questões ainda", "Na aba Concursos, abra um tópico e gere o material com questões. Elas aparecem aqui para treinar.") }
             return@LazyColumn
         }
 
-        // Diagnóstico: o ponto de partida de qualquer treino com sentido.
+        // Diagnóstico enxuto (como no site): o acerto geral num medidor, até três treinos com o motivo
+        // (o primeiro em destaque) e as matérias da mais fraca para a mais forte, quatro à vista.
         item {
-            Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("SEU DIAGNÓSTICO", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    // Quatro números alinhados, todos com o mesmo peso: nada de traço solto quando ainda
-                    // não há respostas, a frase embaixo explica.
-                    Row(Modifier.fillMaxWidth()) {
-                        DiagnosisStat(accuracy?.let { "$it%" } ?: "0%", "acerto", Modifier.weight(1f))
-                        DiagnosisStat("$answered", "respostas", Modifier.weight(1f))
-                        DiagnosisStat("$pendingErrors", "a refazer", Modifier.weight(1f))
-                        DiagnosisStat("$neverAnswered", "inéditas", Modifier.weight(1f))
+            val recs = buildList {
+                if (pendingErrors > 0) add(DiagRec(br.com.estudario.ui.brand.Glyph.Cycle, br.com.estudario.ui.studio.Gx.red, "Refazer seus erros", "$pendingErrors questões em que você mais erra do que acerta", QuizConfig(pendingErrors.coerceIn(5, 20), mode = "errors")))
+                if (weakest != null && (weakest.accuracy ?: 100) < 70) add(DiagRec(br.com.estudario.ui.brand.Glyph.Target, br.com.estudario.ui.studio.Gx.gold, "Reforçar ${weakest.name}", "Sua matéria mais fraca: ${weakest.accuracy}% de acerto", QuizConfig(15, subjectId = weakest.id, mode = "smart")))
+                add(DiagRec(br.com.estudario.ui.brand.Glyph.Bolt, br.com.estudario.ui.studio.Gx.violet, "Desafio do dia", "10 questões entre erros, revisões atrasadas e pontos fracos", QuizConfig(10, mode = "daily")))
+                if (neverAnswered > 0) add(DiagRec(br.com.estudario.ui.brand.Glyph.Star, br.com.estudario.ui.studio.Gx.mint, "Questões novas", "$neverAnswered que você ainda não viu", QuizConfig(10, mode = "new")))
+            }.take(3)
+            DiagnosisPanel(accuracy, answered, perSubject, recs, { rec -> if (rec.config.mode == "daily") target(TourKey.TRAIN_DAILY) else Modifier }, onStart)
+        }
+
+        // Montar o treino: o mesmo estúdio de gerar material (como no site), num painel de console.
+        item {
+            br.com.estudario.ui.studio.GxPanel {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                        br.com.estudario.ui.studio.GxKicker("Estúdio de treino")
+                        Text("Monte o seu treino", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
                     }
-                    if (accuracy == null) Text("Resolva as primeiras questões para o diagnóstico mostrar seu acerto por matéria.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    if (weakest != null) Text(
-                        "Ponto fraco agora: ${weakest.name} (${weakest.accuracy}% de acerto).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    Box(target(TourKey.TRAIN_MODES)) {
+                        br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Target, "Modo", "Como as questões vão ser escolhidas", br.com.estudario.ui.studio.Gx.violet) {
+                            br.com.estudario.ui.studio.GxTiles(trainModes.map { br.com.estudario.ui.studio.GxOption(it.key, it.title, it.description, modeGlyph(it.key), modeColor(it.key)) }, { it == mode }, columns = 2, multi = false) { mode = it }
+                        }
+                    }
+                    br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Books, "Matéria", null, br.com.estudario.ui.studio.Gx.cyan) {
+                        br.com.estudario.ui.studio.GxPicker(listOf<Pair<Long?, String>>(null to "Todas") + availableSubjects.map { it.id to it.name }, subjectId, searchHint = "Buscar matéria") { subjectId = it; topicId = null }
+                        if (subjectId != null) {
+                            br.com.estudario.ui.studio.GxLabel("Tópico")
+                            br.com.estudario.ui.studio.GxPicker(listOf<Pair<Long?, String>>(null to "Todos") + topics.filter { it.subjectId == subjectId }.map { it.id to it.title }, topicId, limit = 6, searchHint = "Buscar tópico") { topicId = it }
+                        }
+                    }
+                    br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Bolt, "Dificuldade", "Do básico às pegadinhas", br.com.estudario.ui.studio.Gx.gold) {
+                        DifficultySelector(difficulty) { difficulty = it }
+                    }
+                    if (boards.isNotEmpty()) br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Colunas, "Banca", null, br.com.estudario.ui.studio.Gx.blue) {
+                        br.com.estudario.ui.studio.GxPicker(listOf<Pair<String?, String>>(null to "Todas") + boards.map { it to it }, board, limit = 6, searchHint = "Buscar banca") { board = it }
+                    }
+                    br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Clipboard, "Quantidade", "Questões nesta sessão", br.com.estudario.ui.studio.Gx.mint) {
+                        br.com.estudario.ui.studio.GxCounter(count, { count = it }, 5..50, step = 5, unit = "questões", quick = listOf(10, 20, 30, 50))
+                    }
+                    val summary = listOfNotNull(trainModes.firstOrNull { it.key == mode }?.title, availableSubjects.firstOrNull { it.id == subjectId }?.name, board, difficulty.label.takeIf { difficulty != QuestionDifficulty.MIXED }, "$count questões").joinToString(" · ")
+                    Column(Modifier.padding(horizontal = 4.dp)) {
+                        br.com.estudario.ui.studio.GxKicker("Seu treino")
+                        Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Box(target(TourKey.TRAIN_START)) {
+                        br.com.estudario.ui.studio.GxLaunch(
+                            when (mode) { "smart" -> "Iniciar treino inteligente"; else -> "Começar treino" },
+                            glyph = br.com.estudario.ui.brand.Glyph.Play,
+                        ) {
+                            val level = when (difficulty) { QuestionDifficulty.EASY -> "FACIL"; QuestionDifficulty.MEDIUM -> "MEDIA"; QuestionDifficulty.HARD -> "DIFICIL"; QuestionDifficulty.MIXED -> null }
+                            onStart(QuizConfig(count, topicId, subjectId, mode, board, level))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** O desenho da turma de cada modo de treino. */
+private fun modeGlyph(key: String): br.com.estudario.ui.brand.Glyph = when (key) {
+    "smart" -> br.com.estudario.ui.brand.Glyph.Brain
+    "errors" -> br.com.estudario.ui.brand.Glyph.Cycle
+    "never_correct" -> br.com.estudario.ui.brand.Glyph.Warning
+    "most_errors" -> br.com.estudario.ui.brand.Glyph.Target
+    "new" -> br.com.estudario.ui.brand.Glyph.Star
+    "favorites" -> br.com.estudario.ui.brand.Glyph.Heart
+    else -> br.com.estudario.ui.brand.Glyph.Dice
+}
+
+private fun modeColor(key: String): Color = when (key) {
+    "smart" -> br.com.estudario.ui.studio.Gx.violet
+    "errors" -> br.com.estudario.ui.studio.Gx.red
+    "never_correct" -> br.com.estudario.ui.studio.Gx.orange
+    "most_errors" -> br.com.estudario.ui.studio.Gx.pink
+    "new" -> br.com.estudario.ui.studio.Gx.mint
+    "favorites" -> br.com.estudario.ui.studio.Gx.gold
+    else -> br.com.estudario.ui.studio.Gx.cyan
+}
+
+/** Um treino sugerido no diagnóstico. */
+private data class DiagRec(val glyph: br.com.estudario.ui.brand.Glyph, val color: Color, val title: String, val reason: String, val config: QuizConfig)
+
+private fun accuracyTone(accuracy: Int?): Color = when {
+    accuracy == null -> br.com.estudario.ui.studio.Gx.mute
+    accuracy < 50 -> br.com.estudario.ui.studio.Gx.red
+    accuracy < 70 -> br.com.estudario.ui.studio.Gx.gold
+    else -> br.com.estudario.ui.studio.Gx.mint
+}
+
+@Composable
+private fun DiagnosisPanel(
+    accuracy: Int?,
+    answered: Int,
+    perSubject: List<SubjectScore>,
+    recs: List<DiagRec>,
+    recModifier: (DiagRec) -> Modifier,
+    onStart: (QuizConfig) -> Unit,
+) {
+    var allSubjects by rememberSaveable { mutableStateOf(false) }
+    val tone = accuracyTone(accuracy)
+    val fill by androidx.compose.animation.core.animateFloatAsState((accuracy ?: 0) / 100f, androidx.compose.animation.core.tween(900), label = "diag")
+    br.com.estudario.ui.studio.GxPanel {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+                        val stroke = 11.dp.toPx()
+                        val inset = stroke / 2
+                        val arc = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                        val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+                        drawArc(Color.White.copy(alpha = 0.08f), -90f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                        drawArc(tone, -90f, 360f * fill, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(accuracy?.let { "$it%" } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("de acerto", style = MaterialTheme.typography.labelSmall, color = br.com.estudario.ui.studio.Gx.mute)
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    br.com.estudario.ui.studio.GxKicker("Seu diagnóstico")
+                    Text(
+                        when { accuracy == null -> "Resolva as primeiras questões"; accuracy >= 70 -> "Você está no ritmo da aprovação"; accuracy >= 50 -> "Bom caminho, dá para subir"; else -> "Hora de reforçar a base" },
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White,
+                    )
+                    Text(
+                        if (answered == 0) "O diagnóstico mostra seu acerto por matéria assim que você responder." else "$answered respostas em ${perSubject.count { it.answered > 0 }} matérias",
+                        style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute,
                     )
                 }
             }
-        }
-
-        item { SectionTitle("Recomendado para você", "Comece por aqui: cada treino diz por que foi sugerido.") }
-        recommendations.forEachIndexed { index, recommendation ->
-            item(key = "rec-$index") {
-                RecommendationCard(recommendation, Modifier.then(if (recommendation.config.mode == "daily") target(TourKey.TRAIN_DAILY) else Modifier)) { onStart(recommendation.config) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                recs.forEachIndexed { i, rec ->
+                    val top = i == 0
+                    val shape = RoundedCornerShape(18.dp)
+                    Row(
+                        recModifier(rec).fillMaxWidth().then(Modifier.gxClick { onStart(rec.config) }).clip(shape)
+                            .background(if (top) androidx.compose.ui.graphics.Brush.linearGradient(listOf(rec.color.copy(alpha = 0.24f), Color.White.copy(alpha = 0.03f))) else androidx.compose.ui.graphics.SolidColor(Color.White.copy(alpha = 0.04f)))
+                            .border(if (top) 1.5.dp else 1.dp, if (top) rec.color else Color.White.copy(alpha = 0.08f), shape)
+                            .padding(horizontal = 12.dp, vertical = if (top) 14.dp else 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(if (top) 48.dp else 40.dp).clip(RoundedCornerShape(13.dp)).background(rec.color.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+                            br.com.estudario.ui.brand.BrandIcon(rec.glyph, size = if (top) 38.dp else 32.dp)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            if (top) Text(
+                                "RECOMENDADO AGORA", Modifier.padding(bottom = 3.dp).clip(RoundedCornerShape(6.dp)).background(rec.color).padding(horizontal = 7.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFF1A1440),
+                            )
+                            Text(rec.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(rec.reason, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            Modifier.size(if (top) 46.dp else 36.dp).clip(CircleShape).background(if (top) rec.color else Color.White.copy(alpha = 0.08f)),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Outlined.PlayArrow, "Começar", Modifier.size(if (top) 26.dp else 20.dp), tint = if (top) Color(0xFF1A1440) else Color.White) }
+                    }
+                }
             }
-        }
-
-        if (perSubject.isNotEmpty()) {
-            item { SectionTitle("Onde você está", "Toque numa matéria para treinar só ela.") }
-            item {
-                Surface(shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(vertical = 8.dp)) {
-                        perSubject.sortedBy { it.accuracy ?: 101 }.forEach { score ->
-                            Surface(onClick = { onStart(QuizConfig(15, subjectId = score.id, mode = "smart")) }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(score.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(score.accuracy?.let { "$it%" } ?: "sem respostas", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = accuracyColor(score.accuracy))
-                                    }
-                                    Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                                        Box(Modifier.fillMaxWidth(((score.accuracy ?: 0) / 100f).coerceIn(0.02f, 1f)).fillMaxHeight().clip(CircleShape).background(accuracyColor(score.accuracy)))
-                                    }
-                                    Text("${score.total} questões · ${score.answered} respostas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+            if (perSubject.isNotEmpty()) {
+                val ranked = perSubject.sortedBy { it.accuracy ?: 101 }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    br.com.estudario.ui.studio.GxLabel("Por matéria · da mais fraca para a mais forte")
+                    (if (allSubjects) ranked else ranked.take(4)).forEach { score ->
+                        val c = accuracyTone(score.accuracy)
+                        Row(
+                            Modifier.fillMaxWidth().gxClick { onStart(QuizConfig(15, subjectId = score.id, mode = "smart")) }.clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.03f)).padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(score.name, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.width(8.dp))
+                            Box(Modifier.width(80.dp).height(6.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                                Box(Modifier.fillMaxWidth(((score.accuracy ?: 0) / 100f).coerceIn(0.03f, 1f)).fillMaxHeight().clip(CircleShape).background(c))
                             }
+                            Spacer(Modifier.width(8.dp))
+                            Text(score.accuracy?.let { "$it%" } ?: "—", Modifier.width(40.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = c, textAlign = androidx.compose.ui.text.style.TextAlign.End)
                         }
                     }
-                }
-            }
-        }
-
-        // Treino montado à mão: para quem sabe o que quer.
-        item {
-            Surface(onClick = { builderOpen = !builderOpen }, shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Montar meu treino", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Escolha o modo, a matéria, a banca, o nível e a quantidade.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (ranked.size > 4) TextButton(onClick = { allSubjects = !allSubjects }) {
+                        Text(if (allSubjects) "Mostrar menos" else "Ver todas as ${ranked.size} matérias", color = Color(0xFFC9BEFF), fontWeight = FontWeight.Black)
+                        Icon(if (allSubjects) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Color(0xFFC9BEFF))
                     }
-                    Icon(if (builderOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (builderOpen) "Recolher" else "Abrir")
-                }
-            }
-        }
-        if (builderOpen) {
-            item {
-                Column(target(TourKey.TRAIN_MODES), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Modo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    trainModes.forEach { option -> ChoiceCard(option.title, mode == option.key, { mode = option.key }, description = option.description, icon = option.icon) }
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(subjectId == null, { subjectId = null; topicId = null }, label = { Text("Todas") })
-                        availableSubjects.forEach { subject -> FilterChip(subjectId == subject.id, { subjectId = subject.id; topicId = null }, label = { Text(subject.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
-                    }
-                    if (subjectId != null) {
-                        Text("Tópico", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(topicId == null, { topicId = null }, label = { Text("Todos") })
-                            topics.filter { it.subjectId == subjectId }.forEach { topic -> FilterChip(topicId == topic.id, { topicId = topic.id }, label = { Text(topic.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }) }
-                        }
-                    }
-                    if (boards.isNotEmpty()) {
-                        Text("Banca", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(board == null, { board = null }, label = { Text("Todas") })
-                            boards.forEach { value -> FilterChip(board == value, { board = value }, label = { Text(value) }) }
-                        }
-                    }
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Nível", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    DifficultySelector(difficulty) { difficulty = it }
-                }
-            }
-            item {
-                BigValueSlider(count, 5..50, 5, { "$it" }, { count = it }, caption = "questões nesta sessão", quickValues = listOf(10, 20, 30, 50))
-            }
-            item {
-                Button(
-                    onClick = {
-                        val level = when (difficulty) { QuestionDifficulty.EASY -> "FACIL"; QuestionDifficulty.MEDIUM -> "MEDIA"; QuestionDifficulty.HARD -> "DIFICIL"; QuestionDifficulty.MIXED -> null }
-                        onStart(QuizConfig(count, topicId, subjectId, mode, board, level))
-                    },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).then(target(TourKey.TRAIN_START)),
-                ) {
-                    Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(8.dp))
-                    Text(when (mode) { "simulation" -> "Iniciar simulado"; "smart" -> "Iniciar treino inteligente"; else -> "Começar treino" })
                 }
             }
         }

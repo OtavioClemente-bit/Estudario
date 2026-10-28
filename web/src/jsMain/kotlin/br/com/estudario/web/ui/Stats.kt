@@ -162,12 +162,14 @@ fun StatsScreen() {
     val activeDays = window.count { activity[it]?.hasAnything == true }
 
     PageHead("Desempenho", "Seu estudo em números") {
-        Div({ classes("filter-chips") }) {
+        Div({ classes("st2-period") }) {
             listOf(7 to "7 dias", 30 to "30 dias", 90 to "90 dias", 0 to "Tudo").forEach { (n, label) ->
-                Button({ classes(*listOfNotNull("fchip", if (days == n) "on" else null).toTypedArray()); onClick { days = n } }) { Text(label) }
+                Button({ classes(*listOfNotNull("st2-pill", if (days == n) "on" else null).toTypedArray()); attr("type", "button"); onClick { days = n } }) { Text(label) }
             }
         }
     }
+    // Trocar o período refaz a página inteira: as barras crescem e as roscas se desenham de novo.
+    key(days) { Div({ classes("st2") }) {
 
     // ---------- anel de acerto
     Div({ classes("stats-hero", "rise") }) {
@@ -243,7 +245,7 @@ fun StatsScreen() {
                     if (average > 0 && value > 0) Div({ classes("rtip-cmp", if (value >= average) "up" else "down") }) { Text(if (value >= average) "+${Queries.minutesLabel(value - average)} acima da média" else "${Queries.minutesLabel(average - value)} abaixo da média") }
                 }
             }
-            shown.forEach { date ->
+            shown.forEachIndexed { index, date ->
                 val day = activity[date]
                 val value = day?.minutes ?: 0
                 val active = day?.hasAnything == true
@@ -259,6 +261,7 @@ fun StatsScreen() {
                 }.joinToString(" · ")
                 Div({
                     classes(*listOfNotNull("rcol", if (date == today) "today" else null, if (date == hovered) "on" else null).toTypedArray())
+                    attr("style", "--i:$index")
                     attr("aria-label", tip)
                     onMouseEnter { hovered = date }
                     onClick { hovered = if (hovered == date) null else date }
@@ -336,11 +339,11 @@ fun StatsScreen() {
         Card(extra = "pad-lg") {
             Div({ classes("panel-title") }) { H3 { Text("Acerto por matéria") }; P({ classes("small", "muted") }) { Text("Da mais forte para a mais fraca") } }
             if (ranked.isEmpty()) P({ classes("muted", "small") }) { Text("Resolva questões para ver seu acerto por matéria.") }
-            Div({ classes("stack") }) {
+            Div({ classes("stack", "st2-subjects") }) {
                 ranked.forEach { (subject, count, rate) ->
                     key(subject.id) {
                         val color = accuracyColor(if (count >= 5) rate else null)
-                        Div({ classes("stack", "tight") }) {
+                        Button({ classes("st2-subj"); attr("type", "button"); attr("title", "Treinar ${subject.name}"); onClick { Router.go(Route.Quiz("m-smart~s-${subject.id}~t--1~b-all~d-all~n-15")) } }) {
                             Div({ classes("row", "between") }) {
                                 B({ classes("small", "clamp-2") }) { Text(subject.name) }
                                 B({ classes("nowrap"); attr("style", "color:$color") }) { Text("$rate%") }
@@ -370,6 +373,7 @@ fun StatsScreen() {
             }
         }
     }
+    } }
 }
 
 /** Rosca: fatias em porcentagem, na ordem, sobre um trilho. */

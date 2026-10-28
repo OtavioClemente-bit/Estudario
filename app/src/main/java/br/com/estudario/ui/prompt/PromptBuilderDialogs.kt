@@ -362,13 +362,15 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
             answer = (if (options.blocks == ContentBlock.entries.toSet()) "Material completo" else options.blocks.sortedBy { it.ordinal }.joinToString(", ") { it.label }) +
                 if (ContentBlock.THEORY in options.blocks) " · teoria ${options.depth.label.lowercase()}" else "",
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(options.blocks == ContentBlock.entries.toSet(), { options = options.copy(blocks = ContentBlock.entries.toSet()) }, label = { Text("Pacote completo") })
-                FilterChip(options.blocks == setOf(ContentBlock.QUESTIONS), { options = options.copy(blocks = setOf(ContentBlock.QUESTIONS)) }, label = { Text("Só questões") })
-            }
-            MultiChoiceCards(ContentBlock.entries, options.blocks, { it.label }, { options = options.copy(blocks = it) }, description = ::blockDescription, icon = ::blockIcon)
-            if (ContentBlock.THEORY in options.blocks) OptionSection("Profundidade da teoria") {
-                ChoiceCards(TheoryDepth.entries, options.depth, { it.label }, { options = options.copy(depth = it) }, description = ::depthDescription)
+            // As receitas e os ladrilhos coloridos do estúdio (como no site).
+            br.com.estudario.ui.studio.GxPresets(BlockPresets, { options.blocks == it }) { options = options.copy(blocks = it) }
+            br.com.estudario.ui.studio.GxTiles(
+                ContentBlock.entries.map { br.com.estudario.ui.studio.GxOption(it, it.label, blockDescription(it), blockGlyph(it), blockColor(it)) },
+                { it in options.blocks }, columns = 2,
+            ) { block -> options = options.copy(blocks = if (block in options.blocks) options.blocks - block else options.blocks + block) }
+            if (ContentBlock.THEORY in options.blocks) {
+                br.com.estudario.ui.studio.GxLabel("Profundidade da teoria")
+                DepthCards(options.depth) { options = options.copy(depth = it) }
             }
         })
         if (ContentBlock.QUESTIONS in options.blocks) add(WizardStep(
@@ -380,8 +382,10 @@ fun ContentPromptBuilderDialog(viewModel: AppViewModel, subjectId: Long, initial
         ) {
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = selectedIds.size > 1) { options = options.copy(questionCount = it) }
             if (freeTier) FreeMixedQuestionsNotice() else {
-                OptionSection("Dificuldade") { DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) } }
-                OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
+                br.com.estudario.ui.studio.GxLabel("Nível")
+                DifficultySelector(options.difficulty) { options = options.copy(difficulty = it) }
+                br.com.estudario.ui.studio.GxLabel("Formato")
+                FormatCards(options.style) { options = options.copy(style = it) }
             }
             BoardField(options.board) { options = options.copy(board = it.take(40)) }
         })
@@ -689,7 +693,7 @@ fun AdditionalQuestionPromptBuilderDialog(
             answer = "${options.questionCount} questões · ${options.style.label}",
         ) {
             QuestionCountSelector(options.questionCount, questionLimit, perTopic = false) { options = options.copy(questionCount = it) }
-            if (freeTier) FreeMixedQuestionsNotice() else OptionSection("Formato") { ChoiceCards(QuestionStyle.entries, options.style, ::styleTitle, { options = options.copy(style = it) }, description = ::styleDescription) }
+            if (freeTier) FreeMixedQuestionsNotice() else { br.com.estudario.ui.studio.GxLabel("Formato"); FormatCards(options.style) { options = options.copy(style = it) } }
         },
         WizardStep(
             "Nível e banca",
@@ -1050,15 +1054,67 @@ private fun styleDescription(style: QuestionStyle): String = when (style) {
     QuestionStyle.TRUE_FALSE -> "Você julga se a afirmação está certa ou errada. É o estilo do Cebraspe"
 }
 
-/** Banca opcional: em branco, a IA segue o estilo das provas anteriores deste concurso. */
+/** Banca opcional, com atalhos: em branco, a IA segue o estilo das provas anteriores deste concurso. */
 @Composable
 private fun BoardField(value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value, onChange, Modifier.fillMaxWidth(), singleLine = true,
-        label = { Text("Banca (opcional)") },
-        placeholder = { Text("Ex.: Cebraspe, FGV, FCC") },
-        supportingText = { Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.") },
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        br.com.estudario.ui.studio.GxLabel("Banca (opcional)")
+        br.com.estudario.ui.studio.GxField(value, onChange, "Ex.: Cebraspe, FGV, FCC", br.com.estudario.ui.brand.Glyph.Colunas, maxLength = 40)
+        val boards = listOf("Cebraspe", "FGV", "FCC", "Vunesp", "Cesgranrio", "Quadrix")
+        br.com.estudario.ui.studio.GxChips(boards.map { it to it }, boards.firstOrNull { it.equals(value, ignoreCase = true) } ?: "") { picked -> onChange(if (picked.equals(value, ignoreCase = true)) "" else picked) }
+        Text("Em branco, as questões seguem o estilo das provas anteriores deste concurso.", style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
+    }
+}
+
+/** As receitas do pedido: o pacote todo, teoria e resumo, revisão rápida ou só questões. */
+private val BlockPresets = listOf(
+    br.com.estudario.ui.studio.GxOption(ContentBlock.entries.toSet(), "Pacote completo", glyph = br.com.estudario.ui.brand.Glyph.Books),
+    br.com.estudario.ui.studio.GxOption(setOf(ContentBlock.THEORY, ContentBlock.SUMMARY), "Teoria e resumo", glyph = br.com.estudario.ui.brand.Glyph.OpenBook),
+    br.com.estudario.ui.studio.GxOption(setOf(ContentBlock.QUICK_REVIEW, ContentBlock.TIPS_TRAPS, ContentBlock.ACTIVE_RECALL), "Revisão rápida", glyph = br.com.estudario.ui.brand.Glyph.Bolt),
+    br.com.estudario.ui.studio.GxOption(setOf(ContentBlock.QUESTIONS), "Só questões", glyph = br.com.estudario.ui.brand.Glyph.Clipboard),
+)
+
+private fun blockGlyph(block: ContentBlock): br.com.estudario.ui.brand.Glyph = when (block) {
+    ContentBlock.THEORY -> br.com.estudario.ui.brand.Glyph.OpenBook
+    ContentBlock.SUMMARY -> br.com.estudario.ui.brand.Glyph.Doc
+    ContentBlock.QUICK_REVIEW -> br.com.estudario.ui.brand.Glyph.Cards
+    ContentBlock.TIPS_TRAPS -> br.com.estudario.ui.brand.Glyph.Bulb
+    ContentBlock.ACTIVE_RECALL -> br.com.estudario.ui.brand.Glyph.Brain
+    ContentBlock.QUESTIONS -> br.com.estudario.ui.brand.Glyph.Clipboard
+    ContentBlock.ERROR_CONCEPTS -> br.com.estudario.ui.brand.Glyph.Warning
+}
+
+private fun blockColor(block: ContentBlock): androidx.compose.ui.graphics.Color = when (block) {
+    ContentBlock.THEORY -> br.com.estudario.ui.studio.Gx.violet
+    ContentBlock.SUMMARY -> br.com.estudario.ui.studio.Gx.cyan
+    ContentBlock.QUICK_REVIEW -> br.com.estudario.ui.studio.Gx.gold
+    ContentBlock.TIPS_TRAPS -> br.com.estudario.ui.studio.Gx.orange
+    ContentBlock.ACTIVE_RECALL -> br.com.estudario.ui.studio.Gx.pink
+    ContentBlock.QUESTIONS -> br.com.estudario.ui.studio.Gx.mint
+    ContentBlock.ERROR_CONCEPTS -> br.com.estudario.ui.studio.Gx.red
+}
+
+/** A profundidade em cartões: o livro engrossa do Essencial ao Livro completo. */
+@Composable
+private fun DepthCards(selected: TheoryDepth, onPick: (TheoryDepth) -> Unit) {
+    val colors = listOf(br.com.estudario.ui.studio.Gx.cyan, br.com.estudario.ui.studio.Gx.blue, br.com.estudario.ui.studio.Gx.violet)
+    br.com.estudario.ui.studio.GxSeg(TheoryDepth.entries.mapIndexed { i, d -> br.com.estudario.ui.studio.GxOption(d, d.label, depthDescription(d), color = colors[i]) }, selected, columns = 3, onPick = onPick) { option ->
+        br.com.estudario.ui.studio.GxBook(option.key.ordinal + 1, option.color, option.key == selected)
+    }
+}
+
+/** O formato em cartões, cada um com a miniatura das alternativas. */
+@Composable
+private fun FormatCards(selected: QuestionStyle, onPick: (QuestionStyle) -> Unit) {
+    val order = listOf(QuestionStyle.MIXED, QuestionStyle.FIVE_OPTIONS, QuestionStyle.FOUR_OPTIONS, QuestionStyle.TRUE_FALSE)
+    br.com.estudario.ui.studio.GxSeg(order.map { br.com.estudario.ui.studio.GxOption(it, styleTitle(it), styleDescription(it), color = br.com.estudario.ui.studio.Gx.mint) }, selected, onPick = onPick) { option ->
+        when (option.key) {
+            QuestionStyle.FIVE_OPTIONS -> br.com.estudario.ui.studio.GxFormatMock("ABCDE", false, option.color, option.key == selected)
+            QuestionStyle.FOUR_OPTIONS -> br.com.estudario.ui.studio.GxFormatMock("ABCD", false, option.color, option.key == selected)
+            QuestionStyle.TRUE_FALSE -> br.com.estudario.ui.studio.GxFormatMock("", true, option.color, option.key == selected)
+            QuestionStyle.MIXED -> br.com.estudario.ui.studio.GxFormatMock("ABC", true, option.color, option.key == selected)
+        }
+    }
 }
 
 /** Opção de a IA trabalhar em cima de um material da pessoa (lei, apostila, PDF). */

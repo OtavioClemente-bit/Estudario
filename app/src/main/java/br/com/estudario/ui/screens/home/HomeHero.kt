@@ -28,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,7 +39,17 @@ import br.com.estudario.ui.theme.estudarioColors
 import java.time.LocalTime
 
 /** Uma atividade do dia na lista da missão. */
-data class MissionItemUi(val title: String, val subtitle: String, val done: Boolean, val current: Boolean = false)
+data class MissionItemUi(
+    val title: String,
+    val subtitle: String,
+    val done: Boolean,
+    val current: Boolean = false,
+    val kind: br.com.estudario.domain.planner.PlanTaskType? = null,
+    val typeLabel: String = "",
+    val minutes: Int = 0,
+    val subject: String? = null,
+    val inProgress: Boolean = false,
+)
 
 /** A missão do dia inteira: o que o plano pede hoje e quanto já foi feito. */
 data class DailyMissionUi(val items: List<MissionItemUi>, val plannedMinutes: Int, val doneMinutes: Int) {
@@ -147,90 +160,150 @@ private fun HeroChip(glyph: br.com.estudario.ui.brand.Glyph, text: String) {
 }
 
 /**
- * A missão do dia: o dia inteiro do plano numa linha só. O que já foi feito fica riscado, o que
- * está em andamento aparece destacado como "Agora" e o resto vem em seguida, na ordem. Substitui
- * a lista "Depois", que repetia as mesmas tarefas logo abaixo.
+ * A missão do dia: o dia do plano como uma trilha de passos numerados, igual ao site. O próximo
+ * passo fica aberto, grande, com o tipo, o tempo e o botão de começar (ou de gerar o material); os
+ * feitos ficam marcados e os seguintes esperam a vez. Quem nunca usou sabe por onde começar.
  */
 @Composable
-fun DailyMissionCard(mission: DailyMissionUi, onOpenPlan: () -> Unit, modifier: Modifier = Modifier) {
+fun DailyMissionCard(
+    mission: DailyMissionUi,
+    onOpenPlan: () -> Unit,
+    modifier: Modifier = Modifier,
+    onStartCurrent: (() -> Unit)? = null,
+    onGenerate: (() -> Unit)? = null,
+) {
+    val g = br.com.estudario.ui.profile.Game
     val done = mission.doneCount
     val total = mission.items.size
     val complete = total > 0 && done == total
-    val accent = if (complete) estudarioColors().completed else MaterialTheme.colorScheme.primary
-    Surface(onClick = onOpenPlan, shape = EstudarioShapes.panel, color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    val nowIndex = mission.items.indexOfFirst { it.current }.takeIf { it >= 0 } ?: mission.items.indexOfFirst { !it.done }
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    br.com.estudario.ui.theme.EstudarioTheme(darkTheme = true) {
+        Column(
+            modifier.fillMaxWidth().clip(shape)
+                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(g.bg2, g.bg)))
+                .border(1.dp, g.line, shape)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Cabeçalho: o anel com feitos/total e a frase do que falta.
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val ring by androidx.compose.animation.core.animateFloatAsState(if (total == 0) 0f else done.toFloat() / total, androidx.compose.animation.core.tween(900), label = "missao-anel")
+                Box(Modifier.size(74.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(Modifier.size(74.dp)) {
+                        val stroke = 7.dp.toPx()
+                        val inset = stroke / 2
+                        val arc = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                        drawArc(g.track, 0f, 360f, false, androidx.compose.ui.geometry.Offset(inset, inset), arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                        drawArc(g.mint, -90f, 360f * ring, false, androidx.compose.ui.geometry.Offset(inset, inset), arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$done/$total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = g.ink)
+                        Text("PASSOS", style = MaterialTheme.typography.labelSmall, fontSize = androidx.compose.ui.unit.TextUnit(9f, androidx.compose.ui.unit.TextUnitType.Sp), color = g.muted)
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Missão do dia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("MISSÃO DO DIA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = g.muted, letterSpacing = androidx.compose.ui.unit.TextUnit(1.6f, androidx.compose.ui.unit.TextUnitType.Sp))
                     Text(
-                        if (complete) "Tudo feito. Você cumpriu o plano de hoje."
-                        else "${minutesText(mission.doneMinutes)} de ${minutesText(mission.plannedMinutes)} · faltam ${total - done}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        when {
+                            complete -> "Missão cumprida! Você fechou o plano de hoje."
+                            done == 0 -> "Hoje são $total ${if (total == 1) "passo" else "passos"}. Comece pelo primeiro."
+                            else -> "Faltam ${total - done} ${if (total - done == 1) "passo" else "passos"} para fechar o dia."
+                        },
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = if (complete) g.mint else g.ink,
                     )
-                }
-                Text("$done/$total", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = accent)
-            }
-            // Uma fatia por tarefa: dá para ver de relance quantas faltam.
-            Row(Modifier.fillMaxWidth().height(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                mission.items.forEach { item ->
-                    Box(
-                        Modifier.weight(1f).fillMaxHeight().clip(CircleShape).background(
-                            when {
-                                item.done -> accent
-                                item.current -> accent.copy(alpha = 0.45f)
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            },
-                        ),
+                    Text(
+                        if (complete) "Amanhã tem mais." else "${minutesText((mission.plannedMinutes - mission.doneMinutes).coerceAtLeast(0))} de estudo pela frente",
+                        style = MaterialTheme.typography.bodySmall, color = g.muted,
                     )
                 }
             }
-            Column {
+            // Os passos, ligados por um fio.
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val shown = mission.items.take(6)
-                shown.forEachIndexed { index, item -> MissionRow(item, isFirst = index == 0, isLast = index == shown.lastIndex) }
+                shown.forEachIndexed { index, item -> MissionStep(index, item, index == nowIndex, onStartCurrent, onGenerate) }
             }
-            if (total > 6) Text("+ ${total - 6} no plano de hoje", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            if (total > 6) Text("+ ${total - 6} no plano de hoje", style = MaterialTheme.typography.labelMedium, color = g.violet)
+            Row(Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable(onClick = onOpenPlan).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp), tint = g.muted)
+                Spacer(Modifier.width(8.dp))
+                Text("Ver o plano inteiro", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = g.ink, modifier = Modifier.weight(1f))
+                Text("›", style = MaterialTheme.typography.titleMedium, color = g.muted)
+            }
         }
     }
 }
 
 @Composable
-private fun MissionRow(item: MissionItemUi, isFirst: Boolean, isLast: Boolean) {
-    val primary = MaterialTheme.colorScheme.primary
-    val line = MaterialTheme.colorScheme.outlineVariant
-    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
-        // Linha do dia: o marcador de cada tarefa e o fio que liga uma à outra.
-        Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.width(2.dp).height(8.dp).background(if (isFirst) androidx.compose.ui.graphics.Color.Transparent else line))
-            when {
-                item.done -> Icon(Icons.Outlined.CheckCircle, null, Modifier.size(20.dp), tint = estudarioColors().completed)
-                item.current -> Box(Modifier.size(20.dp).clip(CircleShape).background(primary.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(9.dp).clip(CircleShape).background(primary))
-                }
-                else -> Icon(Icons.Outlined.RadioButtonUnchecked, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
-            }
-            Box(Modifier.width(2.dp).weight(1f).background(if (isLast) androidx.compose.ui.graphics.Color.Transparent else line))
+private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, onStart: (() -> Unit)?, onGenerate: (() -> Unit)?) {
+    val g = br.com.estudario.ui.profile.Game
+    val color = when (item.kind) {
+        br.com.estudario.domain.planner.PlanTaskType.THEORY -> androidx.compose.ui.graphics.Color(0xFFA78BFF)
+        br.com.estudario.domain.planner.PlanTaskType.QUESTIONS, br.com.estudario.domain.planner.PlanTaskType.SIMULATION -> androidx.compose.ui.graphics.Color(0xFF2FD39A)
+        br.com.estudario.domain.planner.PlanTaskType.REVIEW -> androidx.compose.ui.graphics.Color(0xFF22D3EE)
+        br.com.estudario.domain.planner.PlanTaskType.FLASHCARDS, br.com.estudario.domain.planner.PlanTaskType.ACTIVE_RECALL -> androidx.compose.ui.graphics.Color(0xFFFFC94D)
+        else -> androidx.compose.ui.graphics.Color(0xFFFF8A3D)
+    }
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "passo").animateFloat(
+        0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1_100), androidx.compose.animation.core.RepeatMode.Reverse), label = "passo-pulso",
+    )
+    Row(verticalAlignment = Alignment.Top) {
+        // O número do passo: ✓ quando feito, aceso e pulsando quando é a vez.
+        Box(
+            Modifier.padding(top = 8.dp).size(34.dp).clip(CircleShape)
+                .background(if (item.done) g.mint else if (isNow) color else g.bg2)
+                .border(2.dp, if (isNow) androidx.compose.ui.graphics.Color.White.copy(alpha = pulse) else if (item.done) g.mint else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (item.done) Text("✓", fontWeight = FontWeight.Black, color = g.bg)
+            else Text("${index + 1}", fontWeight = FontWeight.Black, color = if (isNow) g.bg else g.muted)
         }
-        Column(Modifier.weight(1f).padding(start = 10.dp, top = 6.dp, bottom = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    item.title,
-                    Modifier.weight(1f, fill = false),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (item.current) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (item.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    textDecoration = if (item.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+        Spacer(Modifier.width(12.dp))
+        val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+        Column(
+            Modifier.weight(1f).clip(cardShape)
+                .background(if (isNow) androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.03f))) else androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f))))
+                .border(1.5.dp, if (isNow) color else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f), cardShape)
+                .then(if (onStart != null && !item.done) Modifier.clickable { if (isNow) onStart() } else Modifier)
+                .padding(if (isNow) 14.dp else 11.dp)
+                .then(if (item.done) Modifier.alpha(0.55f) else Modifier),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(item.typeLabel.ifBlank { "Tarefa" }, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = color)
+                if (item.minutes > 0) Text("  ·  ${minutesText(item.minutes)}", style = MaterialTheme.typography.labelMedium, color = g.muted)
+                Spacer(Modifier.weight(1f))
+                if (isNow) Text(
+                    "PRÓXIMO PASSO",
+                    Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).background(color).padding(horizontal = 7.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = g.bg,
+                    fontSize = androidx.compose.ui.unit.TextUnit(9.5f, androidx.compose.ui.unit.TextUnitType.Sp),
                 )
-                if (item.current) Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp), color = primary.copy(alpha = 0.14f)) {
-                    Text("Agora", Modifier.padding(horizontal = 7.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                item.title,
+                style = if (isNow) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold, color = g.ink, maxLines = if (isNow) 3 else 2, overflow = TextOverflow.Ellipsis,
+                textDecoration = if (item.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+            )
+            item.subject?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = g.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            if (isNow && onStart != null) {
+                Spacer(Modifier.height(6.dp))
+                val generate = onGenerate
+                androidx.compose.material3.Button(
+                    onClick = { if (generate != null) generate() else onStart() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFF6C5CFF), contentColor = androidx.compose.ui.graphics.Color.White),
+                ) {
+                    Text(if (generate != null) "Gerar o material deste passo" else if (item.inProgress) "Continuar de onde parei" else "Começar este passo", fontWeight = FontWeight.Black)
                 }
             }
-            Text(item.subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
+
 
 private fun minutesText(minutes: Int): String = when {
     minutes < 60 -> "$minutes min"

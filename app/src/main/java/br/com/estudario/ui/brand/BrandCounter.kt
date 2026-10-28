@@ -59,69 +59,17 @@ fun BrandCounter(
     /** Frase para o valor atual ("ritmo leve", "ritmo firme"...). */
     mood: (Int) -> String? = { null },
 ) {
-    val current = value.coerceIn(range)
-    val haptic = LocalHapticFeedback.current
-    fun set(next: Int) {
-        val clamped = next.coerceIn(range)
-        if (clamped != current) { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onChange(clamped) }
-    }
-    val scheme = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(scheme.surfaceContainerLow)
-            .border(1.5.dp, scheme.outlineVariant, RoundedCornerShape(24.dp))
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StepButton("−", enabled = current > range.first) { set(current - step) }
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    BrandIcon(glyph, size = 40.dp)
-                    Spacer(Modifier.width(8.dp))
-                    AnimatedContent(
-                        targetState = current,
-                        transitionSpec = {
-                            val up = targetState > initialState
-                            (slideInVertically { if (up) it else -it } + fadeIn()) togetherWith (slideOutVertically { if (up) -it else it } + fadeOut())
-                        },
-                        label = "counter",
-                    ) { shown ->
-                        Text("$shown", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = scheme.primary)
-                    }
-                }
-                Text(unit, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = scheme.onSurface)
-                mood(current)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant) }
-            }
-            StepButton("+", enabled = current < range.last) { set(current + step) }
-        }
-        if (quickValues.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            quickValues.forEach { quick ->
-                val selected = quick == current
-                val bg by animateColorAsState(if (selected) scheme.primary else scheme.surface, label = "chip")
-                val ink by animateColorAsState(if (selected) scheme.onPrimary else scheme.onSurface, label = "chipInk")
-                val lip = if (selected) scheme.primary.copy(alpha = 0.55f) else scheme.outlineVariant
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(lip)
-                        .padding(bottom = 3.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(bg)
-                        .border(1.5.dp, if (selected) scheme.primary else scheme.outlineVariant, RoundedCornerShape(14.dp))
-                        .clickable { set(quick) },
-                    contentAlignment = Alignment.Center,
-                ) { Text("$quick", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = ink) }
-            }
+    // O contador do estúdio (o mesmo do site): número grande, − e + redondos, régua e atalhos, num
+    // painel escuro de console, em qualquer tela que use o contador.
+    br.com.estudario.ui.studio.GxPanel {
+        Box(Modifier.padding(3.dp)) {
+            br.com.estudario.ui.studio.GxCounter(value, onChange, range, step = step, unit = unit, quick = quickValues, mood = mood)
         }
     }
 }
 
 /** Botão − ou + com degrau: afunda ao tocar, como os botões do app. */
+@Suppress("unused")
 @Composable
 private fun StepButton(label: String, enabled: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme

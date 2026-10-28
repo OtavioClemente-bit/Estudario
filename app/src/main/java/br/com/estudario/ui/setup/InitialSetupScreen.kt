@@ -561,6 +561,20 @@ private fun CompetitionStep(
             Spacer(Modifier.height(8.dp))
         }
         if (!manual) {
+            // O PDF fica no alto (antes ficava no fim da lista e sumia rolando). No Grátis, a oferta dos planos.
+            val freeTier = br.com.estudario.ui.plans.rememberFreeTier()
+            var pdfOffer by remember { mutableStateOf(false) }
+            PdfEditalCta(freeTier) {
+                if (freeTier) pdfOffer = true else {
+                    manual = true
+                    selectedExamId = null
+                    if (name.isBlank() && query.isNotBlank()) name = query.trim()
+                }
+            }
+            if (pdfOffer) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onDismiss = { pdfOffer = false })
+            // No Grátis continua dando para informar o concurso e montar as matérias à mão.
+            if (freeTier) TextButton(onClick = { manual = true; selectedExamId = null; if (name.isBlank() && query.isNotBlank()) name = query.trim() }) { Text("Informar o concurso sem PDF") }
+            Spacer(Modifier.height(8.dp))
             if (catalog.entries.isNotEmpty()) CatalogHero(catalog.entries.size)
             CatalogSearchField(query) { query = it }
             if (query.isBlank()) CatalogQuickSearches { query = it }
@@ -598,15 +612,6 @@ private fun CompetitionStep(
                 )
             }
             selectedEntry?.let { SelectedExamSummary(it) }
-            Spacer(Modifier.height(8.dp))
-            SetupCard {
-                NotFoundIntro()
-                OutlinedButton(onClick = {
-                    manual = true
-                    selectedExamId = null
-                    if (name.isBlank() && query.isNotBlank()) name = query.trim()
-                }) { Text("Informar concurso e anexar edital") }
-            }
         } else {
             if (catalog.entries.isNotEmpty()) {
                 TextButton(onClick = { manual = false }) { Text("Voltar para os editais prontos") }
@@ -635,6 +640,32 @@ private fun CompetitionStep(
     }
 }
 
+
+/** "Não achou? Envie o PDF do edital": cartão de console no alto da busca, com o botão dourado. */
+@Composable
+private fun PdfEditalCta(freeTier: Boolean, onClick: () -> Unit) {
+    br.com.estudario.ui.studio.GxPanel {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f))
+                        .border(1.5.dp, br.com.estudario.ui.studio.Gx.gold.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Doc, size = 40.dp) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Não achou o seu concurso? Envie o PDF do edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                    Text("Eu leio o edital e monto as matérias e os tópicos para você." + if (freeTier) " Nos planos Essencial e Pro." else "", style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
+                }
+            }
+            br.com.estudario.ui.studio.GxLaunch(
+                "Enviar PDF", glyph = br.com.estudario.ui.brand.Glyph.Doc,
+                colors = listOf(androidx.compose.ui.graphics.Color(0xFFFFE08A), br.com.estudario.ui.studio.Gx.gold),
+                ink = androidx.compose.ui.graphics.Color(0xFF1A1440), onClick = onClick,
+            )
+        }
+    }
+}
 
 private val examDateDisplayFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
