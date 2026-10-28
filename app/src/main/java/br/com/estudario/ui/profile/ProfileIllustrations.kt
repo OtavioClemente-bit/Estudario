@@ -97,10 +97,10 @@ private fun DrawScope.pen(path: Path, color: Color = RankInk, width: Float = 0.8
     drawPath(path, color, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
-/** O nível: o livro de Folhas (LevelBookImage), que engorda a cada nível e troca de capa a cada título. */
+/** O nível: o brasão da patente (LevelCrestImage), que troca de metal a cada título e ganha estrelas, asas, coroa e louros. */
 @Composable
 internal fun LevelSeal(level: Int, size: Dp = 116.dp) {
-    LevelBookImage(level, size)
+    LevelCrestImage(level, size)
 }
 
 private fun bookmarkSway(detail: Int, phase: Float, tap: Float): Float =

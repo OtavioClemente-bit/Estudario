@@ -81,8 +81,8 @@ internal fun LevelAvatar(progress: ProgressEngine.ProgressSummary?, size: Dp, co
             )
         }
         content()
-        // A medalha do livro de Folhas, com o número do nível (bronze, prata, ouro, ouro radiante).
-        if (progress != null) LevelBookImage(progress.level, 40.dp, Modifier.align(Alignment.BottomCenter).offset(y = 8.dp))
+        // O brasão da patente, com o número do nível.
+        if (progress != null) LevelCrestImage(progress.level, 40.dp, Modifier.align(Alignment.BottomCenter).offset(y = 10.dp))
     }
 }
 

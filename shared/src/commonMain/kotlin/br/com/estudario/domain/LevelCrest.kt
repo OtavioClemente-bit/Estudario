@@ -94,7 +94,10 @@ object LevelCrest {
         // número
         val digits = level.toString()
         val fs = when (digits.length) { 1 -> 70; 2 -> 60; else -> 46 }
-        sb.append("""<text x="120" y="${132 + fs / 3}" text-anchor="middle" font-family="Nunito, Arial, Helvetica, sans-serif" font-weight="900" font-size="$fs" fill="#FFFFFF" stroke="${r.dark}" stroke-width="7" stroke-linejoin="round" paint-order="stroke">$digits</text>""")
+        // contorno embaixo e branco em cima (dois textos: o AndroidSVG não entende paint-order)
+        val font = """x="120" y="${132 + fs / 3}" text-anchor="middle" font-family="Nunito, Arial, Helvetica, sans-serif" font-weight="900" font-size="$fs""""
+        sb.append("""<text $font fill="${r.dark}" stroke="${r.dark}" stroke-width="8" stroke-linejoin="round">$digits</text>""")
+        sb.append("""<text $font fill="#FFFFFF">$digits</text>""")
         // estrelas
         val n = stars(level)
         val gap = 17
