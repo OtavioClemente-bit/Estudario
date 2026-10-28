@@ -184,7 +184,7 @@ fun DailyMissionCard(
     var openIndex by androidx.compose.runtime.saveable.rememberSaveable(mission.items.size) { androidx.compose.runtime.mutableStateOf<Int?>(null) }
     val expanded = openIndex ?: nowIndex
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
-    br.com.estudario.ui.theme.EstudarioTheme(darkTheme = true) {
+    run {
         Column(
             modifier.fillMaxWidth().clip(shape)
                 .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(g.bg2, g.bg)))
@@ -231,7 +231,7 @@ fun DailyMissionCard(
                 val shown = mission.items.take(6)
                 shown.forEachIndexed { index, item -> MissionStep(index, item, index == nowIndex, index == expanded, { openIndex = index }, item.onOpen ?: onStartCurrent, if (index == nowIndex) onGenerate else null) }
             }
-            if (total > 6) Text("+ ${total - 6} no plano de hoje", style = MaterialTheme.typography.labelMedium, color = g.violet)
+            if (total > 6) Text("+ ${total - 6} no plano de hoje", style = MaterialTheme.typography.labelMedium, color = g.readable(g.violet))
             Row(Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).clickable(onClick = onOpenPlan).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp), tint = g.muted)
                 Spacer(Modifier.width(8.dp))
@@ -260,31 +260,31 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen:
         Box(
             Modifier.padding(top = 8.dp).size(34.dp).clip(CircleShape)
                 .background(if (item.done) g.mint else if (isNow) color else g.bg2)
-                .border(2.dp, if (isNow) androidx.compose.ui.graphics.Color.White.copy(alpha = pulse) else if (item.done) g.mint else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f), CircleShape),
+                .border(2.dp, if (isNow) androidx.compose.ui.graphics.Color.White.copy(alpha = pulse) else if (item.done) g.mint else br.com.estudario.ui.profile.Game.tint(0.18f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (item.done) Text("✓", fontWeight = FontWeight.Black, color = g.bg)
+            if (item.done) Text("✓", fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF14113A))
             else Text("${index + 1}", fontWeight = FontWeight.Black, color = if (isNow) g.bg else g.muted)
         }
         Spacer(Modifier.width(12.dp))
         val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
         Column(
             Modifier.weight(1f).clip(cardShape)
-                .background(if (isOpen) androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.03f))) else androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.035f))))
-                .border(1.5.dp, if (isOpen) color else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f), cardShape)
+                .background(if (isOpen) androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = 0.22f), br.com.estudario.ui.profile.Game.tint(0.03f))) else androidx.compose.ui.graphics.Brush.linearGradient(listOf(br.com.estudario.ui.profile.Game.tint(0.035f), br.com.estudario.ui.profile.Game.tint(0.035f))))
+                .border(1.5.dp, if (isOpen) color else br.com.estudario.ui.profile.Game.tint(0.07f), cardShape)
                 .clickable(onClick = onSelect)
                 .padding(if (isOpen) 14.dp else 11.dp)
                 .then(if (item.done && !isOpen) Modifier.alpha(0.55f) else Modifier),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(item.typeLabel.ifBlank { "Tarefa" }, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = color)
+                Text(item.typeLabel.ifBlank { "Tarefa" }, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = g.readable(color))
                 if (item.minutes > 0) Text("  ·  ${minutesText(item.minutes)}", style = MaterialTheme.typography.labelMedium, color = g.muted)
                 Spacer(Modifier.weight(1f))
                 if (isNow) Text(
                     "PRÓXIMO PASSO",
                     Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).background(color).padding(horizontal = 7.dp, vertical = 2.dp),
-                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = g.bg,
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF14113A),
                     fontSize = androidx.compose.ui.unit.TextUnit(9.5f, androidx.compose.ui.unit.TextUnitType.Sp),
                 )
             }

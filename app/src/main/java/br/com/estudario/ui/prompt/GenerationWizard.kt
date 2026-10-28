@@ -118,12 +118,12 @@ fun GenerationWizard(
                 Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 12.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         br.com.estudario.ui.studio.GxKicker("Estúdio do Estudário")
-                        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     if (tutorial != null) IconButton(onClick = { showTutorial = true }) { Icon(Icons.Outlined.HelpOutline, "Ver vídeo de ajuda", tint = Color.White) }
                     Box(
-                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.06f)).clickable(onClick = onDismiss),
+                        Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.06f)).clickable(onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Outlined.Close, "Fechar", tint = Color.White) }
                 }
@@ -153,15 +153,15 @@ fun GenerationWizard(
                             .border(1.dp, br.com.estudario.ui.studio.Gx.violet.copy(alpha = 0.3f), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 9.dp),
                     ) {
                         br.com.estudario.ui.studio.GxKicker("Seu pacote")
-                        Text(recipe, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = Color(0xFFE9E5FF), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text(recipe, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = br.com.estudario.ui.studio.Gx.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     }
                     val reason = steps.getOrNull(firstInvalid)?.error ?: server?.disabledReason?.takeIf { !server.enabled }
                     if (reason != null) Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = firstInvalid >= 0) { goTo(firstInvalid) }.background(Color(0x33FF5A7A)).padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(reason, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFC2CD))
-                        if (firstInvalid >= 0) Text("Ajustar", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(reason, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = if (br.com.estudario.ui.theme.CxTheme.dark) Color(0xFFFFC2CD) else Color(0xFFB4233F))
+                        if (firstInvalid >= 0) Text("Ajustar", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = br.com.estudario.ui.studio.Gx.strong)
                     }
                     if (server != null) {
                         br.com.estudario.ui.studio.GxLaunch("Gerar com o Estudário", enabled = ready, onClick = server.onGenerate)

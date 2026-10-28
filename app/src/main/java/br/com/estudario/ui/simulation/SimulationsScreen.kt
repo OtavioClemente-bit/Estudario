@@ -160,7 +160,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     br.com.estudario.ui.studio.GxKicker("Provas")
-                    Text("Monte um simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                    Text("Monte um simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                 }
                 remainingParts?.let {
                     Text("Saldo: ${it * 30} questões", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -373,7 +373,7 @@ private fun ModeCard(mode: SimulationMode, lock: SimulationLock, sizes: List<Int
     Column(
         Modifier.fillMaxWidth().clip(shape)
             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(color.copy(alpha = if (lock.unlocked) 0.20f else 0.06f), br.com.estudario.ui.studio.Gx.bg2, br.com.estudario.ui.studio.Gx.bg)))
-            .border(1.5.dp, if (lock.unlocked) color.copy(alpha = 0.5f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f), shape)
+            .border(1.5.dp, if (lock.unlocked) color.copy(alpha = 0.5f) else br.com.estudario.ui.studio.Gx.tint(0.1f), shape)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -386,14 +386,14 @@ private fun ModeCard(mode: SimulationMode, lock: SimulationLock, sizes: List<Int
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(mode.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                    Text(mode.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                     if (!lock.unlocked) {
                         Spacer(Modifier.width(8.dp))
-                        Text("TRANCADO", Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f)).padding(horizontal = 7.dp, vertical = 2.dp),
+                        Text("TRANCADO", Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.1f)).padding(horizontal = 7.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.mute)
                     }
                 }
-                Text(mode.description, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFFC9C5F0))
+                Text(mode.description, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.soft)
             }
         }
         if (!lock.unlocked) {
@@ -437,7 +437,7 @@ private fun ExamRoomHeader(competition: String, board: String?, delivered: Int, 
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column {
                 br.com.estudario.ui.studio.GxKicker("Sala de prova")
-                Text("Simulados", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                Text("Simulados", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                 Text(competition + (board?.let { " · banca $it" } ?: ""), style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
             }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -447,13 +447,13 @@ private fun ExamRoomHeader(competition: String, board: String?, delivered: Int, 
                         val inset = stroke / 2 + 6.dp.toPx()
                         val arc = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2)
                         val tl = androidx.compose.ui.geometry.Offset(inset, inset)
-                        drawArc(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f), -90f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                        drawArc(br.com.estudario.ui.studio.Gx.tint(0.08f), -90f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
                         drawArc(androidx.compose.ui.graphics.Brush.sweepGradient(listOf(androidx.compose.ui.graphics.Color(0xFF7C5CFF), br.com.estudario.ui.studio.Gx.mint, androidx.compose.ui.graphics.Color(0xFF7C5CFF))), -90f, 360f * fill, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                         // a marca dourada da meta
                         drawArc(br.com.estudario.ui.studio.Gx.gold, -90f + 360f * target / 100f - 2f, 4f, false, androidx.compose.ui.geometry.Offset(2.dp.toPx(), 2.dp.toPx()), androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(4.dp.toPx()))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(last?.let { "$it%" } ?: "—", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                        Text(last?.let { "$it%" } ?: "—", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                         Text(if (last == null) "FAÇA O PRIMEIRO" else if (last >= target) "ACIMA DA META" else "ÚLTIMA NOTA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.mute)
                     }
                 }
@@ -474,8 +474,8 @@ private fun ExamRoomHeader(competition: String, board: String?, delivered: Int, 
 @Composable
 private fun RoomStat(glyph: br.com.estudario.ui.brand.Glyph, value: String, label: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
     Row(
-        modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.04f))
-            .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(10.dp),
+        modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.04f))
+            .border(1.dp, br.com.estudario.ui.studio.Gx.tint(0.08f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
@@ -483,7 +483,7 @@ private fun RoomStat(glyph: br.com.estudario.ui.brand.Glyph, value: String, labe
         }
         Spacer(Modifier.width(10.dp))
         Column {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
             Text(label, style = MaterialTheme.typography.labelSmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 1)
         }
     }

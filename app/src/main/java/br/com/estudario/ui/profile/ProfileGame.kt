@@ -111,12 +111,17 @@ import br.com.estudario.ui.theme.EstudarioTheme
  */
 
 internal object Game {
-    val bg = Color(0xFF12143A)
-    val bg2 = Color(0xFF1C1B52)
-    val ink = Color.White
-    val muted = Color(0xFFA9ABD9)
-    val line = Color.White.copy(alpha = 0.10f)
-    val track = Color.White.copy(alpha = 0.08f)
+    private val d: Boolean get() = br.com.estudario.ui.theme.CxTheme.dark
+    val bg: Color get() = if (d) Color(0xFF12143A) else Color(0xFFF3F1FF)
+    val bg2: Color get() = if (d) Color(0xFF1C1B52) else Color(0xFFFFFFFF)
+    val deep: Color get() = if (d) Color(0xFF0B0C26) else Color(0xFFE9E5FF)
+    val ink: Color get() = if (d) Color.White else Color(0xFF14113A)
+    val muted: Color get() = if (d) Color(0xFFA9ABD9) else Color(0xFF6B6894)
+    val line: Color get() = if (d) Game.tint(0.10f) else Color(0x2E5B4BF5)
+    val track: Color get() = tint(0.08f)
+    fun tint(alpha: Float): Color = br.com.estudario.ui.theme.CxTheme.tint(alpha)
+    /** No claro, a cor do destaque um tom mais funda, para texto ler bem no fundo branco. */
+    fun readable(c: Color): Color = if (d) c else androidx.compose.ui.graphics.lerp(c, Color(0xFF14113A), 0.38f)
     val mint = Color(0xFF34D399)
     val flame = Color(0xFFFF8A3D)
     val violet = Color(0xFF8B7CFF)
@@ -153,7 +158,7 @@ internal fun GamePanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(24.dp)
-    EstudarioTheme(darkTheme = true) {
+    run {
         Column(
             Modifier.fillMaxWidth().clip(shape)
                 .background(Brush.verticalGradient(listOf(Game.bg2, Game.bg)))
@@ -168,7 +173,7 @@ internal fun GamePanel(
                     Modifier.clip(RoundedCornerShape(50)).then(if (onTrailing != null) Modifier.clickable(onClick = onTrailing) else Modifier).padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(trailing, style = MaterialTheme.typography.labelMedium, color = accent, fontWeight = FontWeight.Bold)
+                    Text(trailing, style = MaterialTheme.typography.labelMedium, color = Game.readable(accent), fontWeight = FontWeight.Bold)
                     if (onTrailing != null) Icon(Icons.Outlined.ChevronRight, null, Modifier.size(18.dp), tint = accent)
                 }
             }
@@ -194,17 +199,17 @@ internal fun PlayerCard(
     val shape = RoundedCornerShape(28.dp)
     val loop = rememberInfiniteTransition(label = "cartao")
     val shine by loop.animateFloat(-0.6f, 1.6f, infiniteRepeatable(tween(5_200, easing = LinearEasing)), label = "cartao-brilho")
-    EstudarioTheme(darkTheme = true) {
+    run {
         Column(
             Modifier.fillMaxWidth().clip(shape)
-                .background(Brush.linearGradient(listOf(Game.bg2, Game.bg, Color(0xFF0B0C26))))
+                .background(Brush.linearGradient(listOf(Game.bg2, Game.bg, Game.deep)))
                 .drawBehind {
                     // Grade fina de holograma e o brilho da liga no canto.
                     val step = 22.dp.toPx()
                     var x = 0f
-                    while (x < size.width) { drawLine(Color.White.copy(alpha = 0.035f), Offset(x, 0f), Offset(x, size.height)); x += step }
+                    while (x < size.width) { drawLine(Game.tint(0.035f), Offset(x, 0f), Offset(x, size.height)); x += step }
                     var y = 0f
-                    while (y < size.height) { drawLine(Color.White.copy(alpha = 0.035f), Offset(0f, y), Offset(size.width, y)); y += step }
+                    while (y < size.height) { drawLine(Game.tint(0.035f), Offset(0f, y), Offset(size.width, y)); y += step }
                     drawCircle(Brush.radialGradient(listOf(league.c1.copy(alpha = 0.38f), Color.Transparent), Offset(size.width, 0f), size.width * 0.7f), size.width * 0.7f, Offset(size.width, 0f))
                 }
                 .drawWithContent {
@@ -224,7 +229,7 @@ internal fun PlayerCard(
                 ) {
                     Icon(Icons.Rounded.EmojiEvents, null, Modifier.size(14.dp), tint = league.c2)
                     Spacer(Modifier.width(4.dp))
-                    Text("LIGA ${league.name.uppercase()}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = league.c2, letterSpacing = 1.sp)
+                    Text("LIGA ${league.name.uppercase()}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Game.readable(league.c2), letterSpacing = 1.sp)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -232,7 +237,7 @@ internal fun PlayerCard(
                 PlayerAvatar(profile, progress, league, onChangePhoto)
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(progress.levelTitle.uppercase(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = league.c2, letterSpacing = Kicker)
+                    Text(progress.levelTitle.uppercase(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Game.readable(league.c2), letterSpacing = Kicker)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             profile.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Game.ink,
@@ -284,7 +289,7 @@ private fun PlayerAvatar(profile: UserProfile, progress: ProgressEngine.Progress
                 .background(Brush.horizontalGradient(listOf(league.c1, league.c2)))
                 .border(2.dp, Game.bg, RoundedCornerShape(8.dp))
                 .padding(horizontal = 10.dp, vertical = 2.dp),
-        ) { Text("NV ${progress.level}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Game.bg) }
+        ) { Text("NV ${progress.level}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFF14113A)) }
         Box(
             Modifier.align(Alignment.TopEnd).offset(x = (-4).dp, y = 6.dp).size(28.dp).clip(CircleShape).background(Game.bg2)
                 .border(1.5.dp, league.c2, CircleShape).clickable(onClick = onChangePhoto),
@@ -368,7 +373,7 @@ private fun Hud(progress: ProgressEngine.ProgressSummary, streak: StreakSummary,
 @Composable
 private fun HudStat(modifier: Modifier, value: String, label: String, sub: String, accent: Color, icon: @Composable () -> Unit) {
     Row(
-        modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.05f)).border(1.dp, Game.line, RoundedCornerShape(16.dp)).padding(10.dp),
+        modifier.clip(RoundedCornerShape(16.dp)).background(Game.tint(0.05f)).border(1.dp, Game.line, RoundedCornerShape(16.dp)).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) { icon() }
@@ -376,7 +381,7 @@ private fun HudStat(modifier: Modifier, value: String, label: String, sub: Strin
         Column(Modifier.weight(1f)) {
             Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Game.ink, maxLines = 1)
             Text(label, style = MaterialTheme.typography.labelSmall, color = Game.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(sub, style = MaterialTheme.typography.labelSmall, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sub, style = MaterialTheme.typography.labelSmall, color = Game.readable(accent), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -457,7 +462,7 @@ private fun Quest(icon: ImageVector, accent: Color, title: String, fraction: Flo
         Modifier.fillMaxWidth()
             .then(if (onClick != null) Modifier.gameClick(onClick) else Modifier)
             .clip(RoundedCornerShape(16.dp))
-            .background(if (complete) accent.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.04f))
+            .background(if (complete) accent.copy(alpha = 0.10f) else Game.tint(0.04f))
             .border(1.dp, if (complete) accent.copy(alpha = 0.5f) else Game.line, RoundedCornerShape(16.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -474,9 +479,9 @@ private fun Quest(icon: ImageVector, accent: Color, title: String, fraction: Flo
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Game.ink, modifier = Modifier.weight(1f))
                 if (complete) Text(
-                    "COMPLETA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Game.bg, letterSpacing = 1.sp,
+                    "COMPLETA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFF14113A), letterSpacing = 1.sp,
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(accent).padding(horizontal = 6.dp, vertical = 1.dp),
-                ) else Text("${(fraction * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+                ) else Text("${(fraction * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Game.readable(accent))
             }
             Spacer(Modifier.height(6.dp))
             Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Game.track)) {
@@ -519,15 +524,15 @@ internal fun TitlesTrail(level: Int) {
                                     when {
                                         now -> Brush.linearGradient(listOf(league.c1, league.c2))
                                         reached -> Brush.linearGradient(listOf(league.c1.copy(alpha = 0.75f), league.c1.copy(alpha = 0.55f)))
-                                        else -> Brush.linearGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)))
+                                        else -> Brush.linearGradient(listOf(Game.tint(0.10f), Game.tint(0.06f)))
                                     },
                                 )
-                                .border(if (now) 2.dp else 1.dp, if (now) Color.White.copy(alpha = pulse) else if (reached) league.c2.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.28f), RoundedCornerShape(8.dp)),
+                                .border(if (now) 2.dp else 1.dp, if (now) Color.White.copy(alpha = pulse) else if (reached) league.c2.copy(alpha = 0.6f) else Game.tint(0.28f), RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Box(Modifier.rotate(-45f), contentAlignment = Alignment.Center) {
-                                if (reached) Text("$stop", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Game.bg)
-                                else Icon(Icons.Rounded.Lock, null, Modifier.size(15.dp), tint = Color(0xFFD6D2FA))
+                                if (reached) Text("$stop", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF14113A))
+                                else Icon(Icons.Rounded.Lock, null, Modifier.size(15.dp), tint = Game.muted)
                             }
                         }
                     }
@@ -535,7 +540,7 @@ internal fun TitlesTrail(level: Int) {
                     Text(
                         ProgressEngine.levelTitle(stop), style = MaterialTheme.typography.bodySmall, fontSize = 12.sp, letterSpacing = 0.sp, lineHeight = 14.sp,
                         fontWeight = if (now) FontWeight.Black else FontWeight.Medium,
-                        color = if (now) league.c2 else if (reached) Game.ink else Color(0xFFCFCBF5),
+                        color = if (now) league.c2 else if (reached) Game.ink else Game.muted,
                         textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(horizontal = 4.dp),
                     )
                     if (!reached) Text("nível $stop", style = MaterialTheme.typography.labelSmall, color = Game.muted, fontSize = 10.sp, letterSpacing = 0.sp)
@@ -559,7 +564,7 @@ internal fun TrophyRoom(progress: ProgressEngine.ProgressSummary, onBadges: () -
     val locked = progress.nextBadges.take(3)
     GamePanel("Sala de troféus", Game.gold, trailing = "Ver todos", onTrailing = onBadges) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("${earned.size}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = Game.gold)
+            Text("${earned.size}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = Game.readable(Game.gold))
             Text(" de ${progress.badges.size} troféus", style = MaterialTheme.typography.bodyMedium, color = Game.muted, modifier = Modifier.padding(bottom = 4.dp))
         }
         Spacer(Modifier.height(8.dp))
@@ -588,7 +593,7 @@ internal fun TrophyRoom(progress: ProgressEngine.ProgressSummary, onBadges: () -
 private fun TrophySlot(modifier: Modifier, row: BadgeProgress, earned: Boolean, onClick: () -> Unit) {
     Column(
         modifier.gameClick(onClick).clip(RoundedCornerShape(16.dp))
-            .background(if (earned) Brush.verticalGradient(listOf(Game.gold.copy(alpha = 0.16f), Color.Transparent)) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.04f), Color.White.copy(alpha = 0.04f))))
+            .background(if (earned) Brush.verticalGradient(listOf(Game.gold.copy(alpha = 0.16f), Color.Transparent)) else Brush.verticalGradient(listOf(Game.tint(0.04f), Game.tint(0.04f))))
             .border(1.dp, if (earned) Game.gold.copy(alpha = 0.4f) else Game.line, RoundedCornerShape(16.dp))
             .padding(vertical = 10.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -601,7 +606,7 @@ private fun TrophySlot(modifier: Modifier, row: BadgeProgress, earned: Boolean, 
         }
         Spacer(Modifier.height(6.dp))
         Text(row.badge.name, style = MaterialTheme.typography.labelSmall, letterSpacing = 0.sp, color = if (earned) Game.ink else Game.muted, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (!earned) Text("${(row.percent * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Game.gold)
+        if (!earned) Text("${(row.percent * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Game.readable(Game.gold))
     }
 }
 
@@ -625,7 +630,7 @@ internal fun ComboPanel(streak: StreakSummary) {
         Spacer(Modifier.height(14.dp))
         // Escudos: a folga que o Folha guarda a cada 7 dias seguidos e que salva o combo num dia sem estudo.
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.04f)).border(1.dp, Game.line, RoundedCornerShape(14.dp)).padding(12.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Game.tint(0.04f)).border(1.dp, Game.line, RoundedCornerShape(14.dp)).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             repeat(StreakEngine.MAX_FREEZES) { i ->
@@ -679,7 +684,7 @@ internal fun AttributesPanel(progress: ProgressEngine.ProgressSummary) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(source.label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Game.ink, modifier = Modifier.weight(1f))
-                        Text("${formatXp(source.xp)} XP", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = color)
+                        Text("${formatXp(source.xp)} XP", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Game.readable(color))
                         Text("  ${percents[i]}%", style = MaterialTheme.typography.labelSmall, color = Game.muted)
                     }
                     Spacer(Modifier.height(5.dp))

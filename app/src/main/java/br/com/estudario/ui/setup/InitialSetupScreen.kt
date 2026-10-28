@@ -648,13 +648,13 @@ private fun PdfEditalCta(freeTier: Boolean, onClick: () -> Unit) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f))
+                    Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.07f))
                         .border(1.5.dp, br.com.estudario.ui.studio.Gx.gold.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center,
                 ) { br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Doc, size = 40.dp) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Não achou o seu concurso? Envie o PDF do edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+                    Text("Não achou o seu concurso? Envie o PDF do edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                     Text("Eu leio o edital e monto as matérias e os tópicos para você." + if (freeTier) " Nos planos Essencial e Pro." else "", style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
                 }
             }

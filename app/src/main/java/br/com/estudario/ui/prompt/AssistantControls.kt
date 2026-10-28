@@ -384,7 +384,7 @@ fun FreeMixedQuestionsNotice() {
                 )
                 Icon(androidx.compose.material.icons.Icons.Outlined.WorkspacePremium, null, Modifier.size(20.dp), tint = gold)
             }
-            Text("Treine do jeito que a sua prova cobra", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color.White)
+            Text("Treine do jeito que a sua prova cobra", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
             listOf(
                 "Escolha o nível: só fáceis, médias ou difíceis",
                 "Escolha o formato: múltipla escolha ou Certo ou Errado",
@@ -392,7 +392,7 @@ fun FreeMixedQuestionsNotice() {
             ).forEach { line ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(androidx.compose.material.icons.Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = androidx.compose.ui.graphics.Color(0xFF7EE0B8))
-                    Text(line, style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.92f))
+                    Text(line, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.92f))
                 }
             }
             Row(

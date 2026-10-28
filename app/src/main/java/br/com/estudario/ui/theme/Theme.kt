@@ -1,5 +1,8 @@
 package br.com.estudario.ui.theme
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -23,6 +26,9 @@ fun EstudarioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composa
     val layout = remember(configuration.screenWidthDp, configuration.screenHeightDp, configuration.fontScale) {
         EstudarioLayout.from(configuration)
     }
+    // O visual "console" (perfil de jogo, estúdio, missão do dia) lê o tema por aqui, até dentro do desenho.
+    androidx.compose.runtime.SideEffect { CxTheme.dark = darkTheme }
+    CxTheme.dark = darkTheme
     CompositionLocalProvider(
         LocalEstudarioColors provides extendedColors,
         LocalEstudarioLayout provides layout,
@@ -43,3 +49,15 @@ fun EstudarioTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composa
  */
 @Composable
 fun estudarioColors(): EstudarioExtendedColors = LocalEstudarioColors.current
+
+/**
+ * Se o app está no tema escuro, para o visual "console" (Gx e Game): no claro os painéis ficam
+ * brancos e lilás com tinta índigo; no escuro, o painel noturno de antes. É estado observável, então
+ * trocar o tema redesenha esses painéis.
+ */
+object CxTheme {
+    var dark by androidx.compose.runtime.mutableStateOf(false)
+    /** Branco sobre o escuro; tinta índigo sobre o claro (preenchimentos, trilhos, grades). */
+    fun tint(alpha: Float): androidx.compose.ui.graphics.Color =
+        if (dark) androidx.compose.ui.graphics.Color.White.copy(alpha = alpha) else androidx.compose.ui.graphics.Color(0xFF26234A).copy(alpha = alpha)
+}

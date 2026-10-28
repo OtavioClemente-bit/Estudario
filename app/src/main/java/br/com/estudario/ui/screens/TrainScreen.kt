@@ -166,7 +166,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                         br.com.estudario.ui.studio.GxKicker("Estúdio de treino")
-                        Text("Monte o seu treino", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("Monte o seu treino", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                     }
                     Box(target(TourKey.TRAIN_MODES)) {
                         br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Target, "Modo", "Como as questões vão ser escolhidas", br.com.estudario.ui.studio.Gx.violet) {
@@ -192,7 +192,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
                     val summary = listOfNotNull(trainModes.firstOrNull { it.key == mode }?.title, availableSubjects.firstOrNull { it.id == subjectId }?.name, board, difficulty.label.takeIf { difficulty != QuestionDifficulty.MIXED }, "$count questões").joinToString(" · ")
                     Column(Modifier.padding(horizontal = 4.dp)) {
                         br.com.estudario.ui.studio.GxKicker("Seu treino")
-                        Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = br.com.estudario.ui.studio.Gx.strong, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Box(target(TourKey.TRAIN_START)) {
                         br.com.estudario.ui.studio.GxLaunch(
@@ -261,11 +261,11 @@ private fun DiagnosisPanel(
                         val inset = stroke / 2
                         val arc = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
                         val tl = androidx.compose.ui.geometry.Offset(inset, inset)
-                        drawArc(Color.White.copy(alpha = 0.08f), -90f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                        drawArc(br.com.estudario.ui.studio.Gx.tint(0.08f), -90f, 360f, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
                         drawArc(tone, -90f, 360f * fill, false, tl, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(accuracy?.let { "$it%" } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)
+                        Text(accuracy?.let { "$it%" } ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                         Text("de acerto", style = MaterialTheme.typography.labelSmall, color = br.com.estudario.ui.studio.Gx.mute)
                     }
                 }
@@ -274,7 +274,7 @@ private fun DiagnosisPanel(
                     br.com.estudario.ui.studio.GxKicker("Seu diagnóstico")
                     Text(
                         when { accuracy == null -> "Resolva as primeiras questões"; accuracy >= 70 -> "Você está no ritmo da aprovação"; accuracy >= 50 -> "Bom caminho, dá para subir"; else -> "Hora de reforçar a base" },
-                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White,
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong,
                     )
                     Text(
                         if (answered == 0) "O diagnóstico mostra seu acerto por matéria assim que você responder." else "$answered respostas em ${perSubject.count { it.answered > 0 }} matérias",
@@ -288,8 +288,8 @@ private fun DiagnosisPanel(
                     val shape = RoundedCornerShape(18.dp)
                     Row(
                         recModifier(rec).fillMaxWidth().then(Modifier.gxClick { onStart(rec.config) }).clip(shape)
-                            .background(if (top) androidx.compose.ui.graphics.Brush.linearGradient(listOf(rec.color.copy(alpha = 0.24f), Color.White.copy(alpha = 0.03f))) else androidx.compose.ui.graphics.SolidColor(Color.White.copy(alpha = 0.04f)))
-                            .border(if (top) 1.5.dp else 1.dp, if (top) rec.color else Color.White.copy(alpha = 0.08f), shape)
+                            .background(if (top) androidx.compose.ui.graphics.Brush.linearGradient(listOf(rec.color.copy(alpha = 0.24f), br.com.estudario.ui.studio.Gx.tint(0.03f))) else androidx.compose.ui.graphics.SolidColor(br.com.estudario.ui.studio.Gx.tint(0.04f)))
+                            .border(if (top) 1.5.dp else 1.dp, if (top) rec.color else br.com.estudario.ui.studio.Gx.tint(0.08f), shape)
                             .padding(horizontal = 12.dp, vertical = if (top) 14.dp else 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -302,12 +302,12 @@ private fun DiagnosisPanel(
                                 "RECOMENDADO AGORA", Modifier.padding(bottom = 3.dp).clip(RoundedCornerShape(6.dp)).background(rec.color).padding(horizontal = 7.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFF1A1440),
                             )
-                            Text(rec.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(rec.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(rec.reason, style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Spacer(Modifier.width(10.dp))
                         Box(
-                            Modifier.size(if (top) 46.dp else 36.dp).clip(CircleShape).background(if (top) rec.color else Color.White.copy(alpha = 0.08f)),
+                            Modifier.size(if (top) 46.dp else 36.dp).clip(CircleShape).background(if (top) rec.color else br.com.estudario.ui.studio.Gx.tint(0.08f)),
                             contentAlignment = Alignment.Center,
                         ) { Icon(Icons.Outlined.PlayArrow, "Começar", Modifier.size(if (top) 26.dp else 20.dp), tint = if (top) Color(0xFF1A1440) else Color.White) }
                     }
@@ -321,21 +321,21 @@ private fun DiagnosisPanel(
                         val c = accuracyTone(score.accuracy)
                         Row(
                             Modifier.fillMaxWidth().gxClick { onStart(QuizConfig(15, subjectId = score.id, mode = "smart")) }.clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.03f)).padding(horizontal = 10.dp, vertical = 9.dp),
+                                .background(br.com.estudario.ui.studio.Gx.tint(0.03f)).padding(horizontal = 10.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(score.name, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(score.name, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = br.com.estudario.ui.studio.Gx.strong, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.width(8.dp))
-                            Box(Modifier.width(80.dp).height(6.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                            Box(Modifier.width(80.dp).height(6.dp).clip(CircleShape).background(br.com.estudario.ui.studio.Gx.tint(0.08f))) {
                                 Box(Modifier.fillMaxWidth(((score.accuracy ?: 0) / 100f).coerceIn(0.03f, 1f)).fillMaxHeight().clip(CircleShape).background(c))
                             }
                             Spacer(Modifier.width(8.dp))
-                            Text(score.accuracy?.let { "$it%" } ?: "—", Modifier.width(40.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = c, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                            Text(score.accuracy?.let { "$it%" } ?: "—", Modifier.width(40.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.readable(c), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                         }
                     }
                     if (ranked.size > 4) TextButton(onClick = { allSubjects = !allSubjects }) {
-                        Text(if (allSubjects) "Mostrar menos" else "Ver todas as ${ranked.size} matérias", color = Color(0xFFC9BEFF), fontWeight = FontWeight.Black)
-                        Icon(if (allSubjects) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Color(0xFFC9BEFF))
+                        Text(if (allSubjects) "Mostrar menos" else "Ver todas as ${ranked.size} matérias", color = br.com.estudario.ui.studio.Gx.accentText, fontWeight = FontWeight.Black)
+                        Icon(if (allSubjects) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = br.com.estudario.ui.studio.Gx.accentText)
                     }
                 }
             }
@@ -412,6 +412,6 @@ private fun RecommendationCard(recommendation: Recommendation, modifier: Modifie
 @Composable
 private fun MetaPill(text: String, color: Color) {
     Surface(shape = RoundedCornerShape(50), color = color.copy(alpha = .1f)) {
-        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = color)
+        Text(text, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = br.com.estudario.ui.studio.Gx.readable(color))
     }
 }

@@ -40,10 +40,10 @@ internal fun ReviewPracticeSettings(initial: ReviewPracticeOptions, onClose: () 
             Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     GxKicker("Ajustes da revisão")
-                    Text("Seu ritmo de revisão", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("Seu ritmo de revisão", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                     Text("Personalize as próximas sessões", style = MaterialTheme.typography.bodySmall, color = Gx.mute)
                 }
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Color.White.copy(alpha = 0.06f)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.06f)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Close, "Fechar", tint = Color.White)
                 }
             }
