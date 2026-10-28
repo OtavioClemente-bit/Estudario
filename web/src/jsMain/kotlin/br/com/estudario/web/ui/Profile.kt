@@ -140,7 +140,8 @@ fun ProfileScreen() {
                 Span({ classes("gm-avatar-photo") }) {
                     AvatarContent()
                 }
-                Span({ classes("gm-avatar-lv") }) { Span { Text("NV") }; B { Text("${progress.level}") } }
+                // o brasão da patente: troca de metal e cresce um pouco a cada título
+                Span({ classes("gm-avatar-crest") }) { LevelCrestView(progress.level, 46 + br.com.estudario.domain.LevelCrest.rankIndex(progress.level) * 2) }
                 Button({ classes("gm-avatar-cam"); attr("type", "button"); attr("aria-label", "Trocar a imagem do perfil"); attr("title", "Trocar a imagem"); onClick { AvatarChoice.picking = true } }) { Icon("photo_camera", plain = true) }
             }
             Div({ classes("gm-card-id") }) {
@@ -211,7 +212,11 @@ fun ProfileScreen() {
                         val reached = progress.level >= lv
                         val current = reached && (marks.getOrNull(i + 1)?.let { progress.level < it } ?: true)
                         Div({ classes(*listOfNotNull("gm-node", if (reached) "on" else null, if (current) "now" else null).toTypedArray()); attr("style", "--n:${leagueOf(lv).color}") }) {
-                            Span({ classes("gm-node-dot") }) { if (reached) Icon(if (current) "person" else "check", filled = true) else Icon("lock", filled = true) }
+                            // o brasão de cada patente: o atual maior, os que faltam apagados e com cadeado
+                            Span({ classes("gm-node-crest") }) {
+                                LevelCrestView(lv, if (current) 60 else 48)
+                                if (!reached) Span({ classes("gm-node-lock") }) { Icon("lock", filled = true) }
+                            }
                             B { Text("NV $lv") }
                             Span { Text(br.com.estudario.domain.ProgressEngine.levelTitle(lv)) }
                         }

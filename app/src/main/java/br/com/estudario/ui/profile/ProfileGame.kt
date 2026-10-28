@@ -263,7 +263,7 @@ internal fun PlayerCard(
     }
 }
 
-/** O avatar dentro do anel do nível, com um anel tracejado girando por fora e a placa "NV n". */
+/** O avatar dentro do anel do nível, com um anel tracejado girando por fora e o brasão da patente. */
 @Composable
 private fun PlayerAvatar(profile: UserProfile, progress: ProgressEngine.ProgressSummary, league: League, onChangePhoto: () -> Unit) {
     val fraction by animateFloatAsState(progress.levelProgress, tween(1_000, easing = FastOutSlowInEasing), label = "anel")
@@ -284,12 +284,9 @@ private fun PlayerAvatar(profile: UserProfile, progress: ProgressEngine.Progress
             )
         }
         Box(Modifier.clip(CircleShape).clickable(onClick = onChangePhoto)) { ProfileAvatar(profile.photoPath, profile.initials, 84.dp) }
-        Box(
-            Modifier.align(Alignment.BottomCenter).offset(y = 2.dp).clip(RoundedCornerShape(8.dp))
-                .background(Brush.horizontalGradient(listOf(league.c1, league.c2)))
-                .border(2.dp, Game.bg, RoundedCornerShape(8.dp))
-                .padding(horizontal = 10.dp, vertical = 2.dp),
-        ) { Text("NV ${progress.level}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = Color(0xFF14113A)) }
+        // o brasão da patente: troca de metal e cresce um pouco a cada título
+        val crest = (42 + br.com.estudario.domain.LevelCrest.rankIndex(progress.level) * 1.4f).dp
+        LevelCrestImage(progress.level, crest, Modifier.align(Alignment.BottomCenter).offset(y = crest * 0.3f))
         Box(
             Modifier.align(Alignment.TopEnd).offset(x = (-4).dp, y = 6.dp).size(28.dp).clip(CircleShape).background(Game.bg2)
                 .border(1.5.dp, league.c2, CircleShape).clickable(onClick = onChangePhoto),
@@ -518,22 +515,14 @@ internal fun TitlesTrail(level: Int) {
                             Box(Modifier.weight(1f).fillMaxHeight().background(if (i == 0) Color.Transparent else if (reached) league.c1 else Game.track))
                             Box(Modifier.weight(1f).fillMaxHeight().background(if (i == stops.lastIndex) Color.Transparent else if (stops[i + 1] <= level) league.c1 else Game.track))
                         }
-                        Box(
-                            Modifier.size(if (now) 42.dp else 34.dp).rotate(45f).clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    when {
-                                        now -> Brush.linearGradient(listOf(league.c1, league.c2))
-                                        reached -> Brush.linearGradient(listOf(league.c1.copy(alpha = 0.75f), league.c1.copy(alpha = 0.55f)))
-                                        else -> Brush.linearGradient(listOf(Game.tint(0.10f), Game.tint(0.06f)))
-                                    },
-                                )
-                                .border(if (now) 2.dp else 1.dp, if (now) Color.White.copy(alpha = pulse) else if (reached) league.c2.copy(alpha = 0.6f) else Game.tint(0.28f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(Modifier.rotate(-45f), contentAlignment = Alignment.Center) {
-                                if (reached) Text("$stop", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Color(0xFF14113A))
-                                else Icon(Icons.Rounded.Lock, null, Modifier.size(15.dp), tint = Game.muted)
-                            }
+                        // o brasão de cada patente: o atual maior e pulsando, os que faltam apagados e com cadeado
+                        Box(contentAlignment = Alignment.Center) {
+                            LevelCrestImage(stop, if (now) 52.dp else 42.dp, Modifier.graphicsLayer {
+                                alpha = if (reached) 1f else 0.5f
+                                val sc = if (now) 0.94f + 0.06f * pulse else 1f
+                                scaleX = sc; scaleY = sc
+                            })
+                            if (!reached) Icon(Icons.Rounded.Lock, null, Modifier.size(15.dp), tint = Game.ink)
                         }
                     }
                     Spacer(Modifier.height(6.dp))
