@@ -21,9 +21,10 @@ object LibraryGaps {
     private const val PATH = "/functions/v1/library-ready"
 
     /** Fora do plano: os sem matéria pronta (Grátis) e os que saíram do edital na atualização do catálogo. */
-    fun excluded(): Set<Long> =
+    /** [data]: a foto em uso (os que saíram do edital ficam nela); sem ela, só os do Grátis. */
+    fun excluded(data: Snapshot? = null): Set<Long> =
         runCatching { localStorage.getItem(KEY) }.getOrNull()?.split(",")?.mapNotNullTo(hashSetOf()) { it.toLongOrNull() }.orEmpty() +
-            EditalUpdate.outOfEdital(Store.data)
+            (data?.let(EditalUpdate::outOfEdital) ?: emptySet())
 
     private fun save(ids: Set<Long>) { runCatching { localStorage.setItem(KEY, ids.joinToString(",")) } }
 

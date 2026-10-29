@@ -18,7 +18,7 @@ internal fun rememberForecast(data: Snapshot, plan: StudyPlan?): ForecastLoad {
     val day = Queries.todayDate()
     val zone = Queries.zone.id
     val free = LibraryGaps.free()
-    val excluded = LibraryGaps.excluded()
+    val excluded = LibraryGaps.excluded(data)
     var state by remember(data, plan, day, zone, free, excluded) {
         mutableStateOf(if (plan == null) ForecastLoad(loading = false) else ForecastService.cached(data, plan) ?: ForecastLoad())
     }
