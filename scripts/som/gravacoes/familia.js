@@ -87,11 +87,16 @@ const FAMILIA = {
     { sub: "conquista_curta", at: 4.25 },
     { syn: "spark", at: 5.2, vol: 0.08, len: 0.9, count: 5 }] },
   cena_nivel: { nome: "Cena: subiu de nível", onde: "Nível novo", vol: 0.9, cena: true, layers: [
-    // arpejo de marimba subindo duas oitavas e acelerando, como quem sobe uma escada correndo
-    ...["D5", "F#5", "A5", "D6", "F#6", "A6", "D7"].map((nt, i) => ({ syn: "marimba", note: nt, at: 0.15 + 1.05 * (1 - Math.pow(0.8, i)) / (1 - Math.pow(0.8, 7)), vol: 0.24 + i * 0.03, len: 0.45 })),
-    { syn: "riser", at: 0.7, vol: 0.34, len: 0.9 },
+    // folha-live.js, LVL: as orbes enchem o anel de 0,15 a 1,2 s chegando rápido no começo e devagar no fim
+    // (outC); cada nota do arpejo cai quando o anel passa por mais um sétimo, então elas vêm juntas no começo e
+    // espaçam no fim, como a animação. Em 1,25 o emblema antigo racha, o anel acelera até 1,6 (impacto e
+    // número novo), as asas abrem em 1,9 e a faixa "NÍVEL" sobe em 2,25.
+    ...["D5", "F#5", "A5", "D6", "F#6", "A6", "D7"].map((nt, i) => ({ syn: "marimba", note: nt, at: 0.15 + 1.05 * (1 - Math.cbrt(1 - (i + 1) / 7)), vol: 0.22 + i * 0.03, len: 0.5 })),
+    x("madeira", 1.25, 0.3, 0.2, { st: 4 }), { syn: "anvil", note: "D6", at: 1.25, vol: 0.12, len: 0.4 },
+    { syn: "riser", at: 1.2, vol: 0.36, len: 0.4 },
     x("bola", 1.58, 0.26, 1.0, { st: -3, lp: 1800 }),
-    x("asaLeve", 1.9, 0.32, 0.7), x("asaLeve", 2.15, 0.25, 0.7, { st: 1 }),
+    x("asaLeve", 1.9, 0.34, 0.7), x("asaLeve", 2.12, 0.26, 0.7, { st: 1 }),
+    x("fita", 2.25, 0.22, 0.5), { syn: "glass", note: "A6", at: 2.3, vol: 0.08, len: 0.5 },
     { sub: "conquista_curta", at: 1.6 }] },
   cena_peca: { nome: "Cena: o presente", onde: "Peça nova do armário", vol: 0.9, cena: true, layers: [
     x("caixa", 0.45, 0.75, 0.9),
