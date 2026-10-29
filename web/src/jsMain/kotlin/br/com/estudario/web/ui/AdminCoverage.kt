@@ -54,13 +54,14 @@ fun AdminCoverageScreen() {
     var tab by remember { mutableStateOf("painel") }
     PageHead("Equipe", "O painel da biblioteca e do catálogo, os editais em uso e o que falta preparar")
     Div({ classes("filter-chips"); attr("style", "margin-bottom:14px") }) {
-        listOf("painel" to "Painel", "uso" to "Em uso pelas contas", "catalogo" to "Todo o catálogo", "magros" to "Recortes magros").forEach { (k, label) ->
+        listOf("painel" to "Painel", "contas" to "Contas", "uso" to "Editais em uso", "catalogo" to "Todo o catálogo", "magros" to "Recortes magros").forEach { (k, label) ->
             Button({ classes(*listOfNotNull("fchip", if (tab == k) "on" else null).toTypedArray()); onClick { tab = k } }) { Text(label) }
         }
     }
     val all = entries
     if (tab == "painel") { TeamDashboard(); return }
     if (tab == "magros") { ThinSlices(); return }
+    if (tab == "contas") { AdminAccounts(); return }
     if (tab == "uso") {
         EditaisInUse { id -> all?.firstOrNull { it.id == id }?.let { open = it } }
         open?.let { entry -> CoverageModal(entry) { open = null } }
