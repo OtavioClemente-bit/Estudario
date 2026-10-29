@@ -933,8 +933,7 @@ private fun TheoryReader(theory: Theory) {
             }
             Button({ classes("grifo-btn"); onClick { noteFor = p; picked = null } }) { Icon("edit_note"); Text("Grifar com nota") }
             Button({ classes("grifo-btn"); attr("title", "Abre o trecho numa janelinha por cima da página"); onClick {
-                val b = blocks.getOrNull(p.block)
-                val md = if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) b else p.quote
+                val md = pinMarkdown(p, blocks)
                 if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser")
                 window.asDynamic().getSelection()?.removeAllRanges(); picked = null
             } }) { Icon("push_pin"); Text("Fixar") }
@@ -951,8 +950,7 @@ private fun TheoryReader(theory: Theory) {
             onNote = { if (pick != null) noteFor = pick },
             onPinSelection = {
                 // Trecho dentro de uma tabela fixa a tabela inteira (o texto solto perderia as colunas).
-                val b = pick?.block?.let { blocks.getOrNull(it) }
-                val md = if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) b else pick?.quote.orEmpty()
+                val md = pick?.let { pinMarkdown(it, blocks) }.orEmpty()
                 if (!TheoryPins.add(TheoryPins.titleFor(md), md)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else { Toast.show("Fixado: arraste a janela para onde quiser"); window.asDynamic().getSelection()?.removeAllRanges() }
             },
             onPinBlock = {
@@ -1035,6 +1033,23 @@ private fun NotePop(
 }
 
 /** Trecho selecionado na teoria: bloco, texto e onde a barrinha "Grifar" aparece (coordenadas da tela). */
+/**
+ * O que vai para a janela fixada: tabela inteira; seleção que pega o bloco quase todo (ou mais de um
+ * bloco) leva o markdown original desses blocos, com negrito, lista e caixa; trecho curto vai como texto.
+ */
+private fun pinMarkdown(pick: TextPick, blocks: List<String>): String {
+    val ids = (pick.parts.map { it.first } + pick.block).distinct().sorted().filter { it in blocks.indices }
+    val b = blocks.getOrNull(pick.block)
+    if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) return b
+    if (ids.size > 1) return ids.joinToString("\n\n") { blocks[it] }
+    if (b != null) {
+        val plain = b.filter { it.isLetterOrDigit() }.length
+        val got = pick.quote.filter { it.isLetterOrDigit() }.length
+        if (plain > 0 && got >= plain * 0.6) return b
+    }
+    return pick.quote
+}
+
 private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double, val parts: List<Pair<Int, String>> = emptyList(), val overlapIds: Set<Long> = emptySet())
 
 @Composable
