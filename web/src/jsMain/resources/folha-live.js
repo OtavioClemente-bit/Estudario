@@ -218,6 +218,14 @@
       const wv = sin(t * 13);
       p.hR = [100 + wv * 2, 30 + wv * 1.2]; p.shapeR = "open"; p.rotR = -10 + wv * 26; p.bendR = -5;
       p.low = 0.32; p.browY = -1.4; p.mW = 5.6; p.mCurve = 4.4; p.mOpen = 0.55; p.cheek = 0.6; p.tilt = -1.5 + wv * 0.6;
+    } else if (mood === "shh") {
+      // pedindo silêncio: o dedo em pé na frente da boca (a mão vem por cima do livro)
+      p.hR = [54, 76]; p.shapeR = "point"; p.rotR = 140; p.bendR = 8;
+      p.mW = 2; p.mCurve = 0.1; p.mOpen = 0.25; p.browY = -0.5; p.browIn = 0.3; p.cheek = 0.6; p.tilt = sin(t * 2) * 1.5;
+    } else if (mood === "aim") {
+      // mirando lá em cima com o braço esticado (para jogar a chama na fênix)
+      p.hR = [98, 16]; p.shapeR = "point"; p.rotR = -115; p.bendR = -6;
+      p.lookX = -0.3; p.lookY = -1; p.mW = 3.4; p.mCurve = 1.6; p.mOpen = 0.3; p.browY = -0.9; p.tilt = -3;
     } else if (mood === "point") {
       p.hR = [106, 60 + sin(t * 4) * 1.2]; p.shapeR = "point"; p.rotR = -6; p.bendR = -2; p.tilt = -2;
       p.lookX = 1; p.lookY = 0; p.browY = -1.2; p.browR = 1.2; p.mW = 5; p.mCurve = 4; p.mOpen = 0.25;
@@ -333,7 +341,7 @@
     drawAura(g, t, look.aura, small, s.burst || 0, true);
     drawBack(g, t, look.back, mood, small, P.hop);
     // na frente do livro: as duas mãos folheando, no susto ou passando na testa (ufa); só a do lápis no foco
-    let front = mood === "thinking" || mood === "surprised" || mood === "present" ? "LR" : mood === "focus" || mood === "relieved" ? "R" : "";
+    let front = mood === "thinking" || mood === "surprised" || mood === "present" ? "LR" : mood === "shh" ? "R" : mood === "focus" || mood === "relieved" ? "R" : "";
     // segurando um item: a mão esquerda fica na frente do livro, para o item aparecer
     if (look.hand && look.hand !== "nenhum" && !front.includes("L")) front = "L" + front;
     if (ex.armsFront) front = "LR";
@@ -2543,7 +2551,7 @@
     lastLine = line; return line;
   }
 
-  const MOODS = { idle: "idle", thinking: "thinking", talking: "talking", happy: "happy", sad: "sad", wave: "wave", point: "point", wink: "idle",
+  const MOODS = { idle: "idle", thinking: "thinking", talking: "talking", happy: "happy", sad: "sad", wave: "wave", point: "point", shh: "shh", aim: "aim", wink: "idle",
     surprised: "surprised", proud: "proud", focus: "focus", sleepy: "sleepy", dizzy: "dizzy", relieved: "relieved", ecstatic: "ecstatic", present: "present" };
 
   // Onde está o ponteiro e quando a pessoa mexeu pela última vez (para os olhos seguirem e para ele cochilar).
@@ -4390,13 +4398,14 @@
     const breath = sin(t * 1.6);
     const open = woke > 0 ? 0.08 + 0.92 * outBack(segT(T, SAV.wings, SAV.wings + 0.75)) : 0.06 + 0.03 * breath;
     const flap = T < SAV.wings + 0.75 ? 0 : sin((T - SAV.wings - 0.75) * 2.4) * 10 + (T < SAV.wings + 1.6 ? sin(PI * segT(T, SAV.wings + 0.75, SAV.wings + 1.6)) * -25 : 0);
-    drawPhoenix(g, t, open, flap, 0.16 + 0.05 * breath + 0.84 * woke, k);
-    if (woke < 0.6) {
+    const nova = !!el._fx;
+    if (!nova) drawPhoenix(g, t, open, flap, 0.16 + 0.05 * breath + 0.84 * woke, k);
+    if (!nova && woke < 0.6) {
       const za = 1 - woke / 0.6;
       for (let j = 0; j < 3; j++) { const u = (t * 0.35 + j / 3) % 1; g.save(); g.globalAlpha = za * (1 - u) * 0.9; g.fillStyle = "#CFC8FF"; g.font = `900 ${3 + u * 3}px Nunito, system-ui, sans-serif`; g.fillText("z", PX + 10 + u * 9 + sin(u * 6 + j) * 1.5, PY - 12 - u * 18); g.restore(); }
     }
     const beat = 1 + 0.06 * Math.max(0, sin(t * 4.2)) ** 6;
-    fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, 0.22 + 0.78 * woke, woke > 0.5 ? beat : 1);
+    if (!nova) fireNumber(g, String(days), PX, PY + 1, String(days).length > 2 ? 13 : String(days).length > 1 ? 17 : 20, 0.22 + 0.78 * woke, woke > 0.5 ? beat : 1);
     if (woke > 0) for (let i = 0, m = Math.round(16 * Q); i < m; i++) { const u = (t * (0.4 + (i % 4) * 0.08) + i * 0.0625) % 1, sd = ((i * 0.618) % 1 - 0.5) * 2, x = PX + sd * 38 * (0.4 + u), y = PY - 6 - u * 34 + sd * sd * 8; const c = fireColor(0.15 + u * 0.6); circle(g, `rgba(${c},${(1 - u) * open})`, 0.3 + 0.3 * (1 - u), x, y); }
     g.restore();
     // ---- o Folha: entra na ponta dos pés, pede silêncio, mira na fênix e joga a bola de fogo
@@ -4464,6 +4473,8 @@
       if (!on()) return;
       load(name).then((buf) => { const a = audio(); const src = a.createBufferSource(), g = a.createGain(); g.gain.value = 0.8 * gain; src.buffer = buf; src.connect(g).connect(a.destination); src.start(); }).catch(() => {});
     }
+    // as trilhas das comemorações ficam prontas antes (carregar na hora atrasava o som em relação à cena)
+    setTimeout(() => { if (on()) ["cena_fenix", "cena_salvou", "cena_emblema", "cena_nivel", "cena_peca", "conquista"].forEach((n) => load(n).catch(() => {})); }, 4000);
     return { play, load, set(v) { try { localStorage.setItem("estudario.som", v ? "on" : "off"); } catch (e) {} }, get enabled() { return on(); } };
   })();
   window.estudarioSom = SOM;
@@ -4500,10 +4511,27 @@
         // espera o som carregar e, se a cena mal começou, recomeça junto para a batida cair no quadro certo
         SOM.load(name).then(() => { if (!this.isConnected) return; if (performance.now() - this._start < 450) this._start = performance.now(); SOM.play(name); }).catch(() => {});
       }, 30);
+      this._novaFenix();
       const tipo = this.getAttribute("tipo"), glow = RARITY_GLOW[this.getAttribute("rarity")] || RARITY_GLOW.comum;
       const cols = tipo === "peca" ? [glow[0], glow[1], "#FFFFFF", SPARK, CHEEK] : tipo === "emblema" ? [...(TIERS[this.getAttribute("tier")] || TIERS[3]), "#FFFFFF", MINT] : [SPARK, MINT, CHEEK, "#6FB0FF", "#B995F5", "#FFFFFF"];
       const lend = tipo === "peca" && (this.getAttribute("rarity") === "lendaria" || (this.getAttribute("pieces") || "").includes('"lendaria"'));
       this._conf = makeConfetti(7 + (tipo || "").length, lend ? 60 : 44, cols);
+    }
+    // Na sequência salva, a fênix é a nova (phoenix.js, <estudario-fenix>), por cima da cena no lugar da desenhada:
+    // dorme até a bola de fogo do Folha acertar (SAV.boom) e acorda sozinha. Sem phoenix.js, fica a desenhada.
+    _novaFenix() {
+      if (this._fx) { this._fx.remove(); this._fx = null; }
+      if (this.getAttribute("tipo") !== "salvou" || !customElements.get("estudario-fenix")) return;
+      const fx = document.createElement("estudario-fenix"), at = this.getAttribute("at");
+      if (at != null) fx.setAttribute("state", +at >= SAV.boom ? "awake" : "sleep");
+      else { fx.setAttribute("state", "sleep"); fx.setAttribute("wake-at", String(Math.round(SAV.boom * 1000))); }
+      fx.style.position = "absolute"; fx.style.pointerEvents = "none";
+      this._fx = fx; this.appendChild(fx); this._placeFenix();
+    }
+    _placeFenix() {
+      if (!this._fx) return;
+      const w = this.clientWidth || 320, size = w * 0.34;   // o desenho da fênix nova ocupa 1,7x a caixa dela
+      Object.assign(this._fx.style, { width: size + "px", height: size + "px", left: (w * PX / 100 - size / 2) + "px", top: (w * PY / 100 - size * 0.52) + "px" });
     }
     // o visual do Folha: o que a pessoa escolheu, em vitrine (sem medalha de sequência nem café da manhã)
     _look(over) { return resolveLook(null, Object.assign({ plain: true }, over || {})); }
@@ -4515,7 +4543,7 @@
       this.style.height = h + "px";
       // bleed="30": o desenho passa 30% da largura para cada lado da caixa (a luz se espalha pela tela)
       const bleed = Math.max(0, parseFloat(this.getAttribute("bleed") || "0")), off = Math.round(w * bleed / 100);
-      this._bleed = bleed;
+      this._bleed = bleed; this._placeFenix && this._placeFenix();
       if (getComputedStyle(this).position === "static") this.style.position = "relative";
       const st = this._canvas.style; st.position = "absolute"; st.left = st.top = -off + "px"; st.width = w + 2 * off + "px"; st.height = h + 2 * off + "px";
       const cw = Math.round((w + 2 * off) * dpr), ch = Math.round((h + 2 * off) * dpr);

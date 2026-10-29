@@ -90,6 +90,15 @@ const FAMILIA = {
     ...["D7", "A6", "F#6", "D6"].map((nt, i) => ({ syn: "glass", note: nt, at: 4.1 + i * 0.07, vol: 0.09, len: 0.4 })),
     x("bola", 4.4, 0.4, 0.7, { st: 3 }), { syn: "bell", note: "F#5", at: 4.4, vol: 0.16, len: 1.4 },
     { syn: "spark", at: 5.0, vol: 0.08, len: 0.9, count: 5 }] },
+  // a sequência na tela de jogo (LevelUpGame/GameScene): o redemoinho gira de 0,2 a 1,0 s puxando o ar e,
+  // em 1,05, a fênix nova acorda em fogo; depois a assinatura e as asas
+  cena_fenix: { nome: "Cena: a fênix acorda", onde: "Sequência do dia (tela de jogo)", vol: 0.9, cena: true, layers: [
+    { syn: "riser", at: 0.2, vol: 0.34, len: 0.85 },
+    { syn: "pad", notes: ["D3", "A3"], at: 0.15, vol: 0.06, len: 1.0 },
+    ...["D5", "F#5", "A5", "D6", "F#6"].map((nt, i) => ({ syn: "glass", note: nt, at: 0.3 + i * 0.15, vol: 0.06 + i * 0.015, len: 0.35 })),
+    x("bola", 1.05, 0.75, 1.0), x("jato", 1.07, 0.4, 0.9), x("sopro", 1.08, 0.3, 1.2, { lp: 5000 }),
+    { sub: "conquista_curta", at: 1.05 },
+    x("asa", 1.25, 0.4, 0.9), x("asaLeve", 1.75, 0.3, 0.7), x("crepitar", 1.3, 0.1, 2.0, { from: 5, fi: 0.4 })] },
   cena_nivel: { nome: "Cena: subiu de nível", onde: "Nível novo", vol: 0.9, cena: true, layers: [
     // folha-live.js, LVL: as orbes enchem o anel de 0,15 a 1,2 s chegando rápido no começo e devagar no fim
     // (outC); cada nota do arpejo cai quando o anel passa por mais um sétimo, então elas vêm juntas no começo e

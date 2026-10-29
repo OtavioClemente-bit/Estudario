@@ -16,7 +16,7 @@ object EstudarioSom {
         "toque" to R.raw.som_toque, "acerto" to R.raw.som_acerto, "erro" to R.raw.som_erro, "combo" to R.raw.som_combo,
         "resultado" to R.raw.som_resultado, "missao" to R.raw.som_missao,
         "concluir" to R.raw.som_concluir, "lembrei" to R.raw.som_lembrei, "nao_lembrei" to R.raw.som_nao_lembrei, "tonto" to R.raw.som_tonto, "conquista" to R.raw.som_conquista,
-        "cena_nivel" to R.raw.som_cena_nivel, "cena_emblema" to R.raw.som_cena_emblema, "cena_sequencia" to R.raw.som_cena_sequencia, "cena_peca" to R.raw.som_cena_peca, "cena_salvou" to R.raw.som_cena_salvou, "foco_fim" to R.raw.som_foco_fim,
+        "cena_nivel" to R.raw.som_cena_nivel, "cena_emblema" to R.raw.som_cena_emblema, "cena_sequencia" to R.raw.som_cena_sequencia, "cena_peca" to R.raw.som_cena_peca, "cena_salvou" to R.raw.som_cena_salvou, "cena_fenix" to R.raw.som_cena_fenix, "foco_fim" to R.raw.som_foco_fim,
     )
     private var pool: SoundPool? = null
     private val ids = mutableMapOf<String, Int>()

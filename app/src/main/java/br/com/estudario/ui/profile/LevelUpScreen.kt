@@ -487,7 +487,7 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
     val next = STREAK_MARKS.firstOrNull { it > days }
     val week = weekOf(summary)
     GameScene(
-        FIRE1, FIRE2, FIRE3, sound = "combo", stamp = if (record) "RECORDE!" else null,
+        FIRE1, FIRE2, FIRE3, sound = null, stamp = if (record) "RECORDE!" else null,
         from = if (days <= 1) "DORMINDO" else "DIA ${days - 1}", to = if (days == 1) "ACORDOU" else "DIA $days", word = "SEQUÊNCIA!",
         sub = if (days == 1) "1 dia · a fênix acordou" else "$days dias seguidos estudando",
         loot = buildList {
@@ -505,7 +505,7 @@ fun StreakCelebrationScreen(celebration: StreakCelebration, onClose: () -> Unit)
         before = { s -> SleepZ(s) },
         after = { },
         backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
-        cues = listOf(0.25f to "tonto"),
+        cues = listOf(0f to "cena_fenix"),   // o som da fênix acordando, no tempo da cena (fogo no clarão, em 1,05 s)
         folhaInLine = false,
         stageExtra = { t, s ->
             Vortex(t, s)

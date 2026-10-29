@@ -243,11 +243,8 @@ private val STREAK_MARKS = listOf(3, 7, 14, 21, 30, 45, 60, 90, 120, 180, 270, 3
 internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>, xpToday: Int, leaving: Boolean, onClose: () -> Unit) {
     val record = days > 1 && days >= best
     val next = STREAK_MARKS.firstOrNull { it > days }
-    // o redemoinho girando e, no clarão, o fogo
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(250); som("tonto")
-        kotlinx.coroutines.delay(800); som("combo")
-    }
+    // o som da fênix acordando, no tempo da cena (redemoinho até 1,05 s e o fogo no clarão)
+    LaunchedEffect(Unit) { som("cena_fenix") }
     GameShell(Triple("#FFE08A", "#FF8A3D", "#B23A0E"), null, "$days dias de sequência", leaving, "streak") {
         GameStage(
             if (record) "RECORDE!" else null,

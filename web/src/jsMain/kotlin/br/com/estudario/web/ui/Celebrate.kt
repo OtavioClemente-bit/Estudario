@@ -75,7 +75,7 @@ private fun write(key: String, value: String) { runCatching { localStorage.setIt
 /** Observa o progresso e enfileira as comemorações. Montado no App, com os dados prontos. */
 @Composable
 fun CelebrationHost() {
-    if (Store.load != LoadState.Ready) return
+    if (Store.load != LoadState.Ready || !Splash.gone) return
     // Na demonstração, "?celebrar" mostra as três telas (para conferir o visual); fora isso, nada.
     if (Store.demo) {
         LaunchedEffect(Unit) {
