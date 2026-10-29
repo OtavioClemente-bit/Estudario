@@ -368,7 +368,7 @@ private fun MiniCard(front: String, back: String) {
     Div({ classes("cb-mini", *listOfNotNull(if (on) "on" else null).toTypedArray()); onClick { on = !on } }) {
         Div({ classes("cb-mini-in") }) {
             Div({ classes("cb-mini-f") }) { Span { Inline(front) } }
-            Div({ classes("cb-mini-b") }) { Span { Inline(back.take(260)) } }
+            Div({ classes("cb-mini-b") }) { Span { Inline(back) } }
         }
     }
 }
