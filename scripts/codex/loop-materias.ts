@@ -93,6 +93,11 @@ Use conteudo/materias/informatica/flyway-migracao-banco.json como modelo de estr
 deno run --allow-read --allow-env scripts/biblioteca/conferir-materia.ts conteudo/entrada/materias-codex-2/${alvo.id}.json
 e corrija até dar OK. Escreva cada capítulo e cada questão você mesmo; não gere conteúdo por script.
 Se não souber um número de lei, artigo, prazo ou valor, explique sem o número. Não faça mais nada nesta rodada.
+Ensine fatos CONCRETOS do assunto (para norma: órgãos, competências, composição, requisitos, prazos e procedimentos
+que estão no texto oficial; para município/povo/região: dados reais de história, geografia e cultura). Abra o texto
+oficial na internet antes de escrever. Matéria só com generalidades ("é importante consultar a norma", "o servidor
+deve agir com ética") é rejeitada na revisão. Confira em cada questão: só UMA alternativa defensável, gabarito
+marcado na alternativa certa e explicação da própria questão.
 Se o arquivo já existir, NÃO recomece: rode o conferidor e corrija só o que ele apontar (explicações curtas,
 alternativa certa longa demais, gabarito concentrado numa letra) até dar OK.
 Se os itens forem só números de atos sem assunto e você não achar o conteúdo, escreva a matéria sobre o tipo de ato
@@ -107,18 +112,19 @@ Se os itens forem só números de atos sem assunto e você não achar o conteúd
   let ok = false;
   try { Deno.statSync(`${SAIDA}/${alvo.id}.json`); ok = aprovada(alvo.id); } catch { /* não gravou */ }
   emAndamento.delete(alvo.id);
+  // Limite do plano só pela mensagem do próprio Codex, no fim da saída. Não conta como tentativa: espera e repete.
+  if (!ok && /hit your usage limit|usage limit (reached|has been reached)|try again (in|at) \d|rate_limit_exceeded/i.test(txt.slice(-2_000))) {
+    log(`   [${n}] limite do plano; esperando 30 min`);
+    await sleep(30 * 60_000);
+    continue;
+  }
   // Rodadas de correção (CODEX_CORRECOES, padrão 5): a regra 1 do AGENTS.md agora diz que corrigir à mão é permitido
   // (antes ele recusava). Depois das correções, o rascunho reprovado fica para a minha revisão.
   if (!ok && conferir() !== null && (falhas.get(alvo.id) ?? 0) < Number(Deno.env.get("CODEX_CORRECOES") ?? 5)) { contarFalha(alvo.id); fixo = alvo; emAndamento.add(alvo.id); log(`   [${n}] ${alvo.id}: gravada, faltam correções; mandando a lista do conferidor`); continue; }
   if (ok) { semAvanco = 0; log(`   [${n}] ok: ${alvo.id} gravada e aprovada no conferidor`); await sleep(10_000); continue; }
   contarFalha(alvo.id);
   semAvanco++;
-  // Guarda a saída para eu ver o motivo. Limite do plano só pela mensagem do próprio Codex, no fim da saída
-  // (antes "quota"/"rate limit" casavam com o texto da matéria e ele esperava 30 minutos à toa).
-  const limite = /hit your usage limit|usage limit (reached|has been reached)|try again (in|at) \d|rate_limit_exceeded/i.test(txt.slice(-2_000));
-  const espera = limite ? 30 : 0; // rascunho reprovado fica para a minha revisão; segue para a próxima
-  log(`   [${n}] ${alvo.id} não ficou pronta (${limite ? "limite do plano" : `rascunho fica para revisão`}); esperando ${espera} min`);
-  await sleep(espera * 60_000);
+  log(`   [${n}] ${alvo.id} não ficou pronta (rascunho fica para revisão)`);
  }
 }
 await Promise.all([...Array(PARALELO).keys()].map(trabalhador));
