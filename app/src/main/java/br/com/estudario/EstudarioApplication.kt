@@ -1,5 +1,6 @@
 package br.com.estudario
 
+import kotlinx.coroutines.flow.first
 import android.app.Application
 import java.io.File
 import br.com.estudario.data.StudyRepository
@@ -169,6 +170,23 @@ class EstudarioApplication : Application() {
         br.com.estudario.notifications.AiGenerationNotifications.createChannels(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             StudyNotificationCoordinator.refresh(this@EstudarioApplication, preferences)
+            // O edital escolhido no catálogo se atualiza sozinho. Espera a sincronização com o site
+            // terminar (até 1 minuto), para o app e o site não acrescentarem o mesmo tópico duas vezes.
+            if (cloudSync.enabled) kotlinx.coroutines.withTimeoutOrNull(60_000) {
+                cloudSync.status.first { it is br.com.estudario.data.sync.CloudSyncStatus.Done || it is br.com.estudario.data.sync.CloudSyncStatus.Failed || it is br.com.estudario.data.sync.CloudSyncStatus.SignedOut }
+            }
+            runCatching { br.com.estudario.data.catalog.EditalUpdate.runDaily(this@EstudarioApplication) }.getOrNull()?.forEach { e ->
+                val parts = listOfNotNull(
+                    e.added.takeIf { it > 0 }?.let { if (it == 1) "1 tópico novo" else "$it tópicos novos" },
+                    e.renamed.takeIf { it > 0 }?.let { if (it == 1) "1 nome corrigido" else "$it nomes corrigidos" },
+                    e.removed.takeIf { it > 0 }?.let { if (it == 1) "1 tópico saiu do edital (guardado, fora do plano)" else "$it tópicos saíram do edital (guardados, fora do plano)" },
+                )
+                StudyNotificationCoordinator.post(
+                    this@EstudarioApplication, "study_reminders", 1011, "Atualizei o edital ${e.competition}",
+                    "${parts.joinToString(", ").replaceFirstChar { it.uppercase() }}. Seu progresso, matérias e erros continuam.",
+                    mood = br.com.estudario.ui.assistant.FolhaMood.PROUD,
+                )
+            }
             // As matérias da biblioteca que a equipe corrigiu se atualizam no lugar (uma vez por dia).
             runCatching { br.com.estudario.data.library.LibraryRefresh.runDaily(this@EstudarioApplication) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { updated ->
                 StudyNotificationCoordinator.post(

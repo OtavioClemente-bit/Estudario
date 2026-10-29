@@ -134,6 +134,16 @@ fun App() {
     // Grátis: confere na biblioteca quais tópicos já têm matéria pronta (os outros ficam fora do plano).
     if (Store.load == LoadState.Ready && !Store.demo) androidx.compose.runtime.LaunchedEffect(Unit) {
         runCatching { br.com.estudario.web.data.LibraryGaps.refresh(Store.data, isFreeTier()) }
+        // O edital escolhido no catálogo se atualiza sozinho (tópicos novos, nomes corrigidos, os que saíram ficam marcados).
+        val editais = runCatching { br.com.estudario.web.data.EditalUpdate.runDaily() }.getOrDefault(emptyList())
+        editais.forEach { e ->
+            val parts = listOfNotNull(
+                e.added.takeIf { it > 0 }?.let { if (it == 1) "1 tópico novo" else "$it tópicos novos" },
+                e.renamed.takeIf { it > 0 }?.let { if (it == 1) "1 nome corrigido" else "$it nomes corrigidos" },
+                e.removed.takeIf { it > 0 }?.let { if (it == 1) "1 tópico saiu do edital (guardado, fora do plano)" else "$it tópicos saíram do edital (guardados, fora do plano)" },
+            )
+            Toast.show("O Folha atualizou o edital ${e.competition}: ${parts.joinToString(", ")}. Seu progresso continua.")
+        }
         // As matérias da biblioteca que a equipe corrigiu se atualizam no lugar (uma vez por dia).
         val updated = runCatching { br.com.estudario.web.data.LibraryRefresh.runDaily() }.getOrDefault(emptyList())
         if (updated.isNotEmpty()) Toast.show(

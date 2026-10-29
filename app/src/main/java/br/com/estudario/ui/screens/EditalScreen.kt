@@ -449,6 +449,12 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, ha
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             br.com.estudario.ui.components.ExpandableText(topic.title, fontWeight = FontWeight.Medium)
+            // Saiu na atualização do edital: fica guardado, só fora do plano.
+            val outContext = androidx.compose.ui.platform.LocalContext.current
+            if (androidx.compose.runtime.remember(topic.id) { topic.id in br.com.estudario.data.catalog.EditalUpdate.outOfEdital(outContext) }) Text(
+                "Saiu do edital · fica guardado, fora do plano",
+                style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 if (childCount > 0) "Dividido em $childCount subtópicos · gere o material em cada um" else if (hasContent) "${topic.status.displayName()} · material pronto" else topic.status.displayName(),
                 style = MaterialTheme.typography.labelSmall,

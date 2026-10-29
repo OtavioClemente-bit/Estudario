@@ -65,6 +65,9 @@ data class ExamCatalogSubject(
 @Serializable
 private data class ExamCatalogSubjectsRow(val subjects: List<ExamCatalogSubject>)
 
+@Serializable
+private data class ExamCatalogStamp(val id: String, @kotlinx.serialization.SerialName("updated_at") val updatedAt: String)
+
 /**
  * Prova oficial pronta de um edital (tabela `exam_simulation`): a prova inteira, na ordem e na
  * proporção da prova real, com gabarito e explicação. Vira o primeiro simulado do concurso, sem IA.
@@ -212,6 +215,14 @@ class ExamCatalogRepository(
         } catch (error: Exception) {
             current ?: throw ExamCatalogException("Não consegui carregar a lista de editais agora. Confira a internet e tente de novo.", error)
         }
+    }
+
+    /** A data da última versão publicada de cada edital (para a atualização do edital; barato, sem os tópicos). */
+    suspend fun updatedAt(ids: Collection<String>): Map<String, String> {
+        if (ids.isEmpty()) return emptyMap()
+        val list = ids.distinct().joinToString(",") { "\"$it\"" }
+        val body = http("${baseUrl.trimEnd('/')}/rest/v1/exam_catalog?select=id,updated_at&status=eq.PUBLISHED&id=in.(${URLEncoder.encode(list, StandardCharsets.UTF_8.name())})")
+        return json.decodeFromString(ListSerializer(ExamCatalogStamp.serializer()), body).associate { it.id to it.updatedAt }
     }
 
     /** Matérias e tópicos de um edital, na ordem do edital. */
