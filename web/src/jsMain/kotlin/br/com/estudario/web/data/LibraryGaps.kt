@@ -20,8 +20,10 @@ object LibraryGaps {
     private const val FREE = "estudario.gratis"
     private const val PATH = "/functions/v1/library-ready"
 
+    /** Fora do plano: os sem matéria pronta (Grátis) e os que saíram do edital na atualização do catálogo. */
     fun excluded(): Set<Long> =
-        runCatching { localStorage.getItem(KEY) }.getOrNull()?.split(",")?.mapNotNullTo(hashSetOf()) { it.toLongOrNull() }.orEmpty()
+        runCatching { localStorage.getItem(KEY) }.getOrNull()?.split(",")?.mapNotNullTo(hashSetOf()) { it.toLongOrNull() }.orEmpty() +
+            EditalUpdate.outOfEdital(Store.data)
 
     private fun save(ids: Set<Long>) { runCatching { localStorage.setItem(KEY, ids.joinToString(",")) } }
 

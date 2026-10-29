@@ -264,7 +264,11 @@ private fun TopicRow(topic: Topic, depth: Int, childCount: Int, priority: Priori
             Span({ classes("adot", "corner"); attr("style", "background:${attention.color}"); attr("title", attention.label) })
         }
         Div({ attr("style", "flex:1;min-width:0") }) {
-            Div({ classes("topic-row-title") }) { Text(topic.title) }
+            Div({ classes("topic-row-title") }) {
+                Text(topic.title)
+                // Saiu na atualização do edital: fica guardado, só fora do plano.
+                if (topic.id in br.com.estudario.web.data.EditalUpdate.outOfEdital(Store.data)) Span({ classes("out-of-edital"); attr("title", "Este tópico saiu do edital na atualização. Seu progresso fica guardado; ele só não entra mais no plano.") }) { Text("saiu do edital") }
+            }
             Div({ classes("xs", if (hasMaterial) "primary-ink" else "muted") }) {
                 Text(if (childCount > 0) "Dividido em $childCount subtópicos · gere o material em cada um" else if (hasMaterial) "${Queries.topicStatusLabel(topic.status)} · material pronto" else Queries.topicStatusLabel(topic.status))
             }

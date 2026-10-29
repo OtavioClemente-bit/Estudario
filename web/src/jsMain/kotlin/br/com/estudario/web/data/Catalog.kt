@@ -230,6 +230,17 @@ object Catalog {
         }
         next = next.appendAll(mapOf(Keys.SUBJECTS to newSubjects, Keys.TOPICS to newTopics))
         if (weights.isNotEmpty()) next = withWeights(next, competitionId, subjects)
+        // O edital de origem e a lista de tópicos desta versão: a atualização do catálogo (EditalUpdate)
+        // compara com ela para saber o que veio do catálogo e o que a pessoa criou.
+        next = next.edit(Keys.COMPETITIONS) { row ->
+            if ((row["id"] as? JsonPrimitive)?.content != competitionId.toString()) row
+            else row.with(
+                "catalogId" to JsonPrimitive(entry.id),
+                "catalogBaseline" to kotlinx.serialization.json.buildJsonObject {
+                    subjects.forEach { s -> put(br.com.estudario.domain.EditalSync.norm(s.name), kotlinx.serialization.json.JsonArray(s.topics.map { JsonPrimitive(it) })) }
+                },
+            )
+        }
         return next to competitionId
     }
 

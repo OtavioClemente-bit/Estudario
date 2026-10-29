@@ -25,8 +25,10 @@ object LibraryGaps {
     private const val FREE = "gratis"
     private const val PATH = "/functions/v1/library-ready"
 
+    /** Fora do plano: os sem matéria pronta (Grátis) e os que saíram do edital na atualização do catálogo. */
     fun excluded(context: Context): Set<Long> =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY, emptySet()).orEmpty().mapNotNullTo(hashSetOf()) { it.toLongOrNull() }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY, emptySet()).orEmpty().mapNotNullTo(hashSetOf()) { it.toLongOrNull() } +
+            br.com.estudario.data.catalog.EditalUpdate.outOfEdital(context)
 
     private fun save(context: Context, ids: Set<Long>) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, ids.mapTo(hashSetOf()) { it.toString() }).apply()
