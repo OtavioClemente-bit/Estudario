@@ -101,6 +101,9 @@ private fun titleOf(route: Route): String = when (route) {
 
 private var drawerOpen by mutableStateOf(false)
 
+/** A abertura já saiu da frente: as comemorações só começam depois (antes rodavam escondidas atrás dela). */
+object Splash { var gone by androidx.compose.runtime.mutableStateOf(kotlinx.browser.document.getElementById("splash") == null) }
+
 @Composable
 fun App() {
     // A abertura (#splash do index.html) fica na frente enquanto carrega e se dissolve quando o app
@@ -108,12 +111,13 @@ fun App() {
     val loading = Store.load == LoadState.Loading
     androidx.compose.runtime.LaunchedEffect(loading) {
         if (loading) return@LaunchedEffect
-        val splash = kotlinx.browser.document.getElementById("splash") ?: return@LaunchedEffect
+        val splash = kotlinx.browser.document.getElementById("splash") ?: run { Splash.gone = true; return@LaunchedEffect }
         val started = (kotlinx.browser.window.asDynamic().__splashStart as? Number)?.toDouble() ?: kotlin.js.Date.now()
         kotlinx.coroutines.delay((1500 - (kotlin.js.Date.now() - started)).toLong().coerceAtLeast(0))
         splash.classList.add("out")
         kotlinx.coroutines.delay(650)
         splash.remove()
+        Splash.gone = true
     }
     when (val load = Store.load) {
         LoadState.Loading -> if (kotlinx.browser.document.getElementById("splash") == null) {

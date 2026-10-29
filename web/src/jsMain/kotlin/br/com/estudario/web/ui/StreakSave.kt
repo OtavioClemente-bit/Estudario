@@ -41,6 +41,7 @@ private object SavedDays {
 fun StreakSaveHost() {
     // Só na demonstração: ?demo&salvou mostra a cena (para conferir a animação).
     var preview by remember { mutableStateOf(Store.demo && kotlinx.browser.window.location.search.contains("salvou")) }
+    if (!Splash.gone) return
     if (preview && Store.load == br.com.estudario.web.data.LoadState.Ready) { StreakSaveScene(12, 1, "Dom, 26 out", "T1,Q1,Q1,S1,S1,D2,S0") { preview = false }; return }
     if (Store.demo || Store.load != br.com.estudario.web.data.LoadState.Ready) return
     val streak = Progress.of(Store.data).streak
