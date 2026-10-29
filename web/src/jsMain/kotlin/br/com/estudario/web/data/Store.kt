@@ -289,7 +289,8 @@ object Store {
     }
 
     private fun describe(error: Throwable): String = when (error) {
-        is HttpException -> if (error.status == 0) "Sem internet." else "O servidor recusou (${error.status}): ${error.body.take(160)}"
+        is HttpException -> if (error.status == 0 && error.body == "timeout") "O envio demorou demais (conexão lenta). Tenta de novo sozinho."
+            else if (error.status == 0) "Sem internet." else "O servidor recusou (${error.status}): ${error.body.take(160)}"
         else -> error.message ?: error.toString()
     }
 

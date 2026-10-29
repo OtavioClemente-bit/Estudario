@@ -29,6 +29,10 @@ const FAMILIA = {
   nao_lembrei: { nome: "Não lembrei", onde: "Flashcard e revisão", vol: 0.42, layers: [n("D4", 0, 0.45, 0.55, { lp: 1500 })] },
   concluir: { nome: "Concluir tarefa", onde: "Tarefa do plano, tópico estudado", vol: 0.8, layers: [x("carimboSeco", 0, 0.55, 0.45), n("D5", 0.03, 0.42, 0.9), n("A5", 0.03, 0.36, 0.9)] },
   resultado: { nome: "Fim da bateria", onde: "Resultado das questões", vol: 0.8, layers: [n("D5", 0, 0.5, 0.5), n("F#5", 0.1, 0.52, 0.5), n("A5", 0.2, 0.55, 0.6), n("D6", 0.3, 0.6, 1.4), x("farfalhar", 0.5, 0.12, 0.6)] },
+  foco_fim: { nome: "Fim do foco", onde: "Sessão do modo foco encerrada", vol: 0.7, layers: [
+    // sino de templo em ré, calmo: o foco acabou, sem festa; a quinta por cima e um brilho bem baixo
+    { syn: "bell", note: "D5", at: 0, vol: 0.32, len: 2.6 }, { syn: "bell", note: "A5", at: 0.16, vol: 0.18, len: 2.2 },
+    { syn: "pad", notes: ["D4", "A4"], at: 0, vol: 0.06, len: 2.4 }, { syn: "glass", note: "F#6", at: 0.5, vol: 0.06, len: 1 }] },
   missao: { nome: "Missão cumprida", onde: "Missão do Folha, dia concluído", vol: 0.8, layers: [{ riffle: "folhear", at: 0, vol: 0.5, dur: 0.35, pag: 6 }, x("carimbo", 0.4, 0.55, 0.7), x("peso", 0.4, 0.45, 1.2), x("acorde", 0.42, 0.42, 2.0)] },
   // ---- comemorações (2.0): as gravações físicas da cena (martelo, fogo, asas, caixa, a palma do livro) ficam;
   // a parte musical agora é sintetizada e limpa (marimba, sino, vidro, pad, baque e a subida de ar), com a
@@ -68,12 +72,31 @@ const FAMILIA = {
     x("bola", 2.12, 0.7, 1.0), x("sopro", 2.15, 0.38, 1.6, { lp: 5000 }), { syn: "boom", at: 2.18, vol: 0.55 },
     x("asa", 2.3, 0.4, 0.9), x("asaLeve", 2.75, 0.3, 0.7), x("crepitar", 2.4, 0.1, 2.4, { from: 5, fi: 0.4 }),
     { sub: "assinatura", at: 2.7 }] },
+  // o Folha salva a sequência (folha-live.js, SAV): noite quieta, o "shhh", a bola de fogo no braseiro que
+  // faltou (que pega roxo e dourado), o jato até a fênix e ela acordando; no fim, a assinatura e um brilho baixinho
+  cena_salvou: { nome: "Cena: sequência salva", onde: "Volta depois de um dia salvo pelo marca-página", vol: 0.9, cena: true, layers: [
+    x("crepitar", 0.2, 0.16, 2.6, { from: 2, fi: 0.5, lp: 2500 }),
+    { syn: "pad", notes: ["D3", "A3", "F#4"], at: 0.1, vol: 0.07, len: 3.4 },
+    ...[0.45, 0.95].map((t, i) => ({ syn: "glass", note: i ? "A5" : "F#5", at: t, vol: 0.05, len: 0.7 })),
+    { syn: "shh", at: 1.3, vol: 0.32, len: 0.9 },
+    { syn: "glass", note: "D6", at: 2.72, vol: 0.12, len: 0.4 },
+    { syn: "riser", at: 2.75, vol: 0.2, len: 0.32 }, x("bola", 3.02, 0.45, 0.7), x("sopro", 3.05, 0.22, 0.6, { lp: 4000 }),
+    x("bola", 3.6, 0.6, 0.9), { syn: "boom", at: 3.6, vol: 0.35 }, { syn: "bell", note: "F#5", at: 3.62, vol: 0.18, len: 1.4 }, { syn: "glass", note: "A6", at: 3.64, vol: 0.14, len: 0.9 },
+    { syn: "riser", at: 3.8, vol: 0.3, len: 0.45 }, x("jato", 3.82, 0.55, 1.0),
+    x("bola", 4.25, 0.7, 1.0), x("asa", 4.35, 0.42, 0.9), x("asaLeve", 4.8, 0.3, 0.7), x("crepitar", 4.4, 0.1, 2.2, { from: 5, fi: 0.4 }),
+    { sub: "conquista_curta", at: 4.25 },
+    { syn: "spark", at: 5.2, vol: 0.08, len: 0.9, count: 5 }] },
   cena_nivel: { nome: "Cena: subiu de nível", onde: "Nível novo", vol: 0.9, cena: true, layers: [
-    // arpejo de marimba subindo duas oitavas e acelerando, como quem sobe uma escada correndo
-    ...["D5", "F#5", "A5", "D6", "F#6", "A6", "D7"].map((nt, i) => ({ syn: "marimba", note: nt, at: 0.15 + 1.05 * (1 - Math.pow(0.8, i)) / (1 - Math.pow(0.8, 7)), vol: 0.24 + i * 0.03, len: 0.45 })),
-    { syn: "riser", at: 0.7, vol: 0.34, len: 0.9 },
+    // folha-live.js, LVL: as orbes enchem o anel de 0,15 a 1,2 s chegando rápido no começo e devagar no fim
+    // (outC); cada nota do arpejo cai quando o anel passa por mais um sétimo, então elas vêm juntas no começo e
+    // espaçam no fim, como a animação. Em 1,25 o emblema antigo racha, o anel acelera até 1,6 (impacto e
+    // número novo), as asas abrem em 1,9 e a faixa "NÍVEL" sobe em 2,25.
+    ...["D5", "F#5", "A5", "D6", "F#6", "A6", "D7"].map((nt, i) => ({ syn: "marimba", note: nt, at: 0.15 + 1.05 * (1 - Math.cbrt(1 - (i + 1) / 7)), vol: 0.22 + i * 0.03, len: 0.5 })),
+    x("madeira", 1.25, 0.3, 0.2, { st: 4 }), { syn: "anvil", note: "D6", at: 1.25, vol: 0.12, len: 0.4 },
+    { syn: "riser", at: 1.2, vol: 0.36, len: 0.4 },
     x("bola", 1.58, 0.26, 1.0, { st: -3, lp: 1800 }),
-    x("asaLeve", 1.9, 0.32, 0.7), x("asaLeve", 2.15, 0.25, 0.7, { st: 1 }),
+    x("asaLeve", 1.9, 0.34, 0.7), x("asaLeve", 2.12, 0.26, 0.7, { st: 1 }),
+    x("fita", 2.25, 0.22, 0.5), { syn: "glass", note: "A6", at: 2.3, vol: 0.08, len: 0.5 },
     { sub: "conquista_curta", at: 1.6 }] },
   cena_peca: { nome: "Cena: o presente", onde: "Peça nova do armário", vol: 0.9, cena: true, layers: [
     x("caixa", 0.45, 0.75, 0.9),
@@ -132,6 +155,13 @@ function sintetizar(ctx, L, t, bus) {
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.18); g.gain.setValueAtTime(v, t + len * 0.5); g.gain.linearRampToValueAtTime(0, t + len);
     lp.connect(g).connect(bus);
     for (const nt of L.notes) for (const d of [-7, 6]) { const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = hz(nt); o.detune.value = d; const og = ctx.createGain(); og.gain.value = 0.25; o.connect(og).connect(lp); o.start(t); o.stop(t + len + 0.05); }
+  } else if (L.syn === "shh") {
+    // o "shhh" do Folha: ruído agudo e macio, entrando devagar e saindo mais devagar ainda
+    const s = ctx.createBufferSource(); s.buffer = ruidoDe(ctx); s.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2400;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 7500;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + len * 0.25); g.gain.setValueAtTime(v, t + len * 0.45); g.gain.linearRampToValueAtTime(0, t + len);
+    s.connect(hp).connect(lp).connect(g).connect(bus); s.start(t, 0.5); s.stop(t + len + 0.05);
   } else if (L.syn === "riser") {
     // subida de ar: ruído num filtro que abre de grave para agudo, crescendo até o impacto
     const s = ctx.createBufferSource(); s.buffer = ruidoDe(ctx); s.loop = true;
