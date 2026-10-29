@@ -83,7 +83,10 @@ internal fun TeamDashboard() {
                 Div({ classes("gx-top-id") }) {
                     Span({ classes("gx-kicker") }) { Text("PAINEL DA EQUIPE") }
                     H2 { Text("Biblioteca e catálogo") }
-                    P({ classes("gx-topic") }) { Text("Atualizado agora · " + d.s("generatedAt").take(16).replace('T', ' ')) }
+                    // O painel vem pronto (o servidor recalcula a cada 15 minutos): mostra de quando é.
+                    val at = d.s("cachedAt").ifBlank { d.s("generatedAt") }
+                    val time = runCatching { kotlin.js.Date(at).toLocaleTimeString("pt-BR").take(5) }.getOrDefault(at.take(16))
+                    P({ classes("gx-topic") }) { Text(if (d.s("cachedAt").isNotBlank()) "Calculado às $time · o servidor atualiza a cada 15 minutos" else "Atualizado agora · $time") }
                 }
                 Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { reload++ } }) { Icon("autorenew"); Span { Text("Atualizar") } }
             }
