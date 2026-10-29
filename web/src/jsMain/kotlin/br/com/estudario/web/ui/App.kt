@@ -134,6 +134,12 @@ fun App() {
     // Grátis: confere na biblioteca quais tópicos já têm matéria pronta (os outros ficam fora do plano).
     if (Store.load == LoadState.Ready && !Store.demo) androidx.compose.runtime.LaunchedEffect(Unit) {
         runCatching { br.com.estudario.web.data.LibraryGaps.refresh(Store.data, isFreeTier()) }
+        // As matérias da biblioteca que a equipe corrigiu se atualizam no lugar (uma vez por dia).
+        val updated = runCatching { br.com.estudario.web.data.LibraryRefresh.runDaily() }.getOrDefault(emptyList())
+        if (updated.isNotEmpty()) Toast.show(
+            if (updated.size == 1) "O Folha atualizou a matéria de ${updated[0].title}: ${updated[0].parts.joinToString(", ")}."
+            else "O Folha atualizou ${updated.size} matérias com as correções da equipe: ${updated.take(3).joinToString(", ") { it.title }}${if (updated.size > 3) " e outras" else ""}.",
+        )
     }
     if (Store.load == LoadState.Ready) GenerationBanner()
     if (Store.load == LoadState.Ready) ReprogramHost()

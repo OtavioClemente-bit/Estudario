@@ -828,7 +828,7 @@ private fun Priority.asAssessment() = PriorityAssessment(
     evidence = emptyList(),
 )
 private fun PriorityAssessment.evidenceJson(): String = PriorityEvidenceCodec.encode(evidence)
-private fun normalizedQuestionHash(statement: String): String {
+internal fun normalizedQuestionHash(statement: String): String {
     val normalized = java.text.Normalizer.normalize(statement.lowercase(), java.text.Normalizer.Form.NFD)
         .replace(Regex("\\p{M}+"), "").replace(Regex("[^a-z0-9]+"), " ").trim()
     return MessageDigest.getInstance("SHA-256").digest(normalized.toByteArray()).joinToString("") { "%02x".format(it) }

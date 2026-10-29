@@ -71,7 +71,7 @@ object AiContent {
 
     private fun idempotencyKey(): String = Random.nextBytes(16).toHex()
 
-    private fun topicPath(data: Snapshot, topic: Topic): List<String> {
+    internal fun topicPath(data: Snapshot, topic: Topic): List<String> {
         val byId = data.topics.associateBy { it.id }
         val path = ArrayDeque<String>()
         var current: Topic? = topic
@@ -178,6 +178,32 @@ object AiContent {
     private fun questionHash(statement: String): String =
         Sha256.digest(stripAccents(statement.lowercase()).replace(Regex("[^a-z0-9]+"), " ").trim().encodeToByteArray()).toHex()
 
+    /** O título e o texto da teoria a partir dos capítulos (o mesmo na geração e na atualização da biblioteca). */
+    internal fun theoryOf(proposal: JsonObject): Pair<String, String> {
+        val title = proposal["theoryTitle"].text() ?: "Teoria"
+        val markdown = proposal.arr("chapters").mapIndexed { index, element ->
+            val chapter = element as JsonObject
+            val chapterTitle = chapter["title"].text() ?: "Capítulo ${index + 1}"
+            val body = chapter["markdown"].text().orEmpty()
+            val firstLine = body.trimStart().lineSequence().firstOrNull().orEmpty()
+            val repeats = firstLine.startsWith("#") && firstLine.trimStart('#').trim().trim('*').trim().equals(chapterTitle.trim(), true)
+            if (repeats) body.trimStart() else "## $chapterTitle\n\n$body"
+        }.joinToString("\n\n")
+        return title to if (markdown.startsWith("# ")) markdown else "# $title\n\n$markdown"
+    }
+
+    /** O enunciado, a explicação e as alternativas de uma questão da proposta, no formato gravado (sem os ids). */
+    internal fun questionParts(question: JsonObject): Triple<String, String, List<Triple<String, String, Boolean>>>? {
+        val statement = question["statement"].text() ?: return null
+        val options = question.arr("options").mapNotNull { it as? JsonObject }.mapIndexed { position, option ->
+            Triple(option["key"].text()?.uppercase() ?: ('A' + position).toString(), option["text"].text().orEmpty(), option.bool("correct") ?: false)
+        }
+        if (options.size < 2 || options.count { it.third } != 1) return null
+        return Triple(statement, question["explanation"].text().orEmpty(), options)
+    }
+
+    internal fun hashOfStatement(statement: String): String = questionHash(statement)
+
     /** Grava o resultado no tópico, como a importação de um pacote "ia-estudario-..." no app. */
     fun apply(data: Snapshot, topicId: Long, proposal: JsonObject): Snapshot {
         val topicRow = data.array(Keys.TOPICS).firstOrNull { (it as? JsonObject)?.long("id") == topicId } as? JsonObject ?: return data
@@ -205,6 +231,8 @@ object AiContent {
             if (row.long("id") != topicId) row
             else row.with(
                 "externalId" to JsonPrimitive(t),
+                // material novo: a atualização da biblioteca confere de novo de onde ele veio
+                "libraryStamp" to JsonNull,
                 "scopeCovers" to (scope?.get("covers").text()?.let { JsonPrimitive(it) } ?: row["scopeCovers"] ?: JsonNull),
                 "scopeExcludes" to (scope?.get("excludes").text()?.let { JsonPrimitive(it) } ?: row["scopeExcludes"] ?: JsonNull),
             )
@@ -212,18 +240,10 @@ object AiContent {
 
         val theories = mutableListOf<JsonObject>()
         if (hasTheory) {
-            val title = proposal["theoryTitle"].text() ?: "Teoria"
-            val markdown = proposal.arr("chapters").mapIndexed { index, element ->
-                val chapter = element as JsonObject
-                val chapterTitle = chapter["title"].text() ?: "Capítulo ${index + 1}"
-                val body = chapter["markdown"].text().orEmpty()
-                val firstLine = body.trimStart().lineSequence().firstOrNull().orEmpty()
-                val repeats = firstLine.startsWith("#") && firstLine.trimStart('#').trim().trim('*').trim().equals(chapterTitle.trim(), true)
-                if (repeats) body.trimStart() else "## $chapterTitle\n\n$body"
-            }.joinToString("\n\n")
+            val (title, markdown) = theoryOf(proposal)
             theories += jsonOf(
                 "id" to next.nextId(Keys.THEORIES), "topicId" to topicId, "title" to title,
-                "markdown" to if (markdown.startsWith("# ")) markdown else "# $title\n\n$markdown",
+                "markdown" to markdown,
                 "externalId" to "$t-teoria", "lastReadBlock" to 0, "createdAt" to at, "updatedAt" to at,
             )
         }

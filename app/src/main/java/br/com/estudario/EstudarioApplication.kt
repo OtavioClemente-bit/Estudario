@@ -169,6 +169,16 @@ class EstudarioApplication : Application() {
         br.com.estudario.notifications.AiGenerationNotifications.createChannels(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             StudyNotificationCoordinator.refresh(this@EstudarioApplication, preferences)
+            // As matérias da biblioteca que a equipe corrigiu se atualizam no lugar (uma vez por dia).
+            runCatching { br.com.estudario.data.library.LibraryRefresh.runDaily(this@EstudarioApplication) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { updated ->
+                StudyNotificationCoordinator.post(
+                    this@EstudarioApplication, "study_reminders", 1010,
+                    if (updated.size == 1) "Atualizei a matéria de ${updated[0].title}" else "Atualizei ${updated.size} matérias suas",
+                    if (updated.size == 1) "A equipe corrigiu: ${updated[0].parts.joinToString(", ")}. Suas respostas, grifos e revisões continuam."
+                    else "A equipe corrigiu ${updated.take(3).joinToString(", ") { it.title }}${if (updated.size > 3) " e outras" else ""}. Suas respostas, grifos e revisões continuam.",
+                    mood = br.com.estudario.ui.assistant.FolhaMood.PROUD,
+                )
+            }
             // Sessão de foco que ficou aberta (app fechado, aparelho reiniciado) é resolvida aqui:
             // ou volta com a notificação, ou é encerrada e o Não Perturbe é devolvido.
             FocusSessionManager.reconcile(this@EstudarioApplication)
