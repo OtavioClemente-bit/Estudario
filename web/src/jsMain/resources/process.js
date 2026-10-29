@@ -261,6 +261,8 @@
         this.style.display = "block";
         this._back = document.createElement("canvas");
         this._front = document.createElement("canvas");
+        // Pelo processador, não pela placa de vídeo (em algumas placas o canvas grande saía preto; veja folha-live.js).
+        for (const cv of [this._back, this._front]) { try { cv.getContext("2d", { willReadFrequently: true }); } catch (e) { /* navegador antigo */ } }
         for (const cv of [this._back, this._front]) Object.assign(cv.style, { position: "absolute", inset: "0", width: "100%", height: "100%", pointerEvents: "none" });
         this._folha = document.createElement("estudario-folha");
         this._folha.setAttribute("mood", "thinking");

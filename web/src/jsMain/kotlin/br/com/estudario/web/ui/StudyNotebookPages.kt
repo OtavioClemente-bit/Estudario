@@ -193,12 +193,9 @@ fun NotebookFlipScreen() {
     if (pages.isEmpty()) { Card { Empty("auto_stories", "Nada para folhear ainda", "Estude um tópico e ele vira página do seu caderno.", action = { Btn("Voltar ao caderno", { Router.go(Route.Notebook) }) }) }; return }
     val done = index >= pages.size
     Div({ classes("cb-flip") }) {
-        Div({ classes("cb-flip-top") }) {
-            Btn("Fechar", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "close")
-            B { Text("Folheada do dia") }
-            Span({ classes("cb-hand") }) { Text(if (done) "pronto" else "${index + 1} de ${pages.size}") }
-        }
-        Div({ classes("cb-dots") }) { pages.indices.forEach { i -> org.jetbrains.compose.web.dom.I({ classes(*listOfNotNull(if (i <= index) "on" else null).toTypedArray()) }) } }
+        val qTotal = pages.count { it is StudyNotebook.Page.Question }
+        if (qTotal == 0) Div({ classes("cb-flip-top") }) { Btn("Fechar", { Router.go(Route.Notebook) }, style = "ghost", small = true, icon = "close"); B { Text("Folheada do dia") }; Span({ classes("cb-hand") }) { Text(if (done) "pronto" else "${index + 1} de ${pages.size}") } }
+        else QuestionHud(pages.take(index).count { it is StudyNotebook.Page.Question }, qTotal, answers.map { it.second }, started.toLong(), title = if (done) "Folheada do dia" else "Folheada do dia · página ${index + 1} de ${pages.size}", exitLabel = "Fechar", onExit = { Router.go(Route.Notebook) })
         if (done) {
             DisposableOnce { writeLocal(FLIP_DONE_KEY, daySeed().toString()); saveAnswers() }
             Div({ classes("cb-done", "rise") }) {
@@ -371,7 +368,7 @@ private fun MiniCard(front: String, back: String) {
     Div({ classes("cb-mini", *listOfNotNull(if (on) "on" else null).toTypedArray()); onClick { on = !on } }) {
         Div({ classes("cb-mini-in") }) {
             Div({ classes("cb-mini-f") }) { Span { Inline(front) } }
-            Div({ classes("cb-mini-b") }) { Span { Inline(back.take(260)) } }
+            Div({ classes("cb-mini-b") }) { Span { Inline(back) } }
         }
     }
 }

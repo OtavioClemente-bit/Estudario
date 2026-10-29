@@ -452,18 +452,7 @@ fun ViradaMissionScreen(viewModel: AppViewModel, topicId: Long? = null, onBack: 
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(screenPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Icon(Icons.Outlined.Close, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Sair") }
-            Text(if (index < ids.size) "Missão · ${index + 1} de ${ids.size}" else "Missão feita", Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Timer, "Tempo da missão (conta no Desempenho)", Modifier.size(16.dp), tint = scheme.primary)
-                Spacer(Modifier.width(4.dp))
-                Text("%02d:%02d".format(elapsed / 60, elapsed % 60), style = MaterialTheme.typography.labelMedium, color = scheme.primary, fontWeight = FontWeight.Bold)
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            ids.indices.forEach { i -> Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(if (i <= index) Amber else scheme.outlineVariant)) }
-        }
+        br.com.estudario.ui.components.QuestionHud(index, ids.size, results, now, title = "Missão do caderno de erros", onExit = onBack)
         if (index >= ids.size) {
             LaunchedEffect(Unit) { saveSession(); br.com.estudario.ui.brand.EstudarioSom.play(context, "resultado") }
             Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {

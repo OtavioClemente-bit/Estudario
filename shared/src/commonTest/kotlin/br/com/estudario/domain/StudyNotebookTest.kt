@@ -74,4 +74,13 @@ class StudyNotebookTest {
         assertEquals(StudyNotebook.Firmness.FIRM, StudyNotebook.firmness(StudyNotebook.Topic(1, 1, "a", "REVISANDO", now - 3 * day), now))
         assertEquals(StudyNotebook.Firmness.MID, StudyNotebook.firmness(StudyNotebook.Topic(1, 1, "a", "ESTUDADO", now - 20 * day), now))
     }
+
+    @Test
+    fun grifoDeListaVoltaComAFormatacao() {
+        val block = "> **Termos explicados**\n>\n> - **Trade-off**: ganhar de um lado e pagar do outro.\n> - **RTO / RPO**: tempo para voltar / quanto dado se aceita perder."
+        val flat = "Termos explicadosTrade-off: ganhar de um lado e pagar do outro.RTO / RPO: tempo para voltar / quanto dado se aceita perder."
+        assertEquals(block, StudyNotebook.restoreQuote(flat, listOf("outro bloco", block), 1))
+        // trecho curto no meio do bloco continua só o trecho
+        assertEquals("ganhar de um lado", StudyNotebook.restoreQuote("ganhar de um lado", listOf(block), 0))
+    }
 }

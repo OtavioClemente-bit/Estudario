@@ -31,6 +31,8 @@ class AppPreferences(private val context: Context) {
     private val reminderMinuteKey = intPreferencesKey("reminder_minute")
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val questionTimerKey = booleanPreferencesKey("question_timer")
+    private val hudTimerKey = booleanPreferencesKey("hud_timer")
+    private val hudScoreKey = booleanPreferencesKey("hud_score")
     private val defaultQuestionCountKey = intPreferencesKey("default_question_count")
     private val showExplanationKey = booleanPreferencesKey("show_explanation")
     private val reviewIntervalsKey = stringPreferencesKey("review_intervals")
@@ -82,6 +84,9 @@ class AppPreferences(private val context: Context) {
     val themeMode: Flow<String> = context.dataStore.data.map { it[themeModeKey] ?: if (it[darkKey] == true) "DARK" else "SYSTEM" }
     /** O cronômetro das questões fica sempre ligado: é ele que leva o tempo de cada bateria ao Desempenho. */
     val questionTimer: Flow<Boolean> = kotlinx.coroutines.flow.flowOf(true)
+    /** O relógio e as certas/erradas no placar das questões (Mais > Questões); o tempo conta sempre. */
+    val hudTimer: Flow<Boolean> = context.dataStore.data.map { it[hudTimerKey] ?: true }
+    val hudScore: Flow<Boolean> = context.dataStore.data.map { it[hudScoreKey] ?: true }
     val defaultQuestionCount: Flow<Int> = context.dataStore.data.map { it[defaultQuestionCountKey] ?: 10 }
     val showExplanation: Flow<Boolean> = context.dataStore.data.map { it[showExplanationKey] ?: true }
     val reviewIntervals: Flow<List<Long>> = context.dataStore.data.map { prefs -> prefs[reviewIntervalsKey]?.split(",")?.mapNotNull(String::toLongOrNull)?.takeIf { it.isNotEmpty() } ?: listOf(1, 7, 30) }
@@ -308,6 +313,8 @@ class AppPreferences(private val context: Context) {
     suspend fun setStreakGuardEnabled(value: Boolean) { context.dataStore.edit { it[streakGuardKey] = value } }
     suspend fun setReminderTime(hour: Int, minute: Int) { context.dataStore.edit { it[reminderHourKey] = hour; it[reminderMinuteKey] = minute } }
     suspend fun setThemeMode(value: String) { context.dataStore.edit { it[themeModeKey] = value; it[darkKey] = value == "DARK" } }
+    suspend fun setHudTimer(value: Boolean) { context.dataStore.edit { it[hudTimerKey] = value } }
+    suspend fun setHudScore(value: Boolean) { context.dataStore.edit { it[hudScoreKey] = value } }
     suspend fun setQuestionTimer(value: Boolean) { context.dataStore.edit { it[questionTimerKey] = value } }
     suspend fun setDefaultQuestionCount(value: Int) { context.dataStore.edit { it[defaultQuestionCountKey] = value } }
     suspend fun setShowExplanation(value: Boolean) { context.dataStore.edit { it[showExplanationKey] = value } }

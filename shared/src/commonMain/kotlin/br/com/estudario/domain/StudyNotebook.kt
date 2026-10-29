@@ -149,7 +149,7 @@ object StudyNotebook {
     fun restoreQuote(quote: String, block: String?): String {
         // já é tabela em markdown; a seleção do site traz quebras de linha e tabs, e também é achatada
         if (block == null || Regex("""\|\s*:?-{3,}""").containsMatchIn(quote)) return quote
-        if (block.lines().count { it.trimStart().startsWith("|") } < 2) return quote
+        if (block.lines().count { it.trimStart().startsWith("|") } < 2) return restoreFormatted(quote, block)
         fun flat(s: String) = s.replace(Regex("""\\\|"""), "|").replace(Regex("""^\s*\|?\s*:?-{3,}.*$""", RegexOption.MULTILINE), " ")
             .replace(Regex("""[|`*_,;]"""), " ").replace(Regex("""\s+"""), " ").trim().lowercase()
         val q = flat(quote)
@@ -158,6 +158,23 @@ object StudyNotebook {
         val inBlock = flat(block)
         val hit = words.count { it in inBlock }
         return if (words.isNotEmpty() && hit * 10 >= words.size * 8) block.trim() else quote
+    }
+
+    /**
+     * Lista, caixa ou parágrafo com negrito: a seleção vem achatada (itens grudados, "Termos explicadosArquitetura").
+     * Se o grifo pega quase o bloco todo, vale o bloco original, com a formatação; trecho de uma frase fica como está.
+     */
+    private fun restoreFormatted(quote: String, block: String): String {
+        val structured = block.lines().size > 1 || block.contains("**") || block.trimStart().startsWith(">")
+        if (!structured) return quote
+        fun words(s: String) = s.lowercase().replace(Regex("""[^\p{L}\p{N}]+"""), " ").split(' ').filter { it.length > 2 }
+        val q = words(quote)
+        val b = words(block)
+        if (q.size < 4 || b.isEmpty()) return quote
+        val inBlock = b.toSet()
+        val hit = q.count { it in inBlock }
+        // quase tudo do grifo está no bloco e o grifo cobre a maior parte dele
+        return if (hit * 10 >= q.size * 9 && q.size * 10 >= b.size * 6) block.trim() else quote
     }
 
     /** Igual, mas procura a tabela em todos os blocos (o grifo feito no site pode apontar outro bloco no app). */
