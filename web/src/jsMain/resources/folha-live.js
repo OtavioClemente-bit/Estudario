@@ -28,6 +28,10 @@
   const SMALL = 72;                           // abaixo disso (px), desenho simplificado
 
   const reduceMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+  // Canvas desenhado pelo processador, não pela placa de vídeo. O Chrome passa para a placa os canvas
+  // maiores que ~128 px, e em algumas placas/drivers eles saíam como um quadrado preto (o Folha pequeno
+  // seguia normal). Pedir "willReadFrequently" no primeiro getContext deixa o canvas na memória comum.
+  const cpuCanvas = () => { const c = document.createElement("canvas"); try { c.getContext("2d", { willReadFrequently: true }); } catch (e) { /* navegador antigo */ } return c; };
 
   // ------------------------------------------------------------------ armário (FolhaWardrobe.kt) e contexto do dia
   // Capas: degradê (claro, meio, escuro), a sombra de baixo, o metal das cantoneiras e a textura. Os braços
@@ -2585,7 +2589,7 @@
 
     connectedCallback() {
       if (!this._canvas) {
-        this._canvas = document.createElement("canvas");
+        this._canvas = cpuCanvas();
         this._canvas.style.display = "block";
         this.appendChild(this._canvas);
         this.setAttribute("role", "img");
@@ -3067,7 +3071,7 @@
    * borda do quadro, sem o "quadrado" cortando os raios.
    */
   function backdrop(g, el, cx, cy, rx, ry, paint) {
-    const c = el._bgc || (el._bgc = document.createElement("canvas"));
+    const c = el._bgc || (el._bgc = cpuCanvas());
     if (c.width !== g.canvas.width || c.height !== g.canvas.height) { c.width = g.canvas.width; c.height = g.canvas.height; }
     const b = c.getContext("2d");
     b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, c.width, c.height); b.setTransform(g.getTransform());
@@ -3480,7 +3484,7 @@
   // A arte tem a fita embaixo, então o medalhão ocupa uns 68% da largura e fica um pouco acima do centro.
   function drawArteDisc(g, arte, R, eng, heat) {
     if (!arte || eng <= 0) return;
-    const D = R * 2 / 0.68, c = arte._hot || (arte._hot = document.createElement("canvas")), n = 160;
+    const D = R * 2 / 0.68, c = arte._hot || (arte._hot = cpuCanvas()), n = 160;
     if (c.width !== n) { c.width = c.height = n; }
     const h = c.getContext("2d"); h.clearRect(0, 0, n, n); h.globalCompositeOperation = "source-over"; h.drawImage(arte, 0, 0, n, n);
     if (heat > 0) { h.globalCompositeOperation = "source-atop"; h.fillStyle = `rgba(255,${Math.round(90 + 60 * (1 - heat))},30,${0.75 * heat})`; h.fillRect(0, 0, n, n); }
@@ -4468,7 +4472,7 @@
     static get observedAttributes() { return ["size", "tipo", "nivel", "tier", "categoria", "dias", "semana", "piece", "piece-slot", "rarity", "pieces", "bleed"]; }
     connectedCallback() {
       if (!this._canvas) {
-        this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.pointerEvents = "none";
+        this._canvas = cpuCanvas(); this._canvas.style.display = "block"; this._canvas.style.pointerEvents = "none";
         this.appendChild(this._canvas); this.setAttribute("role", "img");
         if (!this.style.display) this.style.display = "block";
         if ("ResizeObserver" in window) { this._ro = new ResizeObserver(() => this._size()); this._ro.observe(this); }
@@ -4565,7 +4569,7 @@
     if (STATIC.has(key)) return STATIC.get(key);
     const T = pose(mood === "thinking" ? "idle" : mood, 0.35, { x: 0.3, y: -0.2 }, null, { tm: 9, holding: look.hand && look.hand !== "nenhum" });
     const P = { ...T, hL0: T.hL[0], hL1: T.hL[1], hR0: T.hR[0], hR1: T.hR[1] };
-    const c = document.createElement("canvas"); c.width = c.height = Math.round(size * dpr);
+    const c = cpuCanvas(); c.width = c.height = Math.round(size * dpr);
     const pet = look.pet && look.pet !== "nenhum" && size >= SMALL, wide = (look.back && look.back !== "nada") || look.aura === "holofote" || look.aura === "fogos";
     const g = c.getContext("2d"), k = c.width / 100, fit = pet || wide ? 0.76 : mood === "present" ? 0.78 : 0.9;      // cabe a mão para o alto (e o companheiro) dentro da caixa
     g.setTransform(k * fit, 0, 0, k * fit, c.width * (1 - fit) / 2 + (pet ? k * 7 : 0), c.width * (1 - fit) / 2 + k * (pet ? 1 : mood === "present" ? 5 : 2));
@@ -4581,7 +4585,7 @@
   class EstudarioMedalha extends HTMLElement {
     connectedCallback() {
       if (!this._canvas) {
-        this._canvas = document.createElement("canvas"); this._canvas.style.display = "block"; this._canvas.style.touchAction = "pan-y";
+        this._canvas = cpuCanvas(); this._canvas.style.display = "block"; this._canvas.style.touchAction = "pan-y";
         this.appendChild(this._canvas); this.setAttribute("role", "img");
         this._ang = 0; this._vel = 0; this._drag = null; this._start = performance.now();
         this._canvas.addEventListener("pointerdown", (e) => { this._drag = { x: e.clientX, a: this._ang, t: performance.now(), lx: e.clientX }; this._vel = 0; this._canvas.setPointerCapture(e.pointerId); });
@@ -4651,7 +4655,7 @@
     const tier = (o && o.tier) || 1, cat = (o && o.cat) || "seq", earned = !(o && o.earned === false);
     const key = [size, dpr, tier, cat, earned].join(":");
     if (MEDALS.has(key)) return MEDALS.get(key);
-    const c = document.createElement("canvas"); c.width = c.height = Math.round(size * dpr);
+    const c = cpuCanvas(); c.width = c.height = Math.round(size * dpr);
     const g = c.getContext("2d"), k = c.width / 100;
     g.setTransform(k, 0, 0, k, 0, 0); g.translate(50, 50);
     // a moldura (louros, roseta, asas) precisa de espaço: quanto mais alto o nível, menor a moeda
