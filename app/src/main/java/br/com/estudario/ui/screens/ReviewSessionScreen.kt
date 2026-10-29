@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FormatStrikethrough
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.TouchApp
@@ -321,9 +320,10 @@ fun ReviewSessionScreen(
                             // Fundo sólido (a cor do estado por cima da superfície): antes era transparente e o
                             // "Riscar" do gesto aparecia por trás do texto.
                             val base = MaterialTheme.colorScheme.surface
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Riscar arrastando para o lado, como no treino; o botão ao lado fica só no site.
+                            SwipeToEliminate(crossed = isCrossed, enabled = answered == null, onToggle = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null }) {
                                 Row(
-                                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(base)
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(base)
                                         .background(tint?.copy(alpha = if (answered != null || option.key != selected) 0.16f else 0.12f) ?: Color.Transparent)
                                         .border(2.dp, tint ?: MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                                         .graphicsLayer { alpha = if (isCrossed) 0.45f else 1f }
@@ -346,13 +346,6 @@ fun ReviewSessionScreen(
                                         onTap = { if (answered == null) { if (isCrossed) crossed = crossed - option.id else selected = option.key } },
                                         style = if (isCrossed) MaterialTheme.typography.bodyLarge.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough) else MaterialTheme.typography.bodyLarge,
                                     )
-                                }
-                                // Riscar: um botão ao lado, como no site (o gesto de arrastar ficava por trás do texto).
-                                if (answered == null) IconButton(
-                                    onClick = { crossed = if (option.id in crossed) crossed - option.id else crossed + option.id; if (selected == option.key) selected = null },
-                                    modifier = Modifier.size(40.dp).semantics { contentDescription = if (isCrossed) "Desfazer risco" else "Riscar alternativa" },
-                                ) {
-                                    Icon(Icons.Outlined.FormatStrikethrough, null, tint = if (isCrossed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                 }
                             }
                         }
