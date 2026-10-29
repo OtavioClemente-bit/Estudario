@@ -298,7 +298,7 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen:
             if (isOpen && onStart != null) {
                 Spacer(Modifier.height(6.dp))
                 val generate = onGenerate
-                androidx.compose.material3.Button(
+                br.com.estudario.ui.brand.Button(
                     onClick = { if (generate != null) generate() else onStart() },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),

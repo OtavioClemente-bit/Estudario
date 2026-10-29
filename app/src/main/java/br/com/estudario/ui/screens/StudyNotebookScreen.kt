@@ -570,9 +570,9 @@ private fun TopicBagHeader(
                     Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Revisar este tópico, um por um")
                 }
                 androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (onCards != null) androidx.compose.material3.OutlinedButton(onClick = onCards) { Icon(Icons.Outlined.Style, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Praticar flashcards") }
-                    if (onQuestions != null) androidx.compose.material3.OutlinedButton(onClick = onQuestions) { Icon(Icons.Outlined.Quiz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Treinar questões") }
-                    if (onOpenContent != null) androidx.compose.material3.OutlinedButton(onClick = onOpenContent) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Abrir conteúdo") }
+                    if (onCards != null) br.com.estudario.ui.brand.OutlinedButton(onClick = onCards) { Icon(Icons.Outlined.Style, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Praticar flashcards") }
+                    if (onQuestions != null) br.com.estudario.ui.brand.OutlinedButton(onClick = onQuestions) { Icon(Icons.Outlined.Quiz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Treinar questões") }
+                    if (onOpenContent != null) br.com.estudario.ui.brand.OutlinedButton(onClick = onOpenContent) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Abrir conteúdo") }
                 }
             }
         }
@@ -637,7 +637,7 @@ internal fun NotebookReview(title: String, cards: List<ReviewCard>, allowNavigat
                     card.open?.takeIf { allowNavigation }?.let { open -> TextButton(onClick = { onClose(); open() }) { Text("Abrir na teoria") } }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    androidx.compose.material3.OutlinedButton(onClick = { index-- }, enabled = index > 0, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Anterior") }
+                    br.com.estudario.ui.brand.OutlinedButton(onClick = { index-- }, enabled = index > 0, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Anterior") }
                     Button(onClick = { if (index < cards.lastIndex) index++ else onClose() }, modifier = Modifier.weight(1f).height(52.dp)) { Text(if (index < cards.lastIndex) "Próximo" else "Concluir") }
                 }
             }
@@ -846,7 +846,7 @@ private fun MarkCardsReview(
                     }
                 }
                 if (shown) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    androidx.compose.material3.OutlinedButton(onClick = { onColor(card, 2); shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Não lembrei") }
+                    br.com.estudario.ui.brand.OutlinedButton(onClick = { onColor(card, 2); shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Não lembrei") }
                     Button(onClick = { if (card.color == 2) onColor(card, 1); remembered++; shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Lembrei") }
                 } else Button(onClick = { shown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Mostrar o trecho") }
             }

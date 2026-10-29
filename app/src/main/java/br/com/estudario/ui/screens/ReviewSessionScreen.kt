@@ -266,12 +266,12 @@ fun ReviewSessionScreen(
                                     flipped = false
                                     if (recallIndex < recall.lastIndex) recallIndex++ else advance()
                                 }
-                                androidx.compose.material3.OutlinedButton(
+                                br.com.estudario.ui.brand.OutlinedButton(
                                     onClick = { next(false) }, modifier = Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
                                     border = androidx.compose.foundation.BorderStroke(2.dp, RvRed.copy(alpha = 0.55f)),
                                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = RvRed),
                                 ) { Icon(Icons.Outlined.Close, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Não lembrei", fontWeight = FontWeight.Black) }
-                                androidx.compose.material3.Button(
+                                br.com.estudario.ui.brand.Button(
                                     onClick = { next(true) }, modifier = Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(16.dp),
                                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF2FBF8A), contentColor = Color.White),
                                 ) { Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Lembrei", fontWeight = FontWeight.Black) }
