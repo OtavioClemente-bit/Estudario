@@ -369,7 +369,11 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
     LaunchedEffect(index) { scroll.scrollTo(0) }
     LaunchedEffect(answers.size) { if (answers.isNotEmpty()) { kotlinx.coroutines.delay(120); scroll.animateScrollTo(scroll.maxValue) } }
     Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(screenPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        val qTotal = pages.count { it is StudyNotebook.Page.Question }
+        if (qTotal > 0) br.com.estudario.ui.components.QuestionHud(
+            pages.take(index).count { it is StudyNotebook.Page.Question }, qTotal, answers.map { it.second }, startedAt,
+            title = if (index >= pages.size) "Folheada do dia" else "Folheada do dia · página ${index + 1} de ${pages.size}", exitLabel = "Fechar", onExit = onClose,
+        ) else Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, "Fechar") }
             Text("Folheada do dia", Modifier.weight(1f), fontWeight = FontWeight.Black, fontSize = 17.sp)
             if (pages.isNotEmpty()) Text(if (index >= pages.size) "pronto" else "${index + 1} de ${pages.size}", fontFamily = Hand, fontSize = 21.sp, color = MaterialTheme.colorScheme.primary)

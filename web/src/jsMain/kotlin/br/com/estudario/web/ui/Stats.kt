@@ -439,6 +439,8 @@ private fun TopicColumn(title: String, icon: String, color: String, list: List<T
 @Composable
 fun SettingsScreen() {
     var goal by remember { mutableStateOf(Prefs.dailyGoal) }
+    var hudTimer by remember { mutableStateOf(Prefs.hudTimer) }
+    var hudScore by remember { mutableStateOf(Prefs.hudScore) }
     var som by remember { mutableStateOf(runCatching { kotlinx.browser.window.asDynamic().estudarioSom.enabled as Boolean }.getOrDefault(true)) }
     BackToProfile()
     PageHead("Ajustes", "Deixe o Estudário do seu jeito")
@@ -457,6 +459,12 @@ fun SettingsScreen() {
             }
         }
         SetGroup("Estudo") {
+            SetRow("timer", "Relógio nas questões", "O tempo correndo no placar enquanto você responde") {
+                Switch(hudTimer, "Relógio nas questões") { v -> hudTimer = v; Prefs.hudTimer = v }
+            }
+            SetRow("rule", "Certas e erradas nas questões", "A contagem ao lado da barra; a barra continua mostrando cada resposta") {
+                Switch(hudScore, "Certas e erradas nas questões") { v -> hudScore = v; Prefs.hudScore = v }
+            }
             Div({ classes("set-row", "col") }) {
                 Div({ classes("set-row-text") }) { B { Text("Meta de questões por dia") }; Span { Text("Uma tarefa do plano ou uma revisão também fecham o dia. Vale no celular também.") } }
                 BrandCounter(goal, { goal = it; Prefs.dailyGoal = it }, step = 5, min = 5, max = 100, unit = "questões por dia", chips = listOf(10, 20, 30, 50), mood = ::goalMood, label = "Meta diária de questões")

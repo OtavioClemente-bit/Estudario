@@ -83,6 +83,16 @@ object Prefs {
         get() = read("estudario.explain") != "0"
         set(value) = write("estudario.explain", if (value) "1" else "0")
 
+    /** O relógio no placar das questões (Ajustes). */
+    var hudTimer: Boolean
+        get() = read("estudario.hud.tempo") != "0"
+        set(value) = write("estudario.hud.tempo", if (value) "1" else "0")
+
+    /** As certas e erradas no placar das questões (Ajustes). */
+    var hudScore: Boolean
+        get() = read("estudario.hud.placar") != "0"
+        set(value) = write("estudario.hud.placar", if (value) "1" else "0")
+
     var focusMinutes: Int
         get() = read("estudario.focus")?.toIntOrNull()?.coerceIn(5, 180) ?: 50
         set(value) = write("estudario.focus", value.coerceIn(5, 180).toString())

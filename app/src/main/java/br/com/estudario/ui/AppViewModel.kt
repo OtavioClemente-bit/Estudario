@@ -763,6 +763,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun loadDemo() = launchCatching { repository.loadDemoData() }
     fun setDarkTheme(value: Boolean) = launchCatching { app.preferences.setDarkTheme(value) }
     fun setThemeMode(value: String) = launchCatching { app.preferences.setThemeMode(value) }
+    val hudTimer = app.preferences.hudTimer.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    val hudScore = app.preferences.hudScore.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    fun setHudTimer(value: Boolean) = launchCatching { app.preferences.setHudTimer(value) }
+    fun setHudScore(value: Boolean) = launchCatching { app.preferences.setHudScore(value) }
     fun setQuestionTimer(value: Boolean) = launchCatching { app.preferences.setQuestionTimer(value) }
     fun setDefaultQuestionCount(value: Int) = launchCatching { app.preferences.setDefaultQuestionCount(value.coerceIn(5, 100)) }
     fun setShowExplanation(value: Boolean) = launchCatching { app.preferences.setShowExplanation(value) }

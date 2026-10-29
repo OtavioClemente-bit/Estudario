@@ -216,15 +216,14 @@ fun QuizScreen(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         finishError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) } }
         item {
+            br.com.estudario.ui.components.QuestionHud(
+                index, sessionQuestions.size, sessionQuestions.mapNotNull { results[it.question.id] }, startedAt,
+                title = if (simulation) "Simulado" else null, onExit = onBack,
+            )
+        }
+        item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Sair") }
-                Column(Modifier.weight(1f)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(if (simulation) "Simulado" else "Questão ${index + 1} de ${sessionQuestions.size}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                        if (timerEnabled) Text("%02d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60), style = MaterialTheme.typography.labelLarge)
-                    }
-                    LinearProgressIndicator({ (index + 1f) / sessionQuestions.size }, Modifier.fillMaxWidth())
-                }
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick = { viewModel.toggleQuestionFavorite(current.question) }) {
                     Icon(if (current.question.isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (current.question.isFavorite) "Remover dos favoritos" else "Favoritar")
                 }

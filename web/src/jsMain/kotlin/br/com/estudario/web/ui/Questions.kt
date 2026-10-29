@@ -486,19 +486,7 @@ private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
         onDispose { window.removeEventListener("keydown", listener) }
     }
 
-    Div({ classes("row", "between") }) {
-        Btn("Sair", { scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }?.let { Router.go(Route.Topic(it)) } ?: Router.go(Route.Train) }, style = "ghost", small = true, icon = "close")
-        Span({ classes("strong", "muted") }) { Text("${index + 1} de ${initial.size}") }
-        Div({ classes("row") }) {
-            Span({ classes("chip", "quiz-timer"); attr("title", "Tempo desta bateria") }) {
-                Icon("timer"); Text("${(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}")
-            }
-            // Os contadores saltam quando mudam (a chave nova recria o elemento e a animação roda).
-            androidx.compose.runtime.key("ok-" + results.count { it }) { Span({ classes("chip", "green", "q-bump") }) { Icon("check"); Text("${results.count { it }}") } }
-            androidx.compose.runtime.key("no-" + results.count { !it }) { Span({ classes("chip", "red", "q-bump") }) { Icon("close"); Text("${results.count { !it }}") } }
-        }
-    }
-    ProgressBar(index.toDouble() / initial.size)
+    QuestionHud(index, initial.size, results, startedAt, onExit = { scope.removePrefix("topico-").substringBefore("-").toLongOrNull()?.takeIf { scope.startsWith("topico-") }?.let { Router.go(Route.Topic(it)) } ?: Router.go(Route.Train) })
     // A questão nova entra deslizando da direita (o cartão é recriado a cada questão).
     androidx.compose.runtime.key(index) {
     Card(extra = "pad-lg q-card") {

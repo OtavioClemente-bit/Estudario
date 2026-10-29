@@ -336,14 +336,7 @@ fun ViradaMissionScreen() {
     if (missionIds.isEmpty()) { Card { Empty("task_alt", "Nada vencendo hoje", "Os erros voltam no dia certo. Volte amanhã!", action = { Btn("Voltar", { Router.go(Route.Errors) }) }) }; return }
     HoldCelebrations()
     Div({ classes("vr-wrap", "vr-mission-screen") }) {
-        Div({ classes("vr-mtop") }) {
-            Btn("Sair", { saveSession(); Router.go(Route.Errors) }, style = "ghost", small = true, icon = "close")
-            B { Text(if (index < missionIds.size) "Missão · ${index + 1} de ${missionIds.size}" else "Missão feita") }
-            Span({ classes("chip", "quiz-timer"); attr("title", "Tempo da missão (conta no Desempenho)") }) {
-                Icon("timer"); Text("${(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}")
-            }
-        }
-        Div({ classes("cb-dots") }) { missionIds.indices.forEach { i -> I({ classes(*listOfNotNull(if (i <= index) "on" else null).toTypedArray()) }) } }
+        QuestionHud(index, missionIds.size, results, startedAt, title = "Missão do caderno de erros", onExit = { saveSession(); Router.go(Route.Errors) })
         if (index >= missionIds.size) {
             LaunchedEffect(Unit) { saveSession(); som("resultado") }
             Div({ classes("cb-done", "rise") }) {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Rule
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -75,6 +76,8 @@ fun MoreScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val defaultCount by viewModel.defaultQuestionCount.collectAsState()
     val showExplanation by viewModel.showExplanation.collectAsState()
+    val hudTimer by viewModel.hudTimer.collectAsState()
+    val hudScore by viewModel.hudScore.collectAsState()
     val reviewIntervals by viewModel.reviewIntervals.collectAsState()
     val focusDnd by viewModel.focusDoNotDisturb.collectAsState()
     val focusScreenOn by viewModel.focusKeepScreenOn.collectAsState()
@@ -125,6 +128,10 @@ fun MoreScreen(
         item {
             Group("Questões") {
                 ToggleRow(Icons.Outlined.Summarize, "Explicação logo após responder", "Desligue para fazer tudo e ver as explicações só no final.", showExplanation, viewModel::setShowExplanation)
+                HorizontalDivider()
+                ToggleRow(Icons.Outlined.Timer, "Relógio nas questões", "O tempo correndo no placar enquanto você responde. Ele conta no Desempenho mesmo escondido.", hudTimer, viewModel::setHudTimer)
+                HorizontalDivider()
+                ToggleRow(Icons.Outlined.Rule, "Certas e erradas nas questões", "A contagem ao lado da barra; a barra continua mostrando cada resposta.", hudScore, viewModel::setHudScore)
                 HorizontalDivider()
                 br.com.estudario.ui.brand.BrandCounter(
                     value = defaultCount.coerceIn(5, 50),

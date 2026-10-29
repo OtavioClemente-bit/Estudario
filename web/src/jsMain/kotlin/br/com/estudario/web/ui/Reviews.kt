@@ -544,6 +544,7 @@ fun ReviewSessionScreen(reviewId: Long) {
             }
             "test" -> {
                 val question = questions[questionIndex.coerceAtMost(questions.lastIndex)]
+                QuestionHud(questionIndex, questions.size, results, startedAt, title = "Revisão · " + topic?.title.orEmpty())
                 ReviewQuestion(question, questionIndex, questions.size, selected, answeredRight, results, onSelect = { if (answeredRight == null) selected = it }) {
                     if (answeredRight == null) {
                         val key = selected ?: return@ReviewQuestion
@@ -571,7 +572,6 @@ private fun ReviewQuestion(question: Question, index: Int, total: Int, selected:
     // Alternativas riscadas, como no treino normal.
     val crossed = remember(question.id) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     Div({ classes("rv-paper") }) {
-        Span({ classes("rv-face-tag") }) { Text("QUESTÃO ${index + 1} DE $total") }
         QuestionStatement(question.statement)
         Div({ classes("stack", "tight"); attr("style", "margin-top:12px") }) {
             order.forEachIndexed { pos, i ->

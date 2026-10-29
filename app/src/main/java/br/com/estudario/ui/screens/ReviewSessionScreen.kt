@@ -300,6 +300,7 @@ fun ReviewSessionScreen(
             }
             RvStep.TEST -> {
                 val question = questions[questionIndex.coerceAtMost(questions.lastIndex)]
+                item(key = "rv-hud") { br.com.estudario.ui.components.QuestionHud(questionIndex, questions.size, results, startedAt, title = "Revisão · " + (topic?.title ?: "")) }
                 val original = question.options.sortedBy { it.position }
                 val order = OptionShuffle.order(original.map { it.text }, shuffleSeed + question.question.id * 7919)
                 // A questão inteira num papel só, como no site: enunciado, alternativas, a reação do Folha e o porquê.
