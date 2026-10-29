@@ -4,6 +4,10 @@ rem à lista os próximos itens de edital sem matéria; (3) decide esses itens; 
 rem Se um passo cair, o ciclo segue. Deixe esta janela aberta. Para parar: feche ou Ctrl+C.
 cd /d "%~dp0..\.."
 title Codex sem parar - materias novas
+rem 10 materias ao mesmo tempo, esforco alto e so 1 correcao: o que nao passar fica para a revisao do Claude.
+set CODEX_PARALELO=10
+set CODEX_ESFORCO=high
+set CODEX_CORRECOES=1
 :ciclo
 deno run -A scripts\codex\loop-materias.ts
 deno run -A scripts\codex\proxima-lista.ts 300

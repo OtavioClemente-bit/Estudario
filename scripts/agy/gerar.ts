@@ -53,10 +53,13 @@ const destravar = (key: string) => { try { Deno.removeSync(arquivoTrava(key)); }
 
 // ------------------------------------------------------------------ API grátis do Google (gerador --api)
 const API_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"];
-async function geminiApi(prompt: string): Promise<string> {
+// Auditoria do gerador da API pela própria API (desde 29/10: a cota do Antigravity acabou por 7 dias).
+// Tenta primeiro os modelos mais fortes; se a cota deles acabar, cai no Flash.
+const AUD_API_MODELS = ["gemini-4-argon", "gemini-pro-latest", "gemini-3.8-flash"];
+async function geminiApi(prompt: string, models = API_MODELS): Promise<string> {
   const key = Deno.readTextFileSync(`${ROOT}.env.google`).match(/GEMINI_API_KEY=(.+)/)![1].trim();
   let ultimo = "";
-  for (const model of API_MODELS) {
+  for (const model of models) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 65000 } }),
@@ -214,6 +217,8 @@ async function agy(model: string, prompt: string, minutos: number): Promise<stri
     args: ["-p", pedidoLinha,
       "--model", model, "--output-format", "json", "--print-timeout", `${minutos}m`, "--disable-slash-commands"],
     cwd: TRAB, stdout: "piped", stderr: "piped",
+    // O --print-timeout nem sempre corta (em 29/10 uma chamada ficou 4 h parada): mata o processo 5 min depois.
+    signal: AbortSignal.timeout((minutos + 5) * 60_000),
   });
   const out = await cmd.output();
   const stdout = new TextDecoder().decode(out.stdout), stderr = new TextDecoder().decode(out.stderr);
@@ -295,11 +300,15 @@ ${compacto}`;
   // cada 4 e, nos outros, o Argon no esforço alto. Se a cota do Claude acabar, o Argon assume.
   estado.auditorias = (estado.auditorias ?? 0) + 1;
   // Sem Claude (a cota dele acabou em 1 hora). Argon e Flash alto se alternam; se o Argon acabar, o Flash assume.
-  const modelo = estado.auditorias % 2 === 1 ? AUD_GEMINI : AUD_FLASH;
-  log(`   auditando com ${modelo}`);
+  // 29/10: a cota semanal do Argon acabou (o resto do Antigravity segue livre); Claude Opus e Flash se alternam.
+  const modelo = estado.auditorias % 2 === 1 ? AUD_MODEL : AUD_FLASH;
   let resp: string;
-  try { resp = await agy(modelo, prompt, 20); }
-  catch (e) { if (e instanceof Cota && modelo !== AUD_FLASH) resp = await agy(AUD_FLASH, prompt, 20); else throw e; }
+  if (MODO_API) { log(`   auditando pela API (${AUD_API_MODELS.join("/")})`); resp = await geminiApi(prompt, AUD_API_MODELS); }
+  else {
+    log(`   auditando com ${modelo}`);
+    try { resp = await agy(modelo, prompt, 20); }
+    catch (e) { if (e instanceof Cota && modelo !== AUD_FLASH) resp = await agy(AUD_FLASH, prompt, 20); else throw e; }
+  }
   const r = extrairJson(resp);
   const remover = new Set<number>((r.remover ?? []).map((x: any) => Number(x)));
   for (const [n, m] of Object.entries(r.motivos ?? {})) log(`   auditoria removeu ${n}: ${String(m).slice(0, 140)}`);
@@ -427,8 +436,9 @@ async function loteTravado(item: Json): Promise<void> {
   if (juntadas) { estado.aceitosDesdePublicacao = (estado.aceitosDesdePublicacao ?? 0) + 1; estado.aceitosDesdePublicacaoQuestoes = (estado.aceitosDesdePublicacaoQuestoes ?? 0) + juntadas; }
   salvarEstado();
   log(`   auditoria removeu ${remover.size}; ${juntadas} questões entraram no recorte (total do gerador: ${estado.totalAceitas})`);
-  // Só o gerador principal publica e grava (o da API só junta ao recorte; o principal leva junto).
-  if (!MODO_API && (estado.aceitosDesdePublicacao ?? 0) >= PUBLICAR_A_CADA) await publicarEGravar();
+  // O gerador principal publica e grava; o da API também, enquanto o principal está parado sem cota
+  // (sem isso o que a API junta ficaria esperando o principal voltar).
+  if ((estado.aceitosDesdePublicacao ?? 0) >= PUBLICAR_A_CADA) await publicarEGravar();
 }
 
 // ------------------------------------------------------------------ laço principal

@@ -25,8 +25,10 @@ for (const e of Deno.readDirSync(`${ROOT}conteudo/editais`)) {
     porTexto.set(k, it);
   }
 }
-const novos = [...porTexto.values()].filter((i) => i.editais.size >= MIN_EDITAIS)
-  .sort((a, b) => b.editais.size - a.editais.size).slice(0, QUANTOS);
+// Quando acabam os itens em 3+ editais, passa a aceitar os que aparecem em 2 (pedido do dono, 29/10).
+let novos = [...porTexto.values()].filter((i) => i.editais.size >= MIN_EDITAIS);
+if (!novos.length) novos = [...porTexto.values()].filter((i) => i.editais.size >= 2);
+novos = novos.sort((a, b) => b.editais.size - a.editais.size).slice(0, QUANTOS);
 if (novos.length) {
   Deno.writeTextFileSync(LISTA, linhas.join("\n") + "\n" + novos.map((i) => `${i.editais.size}\t${i.texto}\t${i.disciplina}\t${i.exemplo}`).join("\n") + "\n");
 }

@@ -32,7 +32,10 @@ function pendentes(): { id: string; itens: string[] }[] {
     try { Deno.statSync(`${ROOT}conteudo/materias/${a}/${b.join(".")}.json`); return true; } catch { /* não está publicada */ }
     try { Deno.statSync(`${SAIDA}/${id}.json`); return aprovada(id); } catch { return false; }
   };
-  return [...porId.entries()].filter(([id]) => id && !existe(id)).map(([id, itens]) => ({ id, itens: [...new Set(itens)] }))
+  // Matérias pedidas em outro lugar (chat do ChatGPT pelo navegador): o Codex não pega.
+  let reservadas = new Set<string>();
+  try { reservadas = new Set(Deno.readTextFileSync(`${ROOT}conteudo/entrada/materias-reservadas.txt`).split(/\s+/).filter(Boolean)); } catch { /* sem reservas */ }
+  return [...porId.entries()].filter(([id]) => id && !existe(id) && !reservadas.has(id)).map(([id, itens]) => ({ id, itens: [...new Set(itens)] }))
     .sort((a, b) => b.itens.length - a.itens.length);
 }
 // Tentativas de cada matéria, guardadas entre execuções: o ciclo do .cmd reabre este programa e não deve insistir
@@ -80,6 +83,8 @@ ${erros.slice(0, 3000)}
 Corrija AGORA esses pontos editando o arquivo (alongue explicações curtas para 120+ caracteres explicando o porquê;
 equilibre o tamanho das alternativas encurtando a certa ou alongando as erradas; troque a letra da certa entre A–E
 onde o gabarito estiver concentrado; complete questões se faltar). Escreva cada texto você mesmo, sem script.
+PROIBIDO: ao equilibrar, NUNCA escreva uma alternativa errada que diga o mesmo que a certa com outras palavras
+(isso cria duas corretas e a matéria é rejeitada na revisão). Cada alternativa errada precisa estar ERRADA de verdade.
 IMPORTANTE: o AGENTS.md proíbe só PROGRAMA que gere/embaralhe/equilibre. Reescrever você mesmo, à mão, o texto de
 cada explicação e de cada alternativa (editando o arquivo com apply_patch, questão por questão; se o JSON estiver numa
 linha só, rode antes deno fmt no arquivo) é exatamente o
@@ -115,7 +120,10 @@ Se os itens forem só números de atos sem assunto e você não achar o conteúd
   // Limite do plano só pela mensagem do próprio Codex, no fim da saída. Não conta como tentativa: espera e repete.
   if (!ok && /hit your usage limit|usage limit (reached|has been reached)|try again (in|at) \d|rate_limit_exceeded/i.test(txt.slice(-2_000))) {
     log(`   [${n}] limite do plano; esperando 30 min`);
+    // Segura a matéria durante a espera, para os outros trabalhadores não pegarem a mesma e escreverem em dobro.
+    emAndamento.add(alvo.id);
     await sleep(30 * 60_000);
+    emAndamento.delete(alvo.id);
     continue;
   }
   // Rodadas de correção (CODEX_CORRECOES, padrão 5): a regra 1 do AGENTS.md agora diz que corrigir à mão é permitido
