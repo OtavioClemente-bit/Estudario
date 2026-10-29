@@ -25,7 +25,7 @@ estudario-workshop{display:block;width:100%;max-width:580px;margin:0 auto;aspect
 .ws-desk{position:absolute;inset:18px 6px 6px;border-radius:26px;background:var(--paper,#FFFDF8);border:2px solid var(--line,#E4DCCB);
   box-shadow:0 7px 0 var(--line,#E4DCCB),0 30px 50px -30px rgba(38,35,74,.45);
   background-image:radial-gradient(color-mix(in srgb,var(--ink,#26234A) 12%,transparent) 1.2px,transparent 1.4px);background-size:20px 20px}
-.ws-folha{position:absolute;left:14px;bottom:8px;width:150px;height:150px;z-index:6;filter:drop-shadow(0 12px 14px rgba(38,35,74,.22))}
+.ws-folha{position:absolute;left:14px;bottom:8px;width:150px;height:150px;z-index:6;background:radial-gradient(ellipse 42% 10% at 50% 95%,rgba(38,35,74,.22),transparent 70%)}
 .ws-folha estudario-folha{width:150px;height:150px;display:block}
 .ws-piece{position:absolute;left:170px;right:22px;top:36px;bottom:24px}
 .ws-gl{position:absolute;display:block}
