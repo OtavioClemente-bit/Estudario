@@ -26,6 +26,9 @@ class SignedOutException : Exception("signed_out")
  */
 object Cloud {
     private const val BUCKET = "user-sync"
+    /** Tempo limite das chamadas pequenas e das que levam a foto inteira (alguns MB numa conexão lenta). */
+    private const val SHORT = 30_000
+    private const val LONG = 180_000
     private const val DEVICE_KEY = "estudario.device"
 
     val deviceId: String
@@ -51,7 +54,7 @@ object Cloud {
     }
 
     suspend fun head(): CloudHead {
-        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/sync_heads?select=*", headers(mapOf("Accept" to "application/json")))
+        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/sync_heads?select=*", headers(mapOf("Accept" to "application/json")), timeoutMillis = SHORT)
         if (response.status == 401) throw SignedOutException()
         if (!response.ok) throw HttpException(response.status, response.body)
         val row = (snapshotJson.parseToJsonElement(response.body) as? JsonArray)?.firstOrNull() as? JsonObject
@@ -68,7 +71,7 @@ object Cloud {
     /** Baixa e confere a foto atual. */
     suspend fun download(head: CloudHead): String {
         val path = head.objectPath ?: error("A conta ainda não tem dados.")
-        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/storage/v1/object/authenticated/$BUCKET/$path", headers())
+        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/storage/v1/object/authenticated/$BUCKET/$path", headers(), timeoutMillis = LONG)
         if (response.status == 401) throw SignedOutException()
         if (!response.ok) throw HttpException(response.status, response.body)
         val sha = sha256(response.body)
@@ -94,6 +97,7 @@ object Cloud {
             "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/$path",
             headers(mapOf("Content-Type" to "application/json", "x-upsert" to "false")),
             bytes = bytes,
+            timeoutMillis = LONG,
         )
         if (put.status == 401) throw SignedOutException()
         if (!put.ok) throw HttpException(put.status, put.body)
@@ -105,7 +109,7 @@ object Cloud {
             put("p_device_id", deviceId)
             put("p_device_label", deviceLabel)
         }.toString()
-        val commit = httpRequest("POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/sync_commit", headers(mapOf("Content-Type" to "application/json")), body)
+        val commit = httpRequest("POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/sync_commit", headers(mapOf("Content-Type" to "application/json")), body, timeoutMillis = SHORT)
         if (commit.body.contains("sync_conflict")) throw CloudConflictException(head())
         if (commit.status == 401) throw SignedOutException()
         if (!commit.ok) {
@@ -136,7 +140,7 @@ object Cloud {
             put("limit", 200)
             put("sortBy", buildJsonObject { put("column", "name"); put("order", "desc") })
         }.toString()
-        val listed = httpRequest("POST", "${WebConfig.SUPABASE_URL}/storage/v1/object/list/$BUCKET", headers(mapOf("Content-Type" to "application/json")), listBody)
+        val listed = httpRequest("POST", "${WebConfig.SUPABASE_URL}/storage/v1/object/list/$BUCKET", headers(mapOf("Content-Type" to "application/json")), listBody, timeoutMillis = SHORT)
         if (!listed.ok) return
         val names = (runCatching { snapshotJson.parseToJsonElement(listed.body) as? JsonArray }.getOrNull() ?: return)
             .mapNotNull { (it as? JsonObject)?.str("name") }
@@ -145,7 +149,7 @@ object Cloud {
             .filter { it != currentPath && it != headPath }
             .sortedDescending() // o nome começa pelo horário do envio
         names.drop(keep).forEach { path ->
-            httpRequest("DELETE", "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/$path", headers())
+            httpRequest("DELETE", "${WebConfig.SUPABASE_URL}/storage/v1/object/$BUCKET/$path", headers(), timeoutMillis = SHORT)
         }
     }
 
