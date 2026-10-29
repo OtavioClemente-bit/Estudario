@@ -40,3 +40,19 @@ Deno.test("conta pessoas por edital, sem repetir a mesma conta", () => {
   assertEquals(result.items[0].readyPercent, 80);
   assertEquals(result.items[0].lastActive, "2026-10-24T10:00:00Z");
 });
+
+Deno.test("resumo da conta: editais, matérias geradas, questões e último estudo", async () => {
+  const { summaryOf } = await import("./index.ts");
+  const s = summaryOf({
+    competitions: [{ id: 1, name: "PMMG", primary: true }],
+    subjects: [{ id: 10, competitionId: 1, name: "Português" }],
+    topics: [{ id: 100, subjectId: 10, title: "Crase", status: "ESTUDADO" }, { id: 101, subjectId: 10, title: "Vírgula", status: "NAO_ESTUDADO" }],
+    theories: [{ id: 1, topicId: 100 }],
+    questions: [{ id: 1, topicId: 100, answerCount: 2 }, { id: 2, topicId: 100, answerCount: 0 }, { id: 3, topicId: 100, hidden: true }],
+    errors: [{ id: 1, status: "NOVO" }, { id: 2, status: "CORRIGIDO" }],
+    attempts: [{ answeredAt: 1000 }, { answeredAt: 5000 }],
+  });
+  assertEquals(s.materials, [{ topic: "Crase", subject: "Português", competition: "PMMG", questions: 2 }]);
+  assertEquals([s.questions, s.answered, s.errors, s.lastStudyAt], [2, 1, 1, 5000]);
+  assertEquals(s.editais[0].studied, 1);
+});
