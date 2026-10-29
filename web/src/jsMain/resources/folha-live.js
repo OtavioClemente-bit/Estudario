@@ -4488,7 +4488,7 @@
       clearTimeout(this._somT);
       if (!this.hasAttribute("at") && this.getAttribute("som") !== "0") this._somT = setTimeout(() => {
         if (!this.isConnected || !SOM.enabled) return;
-        const name = "cena_" + (this.getAttribute("tipo") === "salvou" ? "sequencia" : this.getAttribute("tipo"));
+        const name = "cena_" + this.getAttribute("tipo");
         // espera o som carregar e, se a cena mal começou, recomeça junto para a batida cair no quadro certo
         SOM.load(name).then(() => { if (!this.isConnected) return; if (performance.now() - this._start < 450) this._start = performance.now(); SOM.play(name); }).catch(() => {});
       }, 30);

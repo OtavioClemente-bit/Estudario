@@ -234,6 +234,7 @@ object TopicFocus {
         topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
         persist()
         if (seconds < 60) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return 0 }
+        som("foco_fim")
         Store.update {
             // Última trava: o histórico não aceita duas sessões que começaram no mesmo instante.
             if (it.focusSessions.any { s -> s.startedAt == savedStart }) return@update it

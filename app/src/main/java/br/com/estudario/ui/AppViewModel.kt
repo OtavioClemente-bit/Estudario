@@ -824,7 +824,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         FocusSessionManager.start(app, title.ifBlank { "Sessão de estudo" }, subjectIds, origin, topicId, taskId)
     }
     /** Devolve os minutos medidos para quem encerrou, a tela usa isso para registrar a tarefa. */
-    suspend fun stopFocus(): Int = FocusSessionManager.stop(app)
+    suspend fun stopFocus(): Int = FocusSessionManager.stop(app).also { if (it >= 1) br.com.estudario.ui.brand.EstudarioSom.play(app, "foco_fim", 0.8f) }
 
     /**
      * Abre o mesmo assistente do primeiro acesso, já no concurso, começando na parte do plano
