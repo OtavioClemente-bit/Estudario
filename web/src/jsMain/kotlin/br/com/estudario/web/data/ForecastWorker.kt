@@ -78,7 +78,7 @@ object ForecastService {
     private var job: Deferred<ForecastLoad>? = null
 
     private fun key(data: Snapshot, plan: StudyPlan) = ForecastKey(data, plan.id,
-        Queries.todayDate().toString(), Queries.zone.id, LibraryGaps.free(), LibraryGaps.excluded())
+        Queries.todayDate().toString(), Queries.zone.id, LibraryGaps.free(), LibraryGaps.excluded(data))
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun cached(data: Snapshot, plan: StudyPlan): ForecastLoad? =

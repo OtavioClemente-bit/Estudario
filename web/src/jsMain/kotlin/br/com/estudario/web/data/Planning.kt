@@ -120,13 +120,13 @@ object Planning {
     }
 
     /** As entradas do motor (StudyPlanSnapshotFactory do app); também alimentam a previsão (PlanProjection). */
-    fun inputFor(data: Snapshot, planId: String, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded()): PlannerSnapshotBuilder.Input? {
+    fun inputFor(data: Snapshot, planId: String, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded(data)): PlannerSnapshotBuilder.Input? {
         val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return null
         val tasks = data.array(Keys.TASKS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.mapNotNull { it.toPlannerTask() }
         return inputFor(data, planId, planRow, tasks, planRow.long("revision") ?: 0, Queries.todayDate(), freeRules, excludedTopicIds)
     }
 
-    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded()): PlannerSnapshotBuilder.Input =
+    private fun inputFor(data: Snapshot, planId: String, planRow: JsonObject, tasks: List<PlannerTask>, revision: Long, today: LocalDate, freeRules: Boolean = LibraryGaps.free(), excludedTopicIds: Set<Long> = LibraryGaps.excluded(data)): PlannerSnapshotBuilder.Input =
             PlannerSnapshotBuilder.Input(
                 plan = PlannerSnapshotBuilder.Plan(planId, revision, planRow.long("start") ?: today.toEpochDay(), planRow.long("exam"), planRow.methodConfig()),
                 planSubjects = data.array(Keys.PLAN_SUBJECTS).mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.map { row ->
