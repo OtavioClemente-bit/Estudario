@@ -280,32 +280,34 @@ internal fun StreakGame(days: Int, best: Int, week: List<Pair<String, Boolean>>,
     }
 }
 
+/** Na cena do Folha (folha-live.js, cena "salvou"), quando a bola de fogo acerta a fênix e ela acorda. */
+private const val SAVE_WAKE_MS = 3950L
+
 /**
- * Sequência salva pelo marca-página: a fênix dorme quase apagada, o Folha chega na ponta dos pés com o
- * marca-página, solta uma faísca e ela acorda em fogo. Uma vez por dia salvo.
+ * Sequência salva pelo marca-página: a cena do Folha (a mesma do app). A fênix dorme, ele entra na ponta
+ * dos pés, pede silêncio, joga a bola de fogo nela e ela acorda; a chama azul desce e acende o dia que
+ * faltou. O letreiro, a semana e os prêmios entram quando ela acorda. Uma vez por dia salvo.
  */
 @Composable
-internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, week: List<Pair<String, Boolean>>, onClose: () -> Unit) {
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(640); som("toque")
-        kotlinx.coroutines.delay(410); som("combo")
-    }
+internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, semana: String, onClose: () -> Unit) {
+    val week = semana.split(",").filter { it.length >= 2 }.map { it.dropLast(1) to (it.last() != '0') }
+    var revealed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(SAVE_WAKE_MS + 600); revealed = true }
     GameShell(Triple("#FFE08A", "#FF8A3D", "#B23A0E"), null, "Sequência salva pelo Folha", false, "streak saved") {
-        GameStage(
-            "SALVA!",
-            before = { Div({ classes("lvx-phx") }) { Span({ classes("lvx-zz") }) { Text("z"); B { Text("z") }; I { Text("z") } } } },
-            after = { Div({ classes("lvx-phx") }) },
-            extra = {
-                FenixView(340, wakeAt = 1050)
-                // o Folha chega com o marca-página, toma impulso e joga nela; ela desperta, ele se assusta e recua
-                Div({ classes("lvx-saver") }) {
-                    Div({ classes("lvx-saver-a") }) { Folha("wink", 72) }
-                    Div({ classes("lvx-saver-b") }) { Folha("surprised", 72) }
-                }
-                Img(bookmarkSrc(), "", attrs = { classes("lvx-throw") })
-            },
-        )
-        StreakCounter(days)
+        Div({ classes("lvx-forge") }) {
+            org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(
+                elementBuilder = org.jetbrains.compose.web.dom.ElementBuilder.createBuilder("estudario-cena"),
+                applyAttrs = {
+                    attr("tipo", "salvou"); attr("dias", days.toString()); attr("semana", semana); attr("bleed", "34")
+                    attr("aria-label", "O Folha pede silêncio, joga uma bola de fogo na fênix e salva a sequência de $days dias")
+                },
+                content = null,
+            )
+        }
+        if (!revealed) {
+            Div({ classes("lvx-forge-skip") }) { Button({ classes("lvx-ghost"); attr("type", "button"); onClick { revealed = true } }) { Text("Pular") } }
+            return@GameShell
+        }
         GameHead("QUASE APAGOU", "ACESA", "SEQUÊNCIA SALVA!") {
             B { Text("$days ${if (days == 1) "dia" else "dias"}") }
             Text(if (dayLabel.isNotBlank()) " · o Folha marcou $dayLabel" else " de sequência")

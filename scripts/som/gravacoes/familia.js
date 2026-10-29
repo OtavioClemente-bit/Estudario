@@ -72,20 +72,24 @@ const FAMILIA = {
     x("bola", 2.12, 0.7, 1.0), x("sopro", 2.15, 0.38, 1.6, { lp: 5000 }), { syn: "boom", at: 2.18, vol: 0.55 },
     x("asa", 2.3, 0.4, 0.9), x("asaLeve", 2.75, 0.3, 0.7), x("crepitar", 2.4, 0.1, 2.4, { from: 5, fi: 0.4 }),
     { sub: "assinatura", at: 2.7 }] },
-  // o Folha salva a sequência (folha-live.js, SAV): noite quieta, o "shhh", a bola de fogo no braseiro que
-  // faltou (que pega roxo e dourado), o jato até a fênix e ela acordando; no fim, a assinatura e um brilho baixinho
+  // o Folha salva a sequência (folha-live.js, SAV): noite quieta; ele entra na ponta dos pés (0,5–1,5), pede
+  // silêncio (1,8), mira (3,0) e joga a bola de fogo que sobe até a fênix (3,3–3,95); ela acorda no impacto,
+  // abre as asas, e a chama azul desce (4,1–4,4) e acende o dia que faltou; "sequência salva!" em 5,0
   cena_salvou: { nome: "Cena: sequência salva", onde: "Volta depois de um dia salvo pelo marca-página", vol: 0.9, cena: true, layers: [
-    x("crepitar", 0.2, 0.16, 2.6, { from: 2, fi: 0.5, lp: 2500 }),
-    { syn: "pad", notes: ["D3", "A3", "F#4"], at: 0.1, vol: 0.07, len: 3.4 },
-    ...[0.45, 0.95].map((t, i) => ({ syn: "glass", note: i ? "A5" : "F#5", at: t, vol: 0.05, len: 0.7 })),
-    { syn: "shh", at: 1.3, vol: 0.32, len: 0.9 },
-    { syn: "glass", note: "D6", at: 2.72, vol: 0.12, len: 0.4 },
-    { syn: "riser", at: 2.75, vol: 0.2, len: 0.32 }, x("bola", 3.02, 0.45, 0.7), x("sopro", 3.05, 0.22, 0.6, { lp: 4000 }),
-    x("bola", 3.6, 0.6, 0.9), { syn: "boom", at: 3.6, vol: 0.35 }, { syn: "bell", note: "F#5", at: 3.62, vol: 0.18, len: 1.4 }, { syn: "glass", note: "A6", at: 3.64, vol: 0.14, len: 0.9 },
-    { syn: "riser", at: 3.8, vol: 0.3, len: 0.45 }, x("jato", 3.82, 0.55, 1.0),
-    x("bola", 4.25, 0.7, 1.0), x("asa", 4.35, 0.42, 0.9), x("asaLeve", 4.8, 0.3, 0.7), x("crepitar", 4.4, 0.1, 2.2, { from: 5, fi: 0.4 }),
-    { sub: "conquista_curta", at: 4.25 },
-    { syn: "spark", at: 5.2, vol: 0.08, len: 0.9, count: 5 }] },
+    x("crepitar", 0.1, 0.14, 3.6, { from: 2, fi: 0.5, lp: 2500 }),
+    { syn: "pad", notes: ["D3", "A3", "F#4"], at: 0.05, vol: 0.06, len: 3.8 },
+    // passinhos na ponta dos pés (seis pulinhos)
+    ...[0, 1, 2, 3, 4, 5].map((i) => x("madeira", 0.5 + (1 - Math.cbrt(1 - (i + 0.5) / 6)) * 1.0, 0.1, 0.12, { st: 9 + (i % 2) * 2, lp: 2600 })),
+    { syn: "shh", at: 1.8, vol: 0.34, len: 1.0 },
+    { syn: "glass", note: "D6", at: 3.12, vol: 0.12, len: 0.5 }, { syn: "glass", note: "A6", at: 3.2, vol: 0.08, len: 0.4 },
+    x("sopro", 3.33, 0.3, 0.6, { lp: 4500 }), { syn: "riser", at: 3.35, vol: 0.3, len: 0.6 },
+    x("bola", 3.95, 0.7, 1.0), x("jato", 3.97, 0.35, 0.8),
+    { sub: "conquista_curta", at: 3.95 },
+    x("asa", 4.05, 0.42, 0.9), x("asaLeve", 4.5, 0.3, 0.7), x("crepitar", 4.2, 0.1, 2.2, { from: 5, fi: 0.4 }),
+    // a chama azul descendo e acendendo o dia que faltou
+    ...["D7", "A6", "F#6", "D6"].map((nt, i) => ({ syn: "glass", note: nt, at: 4.1 + i * 0.07, vol: 0.09, len: 0.4 })),
+    x("bola", 4.4, 0.4, 0.7, { st: 3 }), { syn: "bell", note: "F#5", at: 4.4, vol: 0.16, len: 1.4 },
+    { syn: "spark", at: 5.0, vol: 0.08, len: 0.9, count: 5 }] },
   cena_nivel: { nome: "Cena: subiu de nível", onde: "Nível novo", vol: 0.9, cena: true, layers: [
     // folha-live.js, LVL: as orbes enchem o anel de 0,15 a 1,2 s chegando rápido no começo e devagar no fim
     // (outC); cada nota do arpejo cai quando o anel passa por mais um sétimo, então elas vêm juntas no começo e

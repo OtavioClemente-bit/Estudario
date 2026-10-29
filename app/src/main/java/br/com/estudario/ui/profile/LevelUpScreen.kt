@@ -551,15 +551,20 @@ private fun BoxScope.StreakCounter(days: Int, t: Float) {
     }
 }
 
+/** Na cena do site (folha-live.js, "salvou"), quando a bola de fogo do Folha acerta a fênix e ela acorda. */
+private const val SAVE_WAKE = 3.95f
+
 /**
- * O Folha salva a sequência com o marca-página (a mesma cena do site): a fênix dorme cinza, ele chega na
- * ponta dos pés com o marca-página, solta uma faísca e ela acorda em fogo. Uma vez por dia salvo.
+ * O Folha salva a sequência com o marca-página: a mesma cena do site (folha-live.js, "salvou"). A fênix
+ * dorme, ele entra na ponta dos pés, pede silêncio, joga a bola de fogo nela e ela acorda; a chama azul
+ * desce e acende o dia que faltou. O letreiro e os prêmios entram quando ela acorda. Uma vez por dia salvo.
  */
 @Composable
 fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<String, Int>> = emptyList(), onClose: () -> Unit) {
-    val days7 = week.ifEmpty { listOf("T" to 1, "Q" to 1, "Q" to 1, "S" to 1, "S" to 1, "D" to 2, "S" to 0) }.map { it.first to (it.second != 0) }
+    val week7 = week.ifEmpty { listOf("T" to 1, "Q" to 1, "Q" to 1, "S" to 1, "S" to 1, "D" to 2, "S" to 0) }
+    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     GameScene(
-        FIRE1, FIRE2, FIRE3, sound = "combo", stamp = "SALVA!",
+        FIRE1, FIRE2, FIRE3, sound = null, stamp = "SALVA!",
         from = "QUASE APAGOU", to = "ACESA", word = "SEQUÊNCIA SALVA!",
         sub = "$days ${if (days == 1) "dia" else "dias"}" + if (dayLabel.isNotBlank()) " · o Folha marcou $dayLabel" else " de sequência",
         loot = listOf(
@@ -569,35 +574,15 @@ fun StreakSaveScene(days: Int, left: Int, dayLabel: String, week: List<Pair<Stri
         ),
         line = "Shhh… ela quase apagou, mas eu acendi de novo pra você. Bora não deixar dormir hoje?",
         primary = "Bora continuar", onPrimary = onClose, onClose = onClose,
-        middle = { t -> GameWeekRow(days7, t, FIRE1, FIRE2) },
-        before = { s -> SleepZ(s) },
-        after = { },
-        backdrop = { s, t -> FenixScene(s * 1.3f, wake = t >= IMPACT) },
-        cues = listOf(0.64f to "toque"),
-        folhaInLine = false,
-        stageExtra = { t, s ->
-            StreakCounter(days, t)
-            // o Folha chega com o marca-página, toma impulso e joga nela; ela desperta, ele se assusta e recua
-            val walk = seg(t, 0f, 0.6f)
-            val wind = seg(t, 0.48f, 0.32f)
-            val back = CubicBezierEasing(0.2f, 1.2f, 0.4f, 1f).transform(seg(t, 1.12f, 0.65f))
-            val scared = t >= 1.08f
-            Box(Modifier.align(Alignment.BottomStart).offset(x = (-30).dp, y = (-10).dp).graphicsLayer {
-                alpha = (walk * 4f).coerceAtMost(1f)
-                translationX = (-150f * (1f - walk) - 24f * back).dp.toPx()
-                translationY = (-6f * kotlin.math.abs(kotlin.math.sin(walk * PI.toFloat() * 4f))).dp.toPx()
-                // o impulso do arremesso (para trás e para a frente) e, assustado, inclinado para trás
-                rotationZ = (if (wind in 0.001f..0.999f) -14f * kotlin.math.sin(wind * PI.toFloat() * 2f) else 0f) - 7f * back
-            }) {
-                Folha(64.dp, mood = if (scared) FolhaMood.SURPRISED else FolhaMood.WINK)
-            }
-            // o marca-página voa em arco, girando, da mão dele até o peito dela
-            val fly = seg(t, 0.62f, 0.44f)
-            if (fly in 0.001f..0.999f) {
-                val x = -150f * (1f - fly)
-                val y = 70f * (1f - fly) - 120f * kotlin.math.sin(fly * PI.toFloat())
-                Box(Modifier.align(Alignment.Center).offset(x = x.dp, y = (y - 10f).dp).rotate(600f * fly)) { BrandIcon(Glyph.Bookmark, size = 30.dp) }
-            }
+        before = { }, after = { },
+        delay = SAVE_WAKE - IMPACT, stageTall = 1.1f, fxShift = -0.25f,
+        backdrop = { s, _ ->
+            val w = s + 30.dp
+            val bleed = w * 0.34f
+            FolhaScene(
+                listOf("tipo" to "salvou", "dias" to days.toString(), "semana" to week7.joinToString(",") { it.first + it.second }),
+                Modifier.requiredSize(screenW, w * 1.1f + bleed * 2), stageWidthDp = w.value.toInt(), bleedDp = bleed.value.toInt(),
+            )
         },
     )
 }
