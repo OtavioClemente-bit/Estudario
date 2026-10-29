@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,12 +58,29 @@ fun Button(
     interactionSource: MutableInteractionSource? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val face = if (enabled) colors.containerColor else colors.disabledContainerColor
+    // Como no site: o primário é sempre o índigo da marca com texto branco, nos dois temas (o primary do tema
+    // escuro é um lilás claro, que deixava o botão com cara de antigo), e o desligado fica cinza, não lilás.
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.surface.luminance() < 0.5f
+    val brand = colors.containerColor == scheme.primary
+    val face = when {
+        !enabled -> if (dark) Color(0xFF2A2A26) else Color(0xFFEEEDE7)
+        brand -> if (dark) Color(0xFF6A5BFF) else Color(0xFF5B4BF5)
+        else -> colors.containerColor
+    }
     ChunkyButton(
         onClick, modifier, enabled, shape,
         face = face,
-        lip = if (enabled) lerp(face, Color.Black, 0.28f) else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (enabled) colors.contentColor else colors.disabledContentColor,
+        lip = when {
+            !enabled -> if (dark) Color(0xFF3A3A35) else Color(0xFFD8D6CE)
+            brand -> if (dark) Color(0xFF2E2799) else Color(0xFF3B2FC4)
+            else -> lerp(face, Color.Black, 0.28f)
+        },
+        contentColor = when {
+            !enabled -> if (dark) Color(0xFF938F85) else Color(0xFF79776D)
+            brand -> Color.White
+            else -> colors.contentColor
+        },
         border = border, contentPadding = contentPadding, interactionSource = interactionSource, content = content,
     )
 }
@@ -151,7 +169,7 @@ private fun ChunkyButton(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CompositionLocalProvider(LocalContentColor provides contentColor) {
-                ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold)) { content() }
+                ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black)) { content() }
             }
         }
     }

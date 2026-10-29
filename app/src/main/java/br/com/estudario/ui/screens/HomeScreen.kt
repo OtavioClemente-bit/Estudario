@@ -733,6 +733,6 @@ private fun FirstStep(n: Int, label: String, done: Boolean, action: String?, onC
             Text(if (done) "✓" else "$n", fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = if (done) androidx.compose.ui.graphics.Color.White else scheme.primary)
         }
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (done) scheme.onSurfaceVariant else scheme.onSurface)
-        if (!done && action != null) androidx.compose.material3.FilledTonalButton(onClick = onClick) { Text(action) }
+        if (!done && action != null) br.com.estudario.ui.brand.FilledTonalButton(onClick = onClick) { Text(action) }
     }
 }

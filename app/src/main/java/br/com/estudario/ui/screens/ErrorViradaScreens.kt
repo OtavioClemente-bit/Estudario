@@ -223,7 +223,7 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
                                 }
                             }
                         }
-                        androidx.compose.material3.Button(
+                        br.com.estudario.ui.brand.Button(
                             onClick = { onMission(null) },
                             colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = Color(0xFF1B1B18)),
                             modifier = Modifier.heightIn(min = 48.dp),
