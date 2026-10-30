@@ -48,7 +48,7 @@ function capitulo(q: Json, secoes: Map<string, string>, caps: string[]): string 
 // Converte uma questão para o formato do app.
 function converter(q: Json, ce: boolean): Json | string {
   const enun = String(q.statement ?? q.enunciado ?? "").trim();
-  const exp = [q.explanation ?? q.comentario ?? q.justificativa ?? q.explicacao ?? q.resolucao, q.fundamento ?? q.fundamentacao ?? q.fundamento_legal ?? q.referencia]
+  const exp = [q.explanation ?? q.comentario ?? q.justificativa ?? q.explicacao ?? q.resolucao ?? q.resolucao_comentada, q.fundamento ?? q.fundamentacao ?? q.fundamento_legal ?? q.referencia]
     .filter(Boolean).map(String).join(" Fundamento: ").trim();
   const gab = String(q.gabarito ?? q.resposta_correta ?? q.answer ?? q.correctOption ?? "").trim();
   let opts: Json[];
