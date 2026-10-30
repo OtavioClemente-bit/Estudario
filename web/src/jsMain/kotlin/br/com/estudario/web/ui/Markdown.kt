@@ -274,11 +274,36 @@ object MathText {
         .replace(inlineParens) { "$D$D${it.groupValues[1].trim()}$D$D" }
         .replace(moneyFormula) { "R$D ${it.groupValues[1]}" }
 
-    private val symbols = listOf(
+    // Comando inteiro (\le não come o começo de \leftrightarrow): o que não está aqui some.
+    private val symbols = mapOf(
         "cdot" to "·", "times" to "×", "div" to "÷", "leq" to "≤", "le" to "≤", "geq" to "≥", "ge" to "≥",
         "neq" to "≠", "ne" to "≠", "approx" to "≈", "infty" to "∞", "pm" to "±", "Delta" to "Δ", "pi" to "π",
-        "to" to "→", "Rightarrow" to "⇒", "%" to "%", "," to " ", ";" to " ", "lfloor" to "⌊", "rfloor" to "⌋",
-    ).map { (name, symbol) -> BS + name to symbol }.sortedByDescending { it.first.length }
+        "to" to "→", "Rightarrow" to "⇒", "lfloor" to "⌊", "rfloor" to "⌋",
+        // lógica (tabela-verdade) e conjuntos
+        "land" to "∧", "wedge" to "∧", "lor" to "∨", "vee" to "∨", "neg" to "¬", "lnot" to "¬", "sim" to "~",
+        "rightarrow" to "→", "implies" to "⇒", "leftrightarrow" to "↔", "Leftrightarrow" to "⇔", "iff" to "⇔",
+        "equiv" to "≡", "oplus" to "⊕", "veebar" to "⊻", "forall" to "∀", "exists" to "∃", "in" to "∈", "notin" to "∉",
+        "subset" to "⊂", "subseteq" to "⊆", "cup" to "∪", "cap" to "∩", "emptyset" to "∅", "varnothing" to "∅",
+        "alpha" to "α", "beta" to "β", "theta" to "θ", "lambda" to "λ", "mu" to "μ", "sigma" to "σ", "Omega" to "Ω",
+    )
+
+    /**
+     * O navegador sabe desenhar MathML (o KaTeX entrega a fórmula assim). Navegadores antigos (Chrome
+     * antes do 109, alguns tablets) não sabem e mostravam os símbolos soltos e embaralhados: neles a
+     * fórmula fica em texto simples. Mede um espaço de 77 x 23 px em MathML.
+     */
+    val mathml: Boolean by lazy {
+        runCatching {
+            val doc = kotlinx.browser.document
+            val box = doc.createElement("div")
+            box.setAttribute("style", "position:absolute;visibility:hidden;left:-9999px;top:0")
+            box.innerHTML = "<math><mspace height=\"23px\" width=\"77px\"></mspace></math>"
+            doc.body!!.appendChild(box)
+            val r = box.firstElementChild!!.getBoundingClientRect()
+            box.remove()
+            kotlin.math.abs(r.width - 77) <= 3 && kotlin.math.abs(r.height - 23) <= 3
+        }.getOrDefault(true)
+    }
 
     // Em MathML o KaTeX desenha "ç" como "c" com uma cedilha solta embaixo e "í" como "ı" com o acento
     // em cima ("endereço físico" vira "endere c ¸ o f ı ˊ sico"). Depois de desenhar, cada letra com
@@ -310,12 +335,14 @@ object MathText {
 
     /** A fórmula como texto simples (se o desenhista de fórmulas não carregar): \frac{a}{b} vira (a)/(b). */
     fun plain(tex: String): String {
-        var out = tex.replace(Regex("${BS}${BS}frac${BS}{([^{}]*)${BS}}${BS}{([^{}]*)${BS}}"), "($1)/($2)")
+        val out = tex.replace(Regex("${BS}${BS}frac${BS}{([^{}]*)${BS}}${BS}{([^{}]*)${BS}}"), "($1)/($2)")
             .replace(Regex("${BS}${BS}sqrt${BS}{([^{}]*)${BS}}"), "√($1)")
+            .replace(Regex("${BS}${BS}underline${BS}{${BS}s*${BS}${BS}vee${BS}s*${BS}}"), "⊻")
             .replace(Regex("${BS}${BS}(?:text|mathrm|mathbf|operatorname)${BS}{([^{}]*)${BS}}"), "$1")
-        symbols.forEach { (latex, symbol) -> out = out.replace(latex, symbol) }
-        return out.replace(Regex("${BS}${BS}left|${BS}${BS}right"), "").replace(Regex("${BS}${BS}[a-zA-Z]+"), "")
-            .replace("{", "").replace("}", "").replace(Regex("${BS}s+"), " ").trim()
+            .replace(Regex("${BS}${BS}(?:left|right)(?![a-zA-Z])"), "")
+            .replace(Regex("${BS}${BS}([a-zA-Z]+)")) { symbols[it.groupValues[1]] ?: "" }
+            .replace("$BS%", "%").replace("$BS,", " ").replace("$BS;", " ").replace("$BS!", "").replace("$BS ", " ")
+        return out.replace("{", "").replace("}", "").replace(Regex("${BS}s+"), " ").replace("¬ ", "¬").trim()
     }
 }
 
@@ -356,7 +383,8 @@ fun MathTex(tex: String, display: Boolean) {
         org.jetbrains.compose.web.dom.Span({
             classes(if (display) "math-block" else "math-inline")
             ref { element ->
-                if (!renderMath(element, tex, display)) {
+                if (!MathText.mathml) element.textContent = MathText.plain(tex)
+                else if (!renderMath(element, tex, display)) {
                     element.textContent = MathText.plain(tex)
                     KatexLoader.whenReady { if (element.isConnected) renderMath(element, tex, display) }
                 }
