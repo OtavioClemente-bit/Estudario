@@ -143,6 +143,13 @@ extensions.configure<ApplicationExtension> {
             resValue("string", "app_name", "EstudÃ¡rio Teste")
             matchingFallbacks += listOf("debug")
         }
+        // Igual ao da loja (otimizado), ao lado dele no celular: para medir fluidez de verdade.
+        create("rapido") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".teste"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     packaging.resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}")
