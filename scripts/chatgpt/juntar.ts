@@ -104,7 +104,10 @@ for (const e of [...Deno.readDirSync(DIR)].filter((e) => /\.chatgpt-\d+\.json$/.
   const novas: Json[] = [];
   const motivos: Record<string, number> = {};
   for (const q of questoesDe(j)) {
-    const ceQ = q.format ? q.format === "TRUE_FALSE" : ce;
+    // Certo/Errado pela própria questão (gabarito "Certo"/"Errado" ou alternativas Certo/Errado), senão pelo recorte.
+    const alts = q.alternativas ?? q.options;
+    const ceQ = q.format ? q.format === "TRUE_FALSE"
+      : /^(certo|errado)$/i.test(String(q.gabarito ?? q.resposta_correta ?? "")) || (Array.isArray(alts) && alts.length === 2) || ce;
     const r = converter(q, ceQ);
     const cap = capitulo(q, secoes, caps);
     const motivo = typeof r === "string" ? r : !cap ? "capítulo não identificado" : vistos.has(norm(r.statement)) ? "repetida" : null;
