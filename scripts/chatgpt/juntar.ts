@@ -62,7 +62,7 @@ function converter(q: Json, ce: boolean): Json | string {
     const alt = q.options ?? q.alternativas;
     let lista: { key: string; text: string; correct?: boolean }[];
     if (Array.isArray(alt)) lista = alt.map((a: any, i: number) => typeof a === "string" ? { key: LETRAS[i], text: a.replace(/^[A-E][).:-]\s*/, "") } : { key: String(a.key ?? a.letra ?? LETRAS[i]), text: String(a.text ?? a.texto ?? ""), correct: a.correct });
-    else if (alt && typeof alt === "object") lista = Object.entries(alt).map(([k, v]) => ({ key: k, text: String(v) }));
+    else if (alt && typeof alt === "object") lista = Object.entries(alt).map(([k, v]: [string, any]) => typeof v === "object" && v ? { key: k, text: String(v.texto ?? v.text ?? ""), correct: v.correct } : { key: k, text: String(v) });
     else return "sem alternativas";
     if (lista.length !== 5) return "não tem 5 alternativas";
     const letra = gab.match(/^[A-E]\b/i)?.[0]?.toUpperCase();
