@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -349,6 +350,8 @@ fun Folha(
     Canvas(
         Modifier
             .size(size)
+            // camada própria: o Folha redesenha sozinho a cada quadro, sem regravar a tela inteira
+            .graphicsLayer()
             .semantics { contentDescription = "Folha, do Estudário" }
             .then(clickable)
             .then(pet),

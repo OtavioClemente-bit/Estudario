@@ -489,15 +489,17 @@ fun GxSwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Bo
 /** O botão de lançar: grande, em degradê, com brilho correndo e o desenho da turma. */
 @Composable
 fun GxLaunch(label: String, glyph: Glyph = Glyph.Pencil, enabled: Boolean = true, modifier: Modifier = Modifier.fillMaxWidth(), colors: List<Color> = listOf(Color(0xFF7C5CFF), Color(0xFF5B4BF5), Color(0xFF2FD39A)), ink: Color = Color.White, onClick: () -> Unit) {
-    val run by rememberInfiniteTransition(label = "gx-brilho").animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(3_200, easing = LinearEasing)), label = "gx-brilho-x")
+    // o brilho é lido só no desenho, numa camada própria: antes refazia a tela inteira a cada quadro
+    val run = rememberInfiniteTransition(label = "gx-brilho").animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(3_200, easing = LinearEasing)), label = "gx-brilho-x")
     val shape = RoundedCornerShape(18.dp)
     Box(
         modifier.heightIn(min = 58.dp).gxClick(enabled = enabled, onClick = onClick).clip(shape)
             .background(if (enabled) Brush.horizontalGradient(colors) else SolidColor(Gx.off))
+            .graphicsLayer()
             .drawWithContent {
                 drawContent()
                 if (enabled) {
-                    val x = size.width * run
+                    val x = size.width * run.value
                     drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), Offset(x - 60f, 0f), Offset(x + 60f, size.height)))
                 }
             },
