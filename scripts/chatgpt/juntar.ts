@@ -48,7 +48,7 @@ function capitulo(q: Json, secoes: Map<string, string>, caps: string[]): string 
 // Converte uma questão para o formato do app.
 function converter(q: Json, ce: boolean): Json | string {
   const enun = String(q.statement ?? q.enunciado ?? "").trim();
-  const exp = [q.explanation ?? q.comentario ?? q.justificativa ?? q.explicacao, q.fundamento ?? q.fundamentacao ?? q.fundamento_legal ?? q.referencia]
+  const exp = [q.explanation ?? q.comentario ?? q.justificativa ?? q.explicacao ?? q.resolucao, q.fundamento ?? q.fundamentacao ?? q.fundamento_legal ?? q.referencia]
     .filter(Boolean).map(String).join(" Fundamento: ").trim();
   const gab = String(q.gabarito ?? q.resposta_correta ?? q.answer ?? q.correctOption ?? "").trim();
   let opts: Json[];
@@ -69,7 +69,7 @@ function converter(q: Json, ce: boolean): Json | string {
     opts = lista.map((o, i) => ({ key: LETRAS[i], text: o.text.trim(), correct: letra ? o.key.toUpperCase() === letra : o.correct === true }));
   }
   if (opts.filter((o) => o.correct).length !== 1) return "não tem exatamente 1 correta";
-  if (!ce && new Set(opts.map((o) => norm(o.text))).size !== 5) return "alternativas repetidas";
+  if (!ce && new Set(opts.map((o) => o.text.toLowerCase().trim())).size !== 5) return "alternativas repetidas";
   if (enun.length < 25) return "enunciado curto";
   if (exp.length < 120) return "explicação curta";
   if (/\b(letra|alternativa|op[cç][aã]o) [A-E]\b/i.test(exp)) return "explicação cita letra";
