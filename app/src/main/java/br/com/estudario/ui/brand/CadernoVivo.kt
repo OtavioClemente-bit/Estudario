@@ -4,6 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -42,18 +44,17 @@ fun Modifier.dottedPaper(): Modifier {
     val night = isCadernoNight()
     val dot = if (night) Color.White.copy(alpha = 0.07f) else Color(0xFF26234A).copy(alpha = 0.11f)
     val paper = MaterialTheme.colorScheme.background
-    return this.drawBehind {
-        drawRect(paper)
-        val step = 22.dp.toPx()
+    // Os pontos viram uma pecinha desenhada uma vez e repetida pela GPU (antes eram ~1000 círculos a cada
+    // quadro, e qualquer animação de qualquer tela fazia redesenhar o fundo inteiro: o app travava).
+    return this.drawWithCache {
+        val step = 22.dp.toPx().toInt().coerceAtLeast(1)
         val radius = 1.3.dp.toPx()
-        var y = step / 2
-        while (y < size.height) {
-            var x = step / 2
-            while (x < size.width) {
-                drawCircle(dot, radius, Offset(x, y))
-                x += step
-            }
-            y += step
+        val tile = androidx.compose.ui.graphics.ImageBitmap(step, step)
+        androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(this, layoutDirection, androidx.compose.ui.graphics.Canvas(tile), Size(step.toFloat(), step.toFloat())) {
+            drawRect(paper)
+            drawCircle(dot, radius, Offset(step / 2f, step / 2f))
         }
-    }
+        val brush = androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(tile, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated))
+        onDrawBehind { drawRect(brush) }
+    }.graphicsLayer()
 }
