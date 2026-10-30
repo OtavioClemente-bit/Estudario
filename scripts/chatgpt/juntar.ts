@@ -28,7 +28,7 @@ function secoesDe(j: Json): Map<string, string> {
 }
 // Escolhe o capítulo da matéria: título igual, título parecido (mais palavras em comum) ou mesma posição.
 function capitulo(q: Json, secoes: Map<string, string>, caps: string[]): string | null {
-  const bruto = q.section ?? q.secao_titulo ?? q.secao ?? q.secao_id ?? q.sectionIndex;
+  const bruto = q.section ?? q.secao_titulo ?? q.secao ?? q.secao_id ?? q.sectionIndex ?? q.topico;
   if (bruto == null) return null;
   const titulo = secoes.get(String(bruto)) || String(bruto);
   const t = norm(titulo).replace(/^\d+\s*/, "");
