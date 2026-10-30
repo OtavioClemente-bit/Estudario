@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -497,7 +498,9 @@ private fun MainNavigation(viewModel: AppViewModel) {
             NavHost(
                 navController,
                 startDestination = "home",
+                // Camada própria: as animações das telas não fazem redesenhar o fundo, a barra e o topo.
                 modifier = Modifier
+                    .then(Modifier.graphicsLayer {})
                     .padding(padding)
                     .consumeWindowInsets(padding)
                     .withSecondaryRouteBottomInset(showBottom)

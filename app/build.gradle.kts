@@ -94,8 +94,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 197
-        versionName = "3.3.169"
+        versionCode = 198
+        versionName = "3.3.170"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())
@@ -142,6 +142,13 @@ extensions.configure<ApplicationExtension> {
             applicationIdSuffix = ".teste"
             resValue("string", "app_name", "EstudÃ¡rio Teste")
             matchingFallbacks += listOf("debug")
+        }
+        // Igual ao da loja (otimizado), ao lado dele no celular: para medir fluidez de verdade.
+        create("rapido") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".teste"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
         }
     }
 
