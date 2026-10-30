@@ -87,13 +87,18 @@ object TheoryPins {
     /** Um nome curto para o fixado: o título da seção, "Tabela: ..." ou as primeiras palavras. */
     fun titleFor(markdown: String): String {
         val lines = markdown.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        val heading = lines.firstOrNull { it.startsWith("#") }?.trimStart('#')?.trim()
+        val heading = lines.firstOrNull { it.startsWith("#") }?.trimStart('#')?.let(::plainText)
         if (heading != null) return heading
         val table = lines.firstOrNull { it.startsWith("|") }
-        if (table != null) return "Tabela: " + table.trim('|').split('|').map { it.trim().trim('*') }.filter { it.isNotEmpty() }.take(3).joinToString(" · ")
-        val words = lines.joinToString(" ").replace(Regex("""[*_`>#]"""), "").split(Regex("""\s+""")).take(7).joinToString(" ")
+        if (table != null) return "Tabela: " + table.trim('|').split('|').map(::plainText).filter { it.isNotEmpty() }.take(3).joinToString(" · ")
+        val words = plainText(lines.joinToString(" ")).replace(Regex("""[>#]"""), "").split(Regex("""\s+""")).take(7).joinToString(" ")
         return words + "…"
     }
+
+    /** Título é texto: sem negrito/itálico pela metade ("Outorga** (por...") e com a fórmula como símbolos. */
+    private fun plainText(markdown: String): String = markdown
+        .replace(Regex("""\$\$(.+?)\$\$""")) { MathText.plain(it.groupValues[1]) }
+        .replace(Regex("""[*_`]"""), "").trim()
 }
 
 /** A teoria aberta registra suas janelas fixadas (some ao sair da teoria). */
