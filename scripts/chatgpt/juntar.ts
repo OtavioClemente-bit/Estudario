@@ -15,12 +15,13 @@ const LETRAS = ["A", "B", "C", "D", "E"];
 function questoesDe(j: Json): Json[] {
   const q = j.questoes ?? j.questions;
   if (Array.isArray(q) && q.length) return q;
-  return ((j.secoes ?? j.sections ?? []) as Json[]).flatMap((s) => ((s.questoes ?? s.questions ?? []) as Json[]).map((x) => ({ secao: s.numero ?? s.id, secao_titulo: s.titulo ?? s.title, ...x })));
+  return ((Array.isArray(j.secoes ?? j.sections) ? (j.secoes ?? j.sections) : []) as Json[]).flatMap((s) => ((s.questoes ?? s.questions ?? []) as Json[]).map((x) => ({ secao: s.numero ?? s.id, secao_titulo: s.titulo ?? s.title, ...x })));
 }
 // Seções declaradas: número → título.
 function secoesDe(j: Json): Map<string, string> {
   const m = new Map<string, string>();
-  for (const s of (j.secoes ?? j.sections ?? []) as Json[]) {
+  const lista = j.secoes ?? j.sections ?? [];
+  for (const s of (Array.isArray(lista) ? lista : Object.entries(lista).map(([k, v]) => typeof v === "string" ? { numero: k, titulo: v } : { numero: k, ...(v as Json) })) as Json[]) {
     if (typeof s === "string") m.set(String(m.size + 1), s);
     else m.set(String(s.numero ?? s.id ?? s.number ?? m.size + 1), String(s.titulo ?? s.title ?? s.nome ?? ""));
   }
