@@ -72,6 +72,7 @@ internal fun TeamDashboard() {
     }
 
     val lib = d.o("library"); val routes = d.o("routes"); val cat = d.o("catalog"); val unl = d.o("unlinked"); val misses = d.o("misses")
+    val rec = d.o("recortes")
     val reports = d.o("reports"); val sims = d.o("simulados"); val users = d.o("users"); val subs = d.o("subscriptions"); val syl = d.o("userSyllabi"); val jobs = d.o("jobs7d")
     val catPct = pct(cat.n("ready"), cat.n("topics"))
     val linkedPct = pct(routes.n("full") + routes.n("partial"), routes.n("total"))
@@ -92,7 +93,9 @@ internal fun TeamDashboard() {
             }
             Div({ classes("td-kpis") }) {
                 TdKpi("menu_book", fmtN(lib.n("materias")), "matérias na biblioteca", "${lib.n("subjects")} matérias-mãe · ${lib.n("drafts")} rascunhos", "#A78BFF")
-                TdKpi("quiz", fmtN(lib.n("questions")), "questões na biblioteca", "${lib.n("noQuestions")} matérias sem nenhuma", "#2FD39A")
+                // Questões das matérias + as dos recortes por banca (onde os geradores acrescentam).
+                TdKpi("quiz", fmtN(lib.n("questions") + rec.n("questions")), "questões na biblioteca", "${fmtN(lib.n("questions"))} nas matérias · ${fmtN(rec.n("questions"))} nos recortes", "#2FD39A")
+                TdKpi("content_cut", fmtN(rec.n("count")), "recortes por banca", "${rec.n("boards")} bancas · +${fmtN(rec.n("questions7d"))} questões em recortes da semana", "#FFC94D")
                 TdKpi("folder_open", fmtN(cat.n("editais")), "editais no catálogo", "${fmtN(cat.n("topics"))} tópicos · ${cat.n("boards")} bancas", "#22D3EE")
                 TdKpi("check_circle", "$catPct%", "dos tópicos com matéria", "${fmtN(cat.n("ready"))} de ${fmtN(cat.n("topics"))}", if (catPct >= 70) "#2FD39A" else if (catPct >= 40) "#FFC94D" else "#FF5A7A")
                 TdKpi("autorenew", "$linkedPct%", "das ligações com matéria", "${fmtN(routes.n("total"))} tópicos ligados", "#6F9BFF")
