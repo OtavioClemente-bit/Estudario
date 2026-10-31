@@ -1,6 +1,7 @@
 package br.com.estudario.domain
 
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -57,30 +58,26 @@ object LevelCrest {
         sb.append("""<linearGradient id="$id-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6C4"/><stop offset=".45" stop-color="#FFC933"/><stop offset="1" stop-color="#C77A00"/></linearGradient>""")
         sb.append("""<linearGradient id="$id-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${r.mid}"/><stop offset="1" stop-color="${r.dark}"/></linearGradient>""")
         sb.append("""<radialGradient id="$id-h" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${r.mid}" stop-opacity=".5"/><stop offset="1" stop-color="${r.mid}" stop-opacity="0"/></radialGradient>""")
+        // pedra polida: brilho no alto à esquerda, o metal da patente e a sombra embaixo
+        sb.append("""<radialGradient id="$id-j" cx=".38" cy=".32" r=".7"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".3" stop-color="${r.light}"/><stop offset=".7" stop-color="${r.mid}"/><stop offset="1" stop-color="${r.dark}"/></radialGradient>""")
+        // raios: acesos perto do escudo e sumindo para fora
+        sb.append("""<radialGradient id="$id-x" gradientUnits="userSpaceOnUse" cx="120" cy="118" r="118"><stop offset=".25" stop-color="${r.light}" stop-opacity=".55"/><stop offset="1" stop-color="${r.light}" stop-opacity="0"/></radialGradient>""")
         sb.append("</defs>")
 
         // brilho de fundo
         sb.append("""<circle cx="120" cy="120" r="114" fill="url(#$id-h)"/>""")
         // raios (Aprovável em diante)
         if (tier >= 8) {
-            for (i in 0 until 12) {
-                val a = i * 30.0
-                sb.append("""<path d="M120 118 L${px(120.0, 118.0, 116.0, a - 4)} L${px(120.0, 118.0, 116.0, a + 4)} Z" fill="${r.light}" opacity=".2"/>""")
+            for (i in 0 until 8) {
+                val a = i * 45.0 + 22.5
+                sb.append("""<path d="M120 118 L${px(120.0, 118.0, 118.0, a - 7)} L${px(120.0, 118.0, 118.0, a + 7)} Z" fill="url(#$id-x)"/>""")
             }
         }
-        // louros (Especialista em diante): folhas num arco à esquerda, espelhadas à direita
-        if (tier >= 7 && !small) {
-            for (i in 0 until 7) {
-                val deg = 105.0 + i * 16
-                val x = n1(120 + 98 * cos(deg * PI / 180))
-                val y = n1(122 + 98 * sin(deg * PI / 180))
-                val rot = (deg + 40).roundToInt()
-                sb.append(leaf(x, y, rot, id))
-                sb.append(leaf(n1(240 - x), y, -rot, id))
-            }
-        }
-        // asas (Concurseiro em diante): três penas de cada lado, atrás do escudo
-        if (tier >= 2) {
+        // coroa de louros (Especialista em diante, no lugar das asas); asas de Concurseiro até lá
+        if (tier >= 7) {
+            wreath(sb, id, small, mirror = false)
+            wreath(sb, id, small, mirror = true)
+        } else if (tier >= 2) {
             val wing = "M66 70 C44 58 22 54 4 60 C18 72 36 82 58 90 C36 88 18 92 6 102 C24 110 42 112 58 110 C42 114 28 124 20 138 C38 138 52 132 62 126 Z"
             sb.append("""<g fill="url(#$id-m)" stroke="${r.dark}" stroke-width="3" stroke-linejoin="round"><path d="$wing"/><path d="$wing" transform="translate(240 0) scale(-1 1)"/></g>""")
             if (!small) sb.append("""<g stroke="${r.dark}" stroke-width="2" stroke-linecap="round" opacity=".5" fill="none"><path d="M60 82 Q36 72 16 64 M58 104 Q36 100 16 102 M60 122 Q44 126 30 134"/><path d="M180 82 Q204 72 224 64 M182 104 Q204 100 224 102 M180 122 Q196 126 210 134"/></g>""")
@@ -93,21 +90,18 @@ object LevelCrest {
             sb.append("""<path d="M70 68 L120 48 L148 59 L76 138 L70 120 Z" fill="#FFFFFF" opacity=".08"/>""")
             for (x in listOf(60, 180)) sb.append("""<circle cx="$x" cy="62" r="4" fill="url(#$id-g)" stroke="${r.dark}" stroke-width="1.5"/>""")
         }
-        // topo: coroa de Estrategista em diante; antes, uma joia lapidada num engaste de ouro
+        // topo: coroa de Estrategista em diante; antes, uma pedra polida num engaste de ouro
         if (tier >= 4) {
             sb.append("""<path d="M86 44 L82 14 L101 28 L120 6 L139 28 L158 14 L154 44 Z" fill="url(#$id-g)" stroke="$GOLD_EDGE" stroke-width="2.5" stroke-linejoin="round"/>""")
             sb.append("""<path d="M84 36 L156 36 L154 46 L86 46 Z" fill="#E09A12" stroke="$GOLD_EDGE" stroke-width="2.5" stroke-linejoin="round"/>""")
             for ((x, y) in listOf(82 to 14, 120 to 6, 158 to 14)) sb.append("""<circle cx="$x" cy="$y" r="4.5" fill="url(#$id-g)" stroke="$GOLD_EDGE" stroke-width="2"/>""")
-            sb.append("""<path d="M120 33 L126 41 L120 49 L114 41 Z" fill="${r.light}" stroke="${r.dark}" stroke-width="2"/>""")
-            for (x in listOf(98, 142)) sb.append("""<circle cx="$x" cy="41" r="3" fill="${r.mid}" stroke="${r.dark}" stroke-width="1.5"/>""")
+            sb.append("""<circle cx="120" cy="41" r="5" fill="url(#$id-j)" stroke="${r.dark}" stroke-width="1.6"/>""")
+            for (x in listOf(98, 142)) sb.append("""<circle cx="$x" cy="41" r="3" fill="url(#$id-j)" stroke="${r.dark}" stroke-width="1.2"/>""")
         } else if (tier >= 1) {
-            sb.append("""<path d="M100 34 Q120 24 140 34 L136 44 Q120 37 104 44 Z" fill="url(#$id-g)" stroke="$GOLD_EDGE" stroke-width="2.2" stroke-linejoin="round"/>""")
-            sb.append("""<path d="M100 18 L110 7 L130 7 L140 18 L120 44 Z" fill="${r.mid}"/>""")
-            sb.append("""<path d="M110 7 L130 7 L125 18 L115 18 Z" fill="${r.light}"/>""")
-            sb.append("""<path d="M100 18 L115 18 L120 44 Z" fill="${r.light}" opacity=".55"/>""")
-            sb.append("""<path d="M125 18 L140 18 L120 44 Z" fill="${r.dark}" opacity=".7"/>""")
-            sb.append("""<path d="M100 18 L110 7 L130 7 L140 18 L120 44 Z" fill="none" stroke="${r.dark}" stroke-width="2.5" stroke-linejoin="round"/>""")
-            if (!small) sb.append("""<path d="M113 10 L116 12 M104 17 L139 17" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>""")
+            // engaste de ouro em cúpula e uma pedra redonda polida
+            sb.append("""<path d="M98 42 Q98 20 120 13 Q142 20 142 42 Z" fill="url(#$id-g)" stroke="$GOLD_EDGE" stroke-width="2.4" stroke-linejoin="round"/>""")
+            sb.append("""<circle cx="120" cy="30" r="10.5" fill="url(#$id-j)" stroke="${r.dark}" stroke-width="2.2"/>""")
+            if (!small) sb.append("""<ellipse cx="116" cy="26" rx="3.6" ry="2.4" fill="#FFFFFF" opacity=".85"/>""")
         }
         // número: contorno embaixo e branco em cima (dois textos: o AndroidSVG não entende paint-order)
         val digits = level.toString()
@@ -136,9 +130,38 @@ object LevelCrest {
         return sb.toString()
     }
 
-    /** Uma folha de louro (em pé, girada [rot] graus em volta do centro). */
-    private fun leaf(x: Double, y: Double, rot: Int, id: String): String =
-        """<path d="M$x ${n1(y - 14)} Q${n1(x + 7)} $y $x ${n1(y + 14)} Q${n1(x - 7)} $y $x ${n1(y - 14)} Z" transform="rotate($rot $x $y)" fill="url(#$id-g)" stroke="$GOLD_EDGE" stroke-width="1.6"/>"""
+    /**
+     * Um lado da coroa de louros: o galho num arco em volta do escudo (de baixo até o ombro) e as folhas
+     * presas nele em pares, apontando para cima, com uma folha na ponta. [mirror] desenha o lado direito.
+     */
+    private fun wreath(sb: StringBuilder, id: String, small: Boolean, mirror: Boolean) {
+        val cx = 120.0; val cy = 122.0; val radius = 98.0; val a0 = 100.0; val a1 = 228.0
+        fun at(deg: Double) = (cx + radius * cos(deg * PI / 180)) to (cy + radius * sin(deg * PI / 180))
+        fun x(v: Double) = if (mirror) 240 - v else v
+        // direção do galho subindo (tangente no sentido de a0 para a1)
+        fun up(deg: Double): Double { val t = atan2(cos(deg * PI / 180), -sin(deg * PI / 180)); return if (mirror) PI - t else t }
+        val (sx, sy) = at(a0); val (ex, ey) = at(a1)
+        sb.append("""<path d="M${n1(x(sx))} ${n1(sy)} A$radius $radius 0 0 ${if (mirror) 0 else 1} ${n1(x(ex))} ${n1(ey)}" fill="none" stroke="#9A5E00" stroke-width="3.2" stroke-linecap="round"/>""")
+        val count = if (small) 5 else 8
+        for (i in 0 until count) {
+            val deg = a0 + 8 + i * (a1 - a0 - 10) / count
+            val (bx, by) = at(deg)
+            for (off in listOf(-38.0, 34.0)) {
+                val ang = if (mirror) up(deg) - off * PI / 180 else up(deg) + off * PI / 180
+                sb.append(leaf(x(bx), by, ang, 21.0, 7.4, id, rib = !small))
+            }
+        }
+        sb.append(leaf(x(ex), ey, up(a1), 22.0, 7.6, id, rib = !small))
+    }
+
+    /** Uma folha de louro: da base (bx, by) na direção [ang] (radianos), [len] de comprimento e meia largura [w]. */
+    private fun leaf(bx: Double, by: Double, ang: Double, len: Double, w: Double, id: String, rib: Boolean): String {
+        val dx = cos(ang); val dy = sin(ang); val nx = -dy; val ny = dx
+        val mx = bx + dx * len / 2; val my = by + dy * len / 2
+        val shape = """<path d="M${n1(bx)} ${n1(by)} Q${n1(mx + nx * w)} ${n1(my + ny * w)} ${n1(bx + dx * len)} ${n1(by + dy * len)} Q${n1(mx - nx * w)} ${n1(my - ny * w)} ${n1(bx)} ${n1(by)} Z" fill="url(#$id-g)" stroke="$GOLD_EDGE" stroke-width="1.4" stroke-linejoin="round"/>"""
+        if (!rib) return shape
+        return shape + """<path d="M${n1(bx + dx * 2)} ${n1(by + dy * 2)} L${n1(bx + dx * len * 0.78)} ${n1(by + dy * len * 0.78)}" stroke="#A86400" stroke-width="1" opacity=".7"/>"""
+    }
 
     private fun n1(v: Double): Double = (v * 10).roundToInt() / 10.0
 
