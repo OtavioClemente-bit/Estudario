@@ -138,7 +138,7 @@ object RealSeed {
         repeat(FOCUS_COUNT) { dao.deleteFocusSession("seed:focus:$it") }
 
         // 1. Concurso, matérias e tópicos, pelos mesmos caminhos do assistente.
-        val competitionId = dao.insertCompetition(CompetitionEntity(name = "TRT 3ª Região — Analista Judiciário (TI)", externalId = COMPETITION_ID))
+        val competitionId = dao.insertCompetition(CompetitionEntity(name = "TRT 3ª Região: Analista Judiciário (TI)", externalId = COMPETITION_ID))
         app.repository.setPrimary(competitionId)
         db.simulationDao().saveExamProfile(ExamProfileEntity(competitionId = competitionId, board = "FCC", boardSource = "USER", style = "FIVE_OPTIONS", targetPercent = 75))
         val subjects = mutableListOf<SubjectEntity>()
@@ -295,7 +295,7 @@ object RealSeed {
 
         // 6. Simulados: dois entregues e um em andamento.
         val simDao = db.simulationDao()
-        listOf(Triple("Simulado 1 — diagnóstico", 30, 24), Triple("Simulado 2 — matérias estudadas", 30, 9), Triple("Simulado 3 — prova completa", 40, 0)).forEachIndexed { s, (title, count, back) ->
+        listOf(Triple("Simulado 1: diagnóstico", 30, 24), Triple("Simulado 2: matérias estudadas", 30, 9), Triple("Simulado 3: prova completa", 40, 0)).forEachIndexed { s, (title, count, back) ->
             val finished = s < 2
             val startedAt = if (finished) dayAt(back, 9) else now - 25 * 60_000L
             val simulationId = simDao.insertSimulation(SimulationEntity(
@@ -340,12 +340,12 @@ object RealSeed {
             }
         }
 
-        // 5. Plano ativo como o do assistente: 120 min seg–sex, 180 no sábado, domingo livre, prova em ~5 meses.
+        // 5. Plano ativo como o do assistente: 120 min seg a sex, 180 no sábado, domingo livre, prova em ~5 meses.
         val availability = listOf(120, 120, 120, 120, 120, 180, 0)
         val planId = app.planService.createPlan(CreatePlanInput(
             competitionId = competitionId,
             name = "Plano de TRT 3ª Região",
-            objective = "Analista Judiciário — Apoio Especializado — Tecnologia da Informação",
+            objective = "Analista Judiciário: Apoio Especializado: Tecnologia da Informação",
             startDate = today.minusDays(21),
             examDate = today.plusDays(150),
             availability = availability.mapIndexed { index, minutes -> StudyAvailabilityEntity("pending", index + 1, minutes, unavailable = minutes <= 0, mode = AvailabilityMode.SIMPLE) },
@@ -389,7 +389,7 @@ object RealSeed {
         app.preferences.updateInitialSetup {
             it.copy(
                 status = InitialSetupStatus.COMPLETED, step = InitialSetupStep.READY, competitionId = competitionId,
-                competitionName = "TRT 3ª Região", role = "Analista Judiciário — TI", examDate = today.plusDays(150).toString(),
+                competitionName = "TRT 3ª Região", role = "Analista Judiciário: TI", examDate = today.plusDays(150).toString(),
                 availabilityMinutes = availability, lastValidPlanId = planId,
             )
         }
@@ -407,7 +407,7 @@ object RealSeed {
         val question = QuestionEntity(
             topicId = topic.id, externalId = "$prefix:${topic.id}:$n", board = "FCC", agency = "TRT 3ª Região", year = 2015 + (n % 10),
             difficulty = Difficulty.entries[(n + topic.position) % 3], source = "Questão autoral de teste",
-            statement = "($subject — ${topic.title}) Questão ${n + 1}. Considere a situação a seguir, comum em provas de tribunal: um servidor precisa aplicar a regra de ${topic.title.lowercase()} a um caso concreto em que há uma exceção expressa. Assinale a alternativa correta.",
+            statement = "($subject: ${topic.title}) Questão ${n + 1}. Considere a situação a seguir, comum em provas de tribunal: um servidor precisa aplicar a regra de ${topic.title.lowercase()} a um caso concreto em que há uma exceção expressa. Assinale a alternativa correta.",
             explanation = "A alternativa $correctKey está correta porque aplica a regra geral de ${topic.title} e respeita a exceção prevista. As demais trocam a regra pela exceção, ampliam o alcance da norma ou invertem a consequência jurídica/técnica.",
             importedAt = at, tagsText = topic.title, reviewAnchor = "Conceito", simulationId = simulationId,
         )
@@ -438,7 +438,7 @@ object RealSeed {
         appendLine("> **Na prova:** a banca troca a regra geral pela exceção; leia o comando duas vezes.")
     }
 
-    /** Teoria sintética de ~15–30 KB, com a cara das matérias da biblioteca: títulos, listas, tabela e quadros. */
+    /** Teoria sintética de ~15 a 30 KB, com a cara das matérias da biblioteca: títulos, listas, tabela e quadros. */
     private fun theoryMarkdown(topic: String, subject: String, random: Random): String = buildString {
         val t = topic.lowercase()
         fun paragraph(sentences: Int) = (0 until sentences).joinToString(" ") { SENTENCES[random.nextInt(SENTENCES.size)].replace("%s", t) }
