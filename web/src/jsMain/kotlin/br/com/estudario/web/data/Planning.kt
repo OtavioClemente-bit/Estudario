@@ -173,11 +173,24 @@ object Planning {
     fun reorganizeDaily(force: Boolean = false) {
         if (Store.demo) return
         val today = Queries.todayEpoch().toString()
-        if (!force && runCatching { kotlinx.browser.localStorage.getItem(REORGANIZED_KEY) }.getOrNull() == today) return
+        val pending = Queries.activePlan(Store.data)?.let { runCatching { kotlinx.browser.localStorage.getItem("$METHOD_KEY.${it.id}") }.getOrNull() == null } == true
+        if (!force && !pending && runCatching { kotlinx.browser.localStorage.getItem(REORGANIZED_KEY) }.getOrNull() == today) return
         val plan = Queries.activePlan(Store.data) ?: return
-        Store.update { runCatching { replan(it, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(it) }
-        runCatching { kotlinx.browser.localStorage.setItem(REORGANIZED_KEY, today) }
+        // Plano montado antes do método novo (30/10/2026): uma vez, ele é refeito do zero, sem carregar
+        // a estrutura antiga (revisões como tarefa, bateria de uma matéria só). O que já foi feito fica.
+        val upgradeKey = "$METHOD_KEY.${plan.id}"
+        val upgrade = runCatching { kotlinx.browser.localStorage.getItem(upgradeKey) }.getOrNull() == null
+        Store.update { data ->
+            runCatching { if (upgrade) rebuild(data, plan.id) else replan(data, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(data)
+        }
+        runCatching { kotlinx.browser.localStorage.setItem(REORGANIZED_KEY, today); kotlinx.browser.localStorage.setItem(upgradeKey, "2") }
     }
+
+    private const val METHOD_KEY = "estudario.plano.metodo"
+
+    /** Refaz o plano do zero pelo método atual: o que não foi feito sai e o plano é montado de novo. */
+    fun rebuild(data: Snapshot, planId: String): Snapshot =
+        replan(replan(data, planId, ReplanReason.REBUILD), planId, ReplanReason.DAY_MISSED)
 
     /** StudyPlanApplicationService.replan + applyProposal. */
     fun replan(data: Snapshot, planId: String, reason: ReplanReason): Snapshot {

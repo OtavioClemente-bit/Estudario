@@ -203,9 +203,17 @@ class EstudarioApplication : Application() {
             runCatching {
                 val prefs = getSharedPreferences("plano_diario", MODE_PRIVATE)
                 val today = java.time.LocalDate.now().toEpochDay()
-                if (prefs.getLong("dia", -1) != today) {
+                val pendingUpgrade = database.plannerDao().plansOnce().any { it.active && !it.archived && !prefs.getBoolean("metodo2:${it.id}", false) }
+                if (prefs.getLong("dia", -1) != today || pendingUpgrade) {
                     database.plannerDao().plansOnce().filter { it.active && !it.archived }.forEach { plan ->
-                        runCatching { planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED) }
+                        // Plano montado antes do método novo (30/10/2026): uma vez, refeito do zero (sem a
+                        // estrutura antiga); o que já foi feito fica.
+                        val upgrade = !prefs.getBoolean("metodo2:${plan.id}", false)
+                        runCatching {
+                            if (upgrade) planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.REBUILD)
+                            planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED)
+                        }
+                        prefs.edit().putBoolean("metodo2:${plan.id}", true).apply()
                     }
                     prefs.edit().putLong("dia", today).apply()
                 }

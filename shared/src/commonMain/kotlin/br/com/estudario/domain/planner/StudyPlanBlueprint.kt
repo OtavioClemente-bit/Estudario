@@ -34,6 +34,8 @@ data class BlueprintTopic(
     val evidence: StudyEvidence = StudyEvidence.EMPTY,
     /** Necessidade do tópico; na falta dela, herda a da matéria. */
     val need: StudyNeed? = null,
+    /** Questões salvas do tópico que a pessoa ainda não acertou (null = o tópico não tem questões salvas). */
+    val questionsLeft: Int? = null,
     /** Teto de questões numa tarefa deste tópico (as salvas, ou o que a geração entrega); null = sem teto. */
     val questionCap: Int? = null,
 )
@@ -109,6 +111,8 @@ object StudyPlanBlueprint {
     private const val SUBJECT_MIX_INTERVAL_DAYS = 14
     private const val SUBJECT_MIX_QUESTIONS = 15
     private const val MIN_SEEN_FOR_SUBJECT_MIX = 3
+    /** Bateria menor que isso não vale uma tarefa no plano. */
+    private const val MIN_PRACTICE_QUESTIONS = 3
 
     /** A trilha de um tópico, decidida pelo que a pessoa declarou e, acima disso, pelo que as questões mostraram. */
     private enum class Track { FULL, SHORT, DIAGNOSE, COVERED }
@@ -367,11 +371,15 @@ object StudyPlanBlueprint {
                 }
                 .sortedWith(compareByDescending<Pair<Triple<BlueprintTopic, StudyNeed?, ContentMaturity>, LocalDate?>> { it.first.second?.score ?: 0.0 }
                     .thenBy { it.first.first.accuracyPercent ?: 100 }.thenBy { it.first.first.topicId })
-            val units = pool.map { (info, anchor) ->
+            val units = pool.mapNotNull { (info, anchor) ->
                 val (topic, need, maturity) = info
                 val planned = if (need == null) config.questionsPerTopic else QuestionAllocator.allocate(config.questionsPerTopic, need, topic.evidence, covered = true).questions
                 val scaled = javaRound(planned * factor.coerceAtLeast(0.8)).toInt().coerceAtLeast(1)
-                val quantidade = topic.questionCap?.let { minOf(scaled, it) } ?: scaled
+                // Nunca mais do que a pessoa tem para fazer: as salvas que ela ainda não acertou (o
+                // treino não repete acerto). Sem nenhuma sobrando, o tópico não volta como treino.
+                val limit = topic.questionsLeft ?: topic.questionCap
+                val quantidade = limit?.let { minOf(scaled, it) } ?: scaled
+                if (quantidade < MIN_PRACTICE_QUESTIONS) return@mapNotNull null
                 practiceCount++
                 listOf(
                     TaskDemand(
@@ -409,7 +417,11 @@ object StudyPlanBlueprint {
             val last = input.lastSubjectMixBySubject[subject.subjectId]
             val due = last?.plusDays(SUBJECT_MIX_INTERVAL_DAYS.toLong()) ?: input.today.plusDays((index % 7).toLong() + 3)
             if (!due.isBefore(horizonEnd2)) return@forEachIndexed
-            val quantidade = SUBJECT_MIX_QUESTIONS
+            // Até o que a matéria tem para fazer: a soma das questões ainda não acertadas dos tópicos vistos.
+            val available = topicsBySubject[subject.subjectId].orEmpty().filter { trackOf(it, subject) == Track.COVERED }
+                .sumOf { it.questionsLeft ?: it.questionCap ?: SUBJECT_MIX_QUESTIONS }
+            val quantidade = minOf(SUBJECT_MIX_QUESTIONS, available)
+            if (quantidade < MIN_PRACTICE_QUESTIONS) return@forEachIndexed
             mixCount++
             demands += TaskDemand(
                 id = "subject-mix:${subject.subjectId}",

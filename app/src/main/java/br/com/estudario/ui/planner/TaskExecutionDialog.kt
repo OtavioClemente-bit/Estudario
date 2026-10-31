@@ -16,7 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 
 @Composable
-fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDismiss: () -> Unit, focusRunning: Boolean = false, onConfirm: (CompleteTaskInput) -> Unit) {
+fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDismiss: () -> Unit, focusRunning: Boolean = false, onAlreadyStudied: (() -> Unit)? = null, onConfirm: (CompleteTaskInput) -> Unit) {
     // Quando a sessão veio do modo foco, os minutos já vêm do cronômetro, nada de chutar.
     var minutes by remember { mutableStateOf((measuredMinutes?.takeIf { it > 0 } ?: task.entity.plannedMinutes).toString()) }
     var questions by remember { mutableStateOf(task.entity.plannedQuestions.toString()) }
@@ -45,6 +45,10 @@ fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDis
             OutlinedTextField(correct, { correct = it }, label = { Text("Acertos") }, singleLine = true, isError = c != null && q != null && c !in 0..q)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { PerceivedDifficulty.entries.forEach { value -> FilterChip(difficulty == value, { difficulty = value }, { Text(when(value) { PerceivedDifficulty.EASY -> "Fácil"; PerceivedDifficulty.NORMAL -> "Normal"; PerceivedDifficulty.HARD -> "Difícil" }) }) } }
             OutlinedTextField(note, { note = it }, label = { Text("Observação opcional") }, modifier = Modifier.fillMaxWidth())
+            // Já estudou este tópico antes: sai a teoria, entram as revisões e o plano segue para o próximo.
+            if (onAlreadyStudied != null && task.entity.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && task.entity.topicId != null) {
+                TextButton(onClick = { onAlreadyStudied(); onDismiss() }) { Text("Já estudei este tópico") }
+            }
             if (!valid) Text("Use números não negativos e acertos entre zero e o total.", color = MaterialTheme.colorScheme.error)
             else Text(
                 "Você vai receber ${ProgressEngine.earnedPlanTask(task.entity.type, m ?: 0, (c ?: 0).coerceAtMost(q ?: 0))} XP por esta atividade.",

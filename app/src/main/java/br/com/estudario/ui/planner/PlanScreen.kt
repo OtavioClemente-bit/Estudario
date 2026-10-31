@@ -132,7 +132,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     val focusNow by appViewModel.focusSession.collectAsState()
     completion?.let { row ->
         val focusOfTask = focusNow.active && (focusNow.taskId == row.entity.id || (focusNow.taskId == null && focusNow.topicId != null && focusNow.topicId == row.entity.topicId))
-        TaskExecutionDialog(row, if (focusOfTask) focusNow.elapsedMinutes().coerceAtLeast(1) else null, { completion = null }, focusRunning = focusOfTask) { input ->
+        TaskExecutionDialog(row, if (focusOfTask) focusNow.elapsedMinutes().coerceAtLeast(1) else null, { completion = null }, focusRunning = focusOfTask, onAlreadyStudied = { viewModel.alreadyStudied(row.entity.id) }) { input ->
             scope.launch {
                 if (focusOfTask) runCatching { appViewModel.stopFocus() }
                 viewModel.complete(row.entity.id, input)

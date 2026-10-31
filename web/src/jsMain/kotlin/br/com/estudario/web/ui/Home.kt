@@ -705,6 +705,19 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
         }
         if (focusOfTask) Div({ classes("banner", "info") }) { Icon("timer"); Text("O modo foco desta tarefa está rodando (${Queries.minutesLabel(TopicFocus.elapsedMinutes.coerceAtLeast(1))}). Ao concluir, ele é encerrado e esse tempo entra aqui.") }
         if (minutes < task.minutes) Div({ classes("banner", "info") }) { Icon("info"); Text("Menos tempo que o planejado: a tarefa fica em andamento para você continuar depois, como no app.") }
+        // Já estudou este tópico antes (fora do app, em outro curso): sai a teoria, entram as revisões, e o
+        // plano segue para o próximo. As questões do tópico ficam, para conferir que sabe mesmo.
+        if (task.type == "THEORY" && task.topicId != null) Div({ classes("row", "end") }) {
+            Btn("Já estudei este tópico", {
+                if (focusOfTask) TopicFocus.stop()
+                Store.update { data ->
+                    val skipped = Actions.completeStudy(Actions.skipTask(data, task.id, "Já estudado"), task.topicId)
+                    runCatching { Planning.replan(skipped, task.planId, ReplanReason.TASK_SKIPPED) }.getOrDefault(skipped)
+                }
+                Toast.show("Tópico marcado como estudado. As revisões dele já estão agendadas e o plano seguiu para o próximo.")
+                onClose()
+            }, style = "ghost", small = true, icon = "task_alt")
+        }
         Div({ classes("row", "end") }) {
             Btn("Cancelar", onClose, style = "ghost")
             Btn("Concluir", {

@@ -241,6 +241,17 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED)
     }
 
+    /** "Já estudei este tópico": a teoria sai do plano, o tópico conta como estudado (com as revisões) e o plano segue. */
+    fun alreadyStudied(taskId: String) = launch("Marcando como estudado") {
+        val task = _state.value.tasks.firstOrNull { it.entity.id == taskId }?.entity ?: return@launch
+        executions.skip(taskId, "Já estudado")
+        task.topicId?.let { id ->
+            app.repository.topics.first().firstOrNull { it.id == id && it.status == br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO }
+                ?.let { app.repository.markStudied(it) }
+        }
+        service.replan(task.planId, ReplanReason.TASK_SKIPPED)
+    }
+
     /** Reorganiza agora: o que venceu volta na frente e o resto é reencaixado no ritmo do edital. */
     fun reorganize() = launch("Reorganizando o plano") { service.replan(_state.value.activePlan!!.id, ReplanReason.DAY_MISSED) }
     suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null, type: br.com.estudario.domain.planner.PlanTaskType = br.com.estudario.domain.planner.PlanTaskType.THEORY): PlannerTaskUi? {

@@ -96,7 +96,9 @@ class StudyPlannerEngine(
                 )
             }
         }
-        val allDemands = snapshot.demands + derivedDemands
+        // Refazer do zero: o que não foi feito sai (vira reprogramado) e nada entra agora; o DAY_MISSED
+        // seguinte monta o plano pelo método atual, sem carregar a estrutura antiga.
+        val allDemands = if (reason == ReplanReason.REBUILD) emptyList() else snapshot.demands + derivedDemands
         val eligible = allDemands
             .filterNot { demand -> snapshot.subjects.firstOrNull { it.subjectId == demand.subjectId }?.paused == true }
             .filter { it.dependsOnTaskIds.all(snapshot.completedDependencyIds::contains) }

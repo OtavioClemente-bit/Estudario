@@ -208,7 +208,8 @@ object PlannerSnapshotBuilder {
         // Teto de questões numa tarefa: as salvas no tópico; sem nenhuma ainda (matéria não gerada), no
         // Grátis o que a geração entrega. Antes o plano pedia 15 ou 20 de um tópico com 10 salvas.
         val questionCap = topics.associate { topic ->
-            topic.id to (questionsByTopic[topic.id]?.size?.takeIf { it > 0 } ?: FREE_NEW_TOPIC_QUESTIONS.takeIf { freeRules })
+            // Pagos sem matéria gerada ainda: o padrão do plano por tópico (é o que a geração entrega), nunca mais.
+            topic.id to (questionsByTopic[topic.id]?.size?.takeIf { it > 0 } ?: if (freeRules) FREE_NEW_TOPIC_QUESTIONS else config.questionsPerTopic.takeIf { it > 0 })
         }.filterValues { it != null }.mapValues { it.value!! }
         val blueprintTopics = topics.map { topic ->
             val row = performanceById[topic.id]
@@ -225,6 +226,8 @@ object PlannerSnapshotBuilder {
                 evidence = topicEvidence.getValue(topic.id),
                 need = topicNeeds[topic.id],
                 questionCap = questionCap[topic.id],
+                // As salvas menos as já acertadas: o treino nunca pede mais do que dá para fazer de novo.
+                questionsLeft = questionsByTopic[topic.id]?.takeIf { it.isNotEmpty() }?.count { id -> attemptsByQuestion[id].orEmpty().none { it.correct } },
             )
         }
         val reviewDemands = pendingReviews.mapNotNull { review ->
