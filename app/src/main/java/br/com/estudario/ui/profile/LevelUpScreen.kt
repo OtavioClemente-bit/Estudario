@@ -451,12 +451,12 @@ private fun BoxScope.Vortex(t: Float, size: androidx.compose.ui.unit.Dp) {
     if (t >= IMPACT + 0.1f || p <= 0f) return
     Canvas(Modifier.size(size).align(Alignment.Center)) {
         val maxR = this.size.minDimension * 0.46f
-        val fade = if (p > 0.9f) ((1f - p) / 0.1f).coerceIn(0f, 1f) else (p * 4f).coerceAtMost(1f)
+        val fade = if (p > 0.9f) ((1f - p) / 0.1f).coerceIn(0f, 1f) else (p * 8f).coerceAtMost(1f)
         // brilho quente que cresce e esquenta até o clarão
-        val glowR = maxR * (0.35f + 0.75f * p)
+        val glowR = maxR * (0.6f + 0.6f * p)
         drawCircle(
             Brush.radialGradient(
-                listOf(Color(0xFFFFC46B).copy(alpha = 0.55f * p * fade), Color(0xFFFF6A1A).copy(alpha = 0.28f * fade), Color.Transparent),
+                listOf(Color(0xFFFFC46B).copy(alpha = (0.35f + 0.45f * p) * fade), Color(0xFFFF6A1A).copy(alpha = 0.38f * fade), Color.Transparent),
                 center = center, radius = glowR,
             ),
             glowR, center,
@@ -473,9 +473,14 @@ private fun BoxScope.Vortex(t: Float, size: androidx.compose.ui.unit.Dp) {
             val r = maxR * (1f - life) * (0.6f + 0.4f * p)
             val a = ((arm * 120f + spin + life * 320f) * PI.toFloat() / 180f)
             val pos = center + Offset(cos(a) * r, sin(a) * r)
-            val dot = (1.1f + 2.6f * (1f - life) * (0.5f + p)).dp.toPx()
+            val dot = (2f + 3f * (1f - life) * (0.7f + p)).dp.toPx()
             val c = lerp(Color(0xFFFFE7A8), Color(0xFFFF5A1A), life)
-            drawCircle(c.copy(alpha = fade * (0.3f + 0.7f * (1f - life))), dot, pos)
+            val al = fade * (0.55f + 0.45f * (1f - life))
+            // rastro curto atrás da brasa, no sentido do giro, para o redemoinho ler mesmo parado num quadro
+            val ab = a - 0.35f
+            drawLine(c.copy(alpha = al * 0.5f), center + Offset(cos(ab) * r * 1.04f, sin(ab) * r * 1.04f), pos, dot * 1.2f, cap = StrokeCap.Round)
+            drawCircle(c.copy(alpha = al * 0.25f), dot * 2.2f, pos)
+            drawCircle(c.copy(alpha = al), dot, pos)
         }
         // olho escuro com borda acesa no centro, que se fecha no clarão
         val eye = maxR * 0.16f * (1f - p * 0.6f)
