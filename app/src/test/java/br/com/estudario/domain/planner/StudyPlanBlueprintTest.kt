@@ -77,9 +77,11 @@ class StudyPlanBlueprintTest {
     }
 
     @Test
-    fun `simulado fica fora do plano por enquanto`() {
-        val result = StudyPlanBlueprint.build(input(config = StudyMethodConfig(simulationsPerMonth = 4)))
-        assertTrue(result.demands.none { it.type == PlanTaskType.SIMULATION })
+    fun `o plano comeca com um diagnostico no dia mais livre`() {
+        val result = StudyPlanBlueprint.build(input())
+        val simulado = result.demands.single { it.type == PlanTaskType.SIMULATION }
+        assertEquals(StudyPlanBlueprint.PLAN_DIAGNOSTIC_QUESTIONS, simulado.questions)
+        assertEquals(DayOfWeek.SATURDAY, (simulado.anchorDate ?: today).dayOfWeek)
     }
 
     @Test

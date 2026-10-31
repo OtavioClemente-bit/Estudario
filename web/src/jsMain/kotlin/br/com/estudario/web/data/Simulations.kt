@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -39,6 +40,10 @@ data class SimPart(
     val jobId: String? = null,
     val status: String = "PENDING",
     val error: String? = null,
+    /** PLAN_SIMULATION: simulado do plano (só biblioteca, sem cota); null nos simulados da aba. */
+    val purpose: String? = null,
+    /** Tarefa do plano que este simulado cumpre (só nos simulados do plano). */
+    val planTaskId: String? = null,
 )
 
 data class SubjectScore(val subjectName: String, val total: Int, val correct: Int) {
@@ -133,6 +138,7 @@ object Simulations {
         jsonOf(
             "key" to part.key, "input" to part.input, "refs" to JsonObject(part.refs.mapValues { JsonPrimitive(it.value) }),
             "jobId" to part.jobId, "status" to part.status, "error" to part.error,
+            "purpose" to part.purpose, "planTaskId" to part.planTaskId,
         )
     }).toString()
 
@@ -146,6 +152,8 @@ object Simulations {
                 jobId = obj["jobId"].text().ifBlank { null },
                 status = obj["status"].text().ifBlank { "PENDING" },
                 error = obj["error"].text().ifBlank { null },
+                purpose = obj["purpose"].text().ifBlank { null },
+                planTaskId = obj["planTaskId"].text().ifBlank { null },
             )
         }
     }.getOrDefault(emptyList())
@@ -173,7 +181,7 @@ object Simulations {
     }
 
     /** Monta a planta e grava o simulado; devolve (foto, id). A geração começa com [generate]. */
-    fun create(data: Snapshot, competitionId: Long, mode: SimulationMode, size: Int): Pair<Snapshot, Long> {
+    fun create(data: Snapshot, competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null, planTaskId: String? = null): Pair<Snapshot, Long> {
         val competition = data.competitions.firstOrNull { it.id == competitionId } ?: error("Concurso não encontrado.")
         val profile = examProfile(data, competitionId)
         val leaves = leafTopics(data, competitionId)
@@ -258,12 +266,14 @@ object Simulations {
         require(parts.isNotEmpty()) { "Ainda não há tópicos suficientes para montar este simulado." }
         val planned = parts.sumOf { p -> (p.input["items"] as? JsonArray).orEmpty().sumOf { (it.jsonObject["count"] as? JsonPrimitive)?.intOrNull ?: 0 } + (p.input["rematch"] as? JsonArray).orEmpty().size }
         val id = data.nextId(Keys.SIMULATIONS)
-        val keyed = parts.mapIndexed { index, part -> part.copy(key = "sim-web-$id-${Random.nextBytes(8).joinToString("") { (it.toInt() and 0xff).toString(16) }}-p$index") }
-        val title = when (mode) {
-            SimulationMode.DIAGNOSTIC -> "Diagnóstico"
-            SimulationMode.STUDIED -> "Simulado do que estudei"
-            SimulationMode.FULL -> "Prova completa"
-            SimulationMode.REMATCH -> "Revanche"
+        val keyed = parts.mapIndexed { index, part -> part.copy(key = "sim-web-$id-${Random.nextBytes(8).joinToString("") { (it.toInt() and 0xff).toString(16) }}-p$index", purpose = purpose, planTaskId = planTaskId) }
+        val title = when {
+            purpose == PLAN_SIMULATION && mode == SimulationMode.DIAGNOSTIC -> "Diagnóstico do plano"
+            purpose == PLAN_SIMULATION -> "Simulado do plano"
+            mode == SimulationMode.DIAGNOSTIC -> "Diagnóstico"
+            mode == SimulationMode.STUDIED -> "Simulado do que estudei"
+            mode == SimulationMode.FULL -> "Prova completa"
+            else -> "Revanche"
         }
         val at = now()
         val row = jsonOf(
@@ -274,6 +284,66 @@ object Simulations {
             "correctCount" to 0, "questionCount" to 0, "scorePercent" to null,
         )
         return data.append(Keys.SIMULATIONS, row) to id
+    }
+
+    /** Simulado do plano: o servidor monta só com a biblioteca, sem IA e sem cota (até 3 partes por semana). */
+    const val PLAN_SIMULATION = "PLAN_SIMULATION"
+
+    /** Tarefa do plano que o simulado cumpre (null nos simulados da aba). */
+    fun planTaskOf(data: Snapshot, simulationId: Long): String? = decodeParts(row(data, simulationId)?.str("partsJson")).firstNotNullOfOrNull { it.planTaskId }
+
+    /** O simulado já criado para esta tarefa do plano (reaproveitado ao abrir de novo). */
+    fun forPlanTask(data: Snapshot, taskId: String): Simulation? = data.simulations.filter { it.status != "FAILED" }.firstOrNull { planTaskOf(data, it.id) == taskId }
+
+    /**
+     * Simulado de reforço do plano (vale para todos os planos, até o Grátis): diagnóstico se a pessoa
+     * ainda não entregou simulado nem estudou tópico; senão, do que ela estudou. Tamanho da tarefa.
+     */
+    fun createForPlan(data: Snapshot, task: PlanTask): Pair<Snapshot, Long> {
+        val finished = data.simulations.any { it.competitionId == task.competitionId && it.status == "FINISHED" }
+        val diagnostic = !finished || readiness(data, task.competitionId).studiedTopics == 0
+        val size = task.questions.takeIf { it > 0 } ?: 20
+        return create(data, task.competitionId, if (diagnostic) SimulationMode.DIAGNOSTIC else SimulationMode.STUDIED, size, purpose = PLAN_SIMULATION, planTaskId = task.id)
+    }
+
+    /**
+     * Completa o simulado do plano com questões que a pessoa já tem: primeiro as do que estudou e as
+     * que errou, depois as nunca respondidas e as que não vê há mais tempo; nunca uma repetida. São
+     * cópias presas ao simulado (como as do banco), fora do caderno de erros.
+     */
+    private fun fillFromOwn(data: Snapshot, simulationId: Long, missing: Int): Snapshot {
+        if (missing <= 0) return data
+        val sim = row(data, simulationId) ?: return data
+        val competitionId = sim.long("competitionId") ?: return data
+        val subjects = data.subjects.filter { it.competitionId == competitionId }.mapTo(hashSetOf()) { it.id }
+        val topics = data.topics.filter { it.subjectId in subjects }
+        val topicIds = topics.mapTo(hashSetOf()) { it.id }
+        val studied = topics.filter { it.status != "NAO_ESTUDADO" }.mapTo(hashSetOf()) { it.id }
+        val inside = data.questions.filter { it.simulationId == simulationId }.mapTo(hashSetOf()) { QuestionKey.of(it.statement) }
+        val raw = data.array(Keys.QUESTIONS).mapNotNull { it as? JsonObject }.associateBy { it.long("id") }
+        val pool = data.questions
+            .filter { it.simulationId == null && !it.hidden && it.topicId in topicIds && it.options.size >= 2 && QuestionKey.of(it.statement) !in inside }
+            .sortedWith(
+                compareByDescending<Question> { it.topicId in studied }
+                    .thenByDescending { (raw[it.id]?.int("errorCount") ?: 0) > (raw[it.id]?.int("correctCount") ?: 0) }
+                    .thenBy { raw[it.id]?.long("lastAnsweredAt") ?: 0L },
+            )
+            .distinctBy { QuestionKey.of(it.statement) }
+            .take(missing)
+        if (pool.isEmpty()) return data
+        var questionId = data.nextId(Keys.QUESTIONS)
+        var optionId = (data.questions.flatMap { it.options }.maxOfOrNull { it.id } ?: 0L) + Snapshot.ID_GAP
+        val at = now()
+        val rows = pool.mapNotNull { q ->
+            val source = raw[q.id] ?: return@mapNotNull null
+            val options = q.options.sortedBy { it.position }.mapIndexed { position, o -> jsonOf("id" to optionId++, "key" to o.key, "text" to o.text, "correct" to o.correct, "position" to position) }
+            JsonObject(source + mapOf(
+                "id" to JsonPrimitive(questionId++), "externalId" to JsonPrimitive("sim-$simulationId-own-${q.id}"), "simulationId" to JsonPrimitive(simulationId),
+                "answerCount" to JsonPrimitive(0), "correctCount" to JsonPrimitive(0), "errorCount" to JsonPrimitive(0), "lastAnswer" to JsonNull, "lastAnsweredAt" to JsonNull,
+                "favorite" to JsonPrimitive(false), "tags" to JsonPrimitive("simulado,minhas-questoes"), "importedAt" to JsonPrimitive(at), "options" to JsonArray(options),
+            ))
+        }
+        return data.appendAll(mapOf(Keys.QUESTIONS to rows))
     }
 
     /** Modo do simulado montado com a prova oficial do edital (fora de SimulationMode: não é gerado). */
@@ -362,7 +432,7 @@ object Simulations {
         var part = start
         try {
             if (part.jobId == null) {
-                val jobId = AiJobs.create("SIMULATION_GENERATION", part.key, part.input)
+                val jobId = AiJobs.create("SIMULATION_GENERATION", part.key, part.input, part.purpose)
                 part = part.copy(jobId = jobId, status = "RUNNING", error = null)
                 updatePart(simulationId, index) { part }
             }
@@ -386,8 +456,14 @@ object Simulations {
         val sim = row(Store.data, simulationId) ?: return
         val parts = decodeParts(sim.str("partsJson"))
         if (parts.any { it.status == "RUNNING" || it.status == "PENDING" }) return
+        // Simulado do plano: o que o banco não cobriu vem das questões que a pessoa já fez (nunca sai menor).
+        val plan = parts.any { it.purpose == PLAN_SIMULATION }
+        if (plan) {
+            val planned = sim.int("plannedQuestions") ?: 0
+            Store.update { fillFromOwn(it, simulationId, planned - it.questions.count { q -> q.simulationId == simulationId }) }
+        }
         val stored = Store.data.questions.count { it.simulationId == simulationId }
-        val status = when { parts.all { it.status == "DONE" } -> "READY"; stored > 0 -> "PARTIAL"; else -> "FAILED" }
+        val status = when { plan && stored > 0 -> "READY"; parts.all { it.status == "DONE" } -> "READY"; stored > 0 -> "PARTIAL"; else -> "FAILED" }
         Store.update { data -> data.edit(Keys.SIMULATIONS) { if (it.long("id") == simulationId) it.with("status" to JsonPrimitive(status), "questionCount" to JsonPrimitive(stored)) else it } }
     }
 
@@ -510,6 +586,11 @@ object Simulations {
             Keys.QUESTION_SESSIONS,
             jsonOf("id" to sessionId, "type" to "SIMULATION", "startedAt" to (sim.long("startedAt") ?: at), "completedAt" to at, "durationSeconds" to elapsedSeconds, "questionCount" to questions.size, "correctCount" to correct, "subjectIds" to subjectIds.joinToString(","), "topicIds" to topicIds.joinToString(",")),
         )
+        // Simulado do plano entregue: a tarefa dele fica concluída (completeTask já replaneja).
+        planTaskOf(data, simulationId)?.let { taskId ->
+            val task = next.tasks.firstOrNull { it.id == taskId }
+            if (task != null) next = Actions.completeTask(next, taskId, task.minutes, questions = answers.size, correct = correct)
+        }
         return next.edit(Keys.SIMULATIONS) {
             if (it.long("id") != simulationId) it
             else it.with(

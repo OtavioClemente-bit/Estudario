@@ -34,7 +34,7 @@ fun br.com.estudario.data.local.planner.PlanTaskEntity.taskTitlePtBr(): String {
         PlanTaskType.REVIEW -> "Revisão de $subject"
         PlanTaskType.ACTIVE_RECALL -> "Recordação ativa de $subject"
         PlanTaskType.FLASHCARDS -> "Flashcards de $subject"
-        PlanTaskType.SIMULATION -> "Simulado de $subject"
+        PlanTaskType.SIMULATION -> "Simulado do plano · $plannedQuestions questões"
         PlanTaskType.DISCURSIVE -> "Discursiva de $subject"
     }
     return if (plannedQuestions > 0 && type == PlanTaskType.QUESTIONS) "$base · $plannedQuestions questões" else base

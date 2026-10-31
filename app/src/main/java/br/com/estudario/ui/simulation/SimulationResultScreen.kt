@@ -226,19 +226,8 @@ fun SimulationResultScreen(
         if (history.size >= 2) item { EvolutionChart(history.mapNotNull { it.scorePercent }, target) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (wrong + blank > 0 && current.mode != SimulationMode.REMATCH.name) Button(
-                    onClick = {
-                        scope.launch {
-                            runCatching { service.create(current.competitionId, SimulationMode.REMATCH, 30) }
-                                .onSuccess { onOpenSimulations() }
-                                .onFailure { rematchMessage = it.message }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Revanche: refazer os erros com outro cenário") }
-                rematchMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 OutlinedButton(onClick = onOpenSimulations, modifier = Modifier.fillMaxWidth()) { Text("Voltar aos simulados") }
-                Text("Os erros já foram para o Caderno de erros e voltam para revisão nos próximos dias.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Os erros ficam aqui no resultado e no seu Desempenho: o simulado mede, o treino dos erros é nas revisões e nas questões do plano.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         item {

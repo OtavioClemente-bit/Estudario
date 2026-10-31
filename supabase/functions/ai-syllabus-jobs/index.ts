@@ -41,6 +41,8 @@ const SYLLABUS_FEATURE: AiFeature = "SYLLABUS_GENERATION";
 const TEXT_FEATURES: ReadonlySet<string> = new Set(["CONTENT_GENERATION", "PLAN_GENERATION", "SIMULATION_GENERATION", "QUESTION_BATCH"]);
 /** Lote extra ("mais questões"): sempre até 10, em qualquer plano. */
 const QUESTION_BATCH_SIZE = 10;
+/** Simulados do plano por semana (partes de até 30 questões): é reforço, não a sala de prova dos pagos. */
+const PLAN_SIMULATIONS_PER_WEEK = 3;
 
 /** Regras do plano da conta que valem na criação do pedido. */
 export interface PlanRules {
@@ -82,6 +84,8 @@ export interface AiSyllabusJobsDependencies {
   freeAllowance?: FreeAllowanceStore;
   /** Nos pagos: matérias do plano recebidas hoje sem gastar a cota (ai_plan_materials_today). */
   planMaterialsToday?: (userId: string) => Promise<number>;
+  /** Simulados do plano (só biblioteca, sem cota) pedidos nos últimos 7 dias. */
+  planSimulationsThisWeek?: (userId: string) => Promise<number>;
 }
 
 export interface NetworkQuota {
@@ -224,6 +228,7 @@ function safeError(code: string, status: number, retryAfterSeconds?: number): Re
     INTEGRITY_UNAVAILABLE: "Integrity check is temporarily unavailable",
     QUESTION_LIMIT_EXCEEDED: "Question count is above the plan limit",
     TOPIC_BATCH_LIMIT: "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais.",
+    PLAN_SIMULATION_LIMIT: "O simulado do plano já foi montado esta semana.",
     PLAN_FEATURE_LOCKED: "No plano grátis, o simulado é só o diagnóstico. Assine para montar outros simulados.",
     FREE_PLAN_DAY_LIMIT: "As matérias do plano de hoje já saíram. Amanhã tem mais, ou adiante um dia.",
     FREE_EXTRA_LIMIT: "No Grátis você estuda as matérias do seu plano. Para estudar qualquer matéria do edital, assine o Essencial.",
@@ -523,6 +528,7 @@ async function createTextJob(
   // No Grátis, para que é a matéria (dia do plano, adiantar, extra) e o crédito de anúncio usado.
   let freeTag: Record<string, unknown> = {};
   let freeCredit: string | null = null;
+  let planSimulation = false;
   if (dependencies.planRules) {
     let rules: PlanRules;
     try {
@@ -552,7 +558,15 @@ async function createTextJob(
       }
       if (used >= rules.batchesPerTopic) return safeError("TOPIC_BATCH_LIMIT", 403);
     }
-    if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
+    // Simulado do plano (todos os planos, inclusive o Grátis): só questões prontas da biblioteca, sem
+    // IA e sem gastar a cota (libraryOnly + compensated: a reserva volta quando dá certo). O app
+    // completa o que faltar com as questões que a pessoa já fez. Trava: até 3 partes por semana.
+    if (feature === "SIMULATION_GENERATION" && rawPurpose === "PLAN_SIMULATION") {
+      if (!dependencies.planSimulationsThisWeek) return safeError("PLAN_FEATURE_LOCKED", 403);
+      const week = await dependencies.planSimulationsThisWeek(user.userId).catch(() => PLAN_SIMULATIONS_PER_WEEK);
+      if (week >= PLAN_SIMULATIONS_PER_WEEK) return safeError("PLAN_SIMULATION_LIMIT", 429);
+      planSimulation = true;
+    } else if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
       return safeError("PLAN_FEATURE_LOCKED", 403);
     }
     // Plano por IA é dos planos pagos: o Grátis monta o plano no próprio app, sem IA.
@@ -598,7 +612,9 @@ async function createTextJob(
     }
     if (questionCount > limit) return safeError("QUESTION_LIMIT_EXCEEDED", 403);
   }
-  let payload: Record<string, unknown> = { feature, input, ...(compensated ? { compensated: true } : {}), ...freeTag };
+  let payload: Record<string, unknown> = planSimulation
+    ? { feature, input, purpose: "PLAN_SIMULATION", libraryOnly: true, compensated: true }
+    : { feature, input, ...(compensated ? { compensated: true } : {}), ...freeTag };
   const create = async () => await dependencies.jobs.createOrGet({
     userId: user.userId,
     feature,
@@ -863,6 +879,16 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     webGuard: turnstileGuard(Deno.env.get("TURNSTILE_SECRET_KEY")?.trim()),
     freeAllowance: new SupabaseFreeAllowance(supabaseUrl, serviceRoleKey),
     planMaterialsToday: (userId) => planMaterialsToday(supabaseUrl, serviceRoleKey, userId),
+    planSimulationsThisWeek: async (userId) => {
+      const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/ai_jobs?select=id&user_id=eq.${encodeURIComponent(userId)}&feature=eq.SIMULATION_GENERATION` +
+          `&request_payload->>purpose=eq.PLAN_SIMULATION&created_at=gte.${encodeURIComponent(since)}&limit=50`,
+        { headers: { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}`, accept: "application/json" } },
+      );
+      if (!response.ok) throw new Error("PLAN_SIMULATIONS_UNAVAILABLE");
+      return ((await response.json()) as unknown[]).length;
+    },
     schedule: async () => {
       // The persisted PROCESSING lease is the durable queue consumed by the worker/Cron in Task 7.
     },

@@ -16,6 +16,7 @@ import br.com.estudario.web.data.PlanTask
 import br.com.estudario.web.data.Planning
 import br.com.estudario.web.data.Progress
 import br.com.estudario.web.data.Queries
+import br.com.estudario.web.data.Simulations
 import br.com.estudario.web.data.Snapshot
 import br.com.estudario.web.data.Store
 import kotlinx.datetime.LocalDate
@@ -738,6 +739,7 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
 }
 
 fun openTask(task: PlanTask) {
+    if (task.type == "SIMULATION") { openPlanSimulation(task); return }
     // Quem ainda não respondeu nenhuma questão começa pela teoria do tópico: o primeiro contato é
     // ler e depois acertar, não errar logo de cara.
     val beginner = Store.data.attempts.isEmpty()
@@ -747,7 +749,6 @@ fun openTask(task: PlanTask) {
         (task.type == "QUESTIONS" || task.type == "ACTIVE_RECALL") && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } ->
             planQuestions(task)
         task.topicId != null -> Router.go(Route.Topic(task.topicId))
-        task.type == "SIMULATION" -> Router.go(Route.Simulations)
         task.type == "QUESTIONS" && task.subjectId != null -> planQuestions(task)
         task.type == "REVIEW" -> Router.go(Route.Reviews)
         task.type == "FLASHCARDS" || task.type == "ACTIVE_RECALL" -> Router.go(Route.Flashcards(null))
@@ -755,9 +756,40 @@ fun openTask(task: PlanTask) {
     }
 }
 
+/**
+ * Simulado do plano (reforço, em todos os planos, até o Grátis): abre o que já foi montado para a
+ * tarefa ou monta um novo só com a biblioteca. Não dá para adiantar um simulado de outro dia; ao
+ * entregar, a tarefa fica concluída (Simulations.submit).
+ */
+fun openPlanSimulation(task: PlanTask) {
+    val data = Store.data
+    Simulations.forPlanTask(data, task.id)?.let { Router.go(Route.Simulation(it.id)); return }
+    if (task.day > Queries.todayEpoch()) {
+        Toast.show("Este simulado é do dia ${Queries.dayLabel(LocalDate.fromEpochDays(task.day.toInt()))}; não dá para adiantar.")
+        return
+    }
+    if (Store.demo) { Router.go(Route.Simulations); return }
+    try {
+        var id = 0L
+        Store.update { val (next, created) = Simulations.createForPlan(it, task); id = created; next }
+        Simulations.generate(id)
+        Router.go(Route.Simulation(id))
+    } catch (e: Throwable) {
+        Toast.show(e.message ?: "Não deu para montar o simulado agora.")
+    }
+}
+
 /** taskTitlePtBr do app: o tópico, ou uma ordem clara quando a tarefa é da matéria toda. */
 fun taskTitle(task: PlanTask): String {
     task.topicName?.takeIf { it.isNotBlank() }?.let { return it }
+    // Simulado do plano: o primeiro (sem simulado entregue antes) é o diagnóstico.
+    if (task.type == "SIMULATION") {
+        val diagnostic = Store.data.simulations.let { sims ->
+            sims.firstOrNull { Simulations.planTaskOf(Store.data, it.id) == task.id }?.mode?.let { it == "DIAGNOSTIC" }
+                ?: sims.none { it.competitionId == task.competitionId && it.status == "FINISHED" }
+        }
+        return "${if (diagnostic) "Diagnóstico" else "Simulado do plano"} · ${task.questions.takeIf { it > 0 } ?: 20} questões"
+    }
     val subject = task.subjectName.ifBlank { "todas as matérias" }
     val base = when (task.type) {
         "THEORY" -> "Teoria de $subject"

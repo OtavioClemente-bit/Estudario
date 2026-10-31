@@ -283,7 +283,8 @@ object Actions {
             )
         }
         val existing = data.errors.firstOrNull { it.questionId == questionId }
-        if (!correct) {
+        // Questão de simulado (cópia presa a ele) não entra no caderno de erros.
+        if (!correct && question.simulationId == null) {
             val streak = ErrorRetryLadder.nextStreak(existing?.retryStreak ?: 0, correct = false)
             val retryAt = ErrorRetryLadder.nextRetryAt(streak, at)
             val errorId: Long

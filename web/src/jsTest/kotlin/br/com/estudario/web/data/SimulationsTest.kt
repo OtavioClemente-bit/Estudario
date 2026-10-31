@@ -20,7 +20,7 @@ class SimulationsTest {
     ).jsonObject
 
     @Test
-    fun diagnosticCycleFeedsErrorsAndBank() {
+    fun diagnosticCycleFeedsBankButNotErrors() {
         val (data, competitionId) = edital()
         val (created, id) = Simulations.create(data, competitionId, SimulationMode.DIAGNOSTIC, 20)
         val parts = Simulations.decodeParts(Simulations.row(created, id)?.str("partsJson"))
@@ -43,9 +43,9 @@ class SimulationsTest {
         assertEquals("FINISHED", sim.status)
         assertEquals(2, sim.correctCount)
         assertEquals(50, sim.scorePercent)
-        assertEquals(1, finished.errors.size)
+        // Erro de simulado não vai para o caderno de erros (31/10): o simulado mede, o caderno é do treino.
+        assertEquals(0, finished.errors.size)
         assertEquals(4, Queries.visibleQuestions(finished).count { it.simulationId == id }, "entregue: questões entram no banco")
-        assertTrue(Simulations.rematchSources(finished, competitionId).isNotEmpty())
         assertEquals(2, Simulations.subjectScores(finished, id).sumOf { it.correct })
     }
 }

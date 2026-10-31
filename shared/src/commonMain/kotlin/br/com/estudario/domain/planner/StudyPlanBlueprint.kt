@@ -62,6 +62,10 @@ data class BlueprintInput(
     val lastTheoryBySubject: Map<Long, LocalDate> = emptyMap(),
     /** Quantos tópicos novos da matéria foram estudados nesse último dia. */
     val theoryCountOnLastDay: Map<Long, Int> = emptyMap(),
+    /** Último simulado do plano feito (null = nenhum: o primeiro é o diagnóstico). */
+    val lastSimulation: LocalDate? = null,
+    /** Já tem simulado do plano marcado e ainda não feito. */
+    val liveSimulation: Boolean = false,
     /** Matérias que já têm uma revisão de matéria marcada e ainda não feita. */
     val liveSubjectMixes: Set<Long> = emptySet(),
 )
@@ -161,8 +165,12 @@ object StudyPlanBlueprint {
     private fun roundTo5(minutes: Double): Int = (javaRound(minutes / 5.0).toInt() * 5).coerceAtLeast(5)
     private const val REINFORCEMENT_ACCURACY = 70
 
-    /** Simulado fora do plano por enquanto; a configuração continua guardada para quando voltar. */
-    const val SIMULATIONS_IN_PLAN = false
+    /** Simulado do plano: reforço montado só com o banco e as questões já feitas (sem cota). */
+    const val SIMULATIONS_IN_PLAN = true
+    /** Diagnóstico do plano: o mesmo tamanho do diagnóstico da aba. */
+    const val PLAN_DIAGNOSTIC_QUESTIONS = 20
+    /** Simulado é cronometrado: cerca de 3 minutos por questão, como na prova. */
+    const val SIMULATION_MINUTES_PER_QUESTION = 3
 
     /**
      * Piso do fator de necessidade sobre o peso do edital. Com 0,55, uma matéria de necessidade
@@ -437,6 +445,42 @@ object StudyPlanBlueprint {
             )
         }
         if (mixCount > 0) notes += "$mixCount revisão(ões) de matéria no período: questões misturadas de tudo que você já viu nela, uma matéria por dia."
+
+        // 6b. Simulado do plano: reforço, do que já foi estudado, montado só com o banco e as questões
+        // que a pessoa já fez (nunca gasta cota). Diagnóstico na primeira semana; depois um a cada 4
+        // semanas na base, 2 no aprofundamento e 1 por semana na reta final, no dia mais livre.
+        if (SIMULATIONS_IN_PLAN && !input.liveSimulation && activeSubjects.isNotEmpty()) {
+            val first = input.lastSimulation == null
+            val interval = when (phase.kind) {
+                PlanPhaseKind.BASE -> 28
+                PlanPhaseKind.APROFUNDAMENTO -> 14
+                PlanPhaseKind.RETA_FINAL -> 7
+            }
+            val seen = input.topics.count { it.studied }
+            val due = input.lastSimulation?.plusDays(interval.toLong()) ?: input.today
+            // Fora o diagnóstico, só com alguma coisa estudada para cobrar.
+            if (first || seen >= MIN_SEEN_FOR_SUBJECT_MIX) {
+                val from = if (due.isBefore(input.today)) input.today else due
+                val day = (0 until 7).map { from.plusDays(it.toLong()) }.firstOrNull { it.dayOfWeek == input.heaviestDay } ?: from
+                if (day.isBefore(input.today.plusDays(input.horizonDays.toLong()))) {
+                    val size = if (first) PLAN_DIAGNOSTIC_QUESTIONS else if (phase.kind == PlanPhaseKind.RETA_FINAL) 30 else 20
+                    demands += TaskDemand(
+                        id = "plan-simulation:$day",
+                        order = next(),
+                        subjectId = activeSubjects.first().subjectId,
+                        topicId = null,
+                        type = PlanTaskType.SIMULATION,
+                        minutes = size * SIMULATION_MINUTES_PER_QUESTION,
+                        questions = size,
+                        priority = PlanPriority.HIGH,
+                        anchorDate = day.takeIf { it.isAfter(input.today) },
+                        subjectPosition = -1,
+                    )
+                    notes += if (first) "Diagnóstico de $size questões nesta semana, no seu dia mais livre: mostra de onde você parte."
+                        else "Simulado de reforço de $size questões no seu dia mais livre (${diaLabel(input.heaviestDay)}), só do que você já estudou."
+                }
+            }
+        }
 
         // 7. Discursiva no dia mais livre da semana (simulado fica fora do plano por enquanto).
         val heaviestDays = (0 until input.horizonDays)

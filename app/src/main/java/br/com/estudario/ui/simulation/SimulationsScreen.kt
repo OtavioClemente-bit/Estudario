@@ -108,6 +108,10 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
     var remainingParts by remember { mutableStateOf<Int?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Grátis: faz só o simulado do plano (que aparece aqui enquanto é montado); montar provas é dos pagos.
+    val freeTier = remember { br.com.estudario.data.planner.LibraryGaps.free(context) }
+    var upgrade by remember { mutableStateOf(false) }
     var boardDialog by remember { mutableStateOf(false) }
     var targetDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SimulationEntity?>(null) }
@@ -162,14 +166,15 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                     br.com.estudario.ui.studio.GxKicker("Provas")
                     Text("Monte um simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
                 }
-                remainingParts?.let {
+                remainingParts?.takeIf { !freeTier }?.let {
                     Text("Saldo: ${it * 30} questões", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
         val current = readiness
         if (current == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        else SimulationMode.entries.forEach { mode ->
+        // Revanche saiu: erro de simulado não vai para o caderno, e o treino dos erros é do caderno.
+        else SimulationMode.entries.filter { it != SimulationMode.REMATCH }.forEach { mode ->
             item(key = "mode-${mode.name}") {
                 // A primeira prova completa de um edital com prova pronta é a prova oficial.
                 val prova = official?.takeIf { mode == SimulationMode.FULL && !officialDone }
@@ -178,6 +183,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                     lock = SimulationUnlock.lock(mode, current),
                     busy = creating || active.any { it.status == "GENERATING" },
                 ) {
+                    if (freeTier) { upgrade = true; return@OfficialFullCard }
                     creating = true
                     message = null
                     scope.launch {
@@ -192,7 +198,8 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                     rematchCount = if (mode == SimulationMode.REMATCH) current.wrongInFinished else null,
                     busy = creating || active.any { it.status == "GENERATING" },
                     style = profile?.style ?: "FIVE_OPTIONS",
-                    onGenerate = { size ->
+                    onGenerate = generate@{ size ->
+                        if (freeTier) { upgrade = true; return@generate }
                         creating = true
                         message = null
                         scope.launch {
@@ -212,6 +219,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
     }
     }
 
+    if (upgrade) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.SIMULATION, onDismiss = { upgrade = false })
     if (boardDialog) BoardDialog(profile?.board, onDismiss = { boardDialog = false }) { board ->
         boardDialog = false
         scope.launch { service.saveBoard(competition.id, board) }
@@ -520,7 +528,7 @@ fun EvolutionChart(scores: List<Int>, target: Int, modifier: Modifier = Modifier
             Text(
                 when {
                     last > first -> "Você subiu ${last - first} pontos desde o primeiro simulado."
-                    last < first -> "Caiu ${first - last} pontos desde o primeiro. Revanche e revisão ajudam a recuperar."
+                    last < first -> "Caiu ${first - last} pontos desde o primeiro. Revisar e treinar os tópicos mais fracos ajuda a recuperar."
                     else -> "Nota estável desde o primeiro simulado."
                 },
                 style = MaterialTheme.typography.bodyMedium,

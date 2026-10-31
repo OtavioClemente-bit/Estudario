@@ -495,6 +495,11 @@ private fun MainNavigation(viewModel: AppViewModel) {
                 )
             },
         ) { padding ->
+            // Simulado do plano: a tarefa pede para abrir a prova (pronta) ou a lista (montando).
+            val planExam = br.com.estudario.data.simulation.PlanSimulations.openExam
+            LaunchedEffect(planExam) { planExam?.let { navController.navigate("simulation/$it/exam"); br.com.estudario.data.simulation.PlanSimulations.openExam = null } }
+            val planList = br.com.estudario.data.simulation.PlanSimulations.openList
+            LaunchedEffect(planList) { if (planList) { navController.navigate("simulations"); br.com.estudario.data.simulation.PlanSimulations.openList = false } }
             NavHost(
                 navController,
                 startDestination = "home",
@@ -572,7 +577,14 @@ private fun MainNavigation(viewModel: AppViewModel) {
                     br.com.estudario.ui.simulation.SimulationExamScreen(
                         id,
                         onExit = { navController.popBackStack() },
-                        onFinished = { finished -> navController.navigate("simulation/$finished/result") { popUpTo("simulations") } },
+                        onFinished = { finished ->
+                            // Simulado do plano entregue: a tarefa dele fica concluída.
+                            focusScope.launch {
+                                val app = navController.context.applicationContext as br.com.estudario.EstudarioApplication
+                                app.database.simulationDao().simulation(finished)?.let { s -> br.com.estudario.data.simulation.PlanSimulations.finished(app, finished, (s.elapsedSeconds / 60).toInt(), s.questionCount, s.correctCount) }
+                            }
+                            navController.navigate("simulation/$finished/result") { popUpTo("simulations") }
+                        },
                     )
                 }
                 composable("simulation/{id}/result") { backStack ->

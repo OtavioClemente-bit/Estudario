@@ -340,7 +340,9 @@ class StudyRepository(private val db: AppDatabase) {
         ))
         val existing = dao.errorFor(question.id)
         val correctKey = questionWithOptions.options.firstOrNull { it.isCorrect }?.key
-        if (!correct) {
+        // Questão de simulado nunca vai para o caderno de erros (combinado em 31/10): o simulado mede, o
+        // caderno é do treino. O erro fica no resultado do simulado e no Desempenho.
+        if (!correct && question.simulationId == null) {
             val now = System.currentTimeMillis()
             // Errar (de novo) zera a escada: a questão volta sozinha em 3 dias.
             val streakDoErro = ErrorRetryLadder.nextStreak(existing?.retryStreak ?: 0, correct = false)

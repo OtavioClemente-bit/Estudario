@@ -615,6 +615,11 @@ private fun startTask(
 ) {
     val current = task ?: return
     val topicId = current.entity.topicId
+    // Simulado do plano: monta (só banco e questões já feitas) ou abre o da tarefa.
+    if (current.entity.type == br.com.estudario.domain.planner.PlanTaskType.SIMULATION) {
+        viewModel.openPlanSimulation(current.entity)
+        return
+    }
     if (topicId != null) {
         // Leva para o tópico, onde a teoria e as questões estão de fato, o modo foco é uma etapa
         // de dentro do tópico, não o destino direto.

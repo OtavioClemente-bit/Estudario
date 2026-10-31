@@ -283,6 +283,8 @@ object PlannerSnapshotBuilder {
                 lastPracticeByTopic = lastPracticeByTopic,
                 lastSubjectMixBySubject = lastSubjectMix,
                 liveSubjectMixes = liveSubjectMixes,
+                lastSimulation = tasks.filter { it.type == PlanTaskType.SIMULATION && it.status == PlanTaskStatus.CONCLUIDA }.maxOfOrNull { it.date },
+                liveSimulation = tasks.any { it.type == PlanTaskType.SIMULATION && it.status in live },
                 lastTheoryBySubject = lastTheory.mapValues { (_, days) -> days.keys.max() },
                 theoryCountOnLastDay = lastTheory.mapValues { (_, days) -> days.getValue(days.keys.max()).size },
             ),

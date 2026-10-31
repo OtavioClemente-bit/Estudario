@@ -44,7 +44,8 @@ class StudyPlanSnapshotFactory(
                 topics = db.dao().topicsOnce().map {
                     PlannerSnapshotBuilder.Topic(it.id, it.subjectId, it.parentTopicId, it.title, it.position, it.status != TopicStatus.NAO_ESTUDADO, it.lastStudiedAt)
                 },
-                questionsByTopic = db.dao().questionsOnce().groupBy({ it.question.topicId }, { it.question.id }).mapValues { it.value.toSet() },
+                // Questões de simulado não contam como do tópico (o treino do plano usa só as do banco dele).
+                questionsByTopic = db.dao().questionsOnce().filter { it.question.simulationId == null }.groupBy({ it.question.topicId }, { it.question.id }).mapValues { it.value.toSet() },
                 attempts = db.dao().attemptsOnce().map { PlannerSnapshotBuilder.Attempt(it.questionId, it.correct) },
                 pendingReviews = db.dao().reviewsOnce().filter { it.completedAt == null && it.ignoredAt == null }
                     .map { PlannerSnapshotBuilder.PendingReview(it.id, it.topicId, it.dueAt, it.questionTotal) },

@@ -21,10 +21,11 @@ object AiJobs {
     fun browserHash(): String = Sha256.digest("estudario-browser:${Cloud.deviceId}".encodeToByteArray()).toHex()
 
     /** Cria (ou reaproveita, pela mesma chave) um job; devolve o id. */
-    suspend fun create(feature: String, idempotencyKey: String, input: JsonObject): String {
+    suspend fun create(feature: String, idempotencyKey: String, input: JsonObject, purpose: String? = null): String {
         val token = Auth.accessToken() ?: throw AiJobException("AUTH_REQUIRED", "Entre na sua conta para gerar com o Estudário.")
         val human = Turnstile.token()
-        val body = buildJsonObject { put("feature", feature); put("input", input) }.toString()
+        // purpose PLAN_SIMULATION: simulado do plano, só com a biblioteca e sem cota.
+        val body = buildJsonObject { put("feature", feature); put("input", input); purpose?.let { put("purpose", it) } }.toString()
         val response = httpRequest(
             "POST", "${WebConfig.SUPABASE_URL}$PATH",
             mapOf(
@@ -69,6 +70,7 @@ object AiJobs {
         "QUESTION_LIMIT_EXCEEDED" -> "Essa quantidade de questões passa do limite do seu plano."
         "TOPIC_BATCH_LIMIT" -> "No plano grátis, cada matéria tem 1 lote extra de questões. Assine para pedir mais: o lote extra é do seu plano pago."
         "PLAN_FEATURE_LOCKED" -> "Este recurso é dos planos Essencial e Pro. No Grátis, o simulado é só o diagnóstico."
+        "PLAN_SIMULATION_LIMIT" -> "Os simulados do plano desta semana já saíram. Na próxima semana tem mais."
         "PLAN_AI_MATERIAL_LIMIT" -> "Esta matéria está em produção pela nossa equipe."
         "AI_DAILY_BUDGET" -> "O Estudário está com muita procura agora. Tente de novo em algumas horas; sua cota não foi usada."
         "FREE_EXTRA_LIMIT" -> "No Grátis você estuda as matérias do seu plano."

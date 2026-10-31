@@ -67,7 +67,7 @@ import br.com.estudario.ui.brand.Icon
 enum class UpgradeReason(val title: String, val body: String) {
     CONTENT("Seus materiais deste mês acabaram", "Cada material traz teoria, resumo, flashcards, dicas e questões comentadas do tópico. Com um plano, você segue estudando hoje mesmo."),
     SYLLABUS("Mande o edital do seu concurso", "O edital pelo seu PDF é dos planos Essencial e Pro: as matérias e os tópicos saem organizados para você revisar e estudar."),
-    SIMULATION("Simulados no estilo da sua banca", "Treine com cronômetro e nota por matéria, no formato da prova. Os simulados completos são dos planos Essencial e Pro."),
+    SIMULATION("Monte provas quando quiser", "No Grátis, você faz o simulado que está no seu plano, no dia dele. Com o Essencial ou o Pro, você monta provas completas, a prova oficial e simulados do que estudou quando quiser, com cronômetro e nota por matéria."),
     QUESTIONS("Seus lotes de questões acabaram", "Mais questões comentadas no estilo da banca, para treinar o tópico até ele ficar firme."),
     EDITAIS("Você chegou ao limite de editais salvos", "No Grátis você guarda até 5 editais. No Essencial são 15, e no Pro não há limite."),
     PLANS("Mais planos de estudo", "No Grátis você tem um plano e pode ajustá-lo quando quiser. Com o Essencial ou o Pro, dá para montar planos novos todo mês."),

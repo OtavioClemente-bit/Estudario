@@ -43,10 +43,11 @@ class AiTextJobClient(
     private val transport: AiHttpTransport,
     private val httpTimeoutMillis: Long = 30_000,
 ) {
-    suspend fun create(feature: AiFeature, idempotencyKey: String, input: JsonObject): AiTextJobView {
+    suspend fun create(feature: AiFeature, idempotencyKey: String, input: JsonObject, purpose: String? = null): AiTextJobView {
         val body = buildJsonObject {
             put("feature", feature.name)
             put("input", input)
+            purpose?.let { put("purpose", it) }
         }.toString().toByteArray(StandardCharsets.UTF_8)
         val response = execute(
             AiHttpRequest("POST", JOBS_PATH, headers(idempotencyKey) + ("Content-Type" to JSON), body),

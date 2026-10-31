@@ -143,7 +143,8 @@ object Planning {
                     )
                 },
                 topics = data.topics.map { PlannerSnapshotBuilder.Topic(it.id, it.subjectId, it.parentTopicId, it.title, it.position, it.status != "NAO_ESTUDADO", it.lastStudiedAt) },
-                questionsByTopic = data.questions.groupBy({ it.topicId }, { it.id }).mapValues { it.value.toSet() },
+                // Questões de simulado não contam como questões do tópico para o plano.
+                questionsByTopic = data.questions.filter { it.simulationId == null }.groupBy({ it.topicId }, { it.id }).mapValues { it.value.toSet() },
                 attempts = data.attempts.map { PlannerSnapshotBuilder.Attempt(it.questionId, it.correct) },
                 pendingReviews = data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.map { PlannerSnapshotBuilder.PendingReview(it.id, it.topicId, it.dueAt, it.questionTotal) },
                 tasks = tasks,

@@ -814,6 +814,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** A tarefa "Simulado do plano": monta ou abre o simulado dela (sem cota) e avisa o que acontece. */
+    fun openPlanSimulation(task: br.com.estudario.data.local.planner.PlanTaskEntity) {
+        viewModelScope.launch {
+            br.com.estudario.data.simulation.PlanSimulations.open(app, task)?.let { message ->
+                android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     fun startFocus(
         title: String,
         topicId: Long? = null,

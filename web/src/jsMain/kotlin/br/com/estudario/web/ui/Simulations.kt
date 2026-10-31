@@ -69,6 +69,10 @@ fun SimulationsScreen() {
     LaunchedEffect(competition.id, competition.name) { official = br.com.estudario.web.data.Catalog.officialSimulation(competition.name) }
     val officialDone = list.any { it.mode == Simulations.OFFICIAL_MODE }
     var officialError by remember { mutableStateOf<String?>(null) }
+    // No Grátis o simulado vem do plano: na aba, montar prova abre a oferta (o histórico continua aberto).
+    val free = br.com.estudario.web.data.LibraryGaps.free()
+    var freeOffer by remember { mutableStateOf(false) }
+    if (freeOffer) UpgradeModal(UpgradeReason.SIMULATION_TAB) { freeOffer = false }
 
     // Retoma partes que estavam gerando quando a página foi fechada.
     LaunchedEffect(list.map { it.id to it.status }) {
@@ -122,7 +126,8 @@ fun SimulationsScreen() {
 
     // As provas: cada tipo é um cartão grande com a sua cor; a prova oficial ganha destaque.
     Div({ classes("sim-modes") }) {
-        SimulationMode.entries.forEach { mode ->
+        // A Revanche saiu do site: as erradas dos simulados não vão mais para o caderno de erros.
+        SimulationMode.entries.filter { it != SimulationMode.REMATCH }.forEach { mode ->
             androidx.compose.runtime.key(mode) {
                 val lock = SimulationUnlock.lock(mode, readiness)
                 val prova = official?.takeIf { mode == SimulationMode.FULL && !officialDone }
@@ -142,13 +147,14 @@ fun SimulationsScreen() {
                     }
                     Div({ classes("sim-mode-foot") }) {
                         if (lock.unlocked && prova != null) GxLaunch("Preparar a prova completa", icon = "workspace_premium", enabled = !Store.demo) {
+                            if (free) { freeOffer = true; return@GxLaunch }
                             try {
                                 var id = 0L
                                 Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
                                 Router.go(Route.Simulation(id))
                             } catch (e: Throwable) { officialError = e.message }
                         }
-                        else if (lock.unlocked) GxLaunch("Montar simulado", icon = "play_circle", enabled = !Store.demo) { creating = mode }
+                        else if (lock.unlocked) GxLaunch("Montar simulado", icon = "play_circle", enabled = !Store.demo) { if (free) freeOffer = true else creating = mode }
                         else Div({ classes("sim-lock") }) {
                             Div({ classes("sim-lock-bar") }) { Span({ attr("style", "width:${(lock.progress * 100).toInt().coerceIn(0, 100)}%") }) }
                             Span { Text(lock.requirement) }
@@ -162,7 +168,7 @@ fun SimulationsScreen() {
     if (Store.demo) Div({ classes("banner", "info") }) { Icon("info"); Text("Na demonstração os simulados não são gerados. Entre com sua conta para montar o seu.") }
 
     if (scoresAll.size >= 2) Div({ classes("gx-panel", "sim-panel") }) {
-        Div({ classes("sim-panel-head") }) { Span({ classes("gx-kicker") }) { Text("SUA EVOLUÇÃO") }; B { Text(scoresAll.let { val first = it.first(); val last = it.last(); when { last > first -> "Você subiu ${last - first} pontos desde o primeiro simulado."; last < first -> "Caiu ${first - last} pontos desde o primeiro. Revanche e revisão ajudam a recuperar."; else -> "Nota estável desde o primeiro simulado." } }) } }
+        Div({ classes("sim-panel-head") }) { Span({ classes("gx-kicker") }) { Text("SUA EVOLUÇÃO") }; B { Text(scoresAll.let { val first = it.first(); val last = it.last(); when { last > first -> "Você subiu ${last - first} pontos desde o primeiro simulado."; last < first -> "Caiu ${first - last} pontos desde o primeiro. A revisão ajuda a recuperar."; else -> "Nota estável desde o primeiro simulado." } }) } }
         EvolutionChart(scoresAll, profile.targetPercent)
         P({ classes("gx-note") }) { Text("Linha tracejada: sua meta de ${profile.targetPercent}%") }
     }
@@ -466,7 +472,6 @@ private fun ResultView(simulation: Simulation) {
     val answers = Simulations.answersOf(Simulations.row(data, simulation.id))
     val questions = data.questions.filter { it.simulationId == simulation.id }.sortedBy { it.id }
     var reviewWrongOnly by remember { mutableStateOf(true) }
-    var rematchError by remember { mutableStateOf<String?>(null) }
     // Regra Cebraspe nos itens Certo/Errado: certo +1, errado −1, em branco 0.
     val ceItems = questions.filter { q -> q.options.map { it.key }.toSet() == setOf("C", "E") }
     val ceRight = ceItems.count { q -> answers[q.id] == q.options.firstOrNull { it.correct }?.key }
@@ -485,18 +490,8 @@ private fun ResultView(simulation: Simulation) {
                     B { Text("Regra Cebraspe: ${ceRight - ceWrong} ponto(s) líquido(s) em ${ceItems.size} itens. ") }
                     Text("Cada erro anula um acerto: na dúvida real, deixar em branco pode valer mais.")
                 }
-                P({ classes("small", "muted") }) { Text("As erradas foram para o caderno de erros e entram na Revanche.") }
-                if (simulation.mode != SimulationMode.REMATCH.name && questions.any { answers[it.id] != it.options.firstOrNull { o -> o.correct }?.key }) Div({ classes("row") }) {
-                    Btn("Revanche: refazer os erros com outro cenário", {
-                        try {
-                            var id = 0L
-                            Store.update { val (next, created) = Simulations.create(it, simulation.competitionId, SimulationMode.REMATCH, 30); id = created; next }
-                            Simulations.generate(id)
-                            Router.go(Route.Simulation(id))
-                        } catch (e: Throwable) { rematchError = e.message }
-                    }, icon = "replay")
-                }
-                rematchError?.let { Div({ classes("banner", "error") }) { Text(it) } }
+                // Simulado mede: as erradas ficam aqui no resultado, fora do caderno de erros (sem Revanche).
+                P({ classes("small", "muted") }) { Text("Veja abaixo a explicação das que você errou e revise os tópicos mais fracos.") }
             }
         }
     }

@@ -215,7 +215,10 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                         }
                     },
                     onOpenTopic = onOpenTopic,
-                    onStart = viewModel::start,
+                    onStart = { id ->
+                        val simulado = state.tasks.firstOrNull { it.entity.id == id }?.entity?.takeIf { it.type == br.com.estudario.domain.planner.PlanTaskType.SIMULATION }
+                        if (simulado != null) appViewModel.openPlanSimulation(simulado) else viewModel.start(id)
+                    },
                     onFocus = { row ->
                         if (row.entity.type == br.com.estudario.domain.planner.PlanTaskType.QUESTIONS) {
                             scope.launch {

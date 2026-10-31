@@ -549,7 +549,9 @@ export const SIMULATION_JOB_SPEC: AiJobSpec = {
     const plan = await planSimulationFromLibrary(input, dependencies.jobs, `${job.id}:${job.userId}`);
     // Grátis (o diagnóstico): sai só com as questões prontas, mesmo que menor, sem IA para o resto.
     const free = dependencies.jobs.planTierOf ? (await dependencies.jobs.planTierOf(job.userId).catch(() => "FREE")) === "FREE" : false;
-    if (plan.remaining && !(free && plan.questions.length > 0)) {
+    // Simulado do plano (libraryOnly): também sai só com o que a biblioteca tem; o app completa com as já feitas.
+    const libraryOnly = (job.requestPayload as { libraryOnly?: unknown } | undefined)?.libraryOnly === true;
+    if (plan.remaining && !((free || libraryOnly) && plan.questions.length > 0)) {
       SIMULATION_LEFTOVER.set(job.id, plan.remaining);
       return null;
     }

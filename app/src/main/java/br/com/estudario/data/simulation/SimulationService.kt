@@ -76,6 +76,8 @@ data class SimulationPart(
     /** PENDING, RUNNING, DONE ou FAILED. */
     val status: String = "PENDING",
     val error: String? = null,
+    /** PLAN_SIMULATION: simulado do plano, só da biblioteca e sem cota (o servidor confere). */
+    val purpose: String? = null,
 )
 
 /** Resultado por matéria, para o gráfico do resultado. */
@@ -184,7 +186,7 @@ class SimulationService(
     // ---------------------------------------------------------------------------------------- criação
 
     /** Monta a planta, grava o simulado e começa a gerar. Devolve o id local. */
-    suspend fun create(competitionId: Long, mode: SimulationMode, size: Int): Long {
+    suspend fun create(competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null): Long {
         val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId }
             ?: throw SimulationException("Concurso não encontrado.")
         val profile = examProfile(competitionId)
@@ -205,7 +207,7 @@ class SimulationService(
         val parts = if (mode == SimulationMode.REMATCH) rematchParts(competitionId, base, board == null) else blueprintParts(competitionId, mode, size, base, board == null)
         if (parts.isEmpty()) throw SimulationException("Ainda não há tópicos suficientes para montar este simulado.")
         val planned = parts.sumOf { questionCountOf(it.input) }
-        val title = when (mode) {
+        val title = if (purpose == PLAN_SIMULATION && mode != SimulationMode.DIAGNOSTIC) "Simulado do plano" else when (mode) {
             SimulationMode.DIAGNOSTIC -> "Diagnóstico"
             SimulationMode.STUDIED -> "Simulado do que estudei"
             SimulationMode.FULL -> "Prova completa"
@@ -225,7 +227,7 @@ class SimulationService(
             ),
         )
         // Chave única por simulado: a mesma parte reenviada não reserva cota duas vezes.
-        val keyed = parts.mapIndexed { index, part -> part.copy(key = "sim-$id-${UUID.randomUUID()}-p$index") }
+        val keyed = parts.mapIndexed { index, part -> part.copy(key = "sim-$id-${UUID.randomUUID()}-p$index", purpose = purpose) }
         dao.updateSimulation(dao.simulation(id)!!.copy(partsJson = encodeParts(keyed)))
         resume(id)
         return id
@@ -461,7 +463,7 @@ class SimulationService(
         var part = start
         try {
             if (part.jobId == null) {
-                val created = client.create(AiFeature.SIMULATION_GENERATION, part.key, part.input)
+                val created = client.create(AiFeature.SIMULATION_GENERATION, part.key, part.input, purpose = part.purpose)
                 part = part.copy(jobId = created.jobId, status = "RUNNING")
                 updatePart(simulationId, index) { part }
             }
@@ -504,19 +506,65 @@ class SimulationService(
         dao.updateSimulation(simulation.copy(partsJson = encodeParts(parts)))
     }
 
+    /**
+     * Simulado do plano: só questões prontas do banco (o servidor nunca chama a geração nem gasta cota)
+     * e, se o banco não tiver o bastante, completa com as questões que a pessoa já fez. Nunca sai menor.
+     */
+    suspend fun createForPlan(competitionId: Long, size: Int, diagnostic: Boolean): Long =
+        create(competitionId, if (diagnostic) SimulationMode.DIAGNOSTIC else SimulationMode.STUDIED, size, purpose = PLAN_SIMULATION)
+
+    /**
+     * Completa o simulado do plano com questões que a pessoa já tem: primeiro as que ela errou, depois as
+     * que nunca respondeu e as que não vê há mais tempo; nunca uma que já está no simulado. São cópias
+     * presas ao simulado (como as do banco), para o resultado e o Desempenho, fora do caderno de erros.
+     */
+    private suspend fun fillFromOwn(simulation: br.com.estudario.data.local.SimulationEntity, missing: Int) {
+        if (missing <= 0) return
+        val subjects = appDao.subjectsFor(simulation.competitionId).map { it.id }.toSet()
+        val topics = appDao.topicsOnce().filter { it.subjectId in subjects }
+        val studied = topics.filter { it.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO }.map { it.id }.toSet()
+        val inside = dao.questionsFor(simulation.id).mapTo(hashSetOf()) { QuestionKey.of(it.question.statement) }
+        val pool = topics.flatMap { appDao.reviewQuestionsFor(it.id) }
+            .filter { it.options.size >= 2 && QuestionKey.of(it.question.statement) !in inside }
+            .sortedWith(
+                compareByDescending<br.com.estudario.data.local.QuestionWithOptions> { it.question.topicId in studied }
+                    .thenByDescending { it.question.errorCount > it.question.correctCount }
+                    .thenBy { it.question.lastAnsweredAt ?: 0L },
+            )
+            .distinctBy { QuestionKey.of(it.question.statement) }
+            .take(missing)
+        db.withTransaction {
+            pool.forEach { source ->
+                val q = source.question
+                val id = appDao.insertQuestion(
+                    q.copy(
+                        id = 0, externalId = "sim-${simulation.id}-own-${q.id}", simulationId = simulation.id,
+                        answerCount = 0, correctCount = 0, errorCount = 0, lastAnswer = null, lastAnsweredAt = null, isFavorite = false,
+                        tagsText = listOf("simulado", "minhas-questoes").joinToString(","), importedAt = System.currentTimeMillis(),
+                    ),
+                )
+                appDao.insertOptions(source.options.map { it.copy(id = 0, questionId = id) })
+            }
+        }
+    }
+
     private suspend fun finishGeneration(simulationId: Long) {
         val simulation = dao.simulation(simulationId) ?: return
         val parts = decodeParts(simulation.partsJson)
         if (parts.any { it.status == "RUNNING" || it.status == "PENDING" }) return
+        // Simulado do plano: o que o banco não cobriu vem das questões que a pessoa já fez (nunca sai menor).
+        val plan = parts.any { it.purpose == PLAN_SIMULATION }
+        if (plan) fillFromOwn(simulation, simulation.plannedQuestions - dao.questionsFor(simulationId).size)
         val stored = dao.questionsFor(simulationId).size
         val status = when {
+            plan && stored > 0 -> "READY"
             parts.all { it.status == "DONE" } -> "READY"
             stored > 0 -> "PARTIAL"
             else -> "FAILED"
         }
         dao.updateSimulation(simulation.copy(status = status, questionCount = stored))
         val (title, body) = when (status) {
-            "READY" -> "Seu simulado está pronto" to "${simulation.title}: ${stored} questões inéditas esperando por você."
+            "READY" -> "Seu simulado está pronto" to "${simulation.title}: ${stored} questões esperando por você."
             "PARTIAL" -> "Simulado quase pronto" to "$stored questões prontas. Você pode começar ou tentar gerar o resto."
             else -> "Não deu para gerar o simulado" to "Nenhuma cota foi usada nas partes que falharam. Tente de novo."
         }
@@ -717,6 +765,8 @@ class SimulationService(
 
         /** Quantas questões recentes entram na lista do que não repetir (6 mil chaves ~ 66 KB por parte). */
         const val SEEN_LIMIT = 6_000
+        /** Motivo do pedido do simulado do plano: só banco, sem cota (supabase ai-syllabus-jobs). */
+        const val PLAN_SIMULATION = "PLAN_SIMULATION"
         fun decodeAnswers(json: String): Map<Long, String> = runCatching {
             val value = JSONObject(json)
             value.keys().asSequence().mapNotNull { key -> key.toLongOrNull()?.let { it to value.getString(key) } }.toMap()
@@ -739,6 +789,7 @@ class SimulationService(
                     jobId = item.optString("jobId").ifBlank { null },
                     status = item.optString("status", "PENDING"),
                     error = item.optString("error").ifBlank { null },
+                    purpose = item.optString("purpose").ifBlank { null },
                 )
             }
         }.getOrDefault(emptyList())
@@ -751,6 +802,7 @@ class SimulationService(
                 .put("jobId", part.jobId ?: "")
                 .put("status", part.status)
                 .put("error", part.error ?: "")
+                .put("purpose", part.purpose ?: "")
         }).toString()
 
         private fun JsonObject.text(name: String): String = this[name]?.jsonPrimitive?.contentOrNull.orEmpty()
