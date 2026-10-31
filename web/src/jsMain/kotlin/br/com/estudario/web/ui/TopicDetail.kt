@@ -687,7 +687,23 @@ private fun TheoryReader(theory: Theory) {
                 )
             }, 0)
         }
-        val hide: (org.w3c.dom.events.Event) -> Unit = { picked = null; clickedMark = null }
+        // Rolar não some com a barra do grifo (antes sumia, e um trecho comprido que exigia rolar não dava
+        // para grifar nem fixar): ela acompanha a seleção, presa dentro da tela. O cartão de grifo fecha.
+        var queued = false
+        val hide: (org.w3c.dom.events.Event) -> Unit = {
+            clickedMark = null
+            if (picked != null && !queued) {
+                queued = true
+                window.requestAnimationFrame {
+                    queued = false
+                    val current = picked
+                    val selection = window.asDynamic().estudarioSelection
+                    val s = if (selection != null && selection != undefined) selection() else null
+                    picked = if (current == null || s == null || s == undefined || (s.theoryId as Number).toLong() != theory.id) null
+                    else current.copy(x = (s.x as Number).toDouble(), y = (s.y as Number).toDouble())
+                }
+            }
+        }
         val click: (org.w3c.dom.events.Event) -> Unit = { e ->
             val m = e as org.w3c.dom.events.MouseEvent
             val markAt = window.asDynamic().estudarioMarkAt
@@ -849,6 +865,13 @@ private fun TheoryReader(theory: Theory) {
                         attr("title", "Abre a tabela numa janelinha por cima da página, para consultar enquanto lê")
                         onClick { if (!TheoryPins.add(TheoryPins.titleFor(blocks[i]), blocks[i])) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser") }
                     }) { Icon("push_pin"); Text("Fixar") }
+                } else tableOf(block)?.let { table ->
+                    // Tabela dentro da caixa: fixa só a tabela (o grifo segue pela seleção).
+                    Button({
+                        classes("table-grifo", "pin", "solo")
+                        attr("title", "Abre a tabela numa janelinha por cima da página, para consultar enquanto lê")
+                        onClick { if (!TheoryPins.add(TheoryPins.titleFor(table), table)) Toast.show("Já tem 3 janelas fixadas. Feche uma para fixar outra.") else Toast.show("Fixado: arraste a janela para onde quiser") }
+                    }) { Icon("push_pin"); Text("Fixar tabela") }
                 }
                 if (trap != null) {
                     Div({ classes("callout-head") }) { Icon(if (trap) "warning" else "lightbulb", filled = true); Text(if (trap) "Atenção" else "Dica") }
@@ -1041,6 +1064,14 @@ private fun pinMarkdown(pick: TextPick, blocks: List<String>): String {
     val ids = (pick.parts.map { it.first } + pick.block).distinct().sorted().filter { it in blocks.indices }
     val b = blocks.getOrNull(pick.block)
     if (b != null && b.lines().count { it.trimStart().startsWith("|") } >= 2) return b
+    // Tabela dentro de uma caixa (dica, atenção) com texto em volta: seleção só na tabela leva a tabela,
+    // e não o texto das células grudado ("EficáciaComo funciona...").
+    val table = if (ids.size == 1) b?.let(::tableOf) else null
+    if (table != null) {
+        val inTable = table.filter { it.isLetterOrDigit() }
+        val got = pick.quote.filter { it.isLetterOrDigit() }
+        if (got.isNotEmpty() && got in inTable) return table
+    }
     if (ids.size > 1) return ids.joinToString("\n\n") { blocks[it] }
     if (b != null) {
         val plain = b.filter { it.isLetterOrDigit() }.length
@@ -1048,6 +1079,12 @@ private fun pinMarkdown(pick: TextPick, blocks: List<String>): String {
         if (plain > 0 && got >= plain * 0.6) return b
     }
     return pick.quote
+}
+
+/** A tabela de um bloco, também a que fica dentro de uma caixa ("> | a | b |"), sem o ">"; null se não tem. */
+private fun tableOf(block: String): String? {
+    val rows = block.lines().map { it.trimStart().removePrefix(">").trimStart() }.filter { it.startsWith("|") }
+    return if (rows.size >= 2) rows.joinToString("\n") else null
 }
 
 private data class TextPick(val block: Int, val quote: String, val x: Double, val y: Double, val parts: List<Pair<Int, String>> = emptyList(), val overlapIds: Set<Long> = emptySet())
