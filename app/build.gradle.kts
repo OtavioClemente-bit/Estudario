@@ -94,8 +94,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "br.com.estudario"
         minSdk = 26
         targetSdk = 36
-        versionCode = 203
-        versionName = "3.3.175"
+        versionCode = 204
+        versionName = "3.3.176"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "SUPABASE_URL", supabaseUrl.toBuildConfigLiteral())

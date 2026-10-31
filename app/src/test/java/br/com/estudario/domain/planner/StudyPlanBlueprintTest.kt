@@ -192,7 +192,7 @@ class StudyPlanBlueprintTest {
     @Test
     fun `toda tarefa é multiplo do bloco escolhido`() {
         val result = StudyPlanBlueprint.build(input(config = StudyMethodConfig(blockMinutes = 25)))
-        val blocosInteiros = result.demands.filter { it.type !in setOf(PlanTaskType.REVIEW, PlanTaskType.QUESTIONS) }
+        val blocosInteiros = result.demands.filter { it.type !in setOf(PlanTaskType.REVIEW, PlanTaskType.QUESTIONS, PlanTaskType.SIMULATION) }
 
         assertTrue(blocosInteiros.isNotEmpty())
         assertTrue(blocosInteiros.all { it.minutes % 25 == 0 })

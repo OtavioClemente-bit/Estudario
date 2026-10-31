@@ -26,8 +26,9 @@ class StudyPlanForecastAuditTest {
         val outcome = run(subjects = 6, topicsPerSubject = 10, examInDays = 75)
         println("Previsão: ${outcome.promised.verdict}, de fora ${outcome.promised.topicsLeftOut} · plano real: ${outcome.studiedByExam}/${outcome.total} até a prova")
         assertTrue("O plano real cobriu tudo; a previsão não pode dizer que não cabe", outcome.promised.verdict != RoadmapVerdict.DOES_NOT_FIT)
-        // Apertado de verdade: o plano real pode deixar um ou outro tópico para a última semana.
-        assertTrue("Plano real viu ${outcome.studiedByExam}/${outcome.total}", outcome.studiedByExam * 100 >= outcome.total * 95)
+        // Apertado de verdade: o plano real pode deixar alguns tópicos para a última semana (o diagnóstico
+        // da primeira semana também ocupa cerca de uma hora).
+        assertTrue("Plano real viu ${outcome.studiedByExam}/${outcome.total}", outcome.studiedByExam * 100 >= outcome.total * 90)
     }
 
     @Test

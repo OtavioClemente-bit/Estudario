@@ -459,7 +459,9 @@ object StudyPlanBlueprint {
             val seen = input.topics.count { it.studied }
             val due = input.lastSimulation?.plusDays(interval.toLong()) ?: input.today
             // Fora o diagnóstico, só com alguma coisa estudada para cobrar.
-            if (first || seen >= MIN_SEEN_FOR_SUBJECT_MIX) {
+            // Com o prazo apertado (sem espaço para treino), o simulado de reforço cede ao conteúdo, como o
+            // treino; o diagnóstico entra sempre.
+            if (first || (seen >= MIN_SEEN_FOR_SUBJECT_MIX && practiceRoom > 0)) {
                 val from = if (due.isBefore(input.today)) input.today else due
                 val day = (0 until 7).map { from.plusDays(it.toLong()) }.firstOrNull { it.dayOfWeek == input.heaviestDay } ?: from
                 if (day.isBefore(input.today.plusDays(input.horizonDays.toLong()))) {
