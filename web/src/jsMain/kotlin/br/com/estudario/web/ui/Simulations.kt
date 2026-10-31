@@ -39,14 +39,33 @@ private fun modeIcon(mode: SimulationMode) = when (mode) {
     SimulationMode.REMATCH -> "autorenew"
 }
 
-/** Um número do placar da sala de prova. */
+/** Um número da faixa de números do topo. */
 @Composable
-private fun SimStat(icon: String, value: String, label: String, color: String) {
-    Div({ classes("sim-stat"); attr("style", "--c:$color") }) {
-        Span({ classes("sim-stat-ic") }) { Icon(icon, filled = true) }
-        Div { B { Text(value) }; Span { Text(label) } }
+private fun SimStat(value: String, label: String, tone: String? = null) {
+    Div({ classes(*listOfNotNull("sx-stat", tone).toTypedArray()) }) { B { Text(value) }; Span { Text(label) } }
+}
+
+/** Cabeçalho de seção da página (título curto e, se houver, uma linha de explicação). */
+@Composable
+private fun SimSection(kicker: String, title: String, note: String? = null) {
+    Div({ classes("sx-sec-head") }) {
+        Span({ classes("gx-kicker") }) { Text(kicker) }
+        B { Text(title) }
+        note?.let { P { Text(it) } }
     }
 }
+
+/** Situação de um simulado ainda não entregue, em texto curto. */
+private fun pendingStatus(simulation: Simulation, partsDone: Int, partsTotal: Int): String = when (simulation.status) {
+    "GENERATING" -> if (partsTotal > 0) "Montando… $partsDone de $partsTotal partes prontas" else "Montando…"
+    "PARTIAL" -> "Quase pronto"
+    "READY" -> "Pronto para começar"
+    "IN_PROGRESS" -> "Em andamento · ${simulation.answeredCount}/${simulation.questionCount.takeIf { it > 0 } ?: simulation.plannedQuestions} respondidas"
+    "FAILED" -> "Não deu para montar"
+    else -> ""
+}
+
+private fun isPending(simulation: Simulation) = simulation.status in setOf("GENERATING", "PARTIAL", "READY", "IN_PROGRESS")
 
 @Composable
 fun SimulationsScreen() {
@@ -63,6 +82,9 @@ fun SimulationsScreen() {
     val finished = list.filter { it.status == "FINISHED" }
     var editingProfile by remember { mutableStateOf(false) }
     var studiedSize by remember { mutableStateOf(20) }
+    // O simulado que a pessoa pediu para descartar; o aviso fica no nível da página (fora dos cartões),
+    // senão o Modal herda o transform do cartão e aparece transparente no meio da lista.
+    var discarding by remember { mutableStateOf<Simulation?>(null) }
     // As provas do edital (prova oficial + Simuladões do mês); null enquanto busca.
     var exams by remember(competition.id) { mutableStateOf<List<br.com.estudario.web.data.OfficialSimulation>?>(null) }
     LaunchedEffect(competition.id, competition.name) { exams = br.com.estudario.web.data.Catalog.editalSimulations(competition.name) }
@@ -77,34 +99,35 @@ fun SimulationsScreen() {
         if (!Store.demo) list.filter { it.status == "GENERATING" }.forEach { Simulations.generate(it.id) }
     }
 
-    // A sala de prova: o carro-chefe. Cabeçalho de console com o concurso, a banca, a meta e os números.
+    // A posição no ranking de cada Simuladão já entregue (por id da prova).
+    val finishedExams = finished.mapNotNull { s -> Simulations.examIdOf(data, s.id)?.let { it to s.id } }
+    var rankings by remember(competition.id) { mutableStateOf<Map<String, br.com.estudario.web.data.ExamRanking>>(emptyMap()) }
+    LaunchedEffect(finishedExams) {
+        if (Store.demo) return@LaunchedEffect
+        val found = mutableMapOf<String, br.com.estudario.web.data.ExamRanking>()
+        finishedExams.forEach { (examId, simId) -> try { Simulations.ranking(Store.data, simId)?.let { found[examId] = it } } catch (_: Throwable) { } }
+        rankings = found
+    }
+
     val scoresAll = finished.sortedBy { it.finishedAt ?: it.createdAt }.mapNotNull { it.scorePercent }
     val best = scoresAll.maxOrNull()
     val lastScore = scoresAll.lastOrNull()
-    Div({ classes("gx-panel", "sim-hero") }) {
-        Div({ classes("sim-hero-top") }) {
-            Div({ classes("gx-top-id") }) {
+
+    // 1. Cabeçalho compacto: título, edital, banca e meta, e a faixa de números.
+    Div({ classes("gx-panel", "sx-head") }) {
+        Div({ classes("sx-head-top") }) {
+            Div({ classes("grow") }) {
                 Span({ classes("gx-kicker") }) { Text("SALA DE PROVA") }
                 H2 { Text("Simulados") }
                 P({ classes("gx-topic") }) { Text(competition.name + (profile.board?.let { " · banca $it" } ?: "")) }
             }
             Button({ classes("gx-ghost", "sim-tune"); attr("type", "button"); onClick { editingProfile = true } }) { Icon("tune"); Span { Text("Banca e meta") } }
         }
-        // O placar: a última nota contra a meta, num medidor; e os números ao lado.
-        Div({ classes("sim-board") }) {
-            val gauge = lastScore ?: 0
-            Div({ classes("sim-gauge"); attr("style", "--v:$gauge;--t:${profile.targetPercent}") }) {
-                Div({ classes("sim-gauge-in") }) {
-                    B { Text(lastScore?.let { "$it%" } ?: "—") }
-                    Span { Text(if (lastScore == null) "faça o primeiro" else if (lastScore >= profile.targetPercent) "acima da meta" else "última nota") }
-                }
-            }
-            Div({ classes("sim-stats") }) {
-                SimStat("fact_check", "${finished.size}", if (finished.size == 1) "simulado entregue" else "simulados entregues", "#A78BFF")
-                SimStat("emoji_events", best?.let { "$it%" } ?: "—", "melhor nota", "#FFC94D")
-                SimStat("gps_fixed", "${profile.targetPercent}%", "sua meta de acerto", "#2FD39A")
-                SimStat("trending_up", if (scoresAll.size >= 2) "${if (scoresAll.last() >= scoresAll.first()) "+" else ""}${scoresAll.last() - scoresAll.first()}" else "—", "pontos desde o primeiro", "#22D3EE")
-            }
+        Div({ classes("sx-stats") }) {
+            SimStat("${finished.size}", if (finished.size == 1) "entregue" else "entregues")
+            SimStat(best?.let { "$it%" } ?: "—", "melhor nota")
+            SimStat(lastScore?.let { "$it%" } ?: "—", "última · meta ${profile.targetPercent}%", lastScore?.let { if (it >= profile.targetPercent) "good" else "warn" })
+            SimStat(if (scoresAll.size >= 2) "${if (scoresAll.last() >= scoresAll.first()) "+" else ""}${scoresAll.last() - scoresAll.first()}" else "—", "pontos desde o 1º")
         }
     }
 
@@ -122,128 +145,154 @@ fun SimulationsScreen() {
         }
     }
 
-    // Simuladão do edital: a prova oficial (nº 1) e um Simuladão novo por mês, igual para todos e com
-    // ranking. Feito vira linha do histórico; em andamento, segue na lista dos simulados.
-    Div({ classes("sim-modes") }) {
-        Div({ classes("sim-mode", "featured"); attr("style", "--c:#FFC94D") }) {
-            Div({ classes("sim-mode-head") }) {
-                Span({ classes("sim-mode-ic") }) { Icon("workspace_premium", filled = true) }
-                Div({ classes("grow") }) {
-                    Div({ classes("sim-mode-title") }) { B { Text("Simuladão do edital") }; Span({ classes("sim-tag") }) { Text("RANKING") } }
-                    P { Text("A mesma prova para todos os alunos do edital, no tempo da banca. A primeira é a prova oficial do último concurso; sai um Simuladão novo por mês.") }
-                }
+    // 2. Continuar: o simulado mais recente ainda não entregue, em destaque.
+    list.firstOrNull { isPending(it) }?.let { current ->
+        val parts = Simulations.decodeParts(Simulations.row(data, current.id)?.str("partsJson"))
+        Div({ classes("sx-continue") }) {
+            Span({ classes("sx-continue-ic") }) { Icon(if (current.status == "GENERATING") "hourglass_top" else "play_circle", filled = true) }
+            Div({ classes("grow") }) {
+                Span({ classes("gx-kicker") }) { Text("CONTINUAR") }
+                B { Text(current.title) }
+                P { Text(pendingStatus(current, parts.count { it.status == "DONE" }, parts.size) + " · ${current.timeLimitMinutes} min") }
             }
-            if (exams == null) P({ classes("sim-fine") }) { Text("Buscando as provas do edital…") }
-            else if (exams.isNullOrEmpty()) P({ classes("sim-fine") }) { Text("Este edital ainda não tem Simuladão pronto. Ele aparece aqui assim que sair.") }
-            else Div({ classes("stack") }) {
+            GxLaunch(if (current.status == "IN_PROGRESS") "Continuar" else "Abrir", icon = "play_circle") { Router.go(Route.Simulation(current.id)) }
+        }
+    }
+
+    if (free) {
+        // 6. Grátis: o simulado vem no plano; a aba mostra a oferta dos pagos.
+        Div({ classes("sx-note") }) {
+            Icon("event_note")
+            Div({ classes("grow") }) {
+                B { Text("Seu simulado vem no plano de estudos") }
+                P { Text("Ele aparece como tarefa no dia certo e fica no histórico abaixo.") }
+            }
+            Btn("Abrir o plano", { Router.go(Route.Plan) }, style = "outline", small = true, icon = "arrow_forward")
+        }
+        Button({ classes("sx-upsell"); attr("type", "button"); onClick { freeOffer = true } }) {
+            Span({ classes("sx-upsell-ic") }) { Icon("workspace_premium", filled = true) }
+            Div({ classes("grow") }) {
+                B { Text("Simuladão do edital com ranking") }
+                P { Text("A mesma prova para todos do seu edital, uma nova por mês, e veja à frente de quantos você ficou. Também: simulados do que você estudou, quando quiser.") }
+                Span({ classes("sx-upsell-cta") }) { Text("Conhecer os planos"); Icon("arrow_forward") }
+            }
+        }
+    } else {
+        // 3. Simuladão do edital: a prova oficial (nº 1) e um Simuladão novo por mês, igual para todos e com ranking.
+        Div({ classes("gx-panel", "sx-panel") }) {
+            SimSection("SIMULADÃO DO EDITAL", "Provas do edital", "A mesma prova para todos do seu edital, com ranking. Uma nova por mês.")
+            if (exams == null) P({ classes("gx-note") }) { Text("Buscando as provas do edital…") }
+            else if (exams.isNullOrEmpty()) P({ classes("gx-note") }) { Text("Este edital ainda não tem Simuladão pronto. Ele aparece aqui assim que sair.") }
+            else Div({ classes("sx-list") }) {
                 exams.orEmpty().forEach { prova ->
                     androidx.compose.runtime.key(prova.id) {
                         val taken = list.firstOrNull { Simulations.examIdOf(data, it.id) == prova.id }
-                        if (taken != null) SimulationRow(taken)
-                        else Div({ classes("sim-exam") }) {
-                            Div({ classes("grow") }) {
+                        val minutes = BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)
+                        Div({ classes("sx-exam") }) {
+                            Div({ classes("grow", "sx-exam-info") }) {
                                 B { Text(Simulations.examTitle(prova.number)) }
-                                P({ classes("sim-fine") }) {
-                                    Text("${prova.questions.size} questões · ${BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)} min" +
-                                        if (prova.format == "CERTO_ERRADO") " · regra Cebraspe: cada item errado anula um certo" else "")
+                                Span({ classes("sx-meta") }) {
+                                    Text("${prova.questions.size} questões · $minutes min" + (profile.board?.let { " · $it" } ?: ""))
                                 }
+                                if (prova.format == "CERTO_ERRADO") Span({ classes("sx-meta") }) { Text("Regra Cebraspe: cada item errado anula um certo") }
                             }
-                            GxLaunch("Fazer a prova", icon = "play_circle", enabled = !Store.demo) {
-                                if (free) { freeOffer = true; return@GxLaunch }
-                                try {
-                                    var id = 0L
-                                    Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
-                                    Router.go(Route.Simulation(id))
-                                } catch (e: Throwable) { officialError = e.message }
+                            Div({ classes("sx-exam-act") }) {
+                                when {
+                                    taken == null -> Btn("Fazer a prova", {
+                                        try {
+                                            var id = 0L
+                                            Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
+                                            Router.go(Route.Simulation(id))
+                                        } catch (e: Throwable) { officialError = e.message }
+                                    }, icon = "play_circle", enabled = !Store.demo)
+                                    taken.status == "FINISHED" -> {
+                                        val score = taken.scorePercent ?: 0
+                                        Div({ classes("sx-exam-score") }) {
+                                            Span({ classes("sx-badge", if (score >= profile.targetPercent) "good" else "warn") }) { Text("$score%") }
+                                            rankings[prova.id]?.aheadPercent?.let { Span({ classes("sx-meta") }) { Text("à frente de $it%") } }
+                                        }
+                                        Btn("Ver resultado", { Router.go(Route.Simulation(taken.id)) }, style = "outline", small = true)
+                                    }
+                                    else -> Btn("Continuar", { Router.go(Route.Simulation(taken.id)) }, icon = "play_circle", small = true)
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        // Do que você estudou: só o banco e as questões da própria pessoa (o caminho do simulado do plano).
+
+        // 4. Do que você estudou: só o banco e as questões da própria pessoa.
         val lock = SimulationUnlock.lock(SimulationMode.STUDIED, readiness)
-        Div({ classes(*listOfNotNull("sim-mode", if (!lock.unlocked) "locked" else null).toTypedArray()); attr("style", "--c:#2FD39A") }) {
-            Div({ classes("sim-mode-head") }) {
-                Span({ classes("sim-mode-ic") }) { Icon(if (lock.unlocked) modeIcon(SimulationMode.STUDIED) else "lock", filled = true) }
-                Div({ classes("grow") }) {
-                    Div({ classes("sim-mode-title") }) {
-                        B { Text("Do que você estudou") }
-                        if (!lock.unlocked) Span({ classes("sim-tag", "lock") }) { Text("TRANCADO") }
-                    }
-                    P { Text("Questões prontas do banco e as suas, só dos tópicos que você já estudou. Fica pronto na hora e não usa cota.") }
-                }
-            }
-            Div({ classes("sim-mode-foot") }) {
-                if (lock.unlocked) {
-                    FilterChips(listOf(20 to "20 questões", 30 to "30 questões"), studiedSize) { studiedSize = it }
-                    GxLaunch("Montar simulado", icon = "play_circle", enabled = !Store.demo) {
-                        if (free) { freeOffer = true; return@GxLaunch }
-                        try {
-                            var id = 0L
-                            Store.update { val (next, created) = Simulations.createStudied(it, competition.id, studiedSize); id = created; next }
-                            Simulations.generate(id)
-                            Router.go(Route.Simulation(id))
-                        } catch (e: Throwable) { officialError = e.message }
-                    }
-                } else Div({ classes("sim-lock") }) {
-                    Div({ classes("sim-lock-bar") }) { Span({ attr("style", "width:${(lock.progress * 100).toInt().coerceIn(0, 100)}%") }) }
-                    Span { Text(lock.requirement) }
-                }
+        Div({ classes("gx-panel", "sx-panel") }) {
+            SimSection("DO QUE VOCÊ ESTUDOU", "Simulado dos seus tópicos", "Questões do banco e as suas, só do que você já estudou. Fica pronto na hora.")
+            if (lock.unlocked) Div({ classes("sx-build") }) {
+                FilterChips(listOf(20 to "20 questões", 30 to "30 questões"), studiedSize) { studiedSize = it }
+                Btn("Montar", {
+                    try {
+                        var id = 0L
+                        Store.update { val (next, created) = Simulations.createStudied(it, competition.id, studiedSize); id = created; next }
+                        Simulations.generate(id)
+                        Router.go(Route.Simulation(id))
+                    } catch (e: Throwable) { officialError = e.message }
+                }, icon = "play_circle", enabled = !Store.demo)
+            } else Div({ classes("sim-lock") }) {
+                Div({ classes("sim-lock-bar"); attr("style", "--c:#2FD39A") }) { Span({ attr("style", "width:${(lock.progress * 100).toInt().coerceIn(0, 100)}%") }) }
+                Span { Icon("lock"); Text(" " + lock.requirement) }
             }
         }
     }
     officialError?.let { Div({ classes("banner", "error") }) { Text(it) } }
     if (Store.demo) Div({ classes("banner", "info") }) { Icon("info"); Text("Na demonstração os simulados não são gerados. Entre com sua conta para montar o seu.") }
 
-    if (scoresAll.size >= 2) Div({ classes("gx-panel", "sim-panel") }) {
-        Div({ classes("sim-panel-head") }) { Span({ classes("gx-kicker") }) { Text("SUA EVOLUÇÃO") }; B { Text(scoresAll.let { val first = it.first(); val last = it.last(); when { last > first -> "Você subiu ${last - first} pontos desde o primeiro simulado."; last < first -> "Caiu ${first - last} pontos desde o primeiro. A revisão ajuda a recuperar."; else -> "Nota estável desde o primeiro simulado." } }) } }
+    if (scoresAll.size >= 2) Div({ classes("gx-panel", "sx-panel") }) {
+        SimSection("SUA EVOLUÇÃO", scoresAll.let { val first = it.first(); val last = it.last(); when { last > first -> "Você subiu ${last - first} pontos desde o primeiro simulado."; last < first -> "Caiu ${first - last} pontos desde o primeiro. A revisão ajuda a recuperar."; else -> "Nota estável desde o primeiro simulado." } })
         EvolutionChart(scoresAll, profile.targetPercent)
         P({ classes("gx-note") }) { Text("Linha tracejada: sua meta de ${profile.targetPercent}%") }
     }
 
-    if (list.isNotEmpty()) Div({ classes("gx-panel", "sim-panel") }) {
-        Div({ classes("sim-panel-head") }) { Span({ classes("gx-kicker") }) { Text("HISTÓRICO") }; B { Text("Seus simulados") } }
-        Div({ classes("stack") }) {
-            list.forEach { simulation -> androidx.compose.runtime.key(simulation.id) { SimulationRow(simulation) } }
+    // 5. Histórico: todos os simulados, do mais novo ao mais antigo.
+    Div({ classes("gx-panel", "sx-panel") }) {
+        SimSection("HISTÓRICO", "Seus simulados")
+        if (list.isEmpty()) P({ classes("gx-note") }) { Text(if (free) "Quando você fizer o simulado do plano, ele aparece aqui." else "Nenhum simulado ainda. Comece por uma prova do edital.") }
+        else Div({ classes("sx-list") }) {
+            list.forEach { simulation -> androidx.compose.runtime.key(simulation.id) { SimulationRow(simulation, profile.targetPercent) { discarding = simulation } } }
         }
     }
 
+    discarding?.let { simulation ->
+        Modal(onDismiss = { discarding = null }) {
+            H2 { Text("Descartar este simulado?") }
+            P({ classes("muted") }) { Text(if (simulation.mode == Simulations.OFFICIAL_MODE) "As respostas dele somem e a prova volta a aparecer no Simuladão do edital. No ranking, vale só a primeira entrega." else "As questões e as respostas dele somem. Não dá para desfazer.") }
+            Div({ classes("row", "end", "sx-modal-actions") }) {
+                Btn("Manter", { discarding = null }, style = "ghost")
+                Btn("Descartar", { discarding = null; Store.update { Simulations.delete(it, simulation.id) } }, style = "danger", icon = "delete")
+            }
+        }
+    }
     if (editingProfile) ProfileDialog(competition.id, profile.board, profile.targetPercent) { editingProfile = false }
 }
 
+/** Uma linha do histórico: abre o simulado; a lixeira fica dentro da linha. */
 @Composable
-private fun SimulationRow(simulation: Simulation) {
+private fun SimulationRow(simulation: Simulation, target: Int, onDiscard: () -> Unit) {
     val parts = Simulations.decodeParts(Simulations.row(Store.data, simulation.id)?.str("partsJson"))
-    var confirming by remember(simulation.id) { mutableStateOf(false) }
-    if (confirming) Modal(onDismiss = { confirming = false }) {
-        H2 { Text("Descartar este simulado?") }
-        P({ classes("muted") }) { Text(if (simulation.mode == Simulations.OFFICIAL_MODE) "As questões dele somem. A prova volta a aparecer no Simuladão do edital para você fazer de novo (no ranking, vale só a primeira entrega)." else "As questões dele somem. A cota já usada não volta.") }
-        Div({ classes("row", "between") }) {
-            Btn("Manter", { confirming = false }, style = "ghost")
-            Btn("Descartar", { confirming = false; Store.update { Simulations.delete(it, simulation.id) } }, style = "danger", icon = "delete")
-        }
-    }
-    Div({ classes("sim-row") }) {
-    Button({ classes("task"); onClick { Router.go(Route.Simulation(simulation.id)) } }) {
-        Span({ classes("task-mark"); attr("style", "background:rgba(167,139,255,.18);color:#C9BEFF") }) { Icon("timer") }
-        Div({ classes("task-body") }) {
-            Div({ classes("task-title") }) { Text(simulation.title) }
-            Div({ classes("task-meta") }) {
-                Text("${Queries.shortDate(Queries.dateOf(simulation.createdAt))} · ${simulation.timeLimitMinutes} min")
-                if (simulation.status == "GENERATING") Text(" · ${parts.count { it.status == "DONE" }} de ${parts.size} partes prontas")
+    Div({ classes("sx-row") }) {
+        Button({ classes("sx-row-main"); attr("type", "button"); onClick { Router.go(Route.Simulation(simulation.id)) } }) {
+            Div({ classes("sx-row-body") }) {
+                B { Text(simulation.title) }
+                Span({ classes("sx-meta") }) {
+                    Text("${Queries.shortDate(Queries.dateOf(simulation.createdAt))} · ${simulation.timeLimitMinutes} min")
+                    if (simulation.status != "FINISHED") Text(" · " + pendingStatus(simulation, parts.count { it.status == "DONE" }, parts.size))
+                }
+            }
+            when (simulation.status) {
+                "FINISHED" -> { val s = simulation.scorePercent ?: 0; Span({ classes("sx-badge", if (s >= target) "good" else "warn") }) { Text("$s%") } }
+                "FAILED" -> Span({ classes("sx-badge", "bad") }) { Text("Falhou") }
+                else -> Span({ classes("sx-badge", "info") }) { Text(if (simulation.status == "IN_PROGRESS") "Em andamento" else if (simulation.status == "GENERATING") "Montando" else "Pronto") }
             }
         }
-        when (simulation.status) {
-            "FINISHED" -> Chip("${simulation.scorePercent ?: 0}%", if ((simulation.scorePercent ?: 0) >= 70) "green" else "amber")
-            "IN_PROGRESS" -> Chip("Em andamento", "amber")
-            "READY" -> Chip("Pronto", "primary")
-            "PARTIAL" -> Chip("Quase pronto", "amber")
-            "GENERATING" -> Chip("Gerando…", "primary")
-            else -> Chip("Falhou", "red")
-        }
-    }
-    IconButton("delete", "Descartar simulado") { confirming = true }
+        IconButton("delete", "Descartar simulado") { onDiscard() }
     }
 }
 
