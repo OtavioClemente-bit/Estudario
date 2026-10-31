@@ -18,6 +18,12 @@
    (`agy -p`) que um modelo escreva lotes inteiros de questões para recortes existentes e que outro modelo
    audite cada lote. O script só envia o pedido, grava a resposta, confere, descarta os itens apontados e
    junta os aprovados ao recorte; nunca escreve, completa, embaralha nem "equilibra" questões por conta própria.
+   **Quarta exceção autorizada (31/10/2026):** `scripts/simuladao/montar.ts` monta o Simuladão do mês de
+   cada edital (`conteudo/simulados/<edital>.simulado-N.json`, N ≥ 2) escolhendo questões já publicadas e
+   conferidas dos recortes, na mesma estrutura do simulado 1 do edital (disciplina, matéria, formato e
+   dificuldade de cada posição), sem repetir questão de simulados anteriores do mesmo edital. Não escreve,
+   não altera nem completa o texto de nenhuma questão; posição sem questão disponível fica de fora e, se
+   faltar mais de 5%, o simulado não é gravado.
 2. **Salve os arquivos em `conteudo/entrada/`** (a matéria e o recorte). Nunca grave em
    `conteudo/materias/`, `conteudo/recortes/` nem `conteudo/editais/`: essas pastas são conferidas e
    publicadas por outro processo.
