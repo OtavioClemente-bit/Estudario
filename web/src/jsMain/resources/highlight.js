@@ -144,9 +144,12 @@
       const quote = piece.toString().replace(/\s+/g, " ").trim();
       if (quote.length >= 3) parts.push({ block: b, quote: quote.slice(0, 1200) });
     }
-    if (parts.length === 0 || parts.length > 12) return null;
+    if (parts.length === 0 || parts.length > 40) return null;
     const rect = range.getBoundingClientRect();
-    const top = rect.top < 60 ? Math.max(60, rect.top) : rect.top;
+    // A barra fica sempre na tela: seleção comprida, com o começo lá em cima (rolou para baixo) ou o fim
+    // lá embaixo, deixa a barra logo abaixo da barra do topo ou no pé da tela, e não escondida.
+    const bar = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--topbar-h"), 10) || 60;
+    const top = Math.min(window.innerHeight - 8, Math.max(bar + 118, rect.top));
     return { theoryId: first.theoryId, block: parts[0].block, quote: parts.map((p) => p.quote).join(" … "), parts, x: rect.left + rect.width / 2, y: top };
   };
 })();

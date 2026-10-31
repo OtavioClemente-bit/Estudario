@@ -414,7 +414,8 @@ for (let i = 0; i < noteDiff.send.length; i += 25) {
   for (const row of noteDiff.send.slice(i, i + 25)) {
     const path = notePath(String(row.topic_id), String(row.board_norm), String(row.role_norm), row.note);
     await uploadLibraryFile(url!, key!, path, row.note);
-    batch.push({ ...row, note: null, note_path: path });
+    // O número de questões vai junto: o painel da Cobertura soma os recortes por ele (o recorte mora no arquivo).
+    batch.push({ ...row, note: null, note_path: path, question_count: Array.isArray((row.note as Json).questions) ? ((row.note as Json).questions as unknown[]).length : 0 });
   }
   await rest("library_board_notes?on_conflict=topic_id,board_norm,role_norm", "POST", batch, "resolution=merge-duplicates,return=minimal");
 }
