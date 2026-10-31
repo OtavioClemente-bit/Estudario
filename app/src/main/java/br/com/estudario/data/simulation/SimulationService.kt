@@ -141,14 +141,16 @@ class SimulationService(
             }
     }
 
-    suspend fun readiness(competitionId: Long): SimulationReadiness {
+    // Em segundo plano: lê as teorias, as tentativas e as sessões do aparelho todas; na linha da tela isso
+    // segurava a aba Simulados ao abrir.
+    suspend fun readiness(competitionId: Long): SimulationReadiness = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
         val leaves = leafTopics(competitionId)
         val zone = ZoneId.of("America/Sao_Paulo")
         val days = (appDao.attemptsOnce().map { it.answeredAt } + appDao.sessionsOnce().map { it.completedAt })
             .map { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
             .toSet()
         val finished = dao.simulationsOnce().filter { it.competitionId == competitionId && it.status == "FINISHED" }
-        return SimulationReadiness(
+        SimulationReadiness(
             leafTopics = leaves.size,
             studiedTopics = leaves.count { it.studied },
             coveredTopics = leaves.count { it.studied || it.hasContent },
@@ -360,7 +362,8 @@ class SimulationService(
         if (!catalog.isConfigured) return emptyList()
         val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return emptyList()
         val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken()
-        return runCatching { catalog.editalSimulations(catalogId, token) }.getOrDefault(emptyList())
+        // A decodificação (centenas de questões por prova) fora da linha da tela.
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { catalog.editalSimulations(catalogId, token) }.getOrDefault(emptyList()) }
     }
 
     /** O id da prova do edital por trás de um simulado (null quando não é Simuladão nem prova oficial). */

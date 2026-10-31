@@ -111,7 +111,7 @@ private const val PREFS = "estudario_caderno"
 
 /** Os tópicos estudados do concurso principal, com o que cada um tem, no formato do StudyNotebook. */
 @Composable
-private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.Topic> {
+private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.Topic>? {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
     val topics by viewModel.topics.collectAsState()
@@ -121,7 +121,9 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
     val summaries by viewModel.summaries.collectAsState()
     val notes by viewModel.notes.collectAsState()
     val errors by viewModel.errors.collectAsState()
-    return remember(competitions, subjects, topics, theories, marks, snippets, summaries, notes, errors) {
+    // Em segundo plano: montar as páginas lê a teoria dos tópicos para restaurar os grifos, e na linha da
+    // tela isso parava o app uns 2 segundos ao abrir o Caderno. null enquanto monta.
+    val built by androidx.compose.runtime.produceState<List<StudyNotebook.Topic>?>(null, competitions, subjects, topics, theories, marks, snippets, summaries, notes, errors) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
         val primary = competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull()
         val subjectIds = subjects.filter { primary == null || it.competitionId == primary.id }.mapTo(hashSetOf()) { it.id }
         val parents = topics.mapNotNullTo(hashSetOf()) { it.parentTopicId }
@@ -143,12 +145,13 @@ private fun rememberNotebookTopics(viewModel: AppViewModel): List<StudyNotebook.
                 tips = mine.filter { it.kind == SnippetKind.BIZU }.map { it.text },
                 traps = mine.filter { it.kind == SnippetKind.PEGADINHA }.map { it.text },
                 recall = mine.filter { it.kind == SnippetKind.RECUPERACAO && !it.answer.isNullOrBlank() }.map { it.text to it.answer!! } + quickCards,
-                marks = theoriesByTopic[t.id].orEmpty().flatMap { th -> val b = br.com.estudario.ui.components.studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b, it.blockIndex)) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }.map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
+                marks = theoriesByTopic[t.id].orEmpty().filter { th -> marksByTheory[th.id].orEmpty().isNotEmpty() }.flatMap { th -> val b = br.com.estudario.ui.components.studyBlocks(th.markdown); marksByTheory[th.id].orEmpty().map { it.copy(quote = StudyNotebook.restoreQuote(it.quote, b, it.blockIndex)) } }.filter { it.quote.isNotBlank() }.distinctBy { it.quote }.map { StudyNotebook.Mark(it.quote, it.note, it.createdAt) },
                 wrongQuestions = wrongByTopic[t.id].orEmpty().map { it.entry.questionId },
                 notes = notesByTopic[t.id].orEmpty().map { it.text },
             )
         }
-    }
+    } }
+    return built
 }
 
 private fun daySeed(): Long = LocalDate.now().toEpochDay()
@@ -252,7 +255,7 @@ private val CodeBg = Color(0x225B4BE8)
 
 @Composable
 fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Long) -> Unit, onSaved: () -> Unit, onEdital: () -> Unit) {
-    val topics = rememberNotebookTopics(viewModel)
+    val topics = rememberNotebookTopics(viewModel) ?: run { NotebookLoading(); return }
     val subjects by viewModel.subjects.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val now = remember { System.currentTimeMillis() }
@@ -334,7 +337,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
 
 @Composable
 fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Long) -> Unit) {
-    val topics = rememberNotebookTopics(viewModel)
+    val topics = rememberNotebookTopics(viewModel) ?: run { NotebookLoading(); return }
     val subjects by viewModel.subjects.collectAsState()
     val now = remember { System.currentTimeMillis() }
     // a lista é fixada na primeira leitura com tópicos: responder a questão não troca as páginas
@@ -500,7 +503,7 @@ private fun ColumnScope.FlipQuestion(viewModel: AppViewModel, questionId: Long, 
 
 @Composable
 fun NotebookPageScreen(viewModel: AppViewModel, topicId: Long, onBack: () -> Unit, onTheory: (Long) -> Unit, onTrain: (Long) -> Unit) {
-    val topics = rememberNotebookTopics(viewModel)
+    val topics = rememberNotebookTopics(viewModel) ?: run { NotebookLoading(); return }
     val subjects by viewModel.subjects.collectAsState()
     val questions by viewModel.questions.collectAsState()
     val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
@@ -608,5 +611,16 @@ fun NotebookTabs(saved: Boolean, onNotebook: () -> Unit, onSaved: () -> Unit, vi
         }
         Tab(!saved, "Caderno", Icons.Outlined.AutoStories, 0, onNotebook)
         Tab(saved, "Grifos e salvos", Icons.Outlined.Bookmarks, count, onSaved)
+    }
+}
+
+/** Enquanto as páginas do caderno são montadas (em segundo plano). */
+@Composable
+private fun NotebookLoading() {
+    Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+            Text("Abrindo seu caderno…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
