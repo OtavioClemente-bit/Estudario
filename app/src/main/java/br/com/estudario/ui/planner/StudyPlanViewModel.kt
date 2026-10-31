@@ -48,7 +48,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             // As tarefas também disparam a releitura: a reorganização do dia (ao abrir o app) troca as tarefas
             // depois da primeira leitura, e a missão do dia só aparecia ao sair e voltar da tela.
-            val taskChanges = app.database.plannerDao().tasks().map { list -> list.size to list.sumOf { it.updatedAt } }.distinctUntilChanged()
+            val taskChanges = app.database.plannerDao().tasks().map { list -> list.hashCode() }.distinctUntilChanged()
             combine(repository.plans, competitions, selected, taskChanges) { plans, contests, section, _ -> Triple(plans, contests, section) }
                 .debounce(150)
                 .collectLatest { (plans, contests, section) ->
@@ -65,16 +65,20 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
                         if (current.activePlan?.id == plan.id) current.copy(loading = true, selectedSection = section, allPlans = plans)
                         else ActivePlanUiState(loading = true, selectedSection = section, activePlan = plan, allPlans = plans, message = current.message)
                     }
-                    val loaded = withContext(Dispatchers.Default) { load(plan.id, plans, section) }
+                    val (loaded, roadmap) = withContext(Dispatchers.Default) { load(plan.id, plans, section) }
                     _state.update { loaded.copy(message = it.message) }
+                    // O mapa do edital simula o plano inteiro até a prova (segundos com muito histórico):
+                    // vem depois, para a missão do dia e o plano aparecerem na hora.
+                    val projection = withContext(Dispatchers.Default) { runCatching { roadmap() }.getOrNull() } ?: return@collectLatest
+                    _state.update { if (it.activePlan?.id != loaded.activePlan?.id) it else it.copy(roadmap = projection.first, forecastDate = projection.second?.toJavaLocalDate() ?: it.forecastDate) }
                 }
         }
     }
 
-    private suspend fun load(planId: String, plans: List<br.com.estudario.data.local.planner.StudyPlanEntity>, section: PlanSection): ActivePlanUiState {
+    private suspend fun load(planId: String, plans: List<br.com.estudario.data.local.planner.StudyPlanEntity>, section: PlanSection): Pair<ActivePlanUiState, suspend () -> Pair<br.com.estudario.domain.planner.EditalRoadmapResult, KDate?>> {
         service.normalizeQuestionTaskEstimates(planId)
         service.removeEngineTasksFromImportedPlan(planId)
-        val plan = repository.plan(planId) ?: return ActivePlanUiState(allPlans = plans, selectedSection = section)
+        val plan = repository.plan(planId) ?: return ActivePlanUiState(allPlans = plans, selectedSection = section) to { error("sem plano") }
         val availability = repository.availabilityOnce(planId)
         val mapped = StudyPlanUiMapper.map(
             plan = plan,
@@ -109,12 +113,11 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             val accuracy = if (attempts.isEmpty()) 100 else attempts.count { it.correct } * 100 / attempts.size
             if (attempts.size >= 10 && accuracy < 65) ContextWeakTopic(topics[topicId]?.title ?: return@mapNotNull null, accuracy, attempts.size) else null
         }.sortedBy { it.accuracyPercent }
-        val projection = runCatching { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }.getOrNull()
-        val roadmap = projection?.first
         // A previsão é do edital inteiro (a projeção), não só das tarefas já marcadas: o plano é
         // rolante (4 semanas), e a conta antiga dizia "edital fechado em 4 semanas" faltando meses.
-        val forecastDate = projection?.second ?: forecast.estimatedDate
-        return mapped.copy(forecastDate = forecastDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = roadmap)
+        // Até o mapa chegar, fica a conta das tarefas marcadas (e o mapa anterior, se já havia um).
+        val previous = _state.value.takeIf { it.activePlan?.id == planId }
+        return mapped.copy(forecastDate = previous?.forecastDate ?: forecast.estimatedDate?.toJavaLocalDate(), masterAlerts = alerts, weakTopics = weakTopics, methodNotes = methodNotes, roadmap = previous?.roadmap) to { roadmapFor(plan, weeklyCapacity, mapped.planSubjects) }
     }
 
     private val roadmapPrefs = app.getSharedPreferences("plan_roadmap", android.content.Context.MODE_PRIVATE)

@@ -198,8 +198,11 @@
       if (this._c.width !== w || this._c.height !== h) { this._c.width = w; this._c.height = h; this._glow.width = Math.ceil(w / 4); this._glow.height = Math.ceil(h / 4); this._fire.width = Math.ceil(w * .4); this._fire.height = Math.ceil(h * .4); this._soft.width = this._glow.width; this._soft.height = this._glow.height; }
     }
     _loop() {
-      let odd = false;
-      const step = () => { odd = !odd; if (odd) this._frame(); if (!reduced.matches) this._raf = requestAnimationFrame(step); };
+
+      // 60 quadros na hora de acordar; depois que o fogo estabiliza (2,5 s), 30: a chama continua viva e o
+      // celular desenha metade (em tela de 120 Hz a fênix era a comemoração mais pesada).
+      let last = 0; const born = performance.now();
+      const step = (now) => { const gap = now - born > 2500 ? 31 : 14; if (now - last >= gap) { last = now; this._frame(); } if (!reduced.matches) this._raf = requestAnimationFrame(step); };
       this._raf = requestAnimationFrame(step);
     }
     _frame() {
@@ -268,8 +271,10 @@
         view(gg, .25); gg.globalCompositeOperation = "lighter"; 
         for (const f of feathers) { if (f.covert || f.thin) continue; gg.fillStyle = `rgba(255,${f.bright ? 80 : 45},15,${.4 * e})`; gg.fill(strip(f.c, f.w, f.seed, time, 1, 1.8)); }
         g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "lighter";
-        const sg = this._sg; sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, this._soft.width, this._soft.height);
-        sg.filter = "blur(4px)"; sg.drawImage(this._glow, 0, 0); sg.filter = "none";
+        const sg = this._sg;
+        // O borrado (o mais caro) é refeito a cada dois quadros; no outro, reaproveita o de antes.
+        this._blurTick = !this._blurTick;
+        if (this._blurTick) { sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, this._soft.width, this._soft.height); sg.filter = "blur(4px)"; sg.drawImage(this._glow, 0, 0); sg.filter = "none"; }
         g.drawImage(this._soft, 0, 0, W, H); g.restore();
         g.save(); view(g, 1);
         // halo atrás do corpo, suave

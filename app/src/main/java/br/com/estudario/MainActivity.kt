@@ -76,6 +76,16 @@ class MainActivity : ComponentActivity() {
         // A splash do sistema sai no primeiro quadro, sem animação de saída: a abertura em Compose
         // começa na mesma cor, com o livro no mesmo lugar, e segura a tela até o app estar pronto.
         splashScreen.setOnExitAnimationListener { it.remove() }
+        // As comemorações (fênix, forja do emblema, nível) desenham numa WebView, e a primeira WebView do
+        // processo carrega o navegador do Android: centenas de milissegundos com a tela parada, bem na hora
+        // da comemoração. Uma vez, alguns segundos depois de abrir e com o app ocioso, ela é carregada antes.
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(6_000)
+            android.os.Looper.myQueue().addIdleHandler {
+                runCatching { android.webkit.WebView(this@MainActivity).destroy() }
+                false
+            }
+        }
         val coldStart = savedInstanceState == null
         setContent {
             var showSplash by rememberSaveable { mutableStateOf(coldStart) }
@@ -90,12 +100,12 @@ class MainActivity : ComponentActivity() {
                 mountApp = true
             }
             // Prancha das seis faixas e ícones do perfil, somente em debug/preview.
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("profileArtShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("profileArtShowcase", false) == true) {
                 br.com.estudario.ui.profile.ProfileArtShowcase(intent!!.getBooleanExtra("dark", false))
                 return@setContent
             }
             // Perfil demonstrativo (só debug/preview), sem alterar os dados do usuário.
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("profileShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("profileShowcase", false) == true) {
                 br.com.estudario.ui.profile.ProfileShowcase(
                     dark = intent!!.getBooleanExtra("dark", false),
                     emptyStreak = intent!!.getBooleanExtra("emptyStreak", false),
@@ -106,35 +116,35 @@ class MainActivity : ComponentActivity() {
                 return@setContent
             }
             // Vitrine do Folha (só debug/preview): `--ez folhaShowcase true`, para ver todos os humores sem login.
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("folhaShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("folhaShowcase", false) == true) {
                 br.com.estudario.ui.assistant.FolhaShowcase()
                 return@setContent
             }
             // Vitrines da tela de geração e das medalhas (só debug/preview): `--ez loaderShowcase true` / `--ez badgeShowcase true`.
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("loaderShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("loaderShowcase", false) == true) {
                 br.com.estudario.ui.components.LoaderShowcase(intent?.getStringExtra("scene"))
                 return@setContent
             }
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("focusDoneShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("focusDoneShowcase", false) == true) {
                 br.com.estudario.ui.components.FocusTimeUpShowcase()
                 return@setContent
             }
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("levelUpShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("levelUpShowcase", false) == true) {
                 br.com.estudario.ui.components.LevelUpShowcase()
                 return@setContent
             }
             // Leitor da primeira teoria (só debug/preview, depois do seedDemo): `--ez readerShowcase true`, para testar grifos.
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("readerShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("readerShowcase", false) == true) {
                 val theories by viewModel.theories.collectAsState()
                 theories.firstOrNull()?.let { br.com.estudario.ui.screens.TheoryReaderScreen(viewModel, it.id, showInternalTopBar = false, onBack = {}) }
                 return@setContent
             }
             // Comemorações (só debug/preview): `--es celebrationShowcase emblema|nivel|sequencia|peca` (+ `--ei tier 1..6`).
-            if (BuildConfig.DEBUG && intent?.getStringExtra("celebrationShowcase") != null) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getStringExtra("celebrationShowcase") != null) {
                 br.com.estudario.ui.components.CelebrationShowcase(intent!!.getStringExtra("celebrationShowcase")!!, intent!!.getIntExtra("tier", 3), intent!!.getStringExtra("item"))
                 return@setContent
             }
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("badgeShowcase", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("badgeShowcase", false) == true) {
                 br.com.estudario.ui.components.BadgeShowcase()
                 return@setContent
             }
@@ -150,9 +160,18 @@ class MainActivity : ComponentActivity() {
             handleIncomingFile(intent)
             handleNotification(intent)
             handleWidgetAction(intent)
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("seedDemo", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("seedDemo", false) == true) {
                 val app = application as EstudarioApplication
                 lifecycleScope.launch { br.com.estudario.data.DebugSeed.run(app.database, app.repository) }
+            }
+            // Massa de teste pesada, como a de quem estuda há seis semanas: `--ez seedReal true`.
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("seedReal", false) == true) {
+                val app = application as EstudarioApplication
+                lifecycleScope.launch {
+                    val message = runCatching { br.com.estudario.data.RealSeed.run(app) }
+                        .fold({ "Dados de teste carregados" }, { "Falha ao carregar dados de teste: ${it.message}" })
+                    android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
