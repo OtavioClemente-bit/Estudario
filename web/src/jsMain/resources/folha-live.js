@@ -4489,7 +4489,8 @@
         if ("ResizeObserver" in window) { this._ro = new ResizeObserver(() => this._size()); this._ro.observe(this); }
       }
       this._restart(); this._size();
-      const loop = (now) => { if (!this.isConnected) return; this._frame(now); this._raf = requestAnimationFrame(loop); };
+      // No máximo 60 quadros por segundo: em tela de 120 Hz a cena desenhava o dobro, sem ganho visível, e pesava no celular.
+      const loop = (now) => { if (!this.isConnected) return; if (!this._last || now - this._last >= 14) { this._last = now; this._frame(now); } this._raf = requestAnimationFrame(loop); };
       cancelAnimationFrame(this._raf); this._raf = requestAnimationFrame(loop);
     }
     disconnectedCallback() { cancelAnimationFrame(this._raf); }
@@ -4537,7 +4538,7 @@
     _look(over) { return resolveLook(null, Object.assign({ plain: true }, over || {})); }
     _size() {
       if (!this._canvas) return;
-      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, this._lite ? 1.25 : 2.5);
+      const attr = parseInt(this.getAttribute("size") || "0", 10), w = attr || this.clientWidth || 320, dpr = Math.min(window.devicePixelRatio || 1, this._lite ? 1.25 : 1.75); // 1,75: a cena é animação; 2,5 desenhava o dobro de pixels por quadro e travava no celular
       if (attr) { this.style.width = w + "px"; }
       const h = Math.round(w * CENA_H / 100);
       this.style.height = h + "px";
@@ -4626,7 +4627,8 @@
         this._canvas.addEventListener("pointerup", up); this._canvas.addEventListener("pointercancel", up);
       }
       this._size();
-      const loop = (now) => { if (!this.isConnected) return; this._frame(now); this._raf = requestAnimationFrame(loop); };
+      // No máximo 60 quadros por segundo: em tela de 120 Hz a cena desenhava o dobro, sem ganho visível, e pesava no celular.
+      const loop = (now) => { if (!this.isConnected) return; if (!this._last || now - this._last >= 14) { this._last = now; this._frame(now); } this._raf = requestAnimationFrame(loop); };
       this._raf = requestAnimationFrame(loop);
     }
     disconnectedCallback() { cancelAnimationFrame(this._raf); }

@@ -210,7 +210,8 @@ internal fun GameScene(
                 if (backdrop != null) Box(Modifier.requiredSize(stageSize * 2.6f), contentAlignment = Alignment.Center) { backdrop(stageSize, t) }
                 Box(Modifier.size(stageSize + 30.dp).offset(y = (stageSize + 30.dp) * stageTall * fxShift), contentAlignment = Alignment.Center) {
                     // halo
-                    val haloA = seg(t, IMPACT, 0.5f)
+                    // com a cena do Folha no fundo o halo cobria a arte do emblema e a deixava apagada
+                    val haloA = if (backdrop != null) 0f else seg(t, IMPACT, 0.5f)
                     if (haloA > 0f) Box(Modifier.size(stageSize).graphicsLayer { alpha = haloA * (0.75f + 0.25f * bob); scaleX = 0.95f + 0.1f * bob; scaleY = scaleX }
                         .background(Brush.radialGradient(listOf(c2.copy(alpha = 0.7f), Color.Transparent)), CircleShape))
                     // ondas e faíscas
@@ -218,16 +219,22 @@ internal fun GameScene(
                         val ctr = Offset(size.width / 2, size.height / 2)
                         for (i in 0 until 3) {
                             val p = seg(t, IMPACT + 0.03f + i * 0.14f, 0.9f)
-                            if (p in 0.001f..0.999f) drawCircle(c1.copy(alpha = 0.95f * (1f - p)), size.minDimension * 0.42f * (0.35f + 1.95f * easeOut(p)), ctr, style = Stroke((3f * (1f - p) + 1f).dp.toPx()))
+                            // onda suave: mais fina e mais transparente (a de antes brigava com a medalha)
+                            if (p in 0.001f..0.999f) drawCircle(c1.copy(alpha = 0.55f * (1f - p) * (1f - p)), size.minDimension * 0.42f * (0.35f + 1.95f * easeOut(p)), ctr, style = Stroke((2f * (1f - p) + 0.6f).dp.toPx()))
                         }
                         sparks.forEachIndexed { i, (r, s, dl) ->
                             val p = seg(t, IMPACT + 0.01f + dl, 0.85f)
                             if (p in 0.001f..0.999f) {
                                 val a = (i * 360f / sparks.size) * PI.toFloat() / 180f
                                 val d = (20f + (r - 20f) * easeOut(p)).dp.toPx()
-                                val len = (s * 2.4f * (1.4f - p)).dp.toPx()
+                                // Faísca redonda e brilhante na cor da conquista, com um rastro curto que some
+                                // (antes eram traços brancos retos, que pareciam um anel de "carregando").
                                 val dir = Offset(cos(a), sin(a))
-                                drawLine(lerp(Color.White, c1, p).copy(alpha = 1f - p), ctr + dir * d, ctr + dir * (d + len), s.dp.toPx() * 0.6f, cap = StrokeCap.Round)
+                                val head = ctr + dir * d
+                                val dot = (s * 0.55f * (1.15f - p)).dp.toPx()
+                                drawCircle(c1.copy(alpha = 0.22f * (1f - p)), dot * 2.4f, head)
+                                drawCircle(lerp(Color(0xFFFFFBE8), c1, p).copy(alpha = (1f - p) * 0.95f), dot, head)
+                                drawLine(c2.copy(alpha = 0.35f * (1f - p)), head - dir * (dot * 4f), head, dot * 0.9f, cap = StrokeCap.Round)
                             }
                         }
                     }
@@ -268,6 +275,19 @@ internal fun GameScene(
                     }
                     stageExtra?.invoke(this, t, stageSize)
                 }
+                }
+                // quando a cena já tem o Folha, a fala sai dele mesmo, num balão logo abaixo
+                if (backdrop != null) Appear(t, 2.7f) {
+                    Column(Modifier.widthIn(max = 360.dp).offset(y = (-6).dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Canvas(Modifier.size(18.dp, 9.dp)) {
+                            drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(size.width / 2, 0f); lineTo(size.width, size.height); lineTo(0f, size.height); close() }, Color.White)
+                        }
+                        Text(
+                            line,
+                            Modifier.clip(RoundedCornerShape(16.dp)).background(Color.White).padding(horizontal = 14.dp, vertical = 9.dp),
+                            textAlign = TextAlign.Center, color = Color(0xFF1A1440), fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 19.sp,
+                        )
+                    }
                 }
                 // letreiro
                 Appear(t, 0.2f) {
@@ -319,7 +339,7 @@ internal fun GameScene(
                     }
                 }
                 // o Folha
-                Appear(t, 2.7f) {
+                if (backdrop == null) Appear(t, 2.7f) {
                     Row(Modifier.widthIn(max = 420.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (folhaInLine) Folha(56.dp, mood = folhaMood)
                         Text(
@@ -420,19 +440,46 @@ private fun SleepZ(size: androidx.compose.ui.unit.Dp) {
 }
 
 
-/** O redemoinho: um pontinho preto que gira cada vez mais rápido e cresce até o clarão. */
+/**
+ * O redemoinho: brasas que giram em espiral e afunilam para o centro, cada vez mais rápido, sobre um
+ * brilho quente que cresce até o clarão. (Antes eram fatias roxas e pretas de bordas duras, que pareciam
+ * um cata-vento de papel.)
+ */
 @Composable
 private fun BoxScope.Vortex(t: Float, size: androidx.compose.ui.unit.Dp) {
     val p = seg(t, 0.2f, 0.82f)
-    if (t >= IMPACT + 0.1f) return
+    if (t >= IMPACT + 0.1f || p <= 0f) return
     Canvas(Modifier.size(size).align(Alignment.Center)) {
-        val scale = 0.035f + (1.5f - 0.035f) * (p * p)
-        val r = this.size.minDimension * 0.42f * scale
-        val alpha = if (p > 0.92f) ((1f - p) / 0.08f).coerceIn(0f, 1f) else 1f
-        rotate(1700f * p * p) {
-            for (i in 0 until 12) drawArc(if (i % 2 == 0) Color(0xFF0B0618).copy(alpha = alpha) else Color(0xFF3B1E55).copy(alpha = alpha), i * 30f, 22f, true, topLeft = center - Offset(r, r), size = androidx.compose.ui.geometry.Size(r * 2, r * 2))
+        val maxR = this.size.minDimension * 0.46f
+        val fade = if (p > 0.9f) ((1f - p) / 0.1f).coerceIn(0f, 1f) else (p * 4f).coerceAtMost(1f)
+        // brilho quente que cresce e esquenta até o clarão
+        val glowR = maxR * (0.35f + 0.75f * p)
+        drawCircle(
+            Brush.radialGradient(
+                listOf(Color(0xFFFFC46B).copy(alpha = 0.55f * p * fade), Color(0xFFFF6A1A).copy(alpha = 0.28f * fade), Color.Transparent),
+                center = center, radius = glowR,
+            ),
+            glowR, center,
+        )
+        // o giro acelera com o tempo
+        val spin = 900f * p * p
+        // três braços em espiral, como uma galáxia girando: cada brasa nasce na borda e desce até o olho
+        val arms = 3
+        val perArm = 22
+        for (i in 0 until arms * perArm) {
+            val arm = i % arms
+            val k = i / arms
+            val life = ((p * 1.8f + k.toFloat() / perArm) % 1f)
+            val r = maxR * (1f - life) * (0.6f + 0.4f * p)
+            val a = ((arm * 120f + spin + life * 320f) * PI.toFloat() / 180f)
+            val pos = center + Offset(cos(a) * r, sin(a) * r)
+            val dot = (1.1f + 2.6f * (1f - life) * (0.5f + p)).dp.toPx()
+            val c = lerp(Color(0xFFFFE7A8), Color(0xFFFF5A1A), life)
+            drawCircle(c.copy(alpha = fade * (0.3f + 0.7f * (1f - life))), dot, pos)
         }
-        drawCircle(Color(0xFF05030C).copy(alpha = alpha), r * 0.34f, center)
+        // olho escuro com borda acesa no centro, que se fecha no clarão
+        val eye = maxR * 0.16f * (1f - p * 0.6f)
+        drawCircle(Brush.radialGradient(listOf(Color(0xFF120612).copy(alpha = fade), Color(0xFFFF7A1A).copy(alpha = 0.6f * fade), Color.Transparent), center = center, radius = eye * 1.8f), eye * 1.8f, center)
     }
 }
 
@@ -546,7 +593,8 @@ private fun BoxScope.StreakCounter(days: Int, t: Float) {
                 Text("$days", pop, style = fire)
             }
         }
-        Text(if (days == 1) "DIA DE SEQUÊNCIA" else "DIAS DE SEQUÊNCIA", Modifier.graphicsLayer { alpha = seg(t, 1.4f, 0.4f) },
+        // Num selo escuro: solto, o texto se perdia nas chamas da fênix.
+        Text(if (days == 1) "DIA DE SEQUÊNCIA" else "DIAS DE SEQUÊNCIA", Modifier.graphicsLayer { alpha = seg(t, 1.4f, 0.4f) }.clip(RoundedCornerShape(50)).background(Color(0xCC1A0A06)).padding(horizontal = 10.dp, vertical = 3.dp),
             color = Color(0xFFFFD9A0), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.6.sp)
     }
 }
