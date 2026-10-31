@@ -150,6 +150,13 @@ fun PlanScreen() {
                             }
                         }
                     }
+                    // Todas de uma vez: o plano refaz o caminho com elas na frente, no ritmo do edital.
+                    Div({ classes("row", "end"); attr("style", "margin-top:10px") }) {
+                        Btn("Reorganizar meu plano", {
+                            br.com.estudario.web.data.Planning.reorganizeDaily(force = true)
+                            Toast.show("Plano reorganizado: as atrasadas voltaram na frente e o resto foi reencaixado.")
+                        }, style = "tonal", small = true, icon = "auto_awesome")
+                    }
                 }
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     if (overdueOpen) { kotlinx.coroutines.delay(250); kotlinx.browser.document.getElementById("atrasadas")?.asDynamic()?.scrollIntoView(js("({behavior:'smooth',block:'start'})")) }

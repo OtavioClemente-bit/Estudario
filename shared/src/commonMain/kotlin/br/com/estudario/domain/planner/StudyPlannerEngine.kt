@@ -39,9 +39,10 @@ class StudyPlannerEngine(
             .filter { it.id !in fixedIds && it.status == PlanTaskStatus.EM_ANDAMENTO && it.date in rawCapacity.keys }
             .groupBy { it.date }
             .mapValues { (_, tasks) -> tasks.sumOf { task -> minOf(task.plannedMinutes, executionsByTask[task.id].orEmpty().sumOf { it.minutes }) } }
+        val reserve = reviewReserve(snapshot, rawCapacity)
         val allocatableByDate = rawCapacity.mapValues { (date, minutes) ->
             if (snapshot.dayOverrides[date]?.locked == true || (keepToday && date == snapshot.today)) 0
-            else (minutes - lockedUsage.getOrElse(date) { 0 } - partialUsage.getOrElse(date) { 0 }).coerceAtLeast(0)
+            else (minutes - lockedUsage.getOrElse(date) { 0 } - partialUsage.getOrElse(date) { 0 } - reserve.getOrElse(date) { 0 }).coerceAtLeast(0)
         }
         val freeByDate = allocatableByDate.toMutableMap()
         val replanCandidates = if (reason == ReplanReason.INITIAL) emptyList() else snapshot.tasks.filter { task ->
@@ -56,7 +57,9 @@ class StudyPlannerEngine(
             }
             freeByDate[snapshot.today] = minOf(freeByDate.getValue(snapshot.today), pendingToday)
         }
-        val derivedDemands = replanCandidates.mapNotNull { task ->
+        // Revisão espaçada não é mais tarefa do plano (fica na aba Revisões, com o tempo reservado no
+        // dia): as que sobraram de planos antigos saem na primeira reorganização, em vez de voltar.
+        val derivedDemands = replanCandidates.filter { it.type != PlanTaskType.REVIEW }.mapNotNull { task ->
             val executedMinutes = executionsByTask[task.id].orEmpty().sumOf { it.minutes }
             val executedQuestions = executionsByTask[task.id].orEmpty().sumOf { it.questions }
             val remainingMinutes = (task.plannedMinutes - executedMinutes).coerceAtLeast(0)
@@ -82,8 +85,11 @@ class StudyPlannerEngine(
                     subjectPosition = task.subjectPosition,
                     topicPosition = task.topicPosition,
                     replannedFromTaskId = task.id,
-                    // O que ficou para trás volta na frente: colocar em dia vem antes de avançar.
-                    order = -1,
+                    // O que ficou para trás volta na frente (colocar em dia vem antes de avançar), e o que já
+                    // estava marcado mantém a ordem do calendário em que estava. Antes todas iam com a mesma
+                    // ordem e o desempate era a pontuação: a teoria de matéria de pouco peso perdia o lugar a
+                    // cada replanejamento e andava para a frente (de dezembro a março) sem nunca chegar.
+                    order = (daysBetween(snapshot.today, task.date).toInt().coerceIn(-1, 999) - 1_001) * 1_000 + task.sequence.coerceIn(0, 999),
                     // Tarefa de um dia que ainda não chegou nunca é adiantada pelo replanejamento: fica no
                     // dia dela ou depois. Sem isso, concluir hoje puxava as tarefas de amanhã para hoje.
                     anchorDate = task.date.takeIf { it > snapshot.today },
@@ -251,6 +257,33 @@ class StudyPlannerEngine(
         flexiblePass(respectShare = true)
         if (dailyShare < 100) flexiblePass(respectShare = false)
 
+        // Dia com tempo sobrando e nada mais para fazer: o próximo tópico novo (teoria e as questões dele)
+        // vem para cá. O ritmo do edital é um piso, não um teto: quem tem tempo livre adianta em vez de
+        // ficar parado. Hoje, depois de concluir alguma coisa, não ganha tópico novo (freeByDate já veio
+        // limitado ao que estava no dia).
+        run {
+            val minimum = snapshot.policy.minimumBlockMinutes
+            dates.forEach { date ->
+                var guard = 0
+                while (guard++ < 8) {
+                    val free = freeByDate.getValue(date)
+                    if (free < minimum) break
+                    if (topicCap != null && (theoryTopicsByDate[date]?.size ?: 0) >= topicCap) break
+                    val theory = generated.filter { it.type == PlanTaskType.THEORY && it.topicId != null && it.date > date }
+                        .minWithOrNull(compareBy({ it.date }, { it.sequence })) ?: break
+                    val bundle = generated.filter { it.topicId == theory.topicId && it.date == theory.date && it.type in setOf(PlanTaskType.THEORY, PlanTaskType.QUESTIONS) }
+                    val need = bundle.sumOf { it.plannedMinutes }
+                    if (need > free) break
+                    val from = theory.date
+                    bundle.forEach { task -> generated[generated.indexOf(task)] = task.copy(date = date, sequence = sequence++) }
+                    freeByDate[date] = (free - need).coerceAtLeast(0)
+                    freeByDate[from] = freeByDate.getValue(from) + need
+                    theoryTopicsByDate.getOrPut(date) { mutableSetOf() } += theory.topicId!!
+                    theoryTopicsByDate[from]?.remove(theory.topicId)
+                }
+            }
+        }
+
         // A teoria de um tópico vem antes das questões e revisões dele. Ao remarcar o atrasado, a
         // teoria podia cair num dia depois das questões do mesmo tópico; elas vão para o dia da
         // (última parte da) teoria, logo depois dela (juntando com o cartão do mesmo tipo, se houver).
@@ -331,6 +364,23 @@ class StudyPlannerEngine(
         )
     }
 
+    /**
+     * Tempo de cada dia separado para as revisões espaçadas da aba Revisões: uma por tópico que vence no
+     * dia (as atrasadas contam hoje), a [REVIEW_MINUTES] cada, até [REVIEW_SHARE] do dia. O resto do
+     * dia é do plano; revisão demais num dia só não engole o estudo novo, ela espera na aba.
+     */
+    fun reviewReserve(snapshot: StudyPlannerSnapshot, capacity: Map<LocalDate, Int>): Map<LocalDate, Int> {
+        val byDate = snapshot.reviews
+            .groupBy { it.topicId }
+            .map { (_, list) -> list.minOf { it.dueDate } }
+            .map { if (it.isBefore(snapshot.today)) snapshot.today else it }
+            .groupingBy { it }.eachCount()
+        return byDate.mapNotNull { (date, count) ->
+            val day = capacity[date] ?: return@mapNotNull null
+            date to minOf(count * REVIEW_MINUTES, day * REVIEW_SHARE / 100)
+        }.toMap()
+    }
+
     private fun capacityFor(snapshot: StudyPlannerSnapshot, date: LocalDate): Int {
         val override = snapshot.dayOverrides[date]
         if (override?.unavailable == true) return 0
@@ -355,7 +405,11 @@ class StudyPlannerEngine(
         return bytes.copyOf(16).toHex()
     }
 
-    private companion object {
+    companion object {
+        /** Minutos de uma revisão espaçada (o cartão da aba Revisões estima o mesmo por revisão). */
+        const val REVIEW_MINUTES = 4
+        /** Teto do dia que as revisões podem reservar, em porcento. */
+        const val REVIEW_SHARE = 35
         /** Tarefas cujo tamanho vem de questões do tópico (e por isso respeitam questionCapByTopic). */
         val cappedTypes = setOf(PlanTaskType.QUESTIONS, PlanTaskType.ACTIVE_RECALL)
         val dayKeepingReasons = setOf(ReplanReason.TASK_COMPLETED, ReplanReason.TASK_PARTIAL, ReplanReason.TASK_SKIPPED)

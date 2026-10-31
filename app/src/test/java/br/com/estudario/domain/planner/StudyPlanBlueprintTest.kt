@@ -49,31 +49,31 @@ class StudyPlanBlueprintTest {
     )
 
     @Test
-    fun `revisao atrasada entra antes de qualquer conteudo novo`() {
-        val atrasada = ReviewDemand("9", 1L, 1_000L, today.minusDays(3), 30)
-        val estudado = topics(1L, 1, studied = true) + topics(1L, 30).drop(1)
-        val result = StudyPlanBlueprint.build(input(topics = estudado, reviews = listOf(atrasada)))
-
-        val primeira = result.demands.minByOrNull { it.order }
-        assertEquals(PlanTaskType.REVIEW, primeira?.type)
-        assertEquals(today.minusDays(3), primeira?.deadline)
-    }
-
-    @Test
-    fun `revisoes do mesmo topico viram uma so e topico nao estudado nao revisa`() {
+    fun `revisao espacada nao vira cartao no plano, ela fica na aba Revisoes`() {
         val estudado = topics(1L, 1, studied = true) + topics(1L, 30).drop(1)
         val reviews = listOf(
             ReviewDemand("1", 1L, 1_000L, today.minusDays(2), 30),
-            ReviewDemand("2", 1L, 1_000L, today.minusDays(1), 30),
-            ReviewDemand("3", 1L, 1_000L, today, 30),
-            // Tópico 1001 não foi estudado (plano começando do zero): não entra.
-            ReviewDemand("4", 1L, 1_001L, today, 30),
+            ReviewDemand("2", 1L, 1_000L, today, 30),
         )
         val result = StudyPlanBlueprint.build(input(topics = estudado, reviews = reviews))
 
-        val revisoes = result.demands.filter { it.type == PlanTaskType.REVIEW }
-        assertEquals(1, revisoes.size)
-        assertEquals(1_000L, revisoes.single().topicId)
+        assertTrue(result.demands.none { it.type == PlanTaskType.REVIEW })
+        assertTrue(result.notes.any { "Revisões" in it })
+    }
+
+    @Test
+    fun `o motor separa o tempo das revisoes do dia, sem passar de um terco do dia`() {
+        val snapshot = StudyPlannerSnapshot(
+            planId = "p", revision = 1, today = today,
+            availability = DayOfWeek.entries.associateWith { DailyCapacity(it, 120) },
+            subjects = emptyList(), demands = emptyList(),
+            reviews = (1L..5L).map { ReviewDemand("$it", 1L, it, today.minusDays(1), 30) } +
+                (6L..60L).map { ReviewDemand("$it", 1L, it, today.plusDays(1), 30) },
+        )
+        val reserve = StudyPlannerEngine().reviewReserve(snapshot, mapOf(today to 120, today.plusDays(1) to 120))
+
+        assertEquals(5 * StudyPlannerEngine.REVIEW_MINUTES, reserve[today])
+        assertEquals(120 * StudyPlannerEngine.REVIEW_SHARE / 100, reserve[today.plusDays(1)])
     }
 
     @Test
@@ -101,22 +101,40 @@ class StudyPlanBlueprintTest {
     }
 
     @Test
-    fun `bateria semanal usa o tempo calculado por questao sem arredondar para bloco`() {
+    fun `depois de ver o conteudo as questoes se espalham por todas as materias`() {
         val result = StudyPlanBlueprint.build(
             input(
-                config = StudyMethodConfig(blockMinutes = 50, weeklyQuestionsTarget = 15, questionsPerTopic = 0, simulationsPerMonth = 0),
-                topics = emptyList(),
-                weekly = 600,
-            ).copy(horizonDays = 7),
+                subjects = listOf(subject(1L, 5, 0), subject(2L, 1, 1)),
+                topics = topics(1L, 10, studied = true) + topics(2L, 10, studied = true),
+            ),
         )
-        val bateria = result.demands.single { it.type == PlanTaskType.QUESTIONS }
+        val treino = result.demands.filter { it.id.startsWith("practice:") }.groupBy { it.subjectId }
 
-        assertEquals(15, bateria.questions)
-        assertEquals(30, bateria.minutes)
+        assertTrue(treino.getValue(1L).isNotEmpty() && treino.getValue(2L).isNotEmpty())
+        assertTrue(result.demands.none { it.id.startsWith("battery:") })
     }
 
     @Test
-    fun `materia de peso maior recebe mais tempo e todas aparecem`() {
+    fun `quem diz dominar a materia faz diagnostico de questoes em vez de teoria`() {
+        val sabe = BlueprintSubject(1L, "Matéria 1", PlanPriority.MEDIUM, 3, 0, dimensions = StudyDimensions(initialKnowledge = InitialKnowledge.STRONG))
+        val result = StudyPlanBlueprint.build(input(subjects = listOf(sabe), topics = topics(1L, 10)))
+
+        assertTrue(result.demands.none { it.type == PlanTaskType.THEORY })
+        assertTrue(result.demands.any { it.id.startsWith("diagnostic:") && it.questions == StudyPlanBlueprint.DIAGNOSTIC_QUESTIONS })
+    }
+
+    @Test
+    fun `materia dificil ganha mais tempo de teoria`() {
+        fun teoria(d: PersonalDifficulty) = StudyPlanBlueprint.build(
+            input(subjects = listOf(BlueprintSubject(1L, "M", PlanPriority.MEDIUM, 3, 0, dimensions = StudyDimensions(personalDifficulty = d)))),
+        ).demands.first { it.type == PlanTaskType.THEORY }.minutes
+
+        assertTrue(teoria(PersonalDifficulty.VERY_HARD) > teoria(PersonalDifficulty.NORMAL))
+        assertTrue(teoria(PersonalDifficulty.EASY) < teoria(PersonalDifficulty.NORMAL))
+    }
+
+    @Test
+    fun `materia de peso maior anda mais rapido e todas aparecem`() {
         val result = StudyPlanBlueprint.build(
             input(
                 subjects = listOf(subject(1L, 5, 0), subject(2L, 1, 1)),
@@ -128,7 +146,7 @@ class StudyPlanBlueprintTest {
             .groupBy { it.subjectId }
             .mapValues { (_, list) -> list.sumOf { it.minutes } }
 
-        assertTrue(porMateria.getValue(1L) > porMateria.getValue(2L) * 2)
+        assertTrue(porMateria.getValue(1L) >= porMateria.getValue(2L))
         assertTrue(porMateria.getValue(2L) > 0)
     }
 
@@ -165,7 +183,8 @@ class StudyPlanBlueprintTest {
             ),
         )
 
-        assertNotNull(result.demands.firstOrNull { it.type == PlanTaskType.ACTIVE_RECALL })
+        // Ponto fraco volta como bateria de questões do próprio tópico (o app e o site abrem as questões dele).
+        assertTrue(result.demands.any { it.id.startsWith("practice:") && it.type == PlanTaskType.QUESTIONS && it.topicId != null })
     }
 
     @Test

@@ -292,6 +292,8 @@ fun SetupScreen() {
                         LevelMeter("O quanto você já sabe", InitialKnowledge.entries.map { it.label }, a.knowledge.ordinal, AxisColor.KNOWLEDGE) {
                             axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(knowledge = InitialKnowledge.entries[it]))
                         }
+                        // O que essa resposta faz no plano, para a escolha ter peso de verdade.
+                        P({ classes("xs", "muted") }) { Text(br.com.estudario.domain.planner.StudyPlanBlueprint.knowledgeEffect(a.knowledge, a.difficulty)) }
                     }
                 }
             }

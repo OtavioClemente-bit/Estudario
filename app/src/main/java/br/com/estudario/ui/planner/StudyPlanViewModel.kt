@@ -228,7 +228,21 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         }
         return available.coerceAtMost(task.plannedQuestions.coerceAtLeast(1))
     }
-    fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") { br.com.estudario.ui.brand.EstudarioSom.play(getApplication(), "concluir"); executions.complete(taskId, input); service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED) }
+    fun complete(taskId: String, input: CompleteTaskInput) = launch("Registrando e reorganizando") {
+        br.com.estudario.ui.brand.EstudarioSom.play(getApplication(), "concluir")
+        val task = _state.value.tasks.firstOrNull { it.entity.id == taskId }?.entity
+        executions.complete(taskId, input)
+        // Teoria concluída pelo plano conta como tópico estudado (como no site): entram as revisões
+        // D+1, D+7 e D+30 e o plano passa a tratar o tópico como visto. Antes só a tela do tópico fazia isso.
+        if (task?.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && task.topicId != null && input.actualMinutes >= task.plannedMinutes) {
+            app.repository.topics.first().firstOrNull { it.id == task.topicId && it.status == br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO }
+                ?.let { app.repository.markStudied(it) }
+        }
+        service.replan(_state.value.activePlan!!.id, ReplanReason.TASK_COMPLETED)
+    }
+
+    /** Reorganiza agora: o que venceu volta na frente e o resto é reencaixado no ritmo do edital. */
+    fun reorganize() = launch("Reorganizando o plano") { service.replan(_state.value.activePlan!!.id, ReplanReason.DAY_MISSED) }
     suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null, type: br.com.estudario.domain.planner.PlanTaskType = br.com.estudario.domain.planner.PlanTaskType.THEORY): PlannerTaskUi? {
         val current = state.first { !it.loading }
         return matchingPendingTopicTask(current, topicId, preferredTaskId, type)

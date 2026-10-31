@@ -20,7 +20,12 @@ object PlanProjection {
     )
 
     private val reviewOffsets = listOf(1, 7, 30)
-    private const val STEP_DAYS = 7
+    /**
+     * O plano de verdade se refaz todo dia (e a cada tarefa concluída); simular semana a semana adiantava
+     * conteúdo que o plano real não adianta, e a previsão prometia semanas antes. Por isso a
+     * simulação anda dia a dia (até um ano); depois, semana a semana (é longe, e a conta fica leve).
+     */
+    private const val DAILY_DAYS = 400
 
     fun project(input: PlannerSnapshotBuilder.Input, until: LocalDate, engine: StudyPlannerEngine = StudyPlannerEngine()): Result {
         val subjectIds = input.planSubjects.filterNot { it.paused }.mapTo(hashSetOf()) { it.subjectId }
@@ -54,7 +59,7 @@ object PlanProjection {
             tasks += proposal.newTasks
 
             // A semana feita do jeito que o plano mandou, dia por dia.
-            val weekEnd = day.plusDays(STEP_DAYS - 1)
+            val weekEnd = if (daysBetween(input.today, day) < DAILY_DAYS) day else day.plusDays(6)
             val due = tasks.filter { it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) && !it.date.isBefore(day) && !it.date.isAfter(minOf(weekEnd, until)) }
                 .sortedWith(compareBy<PlannerTask>({ it.date }, { it.sequence }))
             for (task in due) {

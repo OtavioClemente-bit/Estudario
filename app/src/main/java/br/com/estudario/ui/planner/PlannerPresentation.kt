@@ -29,7 +29,8 @@ fun br.com.estudario.data.local.planner.PlanTaskEntity.taskTitlePtBr(): String {
     val subject = subjectNameSnapshot.ifBlank { "todas as matérias" }
     val base = when (type) {
         PlanTaskType.THEORY -> "Teoria de $subject"
-        PlanTaskType.QUESTIONS -> "Questões de $subject"
+        // Sem tópico: a revisão de matéria do plano (questões misturadas do que já foi visto nela).
+        PlanTaskType.QUESTIONS -> "Revisão de matéria: $subject"
         PlanTaskType.REVIEW -> "Revisão de $subject"
         PlanTaskType.ACTIVE_RECALL -> "Recordação ativa de $subject"
         PlanTaskType.FLASHCARDS -> "Flashcards de $subject"

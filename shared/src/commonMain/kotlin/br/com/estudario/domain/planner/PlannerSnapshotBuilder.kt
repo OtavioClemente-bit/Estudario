@@ -101,9 +101,22 @@ object PlannerSnapshotBuilder {
         val topics = topics.filter { it.subjectId in subjectIds && (it.id !in excludedTopicIds || it.studied) }
         val attemptsByQuestion = attempts.groupBy { it.questionId }
 
+        // O que já tem tarefa viva não é gerado de novo. Concluída só bloqueia a teoria: questões,
+        // reforço e revisão de um tópico voltam quantas vezes forem precisas (antes, a primeira feita
+        // bloqueava o tópico para sempre, e cada um tinha uma revisão e um treino na vida).
+        val live = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO, PlanTaskStatus.PAUSADA)
         val occupied = tasks
-            .filter { it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO, PlanTaskStatus.CONCLUIDA, PlanTaskStatus.PAUSADA) }
+            .filter { it.status in live || (it.status == PlanTaskStatus.CONCLUIDA && it.type == PlanTaskType.THEORY) }
             .mapTo(hashSetOf()) { it.topicId to it.type }
+        val practiceTypes = setOf(PlanTaskType.QUESTIONS, PlanTaskType.ACTIVE_RECALL)
+        val lastPracticeByTopic = tasks
+            .filter { it.status == PlanTaskStatus.CONCLUIDA && it.type in practiceTypes && it.topicId != null }
+            .groupBy { it.topicId!! }
+            .mapValues { (_, list) -> list.maxOf { it.date } }
+        val subjectMixes = tasks.filter { it.type == PlanTaskType.QUESTIONS && it.topicId == null && it.subjectId != null }
+        val lastSubjectMix = subjectMixes.filter { it.status == PlanTaskStatus.CONCLUIDA }
+            .groupBy { it.subjectId!! }.mapValues { (_, list) -> list.maxOf { it.date } }
+        val liveSubjectMixes = subjectMixes.filter { it.status in live }.mapTo(hashSetOf()) { it.subjectId!! }
 
         val performance = topics.map { topic ->
             val topicAttempts = questionsByTopic[topic.id].orEmpty().flatMap { attemptsByQuestion[it].orEmpty() }
@@ -240,6 +253,17 @@ object PlannerSnapshotBuilder {
             keepTodayTasks = freeRules,
         )
 
+        // Dia de cada tópico novo estudado, por matéria (tarefa de teoria concluída ou tópico marcado
+        // como estudado): o ritmo de conteúdo novo conta a partir do último dia e de quantos saíram nele.
+        val lastTheory: Map<Long, Map<LocalDate, Set<Long>>> = (
+            tasks.filter { it.status == PlanTaskStatus.CONCLUIDA && it.type == PlanTaskType.THEORY && it.subjectId != null && it.topicId != null }
+                .map { Triple(it.subjectId!!, it.date, it.topicId!!) } +
+                topics.filter { it.studied && it.lastStudiedAt != null }.map { Triple(it.subjectId, epochMillisToDate(it.lastStudiedAt!!, zone), it.id) }
+            )
+            .map { (s, d, t) -> Triple(s, if (d.isAfter(today)) today else d, t) }
+            .groupBy { it.first }
+            .mapValues { (_, list) -> list.groupBy({ it.second }, { it.third }).mapValues { (_, ids) -> ids.toSet() } }
+
         val blueprint = StudyPlanBlueprint.build(
             BlueprintInput(
                 today = today,
@@ -253,6 +277,11 @@ object PlannerSnapshotBuilder {
                 horizonDays = policy.horizonDays,
                 occupied = occupied,
                 heaviestDay = heaviestDay,
+                lastPracticeByTopic = lastPracticeByTopic,
+                lastSubjectMixBySubject = lastSubjectMix,
+                liveSubjectMixes = liveSubjectMixes,
+                lastTheoryBySubject = lastTheory.mapValues { (_, days) -> days.keys.max() },
+                theoryCountOnLastDay = lastTheory.mapValues { (_, days) -> days.getValue(days.keys.max()).size },
             ),
         )
 
@@ -279,7 +308,8 @@ object PlannerSnapshotBuilder {
             // Previsão de conclusão do edital: teoria + consolidação de tudo que falta ver.
             remainingPhaseMinutes = remainingTopics * (config.blockMinutes + config.questionsPerTopic * config.minutesPerQuestion),
             recurringReservedMinutes = planSubjects.sumOf { it.minimumMaintenanceMinutes },
-            policy = policy,
+            // O teto de tópicos novos por dia é o menor entre o do plano (Grátis 2, pagos 4) e o do ritmo.
+            policy = policy.copy(maxTheoryTopicsPerDay = minOf(topicsPerDay(freeRules), blueprint.theoryTopicsPerDay ?: topicsPerDay(freeRules))),
             notes = blueprint.notes,
             questionCapByTopic = questionCap,
         )
