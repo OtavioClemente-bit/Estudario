@@ -353,6 +353,31 @@ class SimulationService(
      * A prova oficial do edital do concurso, quando ele veio do catálogo e o edital tem prova pronta.
      * null sem internet, sem edital do catálogo ou quando o edital não tem prova.
      */
+    /** As provas do edital (a oficial e os Simuladões do mês), iguais para todos os alunos do edital. */
+    suspend fun editalSimulations(competitionId: Long): List<OfficialSimulation> {
+        val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId } ?: return emptyList()
+        val catalog = ExamCatalogProvider.get(context)
+        if (!catalog.isConfigured) return emptyList()
+        val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return emptyList()
+        val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken()
+        return runCatching { catalog.editalSimulations(catalogId, token) }.getOrDefault(emptyList())
+    }
+
+    /** O id da prova do edital por trás de um simulado (null quando não é Simuladão nem prova oficial). */
+    fun examIdOf(simulation: br.com.estudario.data.local.SimulationEntity): String? =
+        if (simulation.mode != OFFICIAL_MODE) null
+        else runCatching { JSONArray(simulation.weakSpotsJson).optString(0) }.getOrNull()?.removePrefix("exam:")?.takeIf { it.isNotBlank() && it != "null" }
+
+    /** Ranking do Simuladão: manda a entrega (só a primeira conta) e devolve a posição; sem conta, null. */
+    suspend fun ranking(simulationId: Long, submit: Boolean): br.com.estudario.data.catalog.ExamRanking? {
+        val simulation = dao.simulation(simulationId) ?: return null
+        val examId = examIdOf(simulation) ?: return null
+        val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken() ?: return null
+        val catalog = ExamCatalogProvider.get(context)
+        return if (submit && simulation.status == "FINISHED") catalog.submitRanking(examId, simulation.correctCount, simulation.questionCount.coerceAtLeast(1), simulation.elapsedSeconds, token)
+        else catalog.ranking(examId, token)
+    }
+
     suspend fun officialSimulation(competitionId: Long): OfficialSimulation? {
         val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId } ?: return null
         val catalog = ExamCatalogProvider.get(context)
@@ -381,7 +406,9 @@ class SimulationService(
                 SimulationEntity(
                     competitionId = competitionId,
                     mode = OFFICIAL_MODE,
-                    title = "Prova completa · prova oficial · ${questions.size} questões",
+                    title = "${examTitle(official.number)} · ${questions.size} questões",
+                    // O id da prova do edital, para o ranking (a prova oficial não usa geração nem partes).
+                    weakSpotsJson = JSONArray(listOf("exam:${official.id}")).toString(),
                     board = board,
                     style = style,
                     plannedQuestions = questions.size,
@@ -767,6 +794,9 @@ class SimulationService(
         const val SEEN_LIMIT = 6_000
         /** Motivo do pedido do simulado do plano: só banco, sem cota (supabase ai-syllabus-jobs). */
         const val PLAN_SIMULATION = "PLAN_SIMULATION"
+
+        /** "Prova oficial" (a anterior, nº 1) ou "Simuladão 2", "Simuladão 3"... (os do mês, iguais para todos). */
+        fun examTitle(number: Int): String = if (number <= 1) "Prova oficial" else "Simuladão $number"
         fun decodeAnswers(json: String): Map<Long, String> = runCatching {
             val value = JSONObject(json)
             value.keys().asSequence().mapNotNull { key -> key.toLongOrNull()?.let { it to value.getString(key) } }.toMap()

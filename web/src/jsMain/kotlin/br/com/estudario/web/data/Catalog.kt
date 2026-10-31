@@ -60,8 +60,19 @@ data class OfficialSimulation(
     /** CERTO_ERRADO, MULTIPLA_ESCOLHA ou MISTO. */
     val format: String,
     val structure: String? = null,
+    /** 1 = prova oficial (a última prova real); 2, 3… = Simuladão N, um novo por mês, igual para todos. */
+    val number: Int = 1,
     @SerialName("item_count") val itemCount: Int,
     val questions: List<OfficialQuestion>,
+)
+
+/** Posição no ranking do Simuladão: quantos fizeram, a média e à frente de quantos por cento (igual ao ExamRanking do app). */
+@Serializable
+data class ExamRanking(
+    val participants: Int = 0,
+    val average: Int = 0,
+    val score: Int? = null,
+    val aheadPercent: Int? = null,
 )
 
 @Serializable
@@ -119,20 +130,42 @@ object Catalog {
     }.getOrNull()
 
     /**
-     * A prova oficial do edital de onde o concurso veio (achado pelo nome, que é o do catálogo:
-     * "PF 2025" ou "PF 2025 · Agente"), ou null sem edital do catálogo ou sem prova pronta.
+     * As provas prontas do edital de onde o concurso veio (achado pelo nome, que é o do catálogo:
+     * "PF 2025" ou "PF 2025 · Agente"), em ordem: a prova oficial e depois os Simuladões do mês.
+     * Lista vazia sem edital do catálogo, sem conta ou sem prova pronta.
      */
-    suspend fun officialSimulation(competitionName: String): OfficialSimulation? = runCatching {
+    suspend fun editalSimulations(competitionName: String): List<OfficialSimulation> = runCatching {
         val all = entries()
         val entry = all.firstOrNull { it.title.equals(competitionName, true) }
             ?: all.filter { it.shortName.equals(competitionName, true) }.singleOrNull()
-            ?: return null
-        val fields = "id,catalog_id,board,format,structure,item_count,questions"
-        // A prova oficial só sai com conta (o servidor não entrega sem login).
+            ?: return emptyList()
+        val fields = "id,catalog_id,board,format,structure,number,item_count,questions"
+        // As provas só saem com conta (o servidor não entrega sem login).
+        val token = Auth.accessToken() ?: return emptyList()
+        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_simulation?select=$fields&catalog_id=eq.${js("encodeURIComponent")(entry.id)}&status=eq.PUBLISHED&order=number.asc", headers + ("Authorization" to "Bearer $token"))
+        if (!response.ok) return emptyList()
+        snapshotJson.decodeFromString(ListSerializer(OfficialSimulation.serializer()), response.body).filter { it.questions.isNotEmpty() }
+    }.getOrDefault(emptyList())
+
+    /**
+     * Ranking do Simuladão: grava a primeira entrega da pessoa ([correct] de [total]) e devolve a posição.
+     * Só a primeira entrega conta. Ninguém lê a nota dos outros: vem só quantos fizeram, a média e à frente de quantos por cento.
+     */
+    suspend fun submitRanking(examId: String, correct: Int, total: Int, elapsedSeconds: Long): ExamRanking? =
+        rankingRpc("submit_exam_simulation_result", """{"p_simulation_id":${JsonPrimitive(examId)},"p_correct":$correct,"p_total":$total,"p_elapsed_seconds":$elapsedSeconds}""")
+
+    suspend fun ranking(examId: String): ExamRanking? =
+        rankingRpc("exam_simulation_ranking", """{"p_simulation_id":${JsonPrimitive(examId)}}""")
+
+    private suspend fun rankingRpc(name: String, body: String): ExamRanking? = runCatching {
         val token = Auth.accessToken() ?: return null
-        val response = httpRequest("GET", "${WebConfig.SUPABASE_URL}/rest/v1/exam_simulation?select=$fields&catalog_id=eq.${js("encodeURIComponent")(entry.id)}&status=eq.PUBLISHED&order=number.asc&limit=1", headers + ("Authorization" to "Bearer $token"))
+        val response = httpRequest(
+            "POST", "${WebConfig.SUPABASE_URL}/rest/v1/rpc/$name",
+            mapOf("apikey" to WebConfig.SUPABASE_KEY, "Authorization" to "Bearer $token", "Content-Type" to "application/json", "Accept" to "application/json"),
+            body, timeoutMillis = 15_000,
+        )
         if (!response.ok) return null
-        snapshotJson.decodeFromString(ListSerializer(OfficialSimulation.serializer()), response.body).firstOrNull()?.takeIf { it.questions.isNotEmpty() }
+        snapshotJson.decodeFromString(ExamRanking.serializer(), response.body)
     }.getOrNull()
 
     /**

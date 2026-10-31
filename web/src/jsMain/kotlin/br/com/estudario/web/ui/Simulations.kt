@@ -61,13 +61,11 @@ fun SimulationsScreen() {
     val profile = Simulations.examProfile(data, competition.id)
     val list = data.simulations.filter { it.competitionId == competition.id }.sortedByDescending { it.createdAt }
     val finished = list.filter { it.status == "FINISHED" }
-    var creating by remember { mutableStateOf<SimulationMode?>(null) }
     var editingProfile by remember { mutableStateOf(false) }
-    // A primeira prova completa de um edital com prova pronta é a prova oficial (ordem, proporção e
-    // tempo da prova real); as seguintes são geradas do edital inteiro.
-    var official by remember(competition.id) { mutableStateOf<br.com.estudario.web.data.OfficialSimulation?>(null) }
-    LaunchedEffect(competition.id, competition.name) { official = br.com.estudario.web.data.Catalog.officialSimulation(competition.name) }
-    val officialDone = list.any { it.mode == Simulations.OFFICIAL_MODE }
+    var studiedSize by remember { mutableStateOf(20) }
+    // As provas do edital (prova oficial + Simuladões do mês); null enquanto busca.
+    var exams by remember(competition.id) { mutableStateOf<List<br.com.estudario.web.data.OfficialSimulation>?>(null) }
+    LaunchedEffect(competition.id, competition.name) { exams = br.com.estudario.web.data.Catalog.editalSimulations(competition.name) }
     var officialError by remember { mutableStateOf<String?>(null) }
     // No Grátis o simulado vem do plano: na aba, montar prova abre a oferta (o histórico continua aberto).
     val free = br.com.estudario.web.data.LibraryGaps.free()
@@ -124,42 +122,73 @@ fun SimulationsScreen() {
         }
     }
 
-    // As provas: cada tipo é um cartão grande com a sua cor; a prova oficial ganha destaque.
+    // Simuladão do edital: a prova oficial (nº 1) e um Simuladão novo por mês, igual para todos e com
+    // ranking. Feito vira linha do histórico; em andamento, segue na lista dos simulados.
     Div({ classes("sim-modes") }) {
-        // A Revanche saiu do site: as erradas dos simulados não vão mais para o caderno de erros.
-        SimulationMode.entries.filter { it != SimulationMode.REMATCH }.forEach { mode ->
-            androidx.compose.runtime.key(mode) {
-                val lock = SimulationUnlock.lock(mode, readiness)
-                val prova = official?.takeIf { mode == SimulationMode.FULL && !officialDone }
-                val color = when (mode) { SimulationMode.DIAGNOSTIC -> "#22D3EE"; SimulationMode.STUDIED -> "#2FD39A"; SimulationMode.FULL -> "#FFC94D"; SimulationMode.REMATCH -> "#FF5A7A" }
-                Div({ classes(*listOfNotNull("sim-mode", if (!lock.unlocked) "locked" else null, if (prova != null) "featured" else null).toTypedArray()); attr("style", "--c:$color") }) {
-                    Div({ classes("sim-mode-head") }) {
-                        Span({ classes("sim-mode-ic") }) { Icon(if (lock.unlocked) modeIcon(mode) else "lock", filled = true) }
-                        Div({ classes("grow") }) {
-                            Div({ classes("sim-mode-title") }) {
-                                B { Text(mode.title) }
-                                if (prova != null) Span({ classes("sim-tag") }) { Text("PROVA OFICIAL") }
-                                if (!lock.unlocked) Span({ classes("sim-tag", "lock") }) { Text("TRANCADO") }
+        Div({ classes("sim-mode", "featured"); attr("style", "--c:#FFC94D") }) {
+            Div({ classes("sim-mode-head") }) {
+                Span({ classes("sim-mode-ic") }) { Icon("workspace_premium", filled = true) }
+                Div({ classes("grow") }) {
+                    Div({ classes("sim-mode-title") }) { B { Text("Simuladão do edital") }; Span({ classes("sim-tag") }) { Text("RANKING") } }
+                    P { Text("A mesma prova para todos os alunos do edital, no tempo da banca. A primeira é a prova oficial do último concurso; sai um Simuladão novo por mês.") }
+                }
+            }
+            if (exams == null) P({ classes("sim-fine") }) { Text("Buscando as provas do edital…") }
+            else if (exams.isNullOrEmpty()) P({ classes("sim-fine") }) { Text("Este edital ainda não tem Simuladão pronto. Ele aparece aqui assim que sair.") }
+            else Div({ classes("stack") }) {
+                exams.orEmpty().forEach { prova ->
+                    androidx.compose.runtime.key(prova.id) {
+                        val taken = list.firstOrNull { Simulations.examIdOf(data, it.id) == prova.id }
+                        if (taken != null) SimulationRow(taken)
+                        else Div({ classes("sim-mode-foot") }) {
+                            Div({ classes("grow") }) {
+                                B { Text(Simulations.examTitle(prova.number)) }
+                                P({ classes("sim-fine") }) {
+                                    Text("${prova.questions.size} questões · ${BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)} min" +
+                                        if (prova.format == "CERTO_ERRADO") " · regra Cebraspe: cada item errado anula um certo" else "")
+                                }
                             }
-                            P { Text(if (prova == null) mode.description else "Sua primeira prova completa é igual à prova do concurso: as ${prova.questions.size} questões na mesma ordem, na mesma proporção por matéria e no tempo da banca (${BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)} min). As próximas são montadas do seu edital inteiro.") }
-                            if (prova?.format == "CERTO_ERRADO") P({ classes("sim-fine") }) { Text("Correção na regra Cebraspe: cada item errado anula um certo. Não usa a cota de simulados.") }
+                            GxLaunch("Fazer a prova", icon = "play_circle", enabled = !Store.demo) {
+                                if (free) { freeOffer = true; return@GxLaunch }
+                                try {
+                                    var id = 0L
+                                    Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
+                                    Router.go(Route.Simulation(id))
+                                } catch (e: Throwable) { officialError = e.message }
+                            }
                         }
                     }
-                    Div({ classes("sim-mode-foot") }) {
-                        if (lock.unlocked && prova != null) GxLaunch("Preparar a prova completa", icon = "workspace_premium", enabled = !Store.demo) {
-                            if (free) { freeOffer = true; return@GxLaunch }
-                            try {
-                                var id = 0L
-                                Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
-                                Router.go(Route.Simulation(id))
-                            } catch (e: Throwable) { officialError = e.message }
-                        }
-                        else if (lock.unlocked) GxLaunch("Montar simulado", icon = "play_circle", enabled = !Store.demo) { if (free) freeOffer = true else creating = mode }
-                        else Div({ classes("sim-lock") }) {
-                            Div({ classes("sim-lock-bar") }) { Span({ attr("style", "width:${(lock.progress * 100).toInt().coerceIn(0, 100)}%") }) }
-                            Span { Text(lock.requirement) }
-                        }
+                }
+            }
+        }
+        // Do que você estudou: só o banco e as questões da própria pessoa (o caminho do simulado do plano).
+        val lock = SimulationUnlock.lock(SimulationMode.STUDIED, readiness)
+        Div({ classes(*listOfNotNull("sim-mode", if (!lock.unlocked) "locked" else null).toTypedArray()); attr("style", "--c:#2FD39A") }) {
+            Div({ classes("sim-mode-head") }) {
+                Span({ classes("sim-mode-ic") }) { Icon(if (lock.unlocked) modeIcon(SimulationMode.STUDIED) else "lock", filled = true) }
+                Div({ classes("grow") }) {
+                    Div({ classes("sim-mode-title") }) {
+                        B { Text("Do que você estudou") }
+                        if (!lock.unlocked) Span({ classes("sim-tag", "lock") }) { Text("TRANCADO") }
                     }
+                    P { Text("Questões prontas do banco e as suas, só dos tópicos que você já estudou. Fica pronto na hora e não usa cota.") }
+                }
+            }
+            Div({ classes("sim-mode-foot") }) {
+                if (lock.unlocked) {
+                    FilterChips(listOf(20 to "20 questões", 30 to "30 questões"), studiedSize) { studiedSize = it }
+                    GxLaunch("Montar simulado", icon = "play_circle", enabled = !Store.demo) {
+                        if (free) { freeOffer = true; return@GxLaunch }
+                        try {
+                            var id = 0L
+                            Store.update { val (next, created) = Simulations.createStudied(it, competition.id, studiedSize); id = created; next }
+                            Simulations.generate(id)
+                            Router.go(Route.Simulation(id))
+                        } catch (e: Throwable) { officialError = e.message }
+                    }
+                } else Div({ classes("sim-lock") }) {
+                    Div({ classes("sim-lock-bar") }) { Span({ attr("style", "width:${(lock.progress * 100).toInt().coerceIn(0, 100)}%") }) }
+                    Span { Text(lock.requirement) }
                 }
             }
         }
@@ -180,7 +209,6 @@ fun SimulationsScreen() {
         }
     }
 
-    creating?.let { mode -> CreateSimulationDialog(competition.id, mode) { creating = null } }
     if (editingProfile) ProfileDialog(competition.id, profile.board, profile.targetPercent) { editingProfile = false }
 }
 
@@ -190,7 +218,7 @@ private fun SimulationRow(simulation: Simulation) {
     var confirming by remember(simulation.id) { mutableStateOf(false) }
     if (confirming) Modal(onDismiss = { confirming = false }) {
         H2 { Text("Descartar este simulado?") }
-        P({ classes("muted") }) { Text(if (simulation.mode == Simulations.OFFICIAL_MODE) "As questões dele somem. A prova oficial volta a aparecer para você preparar de novo." else "As questões dele somem. A cota já usada não volta.") }
+        P({ classes("muted") }) { Text(if (simulation.mode == Simulations.OFFICIAL_MODE) "As questões dele somem. A prova volta a aparecer no Simuladão do edital para você fazer de novo (no ranking, vale só a primeira entrega)." else "As questões dele somem. A cota já usada não volta.") }
         Div({ classes("row", "between") }) {
             Btn("Manter", { confirming = false }, style = "ghost")
             Btn("Descartar", { confirming = false; Store.update { Simulations.delete(it, simulation.id) } }, style = "danger", icon = "delete")
@@ -216,6 +244,19 @@ private fun SimulationRow(simulation: Simulation) {
         }
     }
     IconButton("delete", "Descartar simulado") { confirming = true }
+    }
+}
+
+/** A posição no ranking do Simuladão (igual ao RankingCard do app). */
+@Composable
+private fun RankingCard(ranking: br.com.estudario.web.data.ExamRanking) {
+    Div({ classes("gx-panel", "sim-panel") }) {
+        Div({ classes("sim-panel-head") }) {
+            Span({ classes("gx-kicker") }) { Text("RANKING DO SIMULADÃO") }
+            val ahead = ranking.aheadPercent
+            B { Text(if (ranking.participants <= 1) "Ninguém tinha feito esta prova antes de você" else if (ahead != null) "À frente de $ahead% dos alunos" else "${ranking.participants} alunos fizeram") }
+        }
+        P({ classes("gx-note") }) { Text("${ranking.participants} aluno(s) do Estudário fizeram esta prova · média de ${ranking.average}%" + (ranking.score?.let { " · sua nota: $it%" } ?: "")) }
     }
 }
 
@@ -495,6 +536,10 @@ private fun ResultView(simulation: Simulation) {
             }
         }
     }
+    // Ranking do Simuladão: manda a entrega ao abrir o resultado (só a primeira conta no servidor).
+    var ranking by remember(simulation.id) { mutableStateOf<br.com.estudario.web.data.ExamRanking?>(null) }
+    LaunchedEffect(simulation.id) { if (!Store.demo) ranking = Simulations.ranking(Store.data, simulation.id) }
+    ranking?.takeIf { it.participants > 0 }?.let { RankingCard(it) }
     Div({ classes("grid", "cols-2") }) {
         Card {
             CardHead("Por matéria")

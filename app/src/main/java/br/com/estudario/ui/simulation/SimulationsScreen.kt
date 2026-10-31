@@ -126,9 +126,8 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
     val finished = mine.filter { it.status == "FINISHED" }
     // Prova oficial do edital (quando o concurso veio do catálogo e o edital tem prova pronta): é o
     // primeiro simulado; depois de feita, os próximos saem do banco de questões.
-    var official by remember(competition.id) { mutableStateOf<OfficialSimulation?>(null) }
-    LaunchedEffect(competition.id) { official = service.officialSimulation(competition.id) }
-    val officialDone = mine.any { it.mode == SimulationService.OFFICIAL_MODE }
+    var exams by remember(competition.id) { mutableStateOf<List<OfficialSimulation>>(emptyList()) }
+    LaunchedEffect(competition.id) { exams = service.editalSimulations(competition.id) }
 
     // A sala de prova (como no site): o carro-chefe, em console escuro. No alto, o placar com a
     // última nota contra a meta e os números; depois as provas em cartões coloridos.
@@ -160,56 +159,65 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                 onDelete = { deleting = simulation },
             )
         }
+        // Simuladão do edital: a mesma prova para todos os alunos do edital (a oficial anterior e uma
+        // nova por mês), com ranking. Ninguém gera nada na hora: a prova já está pronta.
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    br.com.estudario.ui.studio.GxKicker("Provas")
-                    Text("Monte um simulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
-                }
-                remainingParts?.takeIf { !freeTier }?.let {
-                    Text("Saldo: ${it * 30} questões", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                }
+            Column {
+                br.com.estudario.ui.studio.GxKicker("Simuladão do edital")
+                Text("A mesma prova para todo mundo do seu edital", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
+                Text("No tamanho e no tempo da prova real, com o seu lugar no ranking dos alunos do Estudário. Sai uma nova todo mês.", style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
             }
         }
-        val current = readiness
-        if (current == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        // Revanche saiu: erro de simulado não vai para o caderno, e o treino dos erros é do caderno.
-        else SimulationMode.entries.filter { it != SimulationMode.REMATCH }.forEach { mode ->
-            item(key = "mode-${mode.name}") {
-                // A primeira prova completa de um edital com prova pronta é a prova oficial.
-                val prova = official?.takeIf { mode == SimulationMode.FULL && !officialDone }
-                if (prova != null) OfficialFullCard(
-                    official = prova,
-                    lock = SimulationUnlock.lock(mode, current),
-                    busy = creating || active.any { it.status == "GENERATING" },
-                ) {
-                    if (freeTier) { upgrade = true; return@OfficialFullCard }
-                    creating = true
-                    message = null
-                    scope.launch {
-                        runCatching { service.createOfficial(competition.id, prova) }
-                            .onFailure { message = it.message ?: "Não foi possível montar a prova oficial." }
-                        creating = false
-                    }
-                } else ModeCard(
-                    mode = mode,
-                    lock = SimulationUnlock.lock(mode, current),
-                    sizes = SimulationUnlock.sizes(mode, remainingParts?.let { it * 30 }),
-                    rematchCount = if (mode == SimulationMode.REMATCH) current.wrongInFinished else null,
-                    busy = creating || active.any { it.status == "GENERATING" },
-                    style = profile?.style ?: "FIVE_OPTIONS",
-                    onGenerate = generate@{ size ->
-                        if (freeTier) { upgrade = true; return@generate }
+        if (exams.isEmpty()) item {
+            Text("Este edital ainda não tem Simuladão pronto. Ele aparece aqui assim que sair.", style = MaterialTheme.typography.bodyMedium, color = br.com.estudario.ui.studio.Gx.mute)
+        }
+        exams.forEach { exam ->
+            item(key = "exam-${exam.id}") {
+                val mineOfExam = mine.filter { service.examIdOf(it) == exam.id }
+                val done = mineOfExam.firstOrNull { it.status == "FINISHED" }
+                val open = mineOfExam.firstOrNull { it.status != "FINISHED" }
+                when {
+                    done != null -> HistoryRow(done, profile?.targetPercent ?: 70) { onOpenResult(done.id) }
+                    open != null -> Unit // aparece na lista de simulados em andamento, acima
+                    else -> OfficialFullCard(
+                        official = exam,
+                        lock = SimulationLock(true, 1f, ""),
+                        busy = creating,
+                    ) {
+                        if (freeTier) { upgrade = true; return@OfficialFullCard }
                         creating = true
                         message = null
                         scope.launch {
-                            runCatching { service.create(competition.id, mode, size) }
-                                .onFailure { message = it.message ?: "Não foi possível montar o simulado." }
+                            runCatching { service.createOfficial(competition.id, exam) }
+                                .onFailure { message = it.message ?: "Não foi possível abrir o Simuladão." }
                             creating = false
                         }
-                    },
-                )
+                    }
+                }
             }
+        }
+        // Do que você estudou: montado só com o banco e as suas questões (sem gerar nada, sem cota).
+        val current = readiness
+        if (current == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        else item(key = "mode-studied") {
+            ModeCard(
+                mode = SimulationMode.STUDIED,
+                lock = SimulationUnlock.lock(SimulationMode.STUDIED, current),
+                sizes = listOf(20, 30),
+                rematchCount = null,
+                busy = creating || active.any { it.status == "GENERATING" },
+                style = profile?.style ?: "FIVE_OPTIONS",
+                onGenerate = generate@{ size ->
+                    if (freeTier) { upgrade = true; return@generate }
+                    creating = true
+                    message = null
+                    scope.launch {
+                        runCatching { service.createForPlan(competition.id, size, diagnostic = false) }
+                            .onFailure { message = it.message ?: "Não foi possível montar o simulado." }
+                        creating = false
+                    }
+                },
+            )
         }
         if (finished.isNotEmpty()) {
             item { br.com.estudario.ui.studio.GxKicker("Sua evolução e histórico") }

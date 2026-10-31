@@ -269,6 +269,7 @@ object Simulations {
         val keyed = parts.mapIndexed { index, part -> part.copy(key = "sim-web-$id-${Random.nextBytes(8).joinToString("") { (it.toInt() and 0xff).toString(16) }}-p$index", purpose = purpose, planTaskId = planTaskId) }
         val title = when {
             purpose == PLAN_SIMULATION && mode == SimulationMode.DIAGNOSTIC -> "Diagnóstico do plano"
+            purpose == PLAN_SIMULATION && planTaskId == null -> "Do que você estudou"
             purpose == PLAN_SIMULATION -> "Simulado do plano"
             mode == SimulationMode.DIAGNOSTIC -> "Diagnóstico"
             mode == SimulationMode.STUDIED -> "Simulado do que estudei"
@@ -346,8 +347,35 @@ object Simulations {
         return data.appendAll(mapOf(Keys.QUESTIONS to rows))
     }
 
+    /**
+     * Simulado "Do que você estudou" da aba: o mesmo caminho do simulado do plano (só banco e as
+     * questões da própria pessoa, sem cota nem IA), sem tarefa do plano por trás.
+     */
+    fun createStudied(data: Snapshot, competitionId: Long, size: Int): Pair<Snapshot, Long> =
+        create(data, competitionId, SimulationMode.STUDIED, size, purpose = PLAN_SIMULATION)
+
     /** Modo do simulado montado com a prova oficial do edital (fora de SimulationMode: não é gerado). */
     const val OFFICIAL_MODE = "OFFICIAL"
+
+    /** Nome da prova do edital pelo número: 1 é a prova oficial; os seguintes, o Simuladão do mês. */
+    fun examTitle(number: Int): String = if (number <= 1) "Prova oficial" else "Simuladão $number"
+
+    /** O id da prova do edital por trás de um simulado (null quando não é Simuladão nem prova oficial). */
+    fun examIdOf(data: Snapshot, simulationId: Long): String? {
+        val sim = row(data, simulationId) ?: return null
+        if (sim.str("mode") != OFFICIAL_MODE) return null
+        return runCatching { snapshotJson.parseToJsonElement(sim.str("weakSpotsJson") ?: "[]").jsonArray.firstOrNull()?.text() }.getOrNull()
+            ?.removePrefix("exam:")?.takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    /** Ranking do Simuladão: manda a entrega (só a primeira conta no servidor) e devolve a posição; sem conta, null. */
+    suspend fun ranking(data: Snapshot, simulationId: Long): ExamRanking? {
+        val examId = examIdOf(data, simulationId) ?: return null
+        val sim = data.simulations.firstOrNull { it.id == simulationId } ?: return null
+        val elapsed = row(data, simulationId)?.long("elapsedSeconds") ?: 0L
+        return if (sim.status == "FINISHED") Catalog.submitRanking(examId, sim.correctCount, sim.questionCount.coerceAtLeast(1), elapsed)
+        else Catalog.ranking(examId)
+    }
 
     /**
      * Grava a prova oficial como a primeira prova completa, já pronta: as questões na ordem da prova
@@ -385,9 +413,10 @@ object Simulations {
         }
         val count = rows.size
         val row = jsonOf(
-            "id" to id, "competitionId" to competitionId, "mode" to OFFICIAL_MODE, "title" to "Prova completa · prova oficial · $count questões", "board" to board,
+            "id" to id, "competitionId" to competitionId, "mode" to OFFICIAL_MODE, "title" to "${examTitle(official.number)} · $count questões", "board" to board,
             "style" to style, "plannedQuestions" to count, "timeLimitMinutes" to BoardStyle.minutesFor(style, count), "status" to "READY",
-            "partsJson" to "[]", "answersJson" to "{}", "flaggedJson" to "[]", "weakSpotsJson" to "[]",
+            // O id da prova do edital, para o ranking (a prova oficial não usa geração nem partes).
+            "partsJson" to "[]", "answersJson" to "{}", "flaggedJson" to "[]", "weakSpotsJson" to JsonArray(listOf(JsonPrimitive("exam:${official.id}"))).toString(),
             "sourceSimulationId" to null, "createdAt" to at, "startedAt" to null, "finishedAt" to null, "elapsedSeconds" to 0, "answeredCount" to 0,
             "correctCount" to 0, "questionCount" to count, "scorePercent" to null,
         )

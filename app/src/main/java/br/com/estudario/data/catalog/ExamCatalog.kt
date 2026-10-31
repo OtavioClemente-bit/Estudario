@@ -80,6 +80,8 @@ data class OfficialSimulation(
     /** CERTO_ERRADO, MULTIPLA_ESCOLHA ou MISTO. */
     val format: String,
     val structure: String? = null,
+    /** 1 = a prova oficial anterior; 2, 3... = os Simuladões do edital, um por mês, iguais para todos. */
+    val number: Int = 1,
     @SerialName("item_count") val itemCount: Int,
     val questions: List<OfficialQuestion>,
 )
@@ -252,7 +254,7 @@ class ExamCatalogRepository(
         if (accessToken == null) return null
         val encoded = URLEncoder.encode(catalogId, StandardCharsets.UTF_8.name())
         val body = try {
-            defaultGet("${baseUrl.trimEnd('/')}/rest/v1/exam_simulation?select=id,catalog_id,board,format,structure,item_count,questions&catalog_id=eq.$encoded&status=eq.PUBLISHED&order=number.asc&limit=1", apiKey, accessToken)
+            defaultGet("${baseUrl.trimEnd('/')}/rest/v1/exam_simulation?select=id,catalog_id,board,format,structure,number,item_count,questions&catalog_id=eq.$encoded&status=eq.PUBLISHED&order=number.asc", apiKey, accessToken)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -264,6 +266,46 @@ class ExamCatalogRepository(
             ?.takeIf { it.questions.isNotEmpty() }
     }
 
+
+    /** As provas do edital (a oficial e os Simuladões), em ordem; vazia quando o edital não tem nenhuma. */
+    suspend fun editalSimulations(catalogId: String, accessToken: String?): List<OfficialSimulation> {
+        if (accessToken == null) return emptyList()
+        val encoded = URLEncoder.encode(catalogId, StandardCharsets.UTF_8.name())
+        val body = defaultGet("${baseUrl.trimEnd('/')}/rest/v1/exam_simulation?select=id,catalog_id,board,format,structure,number,item_count,questions&catalog_id=eq.$encoded&status=eq.PUBLISHED&order=number.asc", apiKey, accessToken)
+        return json.decodeFromString(ListSerializer(OfficialSimulation.serializer()), body).filter { it.questions.isNotEmpty() }
+    }
+
+    /**
+     * Ranking do Simuladão: grava a primeira entrega da pessoa ([correct] de [total]) e devolve a posição.
+     * Ninguém lê a nota dos outros; vem só quantos fizeram, a média e à frente de quantos por cento.
+     */
+    suspend fun submitRanking(examId: String, correct: Int, total: Int, elapsedSeconds: Long, accessToken: String): ExamRanking? =
+        rpc("submit_exam_simulation_result", """{"p_simulation_id":${kotlinx.serialization.json.JsonPrimitive(examId)},"p_correct":$correct,"p_total":$total,"p_elapsed_seconds":$elapsedSeconds}""", accessToken)
+
+    suspend fun ranking(examId: String, accessToken: String): ExamRanking? =
+        rpc("exam_simulation_ranking", """{"p_simulation_id":${kotlinx.serialization.json.JsonPrimitive(examId)}}""", accessToken)
+
+    private suspend fun rpc(name: String, body: String, accessToken: String): ExamRanking? = withContext(Dispatchers.IO) {
+        runCatching {
+            val connection = (URL("${baseUrl.trimEnd('/')}/rest/v1/rpc/$name").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15_000
+                readTimeout = 15_000
+                doOutput = true
+                setRequestProperty("apikey", apiKey)
+                setRequestProperty("Authorization", "Bearer $accessToken")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+            try {
+                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                if (connection.responseCode !in 200..299) return@runCatching null
+                json.decodeFromString(ExamRanking.serializer(), connection.inputStream.bufferedReader().use { it.readText() })
+            } finally {
+                connection.disconnect()
+            }
+        }.getOrNull()
+    }
     /**
      * Edital do catálogo de onde o concurso veio: o id gravado na escolha ([linked]) ou, para
      * concursos montados antes disso, o edital com o mesmo nome ("PF 2025" ou "PF 2025 · Agente").
@@ -359,3 +401,12 @@ suspend fun editalBoardOf(context: android.content.Context, competitionId: Long,
         catalog.entries().firstOrNull { it.id == id }?.board?.trim().orEmpty()
     }.getOrDefault("")
 }
+
+/** A posição no Simuladão: quantos fizeram, a média, a nota da pessoa e à frente de quantos por cento. */
+@Serializable
+data class ExamRanking(
+    val participants: Int = 0,
+    val average: Int = 0,
+    val score: Int? = null,
+    val aheadPercent: Int? = null,
+)

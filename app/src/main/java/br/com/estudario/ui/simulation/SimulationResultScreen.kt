@@ -76,7 +76,9 @@ fun SimulationResultScreen(
     val scope = rememberCoroutineScope()
     var scores by remember { mutableStateOf<List<SubjectScore>>(emptyList()) }
     var filter by remember { mutableStateOf(CorrectionFilter.WRONG) }
-    var rematchMessage by remember { mutableStateOf<String?>(null) }
+    // Simuladão do edital: a entrega vai para o ranking (só a primeira conta) e volta a posição.
+    var ranking by remember(simulationId) { mutableStateOf<br.com.estudario.data.catalog.ExamRanking?>(null) }
+    LaunchedEffect(simulationId) { ranking = runCatching { service.ranking(simulationId, submit = true) }.getOrNull() }
     LaunchedEffect(simulationId, simulation?.status) { scores = service.subjectScores(simulationId) }
     val current = simulation ?: return
     val answers = remember(current.answersJson) { SimulationService.decodeAnswers(current.answersJson) }
@@ -223,6 +225,7 @@ fun SimulationResultScreen(
                 }
             }
         }
+        ranking?.takeIf { it.participants > 0 }?.let { r -> item { RankingCard(r) } }
         if (history.size >= 2) item { EvolutionChart(history.mapNotNull { it.scorePercent }, target) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -288,6 +291,25 @@ private fun CorrectionCard(number: Int, row: QuestionWithOptions, selected: Stri
                     }
                 }, topic = topic)
             }
+        }
+    }
+}
+
+/** O lugar no Simuladão do edital: à frente de quantos alunos do Estudário e a média de todos. */
+@Composable
+private fun RankingCard(ranking: br.com.estudario.data.catalog.ExamRanking) {
+    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("RANKING DO SIMULADÃO", style = MaterialTheme.typography.labelSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+            val ahead = ranking.aheadPercent
+            Text(
+                if (ranking.participants <= 1) "Ninguém tinha feito esta prova antes de você" else if (ahead != null) "À frente de $ahead% dos alunos" else "${ranking.participants} alunos fizeram",
+                style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+            )
+            Text(
+                "${ranking.participants} aluno(s) do Estudário fizeram esta prova · média de ${ranking.average}%" + (ranking.score?.let { " · sua nota: $it%" } ?: ""),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
