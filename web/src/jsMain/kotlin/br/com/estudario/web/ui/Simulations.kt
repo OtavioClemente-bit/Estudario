@@ -140,7 +140,7 @@ fun SimulationsScreen() {
                     androidx.compose.runtime.key(prova.id) {
                         val taken = list.firstOrNull { Simulations.examIdOf(data, it.id) == prova.id }
                         if (taken != null) SimulationRow(taken)
-                        else Div({ classes("sim-mode-foot") }) {
+                        else Div({ classes("sim-exam") }) {
                             Div({ classes("grow") }) {
                                 B { Text(Simulations.examTitle(prova.number)) }
                                 P({ classes("sim-fine") }) {

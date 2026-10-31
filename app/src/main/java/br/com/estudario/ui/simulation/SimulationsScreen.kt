@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.Canvas
@@ -179,12 +181,11 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                 when {
                     done != null -> HistoryRow(done, profile?.targetPercent ?: 70) { onOpenResult(done.id) }
                     open != null -> Unit // aparece na lista de simulados em andamento, acima
-                    else -> OfficialFullCard(
-                        official = exam,
-                        lock = SimulationLock(true, 1f, ""),
+                    else -> ExamRow(
+                        exam = exam,
                         busy = creating,
                     ) {
-                        if (freeTier) { upgrade = true; return@OfficialFullCard }
+                        if (freeTier) { upgrade = true; return@ExamRow }
                         creating = true
                         message = null
                         scope.launch {
@@ -592,4 +593,38 @@ private fun TargetDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> U
         confirmButton = { TextButton(onClick = { onSave(value) }) { Text("Salvar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
+}
+
+/**
+ * Uma prova do Simuladão do edital: o nome ("Prova oficial", "Simuladão 2"...), o tamanho e o tempo da
+ * prova real, a regra da banca e o botão. Uma linha enxuta por prova (antes cada uma repetia o cartão
+ * inteiro da prova completa, com texto desatualizado).
+ */
+@Composable
+private fun ExamRow(exam: OfficialSimulation, busy: Boolean, onStart: () -> Unit) {
+    val style = when (exam.format) { "CERTO_ERRADO" -> "TRUE_FALSE"; "MISTO" -> "MIXED"; else -> "FIVE_OPTIONS" }
+    val count = exam.questions.size
+    val gold = Color(0xFFFFC94D)
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(gold.copy(alpha = 0.08f))
+            .border(1.dp, gold.copy(alpha = 0.32f), RoundedCornerShape(18.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.WorkspacePremium, null, tint = gold)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(SimulationService.examTitle(exam.number), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
+                Text(
+                    listOfNotNull("$count questões", "${BoardStyle.minutesFor(style, count)} min", exam.board).joinToString(" · "),
+                    style = MaterialTheme.typography.labelMedium, color = br.com.estudario.ui.studio.Gx.mute,
+                )
+            }
+        }
+        if (exam.format == "CERTO_ERRADO") Text(
+            "Regra Cebraspe: cada item errado anula um certo.",
+            style = MaterialTheme.typography.labelSmall, color = br.com.estudario.ui.studio.Gx.mute,
+        )
+        br.com.estudario.ui.studio.GxLaunch("Fazer a prova", enabled = !busy, colors = listOf(Color(0xFFFFE08A), gold), ink = Color(0xFF1A1440), onClick = onStart)
+    }
 }
