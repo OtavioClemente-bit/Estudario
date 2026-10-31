@@ -152,6 +152,12 @@ internal fun SubjectsStep(
                     color = Color(0xFF1FB574),
                     testTagPrefix = "knowledge_${subject.id}",
                 ) { onKnowledge(key, it) }
+                // O que essa resposta faz no plano, para a escolha ter peso de verdade.
+                Text(
+                    br.com.estudario.domain.planner.StudyPlanBlueprint.knowledgeEffect(knowledge, difficulty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

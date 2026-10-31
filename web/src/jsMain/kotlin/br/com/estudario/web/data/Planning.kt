@@ -162,6 +162,23 @@ object Planning {
                 freeRules = freeRules,
             )
 
+    private const val REORGANIZED_KEY = "estudario.plano.reorganizado"
+
+    /**
+     * Uma vez por dia, ao abrir: o plano se reorganiza sozinho (o que venceu volta na frente, o ritmo do
+     * edital é refeito com o que a pessoa fez, e o plano nunca acaba). Antes ele só se refazia quando
+     * a pessoa concluía uma tarefa: quem sumia uns dias voltava para uma pilha de atrasadas, e quem
+     * ficava quatro semanas sem concluir nada ficava sem plano.
+     */
+    fun reorganizeDaily(force: Boolean = false) {
+        if (Store.demo) return
+        val today = Queries.todayEpoch().toString()
+        if (!force && runCatching { kotlinx.browser.localStorage.getItem(REORGANIZED_KEY) }.getOrNull() == today) return
+        val plan = Queries.activePlan(Store.data) ?: return
+        Store.update { runCatching { replan(it, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(it) }
+        runCatching { kotlinx.browser.localStorage.setItem(REORGANIZED_KEY, today) }
+    }
+
     /** StudyPlanApplicationService.replan + applyProposal. */
     fun replan(data: Snapshot, planId: String, reason: ReplanReason): Snapshot {
         val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return data

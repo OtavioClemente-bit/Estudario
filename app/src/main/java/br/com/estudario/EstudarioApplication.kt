@@ -197,6 +197,19 @@ class EstudarioApplication : Application() {
                     mood = br.com.estudario.ui.assistant.FolhaMood.PROUD,
                 )
             }
+            // Uma vez por dia o plano se reorganiza sozinho (o que venceu volta na frente, o ritmo do
+            // edital é refeito com o que a pessoa fez e o plano nunca acaba). Antes só concluir uma
+            // tarefa refazia o plano: quem sumia uns dias voltava para uma pilha de atrasadas.
+            runCatching {
+                val prefs = getSharedPreferences("plano_diario", MODE_PRIVATE)
+                val today = java.time.LocalDate.now().toEpochDay()
+                if (prefs.getLong("dia", -1) != today) {
+                    database.plannerDao().plansOnce().filter { it.active && !it.archived }.forEach { plan ->
+                        runCatching { planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED) }
+                    }
+                    prefs.edit().putLong("dia", today).apply()
+                }
+            }
             // Sessão de foco que ficou aberta (app fechado, aparelho reiniciado) é resolvida aqui:
             // ou volta com a notificação, ou é encerrada e o Não Perturbe é devolvido.
             FocusSessionManager.reconcile(this@EstudarioApplication)

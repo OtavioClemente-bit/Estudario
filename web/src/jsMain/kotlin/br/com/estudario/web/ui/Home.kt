@@ -731,7 +731,7 @@ fun openTask(task: PlanTask) {
     when {
         beginner && task.type == "QUESTIONS" && task.topicId != null -> Router.go(Route.Topic(task.topicId))
         // Tarefa de questões de um tópico abre as questões dele (antes abria só a página do tópico).
-        task.type == "QUESTIONS" && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } ->
+        (task.type == "QUESTIONS" || task.type == "ACTIVE_RECALL") && task.topicId != null && Store.data.questions.any { it.topicId == task.topicId && !it.hidden } ->
             planQuestions(task)
         task.topicId != null -> Router.go(Route.Topic(task.topicId))
         task.type == "SIMULATION" -> Router.go(Route.Simulations)
@@ -748,7 +748,8 @@ fun taskTitle(task: PlanTask): String {
     val subject = task.subjectName.ifBlank { "todas as matérias" }
     val base = when (task.type) {
         "THEORY" -> "Teoria de $subject"
-        "QUESTIONS" -> "Questões de $subject"
+        // Sem tópico: a revisão de matéria do plano (questões misturadas do que já foi visto nela).
+        "QUESTIONS" -> "Revisão de matéria: $subject"
         "REVIEW" -> "Revisão de $subject"
         "ACTIVE_RECALL" -> "Recordação ativa de $subject"
         "FLASHCARDS" -> "Flashcards de $subject"
