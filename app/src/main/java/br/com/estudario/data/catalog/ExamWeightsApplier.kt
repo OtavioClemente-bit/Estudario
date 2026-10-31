@@ -49,7 +49,9 @@ object ExamWeightsApplier {
             val entries = catalog.entries()
             for (competition in pending) {
                 val names = dao.subjectsFor(competition.id).mapTo(hashSetOf()) { it.name.lowercase() }
-                val candidates = entries.filter { it.shortName.equals(competition.name, true) || "${it.shortName} · ${it.role}".equals(competition.name, true) }.take(12)
+                val candidates = entries.filter { it.shortName.equals(competition.name, true) || "${it.shortName} · ${it.role}".equals(competition.name, true) }
+                    // dezenas de cargos com o mesmo nome curto (TRT 3ª Região tem 30): antes só os 12 primeiros eram testados
+                    .filter { it.subjectCount == 0 || it.subjectCount == names.size }.take(60)
                 for (entry in candidates) {
                     val subjects = runCatching { catalog.subjects(entry.id) }.getOrNull() ?: continue
                     if (subjects.any { it.questions == null } || subjects.mapTo(hashSetOf()) { it.name.lowercase() } != names) continue

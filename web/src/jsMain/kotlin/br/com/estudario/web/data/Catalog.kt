@@ -180,18 +180,28 @@ object Catalog {
         if (pending.isEmpty()) return null
         val all = entries()
         val updates = mutableListOf<Pair<Long, List<CatalogSubject>>>()
+        val links = mutableMapOf<Long, String>()
         for (competition in pending) {
             val names = data.subjects.filter { it.competitionId == competition.id }.mapTo(hashSetOf()) { it.name.lowercase() }
-            val candidates = all.filter { it.shortName.equals(competition.name, true) || it.title.equals(competition.name, true) }.take(12)
+            // Um órgão pode ter dezenas de cargos com o mesmo nome curto (TRT 3ª Região tem 30): antes só os
+            // 12 primeiros eram testados e o cargo certo ficava de fora. Agora só os com o mesmo número de matérias.
+            val candidates = all.filter { (it.shortName.equals(competition.name, true) || it.title.equals(competition.name, true)) && (it.subjectCount == 0 || it.subjectCount == names.size) }.take(60)
             for (entry in candidates) {
                 val subjects = runCatching { subjects(entry.id) }.getOrNull() ?: continue
                 if (subjects.any { it.questions == null } || subjects.mapTo(hashSetOf()) { it.name.lowercase() } != names) continue
                 updates += competition.id to subjects
+                links[competition.id] = entry.id
                 break
             }
         }
         if (updates.isEmpty()) return null
-        return { snapshot -> updates.fold(snapshot) { acc, (id, subjects) -> withWeights(acc, id, subjects) } }
+        // Grava também de qual edital o concurso veio: a atualização diária passa a trazer as mudanças dele.
+        return { snapshot ->
+            updates.fold(snapshot) { acc, (id, subjects) -> withWeights(acc, id, subjects) }.edit(Keys.COMPETITIONS) { row ->
+                val link = links[(row["id"] as? JsonPrimitive)?.content?.toLongOrNull()]
+                if (link == null || row["catalogId"] is JsonPrimitive) row else row.with("catalogId" to JsonPrimitive(link))
+            }
+        }
     }
 
     // ---- busca: mesma regra do ExamCatalogSearch do app ----
