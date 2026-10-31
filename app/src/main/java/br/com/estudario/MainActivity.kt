@@ -150,9 +150,18 @@ class MainActivity : ComponentActivity() {
             handleIncomingFile(intent)
             handleNotification(intent)
             handleWidgetAction(intent)
-            if (BuildConfig.DEBUG && intent?.getBooleanExtra("seedDemo", false) == true) {
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("seedDemo", false) == true) {
                 val app = application as EstudarioApplication
                 lifecycleScope.launch { br.com.estudario.data.DebugSeed.run(app.database, app.repository) }
+            }
+            // Massa de teste pesada, como a de quem estuda há seis semanas: `--ez seedReal true`.
+            if (br.com.estudario.data.DebugSeed.allowed() && intent?.getBooleanExtra("seedReal", false) == true) {
+                val app = application as EstudarioApplication
+                lifecycleScope.launch {
+                    val message = runCatching { br.com.estudario.data.RealSeed.run(app) }
+                        .fold({ "Dados de teste carregados" }, { "Falha ao carregar dados de teste: ${it.message}" })
+                    android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

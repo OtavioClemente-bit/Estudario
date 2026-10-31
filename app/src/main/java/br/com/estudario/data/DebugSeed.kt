@@ -16,8 +16,11 @@ import br.com.estudario.data.local.UserNoteEntity
  * `adb shell am start -n br.com.estudario.teste/br.com.estudario.MainActivity --ez seedDemo true`.
  */
 object DebugSeed {
+    /** Debug ou o app "Estudário Teste" (rapido, sufixo .teste). O app da Play nunca carrega isto. */
+    fun allowed(): Boolean = BuildConfig.DEBUG || BuildConfig.APPLICATION_ID.endsWith(".teste")
+
     suspend fun run(db: AppDatabase, repository: StudyRepository) {
-        if (!BuildConfig.DEBUG) return
+        if (!allowed()) return
         repository.loadDemoData()
         val dao = db.dao()
         seedActivity(db)

@@ -356,14 +356,14 @@ class SimulationService(
      * null sem internet, sem edital do catálogo ou quando o edital não tem prova.
      */
     /** As provas do edital (a oficial e os Simuladões do mês), iguais para todos os alunos do edital. */
-    suspend fun editalSimulations(competitionId: Long): List<OfficialSimulation> {
-        val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId } ?: return emptyList()
+    suspend fun editalSimulations(competitionId: Long): List<OfficialSimulation> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId } ?: return@withContext emptyList()
         val catalog = ExamCatalogProvider.get(context)
-        if (!catalog.isConfigured) return emptyList()
-        val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return emptyList()
+        if (!catalog.isConfigured) return@withContext emptyList()
+        val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return@withContext emptyList()
         val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken()
-        // A decodificação (centenas de questões por prova) fora da linha da tela.
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { runCatching { catalog.editalSimulations(catalogId, token) }.getOrDefault(emptyList()) }
+        // Tudo fora da linha da tela: achar o edital no catálogo lê a lista dos 4 mil, e cada prova traz centenas de questões.
+        runCatching { catalog.editalSimulations(catalogId, token) }.getOrDefault(emptyList())
     }
 
     /** O id da prova do edital por trás de um simulado (null quando não é Simuladão nem prova oficial). */
