@@ -22,6 +22,7 @@ import br.com.estudario.time.*
 import java.time.Instant
 import java.time.ZoneId
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 class StudyPlanViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as EstudarioApplication
     private val repository = app.planRepository
@@ -45,7 +46,11 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         viewModelScope.launch {
-            combine(repository.plans, competitions, selected) { plans, contests, section -> Triple(plans, contests, section) }
+            // As tarefas também disparam a releitura: a reorganização do dia (ao abrir o app) troca as tarefas
+            // depois da primeira leitura, e a missão do dia só aparecia ao sair e voltar da tela.
+            val taskChanges = app.database.plannerDao().tasks().map { list -> list.size to list.sumOf { it.updatedAt } }.distinctUntilChanged()
+            combine(repository.plans, competitions, selected, taskChanges) { plans, contests, section, _ -> Triple(plans, contests, section) }
+                .debounce(150)
                 .collectLatest { (plans, contests, section) ->
                     val primary = contests.firstOrNull { it.isPrimary }?.id
                     val plan = plans.firstOrNull { it.active && !it.archived && (primary == null || it.competitionId == primary) }

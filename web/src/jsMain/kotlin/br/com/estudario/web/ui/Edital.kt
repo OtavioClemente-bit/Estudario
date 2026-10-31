@@ -183,6 +183,7 @@ private fun SubjectCard(
 ) {
     val data = Store.data
     var deleting by remember { mutableStateOf(false) }
+    var choosingPriority by remember { mutableStateOf(false) }
     if (deleting) ConfirmDeleteModal(
         title = "Excluir a matéria ${subject.name}?",
         body = "Saem os ${topics.size} tópicos, o material gerado, as questões, as revisões e as tarefas do plano desta matéria. Isso vale no celular também. Não dá para desfazer.",
@@ -190,6 +191,7 @@ private fun SubjectCard(
     ) { deleting = false; Store.update { Actions.deleteSubject(it, subject.id) }; Toast.show("Matéria excluída.") }
     val difficulty = subjectDifficulty(data, subject.id)
     val priority = subjectPriority(subject, parentPriority)
+    if (choosingPriority) SubjectPriorityModal(subject, priority) { choosingPriority = false }
     val attention = Attention.of(priority, difficulty)
     val withContent = topics.count { it.id in contentIds }
     val studied = topics.count(Queries::isStudied)
@@ -202,8 +204,9 @@ private fun SubjectCard(
             Div({ classes("grow"); attr("style", "min-width:0") }) {
                 H3 { Text(subject.name) }
                 Div({ classes("row", "wrap"); attr("style", "gap:8px;margin-top:6px") }) {
-                    Span({ classes("attn-pill"); attr("title", "Prioridade ${priorityLabel(priority).lowercase()}${difficulty?.takeIf { it != "NORMAL" }?.let { " · dificuldade ${difficultyLabel(it)}" } ?: ""}") }) {
-                        Span({ classes("adot") }); Text(attention.label)
+                    // Toque na etiqueta: escolher a prioridade da matéria (como no app).
+                    Span({ classes("attn-pill", "attn-edit"); attr("role", "button"); attr("tabindex", "0"); attr("title", "Prioridade ${priorityLabel(priority).lowercase()}${difficulty?.takeIf { it != "NORMAL" }?.let { " · dificuldade ${difficultyLabel(it)}" } ?: ""} · toque para mudar"); onClick { it.stopPropagation(); choosingPriority = true } }) {
+                        Span({ classes("adot") }); Text(attention.label); Icon("edit", extraClass = "attn-edit-ic")
                     }
                     subjectExamWeight(data, subject.id)?.let { weight ->
                         // Peso da prova: o que define a prioridade, a menos que a pessoa tenha trocado.
@@ -283,4 +286,37 @@ private fun TopicRow(topic: Topic, depth: Int, childCount: Int, priority: Priori
 private fun DualFill(material: Int, studied: Int) {
     val fills = listOf("m" to material, "s" to studied).sortedByDescending { it.second }
     fills.forEach { (cls, value) -> Span({ classes(cls); attr("style", "width:$value%") }) }
+}
+
+/**
+ * Escolher a prioridade da matéria, como no app: as cinco, ou "pelo edital" (volta ao peso lido no quadro de
+ * provas). A prioridade decide quanto tempo a matéria ganha no plano.
+ */
+@Composable
+private fun SubjectPriorityModal(subject: br.com.estudario.web.data.Subject, current: PriorityLevel, onClose: () -> Unit) {
+    fun choose(level: PriorityLevel?) {
+        Store.update { Actions.setSubjectPriority(it, subject.id, level) }
+        Toast.show(if (level == null) "Prioridade de volta ao peso do edital." else "Prioridade de ${subject.name}: ${priorityLabel(level).lowercase()}.")
+        onClose()
+    }
+    Modal(onDismiss = onClose) {
+        Span({ classes("eyebrow") }) { Text("PRIORIDADE DA MATÉRIA") }
+        H2 { Text(subject.name) }
+        P({ classes("small", "muted") }) { Text("Quanto mais alta, mais tempo ela ganha no seu plano e mais cedo os tópicos dela entram.") }
+        Div({ classes("prio-pick") }) {
+            PriorityLevel.entries.forEach { level ->
+                Button({
+                    classes(*listOfNotNull("prio-opt", if (subject.userPriorityOverride != null && level == current) "on" else null).toTypedArray())
+                    attr("type", "button"); onClick { choose(level) }
+                }) {
+                    Span({ classes("adot"); attr("style", "background:${Attention.of(level, null).color}") })
+                    Text(priorityLabel(level))
+                }
+            }
+            Button({ classes(*listOfNotNull("prio-opt", if (subject.userPriorityOverride == null) "on" else null).toTypedArray()); attr("type", "button"); onClick { choose(null) } }) {
+                Icon("auto_awesome"); Text("Pelo edital (automático)")
+            }
+        }
+        Div({ classes("row", "end") }) { Btn("Fechar", onClose, style = "ghost") }
+    }
 }

@@ -7,6 +7,7 @@ import br.com.estudario.domain.ReviewStageProgression
 import br.com.estudario.domain.ReviewStageState
 import br.com.estudario.time.plusDays
 import br.com.estudario.time.startOfDay
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -102,6 +103,13 @@ object Actions {
     }
 
     /** StudyExecutionService.skip */
+    /** Prioridade que a pessoa escolheu para a matéria (null = volta ao peso do edital), como no app. */
+    fun setSubjectPriority(data: Snapshot, subjectId: Long, level: br.com.estudario.domain.PriorityLevel?): Snapshot =
+        data.edit(Keys.SUBJECTS) { row ->
+            if ((row["id"] as? JsonPrimitive)?.content?.toLongOrNull() != subjectId) row
+            else JsonObject(row + ("userPriorityOverride" to (level?.name?.let(::JsonPrimitive) ?: JsonNull)) + ("updatedAt" to JsonPrimitive(now())))
+        }
+
     fun skipTask(data: Snapshot, taskId: String, reason: String): Snapshot {
         val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
         if (task.locked) return data
