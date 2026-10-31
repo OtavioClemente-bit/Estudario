@@ -70,7 +70,11 @@ internal fun CatalogSearchField(query: String, onQueryChange: (String) -> Unit) 
 }
 
 /** A área de cada edital (Segurança pública, Tribunais...), calculada uma vez por edital. */
-internal fun ExamCatalogEntry.category(): ExamCategory = ExamCategory.of(shortName, agency, role)
+internal fun ExamCatalogEntry.category(): ExamCategory = categoryCache.getOrPut(id) { ExamCategory.of(shortName, agency, role) }
+
+// A área sai de uma expressão de texto: calculada a cada cartão e a cada redesenho, com 4 mil editais,
+// travava a tela de escolher o edital. Agora uma vez por edital.
+private val categoryCache = java.util.concurrent.ConcurrentHashMap<String, ExamCategory>()
 
 /**
  * Filtro por área, em chips: "Todos" e só as áreas que têm edital no catálogo, cada uma com a
@@ -341,7 +345,8 @@ internal fun CatalogTabs(recentOnly: Boolean, recentCount: Int, total: Int, rece
 /** As bancas mais frequentes na lista atual, para filtrar. */
 @Composable
 internal fun CatalogBoardChips(entries: List<ExamCatalogEntry>, selected: String?, onSelect: (String?) -> Unit) {
-    val boards = entries.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)
+    // Só quando a lista muda (antes recontava os 4 mil editais a cada toque na tela).
+    val boards = remember(entries) { entries.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8) }
     if (boards.size < 2) return
     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(boards.size) { i ->

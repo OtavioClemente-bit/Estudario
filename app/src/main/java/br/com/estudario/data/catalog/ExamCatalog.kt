@@ -130,12 +130,15 @@ object ExamCatalogSearch {
         .trim()
 
     private fun words(value: String) = normalize(value).split(' ').filter { it.isNotBlank() }
+    private val haystacks = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 
     fun search(entries: List<ExamCatalogEntry>, query: String, limit: Int = 30): List<ExamCatalogEntry> {
         val terms = words(query).filter { it !in ignored }
         if (terms.isEmpty()) return emptyList()
         return entries.mapNotNull { entry ->
-            val haystack = words(listOf(entry.shortName, entry.agency, entry.role, entry.board.orEmpty(), entry.year?.toString().orEmpty(), entry.searchNorm).joinToString(" "))
+            // O texto normalizado de cada edital fica guardado: refazer para os 4 mil a cada letra
+            // digitada travava a tela de escolher o edital.
+            val haystack = haystacks.getOrPut(entry.id) { words(listOf(entry.shortName, entry.agency, entry.role, entry.board.orEmpty(), entry.year?.toString().orEmpty(), entry.searchNorm).joinToString(" ")) }
             val score = score(terms, haystack, entry) ?: return@mapNotNull null
             entry to score
         }

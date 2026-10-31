@@ -522,7 +522,15 @@ private fun CompetitionStep(
     // Quem já digitou um concurso fora do catálogo volta direto para o formulário.
     var manual by rememberSaveable { mutableStateOf(snapshot.catalogExamId == null && snapshot.competitionName.isNotBlank()) }
     // Busca sem teto de resultados (antes parava em 30: "TRT" não mostrava todos).
-    val results = remember(query, catalog.entries) { br.com.estudario.data.catalog.ExamCatalogSearch.search(catalog.entries, query, limit = Int.MAX_VALUE) }
+    // Fora da tela e depois de uma pausa na digitação: buscar nos 4 mil editais a cada letra, na linha
+    // que desenha a tela, travava o teclado e a rolagem.
+    val results by androidx.compose.runtime.produceState(emptyList<br.com.estudario.data.catalog.ExamCatalogEntry>(), query, catalog.entries) {
+        if (query.isBlank()) { value = emptyList(); return@produceState }
+        kotlinx.coroutines.delay(250)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            br.com.estudario.data.catalog.ExamCatalogSearch.search(catalog.entries, query, limit = Int.MAX_VALUE)
+        }
+    }
     val thisYear = java.time.LocalDate.now().year
     var recentOnly by rememberSaveable { mutableStateOf(true) }
     var board by rememberSaveable { mutableStateOf<String?>(null) }
@@ -595,14 +603,20 @@ private fun CompetitionStep(
                     selectedExamId = if (selectedExamId == entry.id) null else entry.id
                 }
             }
-            if (filtered.size > shownCount) {
+            // A lista não é preguiçosa (fica dentro da página que rola): até 150 cartões, o resto pela busca.
+            if (filtered.size > shownCount && shownCount < 150) {
                 // Carrega mais sozinho quando o fim da lista aparece na tela.
                 Row(Modifier.fillMaxWidth().padding(12.dp).loadMoreWhenVisible(shownCount) { shownCount += 30 }, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp))
                     Text("Carregando mais editais…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
+            } else if (filtered.size > shownCount) Text(
+                "Mostrando ${shownCount} de ${filtered.size}. Busque pelo nome do concurso ou da banca para achar os outros.",
+                Modifier.fillMaxWidth().padding(12.dp),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
             if (filtered.isEmpty()) {
                 CatalogEmptyState(
                     query = query,
