@@ -77,7 +77,7 @@ object AiContent {
         var current: Topic? = topic
         val seen = HashSet<Long>()
         while (current != null && seen.add(current.id)) {
-            path.addFirst(current.title.take(300))
+            path.addFirst(current.title.take(4000))
             current = current.parentTopicId?.let { byId[it] }
         }
         return path.toList().takeLast(6)

@@ -47,7 +47,7 @@ object LibraryGaps {
             val path = ArrayDeque<String>()
             var current: Topic? = topic
             val seen = HashSet<Long>()
-            while (current != null && seen.add(current.id)) { path.addFirst(current.title.take(300)); current = current.parentTopicId?.let { byId[it] } }
+            while (current != null && seen.add(current.id)) { path.addFirst(current.title.take(4000)); current = current.parentTopicId?.let { byId[it] } }
             return path.toList().takeLast(6)
         }
         val ready = hashSetOf<Long>()
