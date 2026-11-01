@@ -433,28 +433,8 @@ fun HomeScreen(
             }
         }
 
-        val nextUp = currentQueueItem?.let { selected ->
-            val remaining = queue.asSequence()
-                .filter { it.item.id != selected.item.id }
-                .filter { firstEligibleQueueTopic(listOf(it)) != null }
-                .sortedBy { it.item.position }
-                .map { row ->
-                    val subjectName = subjects.firstOrNull { it.id == row.topic.subjectId }?.name ?: "Matéria removida"
-                    queueTopicUi(row, subjectName)
-                }
-                .toList()
-            NextUpUi(items = remaining, remainingToday = remaining.size, fromQueue = true)
-        } ?: nextUpToday(planState, focusTask)
-        // Com a missão do dia na tela, o "Depois" repetiria as mesmas tarefas: só aparece para a fila.
-        val missionShown = activePlan != null && todayLoad.isNotEmpty()
-        if (nextUp.items.isNotEmpty() && (!missionShown || nextUp.fromQueue)) {
-            item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
-            item {
-                Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
-                    NextUpStrip(nextUp, onOpenPlan = onPlan, onOpenQueue = onOpenQueue)
-                }
-            }
-        }
+        // O "Depois" saiu do Início (poluía e confundia, sobretudo no dia livre, quando listava as tarefas de
+        // amanhã); o próximo passo fica na missão do dia e o resto no Plano. Igual ao site.
 
         item { Spacer(Modifier.height(EstudarioSpacing.section)) }
 
