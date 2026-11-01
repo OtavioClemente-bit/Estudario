@@ -261,7 +261,13 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /** Reorganiza agora: o que venceu volta na frente e o resto é reencaixado no ritmo do edital. */
-    fun reorganize() = launch("Reorganizando o plano") { service.replan(_state.value.activePlan!!.id, ReplanReason.DAY_MISSED) }
+    fun reorganize() = launch("Reorganizando o plano") { service.fitOverdue(_state.value.activePlan!!.id) }
+    /** Atrasadas: empurra o plano inteiro para a frente (a mais antiga cai em hoje). */
+    fun pushOverdue() = _state.value.activePlan?.id?.let { id -> launch("Empurrando o plano") { service.pushOverdue(id) } }
+    /** "Hoje não vou conseguir" (ou desfaz): o dia fica sem estudo e o que estava nele vai para a frente. */
+    fun setDayOff(date: LocalDate, off: Boolean) = _state.value.activePlan?.id?.let { id -> launch(if (off) "Passando o dia para a frente" else "Devolvendo o dia") { service.setDayOff(id, date, off) } }
+    /** Arrastar no mês (pago): o estudo fica fixado no dia escolhido. */
+    fun moveTask(taskId: String, date: LocalDate) = launch("Mudando o dia") { service.moveTask(taskId, date) }
     suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null, type: br.com.estudario.domain.planner.PlanTaskType = br.com.estudario.domain.planner.PlanTaskType.THEORY): PlannerTaskUi? {
         val current = state.first { !it.loading }
         return matchingPendingTopicTask(current, topicId, preferredTaskId, type)

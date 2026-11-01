@@ -13,7 +13,9 @@ class StudyPlannerEngine(
         val rawCapacity = dates.associateWith { date -> capacityFor(snapshot, date) }
         // Grátis: se hoje já tem estudo, hoje fica como está (trocar edital, horas ou matérias não
         // muda a matéria do dia); o replanejamento vale de amanhã em diante.
-        val keepToday = snapshot.policy.keepTodayTasks && reason != ReplanReason.INITIAL && snapshot.tasks.any {
+        // "Hoje não vou conseguir" (o dia marcado sem estudo) vale também no grátis: o dia sai do plano.
+        val todayOff = snapshot.dayOverrides[snapshot.today]?.unavailable == true
+        val keepToday = snapshot.policy.keepTodayTasks && !todayOff && reason != ReplanReason.INITIAL && snapshot.tasks.any {
             it.date == snapshot.today && it.status !in terminalInactiveStatuses
         }
         val fixedTasks = snapshot.tasks.filter { task ->

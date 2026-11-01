@@ -79,6 +79,8 @@ data class ActivePlanUiState(
     val nextDayTasks get() = nextStudyDay?.let { day -> currentTasks.filter { it.entity.scheduledEpochDay == day.toEpochDay() } }.orEmpty()
     /** Os próximos 7 dias a partir de amanhã, para a semana nunca aparecer vazia quando o plano continua. */
     val upcomingWeekTasks get() = currentTasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
+    /** "Hoje não vou conseguir" marcado para hoje. */
+    val todayOff get() = dayOverrides.any { it.epochDay == today.toEpochDay() && it.unavailable }
     val overdueTasks get() = tasks.filter { it.entity.scheduledEpochDay < today.toEpochDay() && it.entity.status in listOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
     val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())

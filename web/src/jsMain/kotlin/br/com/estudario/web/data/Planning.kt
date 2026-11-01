@@ -181,6 +181,11 @@ object Planning {
         // a estrutura antiga (revisões como tarefa, bateria de uma matéria só). O que já foi feito fica.
         val upgradeKey = "$METHOD_KEY.${plan.id}"
         val upgrade = runCatching { kotlinx.browser.localStorage.getItem(upgradeKey) }.getOrNull() == null
+        // Com estudo atrasado o plano espera a pessoa escolher (encaixar, empurrar ou deixar) em vez de
+        // varrer tudo calado; passada uma semana, encaixa sozinho (como no app).
+        val late = overdue(Store.data, plan.id)
+        val waiting = !force && late.isNotEmpty() && Queries.todayEpoch() - late.minOf { it.day } <= OVERDUE_WAIT_DAYS
+        if (!upgrade && waiting) return
         Store.update { data ->
             runCatching { if (upgrade) rebuild(data, plan.id) else replan(data, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(data)
         }
@@ -188,6 +193,57 @@ object Planning {
     }
 
     private const val METHOD_KEY = "estudario.plano.metodo"
+    private const val OVERDUE_WAIT_DAYS = 7L
+    private val PENDING = setOf("PLANEJADA", "EM_ANDAMENTO")
+
+    /** Atrasadas: o que ficou de dias que passaram e não foi feito. */
+    fun overdue(data: Snapshot, planId: String) = data.tasks.filter { it.planId == planId && it.day < Queries.todayEpoch() && it.status in PENDING }
+
+    /** "Encaixar nos próximos dias": as atrasadas voltam na frente e o resto se reorganiza no ritmo do edital. */
+    fun fitOverdue(data: Snapshot, planId: String): Snapshot {
+        val late = overdue(data, planId).filter { it.locked }.mapTo(hashSetOf()) { it.id }
+        val unlocked = if (late.isEmpty()) data else data.edit(Keys.TASKS) { if (it.str("id") in late) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it }
+        return replan(unlocked, planId, ReplanReason.DAY_MISSED)
+    }
+
+    /** "Empurrar tudo": da atrasada mais antiga em diante, cada estudo anda o mesmo número de dias (a mais antiga cai em hoje). */
+    fun pushOverdue(data: Snapshot, planId: String): Snapshot {
+        val today = Queries.todayEpoch()
+        val pending = data.tasks.filter { it.planId == planId && it.status in PENDING }
+        val oldest = pending.filter { it.day < today }.minOfOrNull { it.day } ?: return data
+        val shift = today - oldest
+        val moving = pending.filter { it.day >= oldest }.associate { it.id to it.day + shift }
+        val at = now()
+        return data.edit(Keys.TASKS) { row -> moving[row.str("id")]?.let { row.with("day" to JsonPrimitive(it), "updatedAt" to JsonPrimitive(at)) } ?: row }
+    }
+
+    /** "Hoje não vou conseguir" (ou desfaz): o dia fica sem estudo e o que estava nele vai para os próximos dias. */
+    fun setDayOff(data: Snapshot, planId: String, day: Long, off: Boolean): Snapshot {
+        val exists = data.array("studyDayOverrides").any { (it as? JsonObject)?.let { o -> o.str("planId") == planId && o.long("day") == day } == true }
+        val withDay = if (exists) data.edit("studyDayOverrides") { if (it.str("planId") == planId && it.long("day") == day) it.with("unavailable" to JsonPrimitive(off)) else it }
+        else data.append("studyDayOverrides", jsonOf("planId" to planId, "day" to day, "minutes" to null, "unavailable" to off, "locked" to false))
+        // Estudo fixado pela pessoa nesse dia também sai: o dia ficou sem estudo.
+        val freed = if (!off) withDay else withDay.edit(Keys.TASKS) {
+            if (it.str("planId") == planId && it.long("day") == day && it.bool("locked") == true && it.str("status") in PENDING) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it
+        }
+        return replan(freed, planId, ReplanReason.DAY_MISSED)
+    }
+
+    fun isDayOff(data: Snapshot, planId: String, day: Long): Boolean =
+        data.array("studyDayOverrides").any { (it as? JsonObject)?.let { o -> o.str("planId") == planId && o.long("day") == day && o.bool("unavailable") == true } == true }
+
+    /**
+     * Arrastar no mês (pagos): só o estudo arrastado muda, para o dia escolhido, e fica fixado lá. O
+     * resto do plano não se mexe (replanejar aqui embaralhava outros dias que a pessoa não tocou).
+     */
+    fun moveTask(data: Snapshot, taskId: String, day: Long): Snapshot {
+        val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
+        if (task.status !in PENDING && task.status != "NAO_REALIZADA") return data
+        val at = now()
+        return data.edit(Keys.TASKS) {
+            if (it.str("id") == taskId) it.with("day" to JsonPrimitive(day), "status" to JsonPrimitive(if (task.status == "NAO_REALIZADA") "PLANEJADA" else task.status), "locked" to JsonPrimitive(true), "updatedAt" to JsonPrimitive(at)) else it
+        }
+    }
 
     /** Refaz o plano do zero pelo método atual: o que não foi feito sai e o plano é montado de novo. */
     fun rebuild(data: Snapshot, planId: String): Snapshot =

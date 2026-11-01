@@ -220,6 +220,73 @@ class StudyPlanApplicationService(
         planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, if (locked) "DAY_LOCKED" else "DAY_UNLOCKED", summary = date.toString()))
     }
 
+    /**
+     * "Hoje não vou conseguir": o dia sai do plano (sem estudo) e o que estava nele vai para os
+     * próximos dias. [off] = false desfaz.
+     */
+    suspend fun setDayOff(planId: String, date: LocalDate, off: Boolean) {
+        db.withTransaction {
+            val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+            require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+            val current = planner.dayOverridesFor(planId).firstOrNull { it.epochDay == date.toEpochDay() }
+            planner.upsertDayOverride((current ?: StudyDayOverrideEntity(planId, date.toEpochDay())).copy(unavailable = off))
+            // Tarefa fixada pela pessoa nesse dia também sai: o dia ficou sem estudo.
+            if (off) planner.tasksForOnce(planId).filter { it.locked && it.scheduledEpochDay == date.toEpochDay() && it.status in pendingStatuses }
+                .forEach { planner.updateTask(it.copy(locked = false, updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis())) }
+            planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, if (off) "DAY_OFF" else "DAY_ON", summary = date.toString()))
+        }
+        replan(planId, ReplanReason.DAY_MISSED)
+    }
+
+    /** Atrasadas: o que ficou de dias que passaram e não foi feito. */
+    suspend fun overdue(planId: String, today: LocalDate = LocalDate.now()): List<br.com.estudario.data.local.planner.PlanTaskEntity> =
+        planner.tasksForOnce(planId).filter { it.scheduledEpochDay < today.toEpochDay() && it.status in pendingStatuses }
+
+    /** "Encaixar nos próximos dias": as atrasadas voltam na frente e o resto se reorganiza no ritmo do edital. */
+    suspend fun fitOverdue(planId: String) {
+        val late = overdue(planId).filter { it.locked }
+        if (late.isNotEmpty()) db.withTransaction {
+            val now = System.currentTimeMillis()
+            late.forEach { planner.updateTask(it.copy(locked = false, updatedAt = now)) }
+        }
+        replan(planId, ReplanReason.DAY_MISSED)
+    }
+
+    /**
+     * "Empurrar tudo": o plano anda junto, sem pular nada. Da atrasada mais antiga em diante, cada
+     * estudo vai para a frente o mesmo número de dias (a mais antiga cai em hoje).
+     */
+    suspend fun pushOverdue(planId: String, today: LocalDate = LocalDate.now()) = db.withTransaction {
+        val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+        val tasks = planner.tasksForOnce(planId).filter { it.status in pendingStatuses }
+        val oldest = tasks.filter { it.scheduledEpochDay < today.toEpochDay() }.minOfOrNull { it.scheduledEpochDay } ?: return@withTransaction
+        val shift = today.toEpochDay() - oldest
+        require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+        val now = System.currentTimeMillis()
+        tasks.filter { it.scheduledEpochDay >= oldest }.forEach {
+            planner.updateTask(it.copy(scheduledEpochDay = it.scheduledEpochDay + shift, updatedRevision = plan.revision + 1, updatedAt = now))
+        }
+        planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "PUSHED", summary = "$shift dia(s)"))
+    }
+
+    /**
+     * A pessoa arrastou o estudo para outro dia: só ele muda e fica fixado lá (o replanejamento não o
+     * tira dali). O resto do plano não se mexe: replanejar aqui embaralhava dias que ela não tocou.
+     */
+    suspend fun moveTask(taskId: String, date: LocalDate) {
+        db.withTransaction {
+            val task = planner.task(taskId) ?: error("Tarefa não encontrada.")
+            require(task.status in pendingStatuses || task.status == br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA) { "Esse estudo já foi feito." }
+            val plan = planner.plan(task.planId) ?: error("Plano não encontrado.")
+            require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+            val status = if (task.status == br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA) br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA else task.status
+            planner.updateTask(task.copy(scheduledEpochDay = date.toEpochDay(), status = status, locked = true, updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis()))
+            planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "TASK_MOVED", summary = "${task.id} -> $date"))
+        }
+    }
+
+    private val pendingStatuses = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
+
     suspend fun updateAvailability(planId: String, values: List<StudyAvailabilityEntity>) {
         require(values.any { !it.unavailable && it.availableMinutes > 0 }) { "Mantenha pelo menos um dia disponível." }
         db.withTransaction {

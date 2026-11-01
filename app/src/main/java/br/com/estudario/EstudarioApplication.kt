@@ -34,6 +34,9 @@ import br.com.estudario.focus.FocusSessionManager
 import br.com.estudario.notifications.StudyNotificationCoordinator
 import kotlinx.coroutines.*
 
+/** Dias que o plano espera a pessoa decidir o que fazer com o estudo atrasado antes de encaixar sozinho. */
+const val OVERDUE_WAIT_DAYS = 7L
+
 class EstudarioApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -211,7 +214,11 @@ class EstudarioApplication : Application() {
                         val upgrade = !prefs.getBoolean("metodo2:${plan.id}", false)
                         runCatching {
                             if (upgrade) planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.REBUILD)
-                            planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED)
+                            // Com estudo atrasado o plano espera a pessoa escolher (encaixar, empurrar ou
+                            // deixar) em vez de varrer tudo calado; passada uma semana, encaixa sozinho.
+                            val late = planService.overdue(plan.id)
+                            val waiting = late.isNotEmpty() && today - late.minOf { it.scheduledEpochDay } <= OVERDUE_WAIT_DAYS
+                            if (!waiting) planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED)
                         }
                         prefs.edit().putBoolean("metodo2:${plan.id}", true).apply()
                     }

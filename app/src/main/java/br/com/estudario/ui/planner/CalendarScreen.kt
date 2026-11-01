@@ -39,6 +39,8 @@ fun CalendarScreen(
     header: LazyListScope.() -> Unit = {},
     onEditAvailability: () -> Unit = {},
     onShiftRoadmapEnd: (Long) -> Unit = {},
+    /** Arrastar no mês (planos pagos): o estudo vai para o dia escolhido e fica fixado lá. */
+    onMoveTask: (PlannerTaskUi, LocalDate) -> Unit = { _, _ -> },
 ) {
     val theoryByTopic = remember(state.tasks) {
         state.tasks.map { it.entity }.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null && it.status != PlanTaskStatus.REPROGRAMADA }
@@ -58,7 +60,7 @@ fun CalendarScreen(
             header = header,
         )
         PlanSection.WEEK -> WeekPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
-        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header)
+        PlanSection.MONTH -> MonthPlanView(state = state, onFocus = onFocus, onReprogram = onReprogram, onSkip = onSkip, onGenerate = onGenerate, header = header, onMoveTask = onMoveTask)
         PlanSection.YEAR -> OverviewPlanView(state = state, header = header, onEditAvailability = onEditAvailability, onShiftRoadmapEnd = onShiftRoadmapEnd)
     }
     }
@@ -365,6 +367,7 @@ private fun MonthPlanView(
     onSkip: (PlannerTaskUi) -> Unit,
     onGenerate: () -> Unit,
     header: LazyListScope.() -> Unit,
+    onMoveTask: (PlannerTaskUi, LocalDate) -> Unit,
 ) {
     val monthTasks = state.monthTasks
     val plannedMinutes = monthTasks.plannedLoadMinutes()
@@ -385,27 +388,10 @@ private fun MonthPlanView(
         .groupBy { it.entity.subjectNameSnapshot }
         .map { (name, tasks) -> name to tasks.sumOf { it.entity.plannedMinutes } }
         .sortedByDescending { it.second }
-    var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
-    val selectedTasks = selectedDay?.let { day -> monthTasks.filter { it.entity.scheduledEpochDay == day.toEpochDay() }.sortedBy { it.entity.status.ordinal } }
 
     PlanList(header) {
-        item { Text("$monthLabel de ${state.today.year}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        item(key = "month-grid") {
-            MonthCalendar(month = state.today, today = state.today, tasks = monthTasks, selected = selectedDay) { day ->
-                selectedDay = if (selectedDay == day) null else day
-            }
-        }
-        if (selectedTasks != null) {
-            item(key = "month-day-title") {
-                Text(dayLabelPtBr(selectedDay!!, state.today).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            }
-            if (selectedTasks.isEmpty()) item(key = "month-day-empty") {
-                Text("Nada planejado neste dia.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            items(selectedTasks, key = { "day_${it.entity.id}" }) { taskUi ->
-                MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
-            }
-        }
+        // O mês inteiro, legível e arrastável (pagos): o calendário e a lista do dia escolhido.
+        item(key = "month-board") { PlanMonthBoard(state, onFocus, onMoveTask) }
         item { PlannerSummary(plannedMinutes = plannedMinutes, actualMinutes = actualMinutes, completionPercent = completionPercent, plannedLabel = "planejadas no mês", periodTitle = "Progresso do mês") }
         if (bySubject.isNotEmpty()) {
             item { Text("Distribuição por matéria", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
@@ -422,8 +408,7 @@ private fun MonthPlanView(
                 }
             }
         }
-        if (selectedTasks != null) Unit
-        else if (upcoming.isEmpty()) {
+        if (upcoming.isEmpty()) {
             item { EmptyState("Nada planejado à frente", "Não há tarefas futuras neste mês.", "Gerar planejamento", onGenerate) }
         } else {
             item { Text("Próximas missões do mês", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }

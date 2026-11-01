@@ -335,6 +335,12 @@ fun HomeScreen(
                 }
             } else startTask(viewModel, focusTask, onStudyTask, onFocus)
         }
+        // Estudo atrasado vem antes de tudo: a pessoa decide o que fazer com ele (o plano não esconde mais).
+        if (activePlan != null && planState.overdueTasks.isNotEmpty()) item(key = "plan-overdue") {
+            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                br.com.estudario.ui.planner.OverdueRescueCard(planState, planViewModel::reorganize, { planViewModel.pushOverdue() })
+            }
+        }
         if (missionFirst) item(key = "daily-mission") {
             val missingTopic = focusTask?.entity?.topicId
                 ?.takeIf { id -> theories.none { it.topicId == id } && questions.none { it.question.topicId == id } }
@@ -347,6 +353,11 @@ fun HomeScreen(
                     onStartCurrent = startCurrent,
                     onGenerate = missingTopic?.let { topic -> { generateFor = topic } },
                 )
+            }
+        }
+        if (activePlan != null && (missionFirst || planState.todayOff)) item(key = "plan-day-off") {
+            Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter)) {
+                br.com.estudario.ui.planner.DayOffAction(planState, { d, off -> planViewModel.setDayOff(d, off) })
             }
         }
 

@@ -193,15 +193,15 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                     state = state,
                     onEditAvailability = { editAvailability = true },
                     onShiftRoadmapEnd = viewModel::shiftRoadmapEnd,
+                    onMoveTask = { t, d -> viewModel.moveTask(t.entity.id, d) },
                     header = {
                         // O resumo do plano rola para fora da tela; as abas Hoje/Semana/Mês/Visão geral
                         // grudam no topo (sticky) para trocar de visão sem precisar voltar lá em cima.
                         item(key = "plan-progress-header") { PlanProgressHeader(state = state) }
                         if (dueReviews > 0) item(key = "plan-reviews-today") { ReviewReminderCard(dueReviews, onReviews) }
-                        // Atrasadas de dias anteriores: um toque reorganiza tudo (elas voltam na frente).
-                        val todayEpoch = java.time.LocalDate.now().toEpochDay()
-                        val overdue = state.tasks.count { it.entity.scheduledEpochDay < todayEpoch && it.entity.status in setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO) }
-                        if (overdue > 0) item(key = "plan-reorganize") { ReorganizeCard(overdue, viewModel::reorganize) }
+                        // Atrasadas de dias anteriores: a pessoa escolhe encaixar, empurrar ou deixar para depois.
+                        if (state.overdueTasks.isNotEmpty()) item(key = "plan-reorganize") { OverdueRescueCard(state, viewModel::reorganize, { viewModel.pushOverdue() }) }
+                        item(key = "plan-day-off") { DayOffAction(state, { d, off -> viewModel.setDayOff(d, off) }) }
                         stickyHeader(key = "plan-section-selector") {
                             PlanSectionSelector(
                                 selected = state.selectedSection,
@@ -370,22 +370,3 @@ private fun ReviewReminderCard(count: Int, onOpen: () -> Unit) {
     }
 }
 
-/** Atividades de dias que passaram: reorganizar põe todas na frente e reencaixa o resto no ritmo do edital. */
-@Composable
-private fun ReorganizeCard(count: Int, onReorganize: () -> Unit) {
-    Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(2.dp, androidx.compose.ui.graphics.Color(0xFFFF8FA3)),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(if (count == 1) "1 atividade atrasada" else "$count atividades atrasadas", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
-                Text("O plano já se reorganiza sozinho todo dia. Quer reorganizar agora?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.width(8.dp))
-            br.com.estudario.ui.brand.FilledTonalButton(onClick = onReorganize) { Text("Reorganizar") }
-        }
-    }
-}

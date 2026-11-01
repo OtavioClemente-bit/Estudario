@@ -49,6 +49,8 @@ fun PlanScreen() {
     var selectedDay by remember { mutableStateOf(Queries.todayEpoch()) }
     var monthOffset by remember { mutableStateOf(0) }
     var completing by remember { mutableStateOf<PlanTask?>(null) }
+    var upgradeEdit by remember { mutableStateOf(false) }
+    if (upgradeEdit) UpgradeModal(UpgradeReason.PLAN_EDIT) { upgradeEdit = false }
     var whyOpen by remember { mutableStateOf(false) }
     var overdueOpen by remember { mutableStateOf(PlanEntry.overdue).also { PlanEntry.overdue = false } }
 
@@ -138,7 +140,10 @@ fun PlanScreen() {
                         Span({ classes("overdue-ic") }) { Icon("event_busy") }
                         Div({ classes("grow"); attr("style", "text-align:left") }) {
                             B { Text("${overdueTasks.size} atividade${if (overdueTasks.size == 1) "" else "s"} atrasada${if (overdueTasks.size == 1) "" else "s"}") }
-                            Div({ classes("small", "muted") }) { Text("Faça agora, conclua ou reprograme: o plano se reorganiza sozinho.") }
+                            Div({ classes("small", "muted") }) {
+                                val days = (todayEpoch - overdueTasks.first().day).toInt()
+                                Text("${Queries.minutesLabel(overdueTasks.sumOf { it.minutes })} que ficaram de ${if (days == 1) "ontem" else "$days dias atrás"}. O que fazemos com eles?")
+                            }
                         }
                         Span({ classes("overdue-toggle") }) { Text(if (overdueOpen) "Ocultar" else "Ver"); Icon(if (overdueOpen) "expand_less" else "expand_more") }
                     }
@@ -150,16 +155,38 @@ fun PlanScreen() {
                             }
                         }
                     }
-                    // Todas de uma vez: o plano refaz o caminho com elas na frente, no ritmo do edital.
-                    Div({ classes("row", "end"); attr("style", "margin-top:10px") }) {
-                        Btn("Reorganizar meu plano", {
-                            br.com.estudario.web.data.Planning.reorganizeDaily(force = true)
-                            Toast.show("Plano reorganizado: as atrasadas voltaram na frente e o resto foi reencaixado.")
-                        }, style = "tonal", small = true, icon = "auto_awesome")
+                    // A pessoa escolhe: encaixar (voltam na frente e o resto se ajusta), empurrar o plano
+                    // inteiro (nada se perde, tudo anda junto) ou deixar para depois.
+                    val days = (todayEpoch - overdueTasks.first().day).toInt()
+                    Div({ classes("row", "wrap"); attr("style", "margin-top:10px;gap:8px") }) {
+                        Btn("Encaixar nos próximos dias", {
+                            Store.update { br.com.estudario.web.data.Planning.fitOverdue(it, plan.id) }
+                            Toast.show("Pronto: as atrasadas voltaram na frente e o resto do plano se ajustou ao seu ritmo.")
+                        }, small = true, icon = "auto_awesome")
+                        Btn(if (days == 1) "Empurrar tudo 1 dia" else "Empurrar tudo $days dias", {
+                            Store.update { br.com.estudario.web.data.Planning.pushOverdue(it, plan.id) }
+                            Toast.show("O plano inteiro andou $days dia${if (days == 1) "" else "s"}: nada ficou para trás.")
+                        }, style = "tonal", small = true, icon = "fast_forward")
                     }
                 }
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                     if (overdueOpen) { kotlinx.coroutines.delay(250); kotlinx.browser.document.getElementById("atrasadas")?.asDynamic()?.scrollIntoView(js("({behavior:'smooth',block:'start'})")) }
+                }
+            }
+            // "Hoje não vou conseguir estudar": o dia sai do plano e o que estava nele vai para a frente.
+            if (dayOffset == 0) {
+                val off = br.com.estudario.web.data.Planning.isDayOff(data, plan.id, todayEpoch)
+                val pendingToday = dayTasks.filter { it.status == "PLANEJADA" || it.status == "EM_ANDAMENTO" }
+                if (off) Div({ classes("row", "between", "dayoff-note") }) {
+                    Span({ classes("small") }) { Text("Hoje ficou sem estudo. O plano já passou tudo para a frente.") }
+                    Btn("Desfazer", { Store.update { br.com.estudario.web.data.Planning.setDayOff(it, plan.id, todayEpoch, false) } }, style = "ghost", small = true)
+                } else if (pendingToday.isNotEmpty()) Div({ classes("row", "end") }) {
+                    Btn("Hoje não vou conseguir estudar", {
+                        if (kotlinx.browser.window.confirm("Os ${pendingToday.size} estudos de hoje (${Queries.minutesLabel(pendingToday.sumOf { it.minutes })}) vão para os próximos dias, sem passar das horas que você tem. Se der para estudar depois, é só desfazer.")) {
+                            Store.update { br.com.estudario.web.data.Planning.setDayOff(it, plan.id, todayEpoch, true) }
+                            Toast.show("Tudo bem, acontece. Os estudos de hoje foram para os próximos dias.")
+                        }
+                    }, style = "ghost", small = true, icon = "event_busy")
                 }
             }
             WhyThisPlan(plan.id, whyOpen) { whyOpen = !whyOpen }
@@ -246,13 +273,24 @@ fun PlanScreen() {
             val firstEpoch = first.toEpochDay()
             val gridStart = firstEpoch - (first.isoDayOfWeek - 1)
             val nextMonth = LocalDate((monthIndex + 1) / 12, (monthIndex + 1) % 12 + 1, 1).toEpochDay()
-            val byDay = planTasks.filter { it.day in gridStart until gridStart + 42 }.groupBy { it.day }
+            // Só o que vale: cópias antigas de estudos reorganizados (REPROGRAMADA) e os não feitos que já voltaram ao plano ficam fora.
+            val byDay = planTasks.load().filter { it.day in gridStart until gridStart + 42 && it.status != "NAO_REALIZADA" }.groupBy { it.day }
             val maxMinutes = byDay.values.maxOfOrNull { list -> list.sumOf { it.minutes } }?.coerceAtLeast(30) ?: 60
             Div({ classes("row") }) {
                 IconButton("chevron_left", "Mês anterior") { monthOffset-- }
                 B { Text("${Queries.monthLong[first.month.ordinal].replaceFirstChar(Char::uppercase)} de ${first.year}") }
                 IconButton("chevron_right", "Próximo mês") { monthOffset++ }
                 if (monthOffset != 0) Btn("Este mês", { monthOffset = 0 }, style = "ghost", small = true)
+            }
+            // Arrastar um estudo para outro dia (planos pagos): ele fica fixado lá e o resto se encaixa em volta.
+            val canEdit = Store.demo || br.com.estudario.web.data.LibraryGaps.knownPaid()
+            P({ classes("small", "muted") }) {
+                Text(if (canEdit) "Arraste um estudo para outro dia para mudar. Clique no dia para ver tudo dele." else "Clique no dia para ver tudo dele. Mudar estudos de dia é dos planos Essencial e Pro.")
+            }
+            Div({ classes("mlegend") }) {
+                listOf("Teoria" to "theory", "Questões" to "questions", "Revisão" to "review", "Simulado" to "sim", "Atrasado" to "late", "Feito" to "done").forEach { (label, k) ->
+                    Span({ classes("mlg", k) }) { Text(label) }
+                }
             }
             Card {
                 Div({ classes("month") }) {
@@ -267,24 +305,45 @@ fun PlanScreen() {
                             classes(*listOfNotNull("mcell", if (epoch < firstEpoch || epoch >= nextMonth) "out" else null, if (epoch == todayEpoch) "today" else null).toTypedArray())
                             attr("title", if (list.isEmpty()) "Livre" else "${list.size} tarefa(s) · ${Queries.minutesLabel(minutes)}")
                             onClick { dayOffset = (epoch - todayEpoch).toInt(); view = PlanView.TODAY }
+                            if (canEdit && epoch >= todayEpoch) {
+                                addEventListener("dragover") { e -> e.preventDefault(); (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.add("drop") }
+                                addEventListener("dragleave") { e -> (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.remove("drop") }
+                                addEventListener("drop") { e ->
+                                    e.preventDefault(); (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.remove("drop")
+                                    val id = e.nativeEvent.asDynamic().dataTransfer.getData("text/plain") as? String
+                                    if (!id.isNullOrBlank() && planTasks.firstOrNull { it.id == id }?.day != epoch) {
+                                        Store.update { br.com.estudario.web.data.Planning.moveTask(it, id, epoch) }
+                                        Toast.show("Estudo mudado para ${dayTitle(epoch, todayEpoch)}. Ele fica fixado lá, e o resto do plano continua como estava.")
+                                    }
+                                }
+                            }
                         }) {
                             Div({ classes("mhead") }) {
                                 Span({ classes("n") }) { Text("${LocalDate.fromEpochDays(epoch).day}") }
                                 if (list.isNotEmpty()) Span({ classes("mmin") }) { Text(Queries.minutesLabel(minutes)) }
                             }
-                            // As matérias do dia direto no quadrado (sem precisar clicar), na cor de cada uma;
-                            // riscada quando todas as tarefas dela no dia já foram feitas.
-                            val subjects = list.groupBy { it.subjectName.ifBlank { "Revisão" } }.entries.sortedByDescending { e -> e.value.sumOf { it.minutes } }
-                            if (subjects.isNotEmpty()) Div({ classes("msubjects") }) {
-                                subjects.take(3).forEach { (name, tasks) ->
-                                    val done = tasks.all { it.status == "CONCLUIDA" }
+                            // Os estudos do dia direto no quadrado, na cor do tipo (atrasado em vermelho, feito
+                            // apagado); nos pagos, cada um pode ser arrastado para outro dia.
+                            if (list.isNotEmpty()) Div({ classes("msubjects") }) {
+                                val ordered = list.sortedWith(compareBy({ it.status == "CONCLUIDA" }, { it.day }))
+                                ordered.take(4).forEach { task ->
+                                    val late = task.day < todayEpoch && (task.status == "PLANEJADA" || task.status == "EM_ANDAMENTO")
+                                    val kind = when { task.status == "CONCLUIDA" -> "done"; late -> "late"; else -> taskKind(task.type) }
+                                    val movable = task.status == "PLANEJADA" || task.status == "EM_ANDAMENTO"
                                     Span({
-                                        classes(*listOfNotNull("mchip", if (done) "done" else null).toTypedArray())
-                                        attr("style", "--c:${subjectColor(name)}")
-                                        attr("title", "$name · ${Queries.minutesLabel(tasks.sumOf { it.minutes })}")
-                                    }) { Text(name) }
+                                        classes(*listOfNotNull("mtask", kind, if (movable) "movable" else null, if (task.locked) "pinned" else null).toTypedArray())
+                                        attr("title", "${task.topicName ?: task.subjectName} · ${task.subjectName} · ${Queries.minutesLabel(task.minutes)}" + if (task.locked) " · fixado por você" else "")
+                                        if (movable) {
+                                            attr("draggable", "true")
+                                            addEventListener("dragstart") { e ->
+                                                if (!canEdit) { e.preventDefault(); upgradeEdit = true; return@addEventListener }
+                                                e.nativeEvent.asDynamic().dataTransfer.setData("text/plain", task.id)
+                                                e.nativeEvent.asDynamic().dataTransfer.effectAllowed = "move"
+                                            }
+                                        }
+                                    }) { Text(task.topicName ?: task.subjectName) }
                                 }
-                                if (subjects.size > 3) Span({ classes("mchip", "more") }) { Text("+${subjects.size - 3}") }
+                                if (list.size > 4) Span({ classes("mtask", "more") }) { Text("+${list.size - 4}") }
                             }
                             if (list.isNotEmpty()) Div({ classes(*listOfNotNull("load", if (allDone) "done" else null).toTypedArray()) }) {
                                 Span({ attr("style", "width:${(minutes * 100 / maxMinutes).coerceIn(8, 100)}%") })
@@ -534,4 +593,12 @@ private fun WhyThisPlan(planId: String, open: Boolean, onToggle: () -> Unit) {
             lines.drop(1).forEach { Li { Text(it) } }
         }
     }
+}
+
+/** O tipo do estudo na legenda do mês (a mesma cor do app). */
+private fun taskKind(type: String) = when (type) {
+    "THEORY" -> "theory"
+    "QUESTIONS" -> "questions"
+    "SIMULATION", "DISCURSIVE" -> "sim"
+    else -> "review"
 }

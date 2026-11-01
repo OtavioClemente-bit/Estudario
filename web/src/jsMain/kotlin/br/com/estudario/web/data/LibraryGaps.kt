@@ -31,6 +31,9 @@ object LibraryGaps {
     /** A conta estava no Grátis na última consulta: o plano segue as regras dele (PlannerSnapshotBuilder.Input.freeRules). */
     fun free(): Boolean = runCatching { localStorage.getItem(FREE) }.getOrNull() == "1"
 
+    /** Plano pago já confirmado pelo servidor (sem resposta ainda, não é): as escolhas dos pagos ficam fechadas. */
+    fun knownPaid(): Boolean = runCatching { localStorage.getItem(FREE) }.getOrNull() == "0"
+
     /** [free]: a conta está no Grátis (null quando não deu para saber: fica a lista de antes). */
     suspend fun refresh(data: Snapshot, free: Boolean?) {
         if (free == null) return
