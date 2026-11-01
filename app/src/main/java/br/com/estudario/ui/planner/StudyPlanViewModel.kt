@@ -268,6 +268,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun setDayOff(date: LocalDate, off: Boolean) = _state.value.activePlan?.id?.let { id -> launch(if (off) "Passando o dia para a frente" else "Devolvendo o dia") { service.setDayOff(id, date, off) } }
     /** Arrastar no mês (pago): o estudo fica fixado no dia escolhido. */
     fun moveTask(taskId: String, date: LocalDate) = launch("Mudando o dia") { service.moveTask(taskId, date) }
+    fun swapTasks(a: String, b: String) = launch("Trocando de dia") { service.swapTasks(a, b) }
     suspend fun matchingPendingTask(topicId: Long, preferredTaskId: String? = null, type: br.com.estudario.domain.planner.PlanTaskType = br.com.estudario.domain.planner.PlanTaskType.THEORY): PlannerTaskUi? {
         val current = state.first { !it.loading }
         return matchingPendingTopicTask(current, topicId, preferredTaskId, type)

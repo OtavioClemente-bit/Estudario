@@ -194,6 +194,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
                     onEditAvailability = { editAvailability = true },
                     onShiftRoadmapEnd = viewModel::shiftRoadmapEnd,
                     onMoveTask = { t, d -> viewModel.moveTask(t.entity.id, d) },
+                    onSwapTasks = { a, b -> viewModel.swapTasks(a.entity.id, b.entity.id) },
                     header = {
                         // O resumo do plano rola para fora da tela; as abas Hoje/Semana/Mês/Visão geral
                         // grudam no topo (sticky) para trocar de visão sem precisar voltar lá em cima.

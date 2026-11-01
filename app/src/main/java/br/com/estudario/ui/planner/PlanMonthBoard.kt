@@ -80,6 +80,7 @@ internal fun PlanMonthBoard(
     state: ActivePlanUiState,
     onFocus: (PlannerTaskUi) -> Unit,
     onMove: (PlannerTaskUi, LocalDate) -> Unit,
+    onSwap: (PlannerTaskUi, PlannerTaskUi) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -95,6 +96,47 @@ internal fun PlanMonthBoard(
         state.tasks.filter { it.entity.status.countsAsPlannedLoad() || (it.entity.status in pending) }.groupBy { it.entity.scheduledEpochDay }
     }
     val offDays = remember(state.dayOverrides) { state.dayOverrides.filter { it.unavailable }.mapTo(hashSetOf()) { it.epochDay } }
+    // O limite de cada dia: as horas daquele dia da semana, ou o que foi marcado só para ele.
+    fun limitOf(epoch: Long): Int {
+        state.dayOverrides.firstOrNull { it.epochDay == epoch }?.let { o -> if (o.unavailable) return 0; o.availableMinutes?.let { return it } }
+        val dow = LocalDate.ofEpochDay(epoch).dayOfWeek.value
+        return state.availability.firstOrNull { it.dayOfWeek == dow }?.let { if (it.unavailable) 0 else it.availableMinutes } ?: 0
+    }
+    // passou do limite do dia: a pessoa escolhe trocar com um estudo de lá, colocar mesmo assim ou cancelar
+    var overflow by remember { mutableStateOf<Pair<PlannerTaskUi, Long>?>(null) }
+    overflow?.let { (task, to) ->
+        val there = byDay[to].orEmpty().filter { it.entity.status in pending }
+        val limit = limitOf(to)
+        val load = byDay[to].orEmpty().sumOf { it.entity.plannedMinutes }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { overflow = null },
+            title = { Text(if (limit == 0) "Esse dia é de folga" else "Esse dia passa do seu limite") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (limit == 0) "${dayLabelPtBr(LocalDate.ofEpochDay(to), state.today)} é folga no seu plano."
+                        else "${dayLabelPtBr(LocalDate.ofEpochDay(to), state.today)} já tem ${minutesLabel(load)} de ${minutesLabel(limit)}. Com este estudo passa do limite.",
+                    )
+                    if (there.isNotEmpty()) {
+                        Text("Trocar com um estudo de lá:", style = MaterialTheme.typography.labelMedium)
+                        there.forEach { other ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.fillMaxWidth().clickable { overflow = null; onSwap(task, other) },
+                            ) {
+                                Column(Modifier.padding(10.dp)) {
+                                    Text(other.entity.topicNameSnapshot ?: other.entity.subjectNameSnapshot, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("${other.entity.subjectNameSnapshot} · ${minutesLabel(other.entity.plannedMinutes)}", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { overflow = null; onMove(task, LocalDate.ofEpochDay(to)); selected = LocalDate.ofEpochDay(to) }) { Text("Colocar mesmo assim") } },
+            dismissButton = { TextButton(onClick = { overflow = null }) { Text("Cancelar") } },
+        )
+    }
 
     // arrastar: onde está cada dia na tela, o estudo que está sendo levado e o dedo
     val cells = remember { mutableStateMapOf<Long, Rect>() }
@@ -158,7 +200,14 @@ internal fun PlanMonthBoard(
                                 fontWeight = if (epoch == today) FontWeight.Black else FontWeight.Medium,
                                 color = if (epoch < today) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                             )
-                            if (epoch in offDays) Text("folga", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val limit = limitOf(epoch)
+                            if (limit == 0) Text("folga", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            else {
+                                val used = tasks.sumOf { it.entity.plannedMinutes }
+                                Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+                                    Box(Modifier.fillMaxWidth((used.toFloat() / limit).coerceIn(0f, 1f)).height(3.dp).background(if (used > limit) LateColor else Color(0xFF4FB98A)))
+                                }
+                            }
                             tasks.sortedBy { it.entity.sequence }.take(3).forEach { t ->
                                 val late = epoch < today && t.entity.status in pending
                                 val done = t.entity.status == PlanTaskStatus.CONCLUIDA
@@ -188,12 +237,17 @@ internal fun PlanMonthBoard(
             // o dia escolhido
             selected?.let { day ->
                 val list = byDay[day.toEpochDay()].orEmpty().sortedBy { it.entity.sequence }
-                Text(dayLabelPtBr(day, state.today).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                val dayLimit = limitOf(day.toEpochDay())
+                Text(
+                    dayLabelPtBr(day, state.today).replaceFirstChar { it.uppercase() } +
+                        if (dayLimit > 0) " · ${minutesLabel(list.sumOf { it.entity.plannedMinutes })} de ${minutesLabel(dayLimit)}" else " · folga",
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                )
                 Text(
                     if (canEdit) "Segure um estudo e solte num dia do calendário para mudar." else "Toque para começar. Segure para mudar de dia.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (list.isEmpty()) Text(if (day.toEpochDay() in offDays) "Dia sem estudo." else "Nada planejado neste dia.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (list.isEmpty()) Text(if (limitOf(day.toEpochDay()) == 0) "Dia sem estudo." else "Nada planejado neste dia.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 list.forEach { t ->
                     var rowOrigin by remember(t.entity.id) { mutableStateOf(Offset.Zero) }
                     val movable = t.entity.status in pending
@@ -217,8 +271,9 @@ internal fun PlanMonthBoard(
                                             val date = LocalDate.ofEpochDay(to)
                                             if (to < today) return@detectDragGesturesAfterLongPress
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            onMove(moving, date)
-                                            selected = date
+                                            val load = byDay[to].orEmpty().sumOf { it.entity.plannedMinutes }
+                                            if (load + moving.entity.plannedMinutes > limitOf(to)) overflow = moving to to
+                                            else { onMove(moving, date); selected = date }
                                         }
                                     },
                                     onDragCancel = { dragging = null },

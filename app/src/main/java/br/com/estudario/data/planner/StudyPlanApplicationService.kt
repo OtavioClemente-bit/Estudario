@@ -285,6 +285,18 @@ class StudyPlanApplicationService(
         }
     }
 
+    /** Troca dois estudos de dia (arrastar para um dia cheio): os dois ficam fixados onde foram parar. */
+    suspend fun swapTasks(a: String, b: String) = db.withTransaction {
+        val ta = planner.task(a) ?: error("Tarefa não encontrada.")
+        val tb = planner.task(b) ?: error("Tarefa não encontrada.")
+        val plan = planner.plan(ta.planId) ?: error("Plano não encontrado.")
+        require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+        val now = System.currentTimeMillis()
+        planner.updateTask(ta.copy(scheduledEpochDay = tb.scheduledEpochDay, locked = true, updatedRevision = plan.revision + 1, updatedAt = now))
+        planner.updateTask(tb.copy(scheduledEpochDay = ta.scheduledEpochDay, locked = true, updatedRevision = plan.revision + 1, updatedAt = now))
+        planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "TASKS_SWAPPED", summary = "$a <-> $b"))
+    }
+
     private val pendingStatuses = setOf(br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA, br.com.estudario.domain.planner.PlanTaskStatus.EM_ANDAMENTO)
 
     suspend fun updateAvailability(planId: String, values: List<StudyAvailabilityEntity>) {

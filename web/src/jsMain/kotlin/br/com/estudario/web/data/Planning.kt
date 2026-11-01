@@ -229,6 +229,40 @@ object Planning {
         return replan(freed, planId, ReplanReason.DAY_MISSED)
     }
 
+    /** Estudos que contam no dia (cópias de reorganizações e não feitos que já voltaram ao plano ficam fora). */
+    fun tasksOfDay(data: Snapshot, planId: String, day: Long) =
+        data.tasks.filter { it.planId == planId && it.day == day && it.status !in setOf("REPROGRAMADA", "CANCELADA", "NAO_REALIZADA") }
+
+    /** O limite do dia: as horas daquele dia da semana, ou o que foi marcado só para ele (folga = 0). */
+    fun dayLimit(data: Snapshot, planId: String, day: Long): Int {
+        val override = data.array("studyDayOverrides").mapNotNull { it as? JsonObject }.firstOrNull { it.str("planId") == planId && it.long("day") == day }
+        if (override?.bool("unavailable") == true) return 0
+        override?.int("minutes")?.let { return it }
+        val weekday = LocalDate.fromEpochDays(day.toInt()).isoDayOfWeek
+        return data.availability.firstOrNull { it.planId == planId && it.day == weekday }?.let { if (it.unavailable) 0 else it.minutes } ?: 0
+    }
+
+    /** Minutos já ocupados no dia. */
+    fun dayLoad(data: Snapshot, planId: String, day: Long): Int = tasksOfDay(data, planId, day).sumOf { it.minutes }
+
+    /** Troca dois estudos de dia (pagos): os dois ficam fixados onde foram parar. */
+    fun swapTasks(data: Snapshot, a: String, b: String): Snapshot {
+        val ta = data.tasks.firstOrNull { it.id == a } ?: return data
+        val tb = data.tasks.firstOrNull { it.id == b } ?: return data
+        val at = now()
+        return data.edit(Keys.TASKS) {
+            when (it.str("id")) {
+                a -> it.with("day" to JsonPrimitive(tb.day), "locked" to JsonPrimitive(true), "updatedAt" to JsonPrimitive(at))
+                b -> it.with("day" to JsonPrimitive(ta.day), "locked" to JsonPrimitive(true), "updatedAt" to JsonPrimitive(at))
+                else -> it
+            }
+        }
+    }
+
+    /** Solta o estudo fixado pela pessoa: o plano volta a poder reorganizá-lo. */
+    fun unpinTask(data: Snapshot, taskId: String): Snapshot =
+        data.edit(Keys.TASKS) { if (it.str("id") == taskId) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it }
+
     fun isDayOff(data: Snapshot, planId: String, day: Long): Boolean =
         data.array("studyDayOverrides").any { (it as? JsonObject)?.let { o -> o.str("planId") == planId && o.long("day") == day && o.bool("unavailable") == true } == true }
 
