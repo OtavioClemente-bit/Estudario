@@ -1,0 +1,2227 @@
+{
+  "id": "informatica.reconhecimento-automatico-fala-asr",
+  "subject": "Informática",
+  "title": "Reconhecimento automático de fala e transcrição de áudio",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Reconhecimento automático de fala (ASR)",
+    "Transcrição automática de áudio",
+    "Reconhecimento de fala e transcrição de áudio",
+    "Automatic Speech Recognition em português",
+    "Modelos end-to-end de reconhecimento de fala",
+    "Modelos de fala ponta a ponta",
+    "LLMs multimodais de áudio nativo",
+    "Diarização e identificação de falantes",
+    "Separação de múltiplos oradores em áudio",
+    "Pontuação e capitalização automática de transcrições",
+    "Desafios do ASR em Português Brasileiro",
+    "Transcrição de áudio em tempo real",
+    "Whisper da OpenAI para transcrição de fala",
+    "Google Speech-to-Text e adaptação de modelo",
+    "Azure Speech para reconhecimento de fala",
+    "AWS Transcribe e vocabulários personalizados",
+    "Vocabulário técnico parlamentar no ASR",
+    "Adaptação de modelo de linguagem para fala"
+  ],
+  "scope": {
+    "covers": "Fundamentos de reconhecimento automático de fala (ASR), pipeline clássico e modelos end-to-end, modelos multimodais de áudio nativo, transcrição em lote e em tempo real, diarização, timestamps, pontuação e capitalização, avaliação por WER, desafios de sotaques e vocabulário em Português Brasileiro, adaptação de vocabulário parlamentar e características documentadas de Whisper, Google Speech-to-Text, Azure Speech e AWS Transcribe.",
+    "excludes": "Treinamento matemático detalhado de redes neurais, comparação de preços e cotas comerciais que mudam, configuração de contas em nuvem, reconhecimento biométrico de identidade e transcrição de qualquer debate ou sessão específica."
+  },
+  "theoryTitle": "Da onda sonora ao texto confiável",
+  "chapters": [
+    {
+      "title": "1. O que é ASR e como os modelos reconhecem fala",
+      "markdown": "### O problema que este assunto resolve\n\nUma gravação contém uma onda de pressão; a transcrição precisa convertê-la em palavras, pontuação e, às vezes, marcas de tempo e de falante. **ASR** (*Automatic Speech Recognition*, reconhecimento automático de fala) é essa tarefa. O sistema estima uma sequência de palavras a partir do sinal acústico. Ele não recupera mecanicamente uma frase que esteja guardada no áudio: escolhe a hipótese mais provável dadas as evidências sonoras e o contexto.\n\n> **Siglas e termos deste capítulo**\n> - **ASR**: reconhecimento automático de fala, do áudio para texto.\n> - **AM**: modelo acústico, relaciona características do som a unidades linguísticas.\n> - **LM**: modelo de linguagem, estima quais sequências de palavras são plausíveis.\n> - **Token**: unidade textual ou acústica usada pelo modelo; pode ser menor que uma palavra.\n> - **WER**: taxa de erro por palavra, métrica que compara transcrição e referência.\n\n### Pipeline clássico e ponta a ponta\n\nUm pipeline tradicional pode separar extração de características acústicas, modelo acústico, pronúncia e modelo de linguagem. Essa decomposição permite inspecionar componentes, mas exige integrar várias partes. No modelo **end-to-end** (ponta a ponta), uma rede aprende a mapear diretamente representações do áudio para tokens de texto, treinada com pares de gravação e transcrição. CTC, transducer e encoder-decoder com atenção são famílias de arquiteturas usadas nessa tarefa; não são sinônimos de um único produto.\n\nWhisper é um exemplo conhecido de modelo sequência-a-sequência treinado para tarefas de fala multilíngue, tradução de fala e identificação do idioma. A documentação do projeto descreve janelas de processamento e permite informar o idioma e a tarefa. O modo de transcrever mantém a língua falada; traduzir converte para inglês. A versão de código aberto do Whisper não é, por si só, uma API gerenciada de streaming de baixa latência.\n\n| Abordagem | Organização | Vantagem típica | Limite típico |\n| --- | --- | --- | --- |\n| Pipeline modular | Componentes acústico, pronúncia e linguagem separados | Componentes podem ser trocados ou diagnosticados separadamente | Integração e manutenção mais complexas |\n| End-to-end | Uma rede aprende áudio para sequência textual | Otimização conjunta e menos interfaces manuais | Exige dados representativos e pode ser menos interpretável |\n\n### Métricas e revisão\n\nA **WER** é calculada como (substituições + exclusões + inserções) divididas pelo número de palavras da referência. Se “o relator apresentou voto” vira “o senador apresentou votos”, há substituições; se uma palavra some, há exclusão; se surge uma palavra indevida, há inserção. WER pode ultrapassar 100% quando há muitas inserções. Para idiomas com segmentação de palavras ambígua, ou quando pequenos erros de grafia importam, também se usam métricas por caractere.\n\nA métrica resume divergências, mas não mede sozinha a consequência: confundir “não aprovado” com “aprovado” é mais grave que perder uma vírgula. A referência precisa seguir uma convenção consistente para nomes, hesitações, números e pontuação. Revise trechos críticos e compare por domínio, sotaque, ruído e qualidade do microfone.\n\n### Como cai na prova\n\nA prova costuma trocar transcrição por tradução, dizer que o sistema “ouve” palavras sem incerteza ou confundir WER com porcentagem de acerto. ASR é uma inferência probabilística; transcrever preserva o idioma e traduzir muda o idioma de saída. A WER conta operações de edição em relação à referência, não é simplesmente a proporção de frases perfeitas."
+    },
+    {
+      "title": "2. Áudio nativo, tempo real e saída da transcrição",
+      "markdown": "### O problema que este assunto resolve\n\nEm atendimento, reunião e sessão plenária, o texto pode ser necessário enquanto as pessoas ainda falam. **Transcrição em tempo real** recebe áudio em fluxo e emite resultados parciais, que podem ser corrigidos quando chega mais contexto, seguidos de segmentos finais. A latência é o intervalo entre a fala e a informação útil; reduzi-la pode aumentar custo computacional ou reduzir contexto disponível.\n\n> **Siglas e termos deste capítulo**\n> - **Streaming**: envio contínuo de áudio em blocos durante a captura.\n> - **Latência**: atraso entre a emissão da fala e a resposta utilizável.\n> - **Endpointing**: detecção de que uma fala ou turno terminou.\n> - **Timestamp**: posição temporal associada a segmento ou palavra.\n> - **LLM multimodal de áudio nativo**: modelo que recebe ou produz áudio como modalidade de entrada/saída, podendo combinar áudio e texto.\n\n### Transcrição não é conversa de voz\n\nSistemas de fala podem ser organizados como áudio→texto (ASR), texto→áudio (síntese) ou áudio→áudio (interação falada). Um LLM multimodal de áudio nativo pode interpretar áudio diretamente e responder por voz sem exigir sempre que uma transcrição textual intermediária seja o único formato interno. Isso permite interação mais fluida e tratamento de sinais paralinguísticos, mas não torna a saída infalível nem elimina a necessidade de controlar turnos, latência, idioma e revisão. Quando o objetivo é registro oficial literal, a transcrição textual verificável continua sendo um artefato importante.\n\nNa transcrição em fluxo, uma palavra parcial pode ser substituída: “câmara” pode virar “Câmara dos Deputados” após a frase continuar. Consumidores devem distinguir resultados provisórios dos finais. Marcas de tempo facilitam localizar o trecho no áudio, mas precisão temporal depende da configuração e do serviço. Pontuação e capitalização são inferidas: pausas podem ajudar, mas não equivalem perfeitamente a pontos e vírgulas.\n\n| Saída | Uso | Cuidado\n| --- | --- | --- |\n| Texto parcial | Legenda ao vivo e acompanhamento | Pode mudar antes do segmento final |\n| Texto final | Registro e busca | Pode conter erros de reconhecimento |\n| Palavras com timestamps | Sincronização e edição | Timestamps não atestam que a palavra foi ouvida corretamente |\n| Segmentos com speaker ID | Separar turnos estimados | IDs não revelam a identidade civil da pessoa |\n\n### Prática de captura\n\nMicrofone próximo, níveis sem saturação, canal adequado e redução de ruído melhoram a entrada. Se cada orador estiver num canal separado, identificação de canal pode aproveitar essa separação física. Se várias vozes chegam misturadas num único canal, diarização estima quem falou quando. Não são a mesma função. Uma conexão de streaming precisa também tratar perda de pacotes, encerramento de sessão e segmentos incompletos.\n\n### Como cai na prova\n\nResultado parcial não deve ser tratado como irrevogável. Diarização atribui rótulos de turnos, não prova quem é a pessoa. E um modelo de áudio nativo é uma arquitetura/modalidade de interação, não uma garantia de transcrição perfeita ou de ausência de texto."
+    },
+    {
+      "title": "3. Diarização, pontuação e qualidade editorial",
+      "markdown": "### O problema que este assunto resolve\n\nUma transcrição de debate precisa responder “o que foi dito?” e “quem falou em cada trecho?”. **Diarização** divide o áudio em segmentos e associa cada segmento a um rótulo de falante, como speaker 0 e speaker 1. Em geral, esses rótulos são anônimos e podem não corresponder a pessoas distintas se o áudio for curto, sobreposto ou ruidoso. Identificação de falante, por biometria ou cadastro, é uma tarefa diferente.\n\n> **Siglas e termos deste capítulo**\n> - **Diarização**: segmentação temporal e agrupamento de turnos por voz.\n> - **Speaker label**: rótulo local atribuído a uma voz; não é necessariamente um nome.\n> - **Sobreposição**: duas ou mais pessoas falam ao mesmo tempo.\n> - **VAD**: detecção de atividade vocal, distingue fala de pausas e sons não vocais.\n> - **Normalização**: conversão editorial de números, abreviaturas e pontuação para um padrão.\n\n### Separar turnos não é separar a fonte sonora\n\nDiarização pode funcionar mesmo com várias vozes num canal mono, estimando mudanças de locutor a partir das características vocais. Separação de fontes tenta reconstruir sinais de voz separados; identificação de canal transcreve canais distintos individualmente. Na prática, um sistema pode combinar detecção de fala, reconhecimento de palavras e diarização, mas erros propagam: se dois oradores se sobrepõem, o texto ou o rótulo pode ficar errado. É necessário revisar nomes de oradores e turnos em gravações importantes.\n\n### Pontuação e capitalização são camadas de inferência\n\nA fala espontânea não contém vírgulas visíveis. Modelos usam prosódia, pausas e contexto para inserir pontuação e maiúsculas, com convenções próprias. Podem errar fronteiras de frase, transformar uma pausa em ponto ou capitalizar um substantivo comum. Transcrição “verbatim” busca preservar o que se ouve, inclusive repetições conforme a política editorial; transcrição “limpa” pode remover disfluências ou normalizar formas. É preciso declarar o padrão em vez de misturar estilos.\n\nPara atas, legendas ou busca, a revisão editorial deve manter alinhamento com o áudio, preservar negações e números, e sinalizar trechos inaudíveis segundo convenção definida. Não se deve completar uma frase truncada por expectativa temática. Uma lista de termos pode corrigir grafia, mas não autoriza substituir automaticamente o que foi efetivamente dito.\n\n| Tarefa | Pergunta respondida | Exemplo de saída |\n| --- | --- | --- |\n| ASR | Que palavras foram ditas? | “Está aberta a sessão.” |\n| Diarização | Em que turno e por qual voz? | speaker 0: “Está aberta...” |\n| Identificação | Qual pessoa cadastrada é a voz? | Nome associado após verificação |\n| Separação de fontes | Quais sinais vocais estavam misturados? | Dois áudios reconstruídos |\n\n### Como cai na prova\n\n“Speaker 1” é apenas uma etiqueta de agrupamento, não um nome nem uma confirmação biométrica. Pontuação automática também é predição editorial, e não sinal literal contido na onda sonora. Diferencie diarização de separação de fontes e de identificação de canal."
+    },
+    {
+      "title": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "markdown": "### O problema que este assunto resolve\n\nModelos gerais aprendem padrões frequentes. Uma audiência parlamentar contém nomes próprios, siglas, topônimos, termos regimentais e vocabulário técnico pouco comum no noticiário geral. Um sistema pode reconhecer “emenda” como “agenda”, trocar siglas ou aproximar nomes de parlamentares a palavras comuns. No Português Brasileiro, sotaques regionais, redução de vogais, fala rápida, ruído de plenário, microfones distantes e sobreposição alteram o sinal acústico.\n\n> **Siglas e termos deste capítulo**\n> - **Adaptação de modelo (language model adaptation)**: favorecer vocabulário ou padrões de um domínio.\n> - **Phrase list / PhraseSet**: lista de palavras e expressões fornecida ao reconhecedor.\n> - **Vocabulário personalizado**: entradas de domínio preparadas para um serviço.\n> - **Falso positivo**: termo favorecido aparece na transcrição embora não tenha sido dito.\n> - **WER por domínio**: erro medido separadamente em gravações representativas do contexto.\n\n### Como preparar uma lista parlamentar\n\nMonte um glossário a partir de fontes autorizadas e revisadas: nomes e cargos, siglas por extenso, órgãos, comissões, localidades, proposições e expressões técnicas. Inclua variantes realmente pronunciadas e grafias oficiais, mas evite uma lista indiscriminada. “Comissão de Constituição e Justiça”, “requerimento de informação” e “medida provisória” são exemplos de expressões; não se deve supor que todo serviço reconheça automaticamente qualquer termo só porque foi listado. Faça testes com áudio real autorizado e compare falsos negativos e falsos positivos.\n\nAdaptação normalmente **enviesa** a hipótese do reconhecedor; ela não muda magicamente o som nem garante acerto. Uma lista excessiva ou pesos altos podem fazer o modelo inserir termos do glossário onde eles não ocorreram. Use listas apropriadas por sessão ou área, mantenha versão e fonte, e reveja a saída humana. Google Cloud Speech-to-Text documenta `PhraseSet`, classes e boost; Azure documenta phrase lists; AWS Transcribe oferece vocabulário personalizado; Whisper local aceita contexto/prompt de transcrição, enquanto recursos variam conforme a API usada.\n\n| Problema observado | Ação útil | Verificação\n| --- | --- | --- |\n| Nome próprio vira palavra comum | Incluir nome e pronúncia/variante pertinente | Medir acertos e inserções em áudio de teste |\n| Sigla reconhecida sem pontuação correta | Informar grafia e convenção de normalização | Revisar ocorrências e contexto |\n| Sotaque ou microfone causa omissões | Capturar amostras representativas e ajustar áudio/modelo | Calcular erros por grupo e condição |\n| Palavra técnica aparece sem ter sido dita | Reduzir viés ou retirar entrada excessiva | Contar falsos positivos |\n\n### Como cai na prova\n\nVocabulário adaptado aumenta a chance de termos informados, não assegura verdade. “Language model adaptation” não é necessariamente retreinar integralmente uma rede: pode ser uma lista ou recurso de viés em tempo de reconhecimento. Avalie precisão e falsos positivos; em ata parlamentar, contexto jamais deve substituir conferência do áudio."
+    },
+    {
+      "title": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "markdown": "### O problema que este assunto resolve\n\nWhisper, Google Speech-to-Text, Azure Speech e AWS Transcribe oferecem caminhos diferentes para converter fala em texto. A escolha depende de idioma, latência, diarização, adaptação, formatos, local de processamento, integração, custo e política de dados. “API de fala” não designa uma única função: confirme se a modalidade é arquivo em lote, streaming, transcrição rápida ou interação de áudio em tempo real.\n\n> **Siglas e termos deste capítulo**\n> - **API**: interface de programação para solicitar um serviço.\n> - **Lote (batch)**: áudio enviado para processamento após ou durante a gravação, sem interação contínua.\n> - **Streaming**: fluxo processado enquanto o áudio chega.\n> - **Customização**: recursos de lista de frases, vocabulário, modelo próprio ou contexto.\n> - **SLA**: compromisso de nível de serviço definido pelo provedor, quando aplicável.\n\n### O que os documentos dos provedores descrevem\n\nO repositório oficial do **Whisper** apresenta um modelo sequência-a-sequência multilíngue para reconhecimento, tradução e identificação de idioma. O código aberto processa arquivos com janelas; a própria documentação observa que ele não oferece streaming em tempo real pronto de fábrica. APIs da OpenAI para áudio são produtos distintos e seus formatos e modelos podem mudar.\n\n**Google Cloud Speech-to-Text** documenta reconhecimento síncrono/assíncrono e streaming, além de adaptação por frases e classes em configurações compatíveis. **Azure Speech** disponibiliza reconhecimento em tempo real e transcrição rápida/lote; seus documentos descrevem diarização e listas de frases conforme a modalidade. **Amazon Transcribe** oferece jobs e transcrição em streaming; a documentação de configurações descreve rótulos de falante e vocabulário personalizado. Capacidades exatas dependem de idioma, modelo, região, formato e versão da API: consulte as tabelas oficiais antes de desenhar produção.\n\n| Opção | Fato documentado útil | O que verificar no projeto\n| --- | --- | --- |\n| Whisper open source | Modelo multilíngue sequência-a-sequência; transcrição e tradução | Hardware, latência em sua máquina, diarização e revisão |\n| Google Speech-to-Text | Streaming e adaptação por frases/classes em recursos compatíveis | Idioma/modelo, limites de adaptação e formato de resposta |\n| Azure Speech | Reconhecimento ao vivo, rápido e em lote; recursos de diarização/lista de frases | Modalidade, canal suportado, locale e configuração |\n| AWS Transcribe | Jobs e streaming; vocabulário e rótulos de falante | Região, idioma, número de falantes e compatibilidade |\n\n### Um fluxo de implantação responsável\n\nDefina se a saída é rascunho de busca, legenda provisória ou registro que requer validação. Separe áudio de teste de desenvolvimento e de avaliação final. Registre idioma/locale, configuração, versão do modelo, glossário e convenção editorial; isso torna comparações reproduzíveis. Meça WER e erros críticos em amostras de sotaques, termos e ruídos que representem o uso. Planeje revisão humana, especialmente para decisões ou registros formais.\n\n### Como cai na prova\n\nAs quatro opções não são intercambiáveis em cada recurso. Whisper open source e API gerenciada são conceitos diferentes; batch não implica resultado instantâneo; diarização não é habilitada automaticamente em toda modalidade. Afirmações sobre disponibilidade devem ser vinculadas à documentação de idioma, modelo e serviço."
+    }
+  ],
+  "summary": "ASR estima palavras a partir do áudio; modelos end-to-end aprendem áudio→tokens, enquanto pipelines clássicos separam componentes. Streaming fornece resultados parciais e finais com latência; diarização segmenta turnos e agrupa vozes sem identificar necessariamente a pessoa. Pontuação, capitalização e timestamps são inferências. Sotaques, ruído, sobreposição, nomes e vocabulário parlamentar afetam erros. Listas e adaptação favorecem termos raros, mas podem causar falsos positivos. Whisper, Google Speech-to-Text, Azure Speech e AWS Transcribe oferecem modalidades e recursos distintos, que devem ser verificados para idioma e configuração reais. WER contabiliza substituições, exclusões e inserções relativamente a uma referência consistente.",
+  "flashcards": [
+    {
+      "front": "O que significa ASR?",
+      "back": "Automatic Speech Recognition: reconhecimento automático de fala, convertendo áudio em texto."
+    },
+    {
+      "front": "O que é diarização?",
+      "back": "Segmentar a fala por turnos e atribuir rótulos às vozes, sem necessariamente descobrir a identidade civil."
+    },
+    {
+      "front": "Quais operações compõem a WER?",
+      "back": "Substituições, exclusões e inserções, divididas pelo número de palavras da referência."
+    },
+    {
+      "front": "Transcrição e tradução são iguais?",
+      "back": "Não. Transcrever mantém o idioma falado; traduzir produz texto em outro idioma."
+    },
+    {
+      "front": "O que caracteriza modelo end-to-end?",
+      "back": "Aprende diretamente a mapear representações de áudio para uma sequência textual, sem exigir pipeline modular explícito."
+    },
+    {
+      "front": "Um resultado parcial de streaming é definitivo?",
+      "back": "Não. Pode ser revisto quando chega mais áudio e contexto."
+    },
+    {
+      "front": "Speaker 0 é o nome de uma pessoa?",
+      "back": "Não necessariamente; costuma ser um rótulo local atribuído a uma voz."
+    },
+    {
+      "front": "O que faz uma lista de frases?",
+      "back": "Favorece o reconhecimento de termos fornecidos, como nomes e expressões de domínio."
+    },
+    {
+      "front": "Qual risco há em boost excessivo?",
+      "back": "Aumentar falsos positivos, fazendo o sistema inserir um termo favorecido que não foi dito."
+    },
+    {
+      "front": "Como Whisper open source processa gravação segundo seu README?",
+      "back": "Usa janelas deslizantes de cerca de 30 segundos para transcrever o arquivo."
+    },
+    {
+      "front": "Diarização é separação de fontes?",
+      "back": "Não. Diarização rotula turnos; separação tenta reconstruir sinais vocais distintos."
+    },
+    {
+      "front": "O que significa latência em transcrição?",
+      "back": "O atraso entre a fala capturada e a resposta utilizável do sistema."
+    },
+    {
+      "front": "Por que pontuação é inferida?",
+      "back": "A onda não contém vírgulas escritas; o sistema estima fronteiras usando prosódia e contexto."
+    },
+    {
+      "front": "O que é adaptação de modelo?",
+      "back": "Ajuste ou viés para aumentar a probabilidade de reconhecer palavras e frases de um domínio."
+    },
+    {
+      "front": "Cite um recurso de adaptação do Google Speech-to-Text.",
+      "back": "PhraseSet, classes personalizadas e boost em configurações compatíveis."
+    },
+    {
+      "front": "Que recurso do Azure pode favorecer nomes e termos?",
+      "back": "Phrase list, aplicada no reconhecimento em modalidades compatíveis."
+    },
+    {
+      "front": "Como AWS Transcribe representa diarização?",
+      "back": "Pode atribuir rótulos de falantes a segmentos; requer habilitar a configuração correspondente."
+    },
+    {
+      "front": "O que deve constar num glossário parlamentar?",
+      "back": "Nomes, siglas, órgãos, localidades e expressões técnicas com grafia validada e contexto de uso."
+    },
+    {
+      "front": "Por que medir erros por domínio?",
+      "back": "Uma média global pode ocultar falhas em sotaques, termos técnicos ou gravações ruidosas."
+    },
+    {
+      "front": "Como distinguir identificação de canal e diarização?",
+      "back": "A primeira transcreve canais físicos separados; a segunda estima vozes em segmentos, inclusive num canal misto."
+    },
+    {
+      "front": "O que é falso negativo no reconhecimento de termo?",
+      "back": "O termo foi falado, mas não apareceu corretamente na transcrição."
+    },
+    {
+      "front": "O que é falso positivo na adaptação?",
+      "back": "Um termo incluído ou favorecido aparece na saída apesar de não ter sido pronunciado."
+    },
+    {
+      "front": "Que dois resultados uma API de streaming pode emitir?",
+      "back": "Hipóteses parciais revisáveis e segmentos finais."
+    },
+    {
+      "front": "A WER mede gravidade semântica?",
+      "back": "Não. Conta operações de edição e deve ser complementada por análise de erros críticos."
+    },
+    {
+      "front": "Quais aspectos variam entre serviços de fala?",
+      "back": "Idiomas, modalidades, diarização, adaptação, formatos, regiões e configurações."
+    }
+  ],
+  "tips": [
+    "Leia ASR como áudio→texto; não confunda com síntese de voz (texto→áudio).",
+    "Para WER, lembre-se de substituição, exclusão e inserção sobre o total de palavras de referência.",
+    "Streaming pode revisar hipóteses parciais; use o evento final para consolidar o trecho.",
+    "Speaker ID é rótulo de turno. Só uma etapa separada e verificada pode associá-lo a uma pessoa.",
+    "Glossário parlamentar deve ser testado: termos favorecidos também podem surgir indevidamente.",
+    "Compare serviços na modalidade, idioma e condições de áudio que serão usados de verdade."
+  ],
+  "traps": [
+    "Tratar tradução de fala como transcrição literal no idioma de origem.",
+    "Confundir diarização com identificação biométrica ou separação de fontes.",
+    "Supor que pontuação e maiúsculas estejam diretamente presentes na onda sonora.",
+    "Achar que uma phrase list garante a palavra correta em todo contexto.",
+    "Tratar transcrição parcial como estável antes do resultado final.",
+    "Comparar WER sem padronizar referência, números, pontuação e disfluências."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre pipeline clássico e end-to-end.",
+      "answer": "O clássico divide o trabalho em componentes como modelo acústico e de linguagem; o end-to-end aprende o mapeamento áudio-texto em conjunto."
+    },
+    {
+      "question": "Como calcular WER e interpretar cada parcela?",
+      "answer": "Somam-se substituições, exclusões e inserções e divide-se pelo total de palavras de referência; a métrica não pondera gravidade."
+    },
+    {
+      "question": "Descreva um ciclo de transcrição ao vivo.",
+      "answer": "Capturar áudio em blocos, enviar em streaming, exibir hipóteses parciais, consolidar segmentos finais e revisar trechos relevantes."
+    },
+    {
+      "question": "Que limites a diarização apresenta em debate parlamentar?",
+      "answer": "Vozes sobrepostas, troca rápida de turno, ruído e canal misto podem confundir fronteiras e rótulos; speaker ID não é identidade civil."
+    },
+    {
+      "question": "Como montar adaptação de vocabulário para uma comissão?",
+      "answer": "Reunir termos autorizados e grafias validadas, selecionar expressões pertinentes, testar em amostra representativa e medir acertos e inserções."
+    },
+    {
+      "question": "Por que sotaques brasileiros requerem avaliação segmentada?",
+      "answer": "A redução, pronúncia regional, velocidade e condições do microfone alteram a evidência acústica; uma média pode ocultar erros localizados."
+    },
+    {
+      "question": "Compare Whisper open source com um serviço de streaming gerenciado.",
+      "answer": "Whisper é um modelo/código de processamento de arquivos com janelas; streaming gerenciado recebe fluxo e pode emitir parciais, conforme API e configuração."
+    },
+    {
+      "question": "Por que a revisão humana é essencial para registro formal?",
+      "answer": "ASR pode trocar negação, nome, número, falante ou pontuação; escuta e correção preservam o sentido e a atribuição."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Tarefa de fala trocada",
+      "summary": "ASR transcreve áudio em texto; tradução muda o idioma; síntese transforma texto em áudio."
+    },
+    {
+      "key": "e2",
+      "title": "Diarização confundida com identidade",
+      "summary": "Agrupar trechos por voz e atribuir speaker labels não autentica a pessoa nem separa necessariamente as fontes sonoras."
+    },
+    {
+      "key": "e3",
+      "title": "Métrica WER interpretada como acurácia semântica",
+      "summary": "WER conta substituições, exclusões e inserções; não pondera a importância de cada erro e depende da referência."
+    },
+    {
+      "key": "e4",
+      "title": "Adaptação considerada garantia",
+      "summary": "Glossários e boost favorecem termos, mas podem aumentar falsos positivos e exigem teste por domínio."
+    },
+    {
+      "key": "e5",
+      "title": "Modalidades dos provedores generalizadas",
+      "summary": "Batch, streaming, diarização e listas variam por idioma, API, modelo, canal e configuração; confirmar documentação aplicável."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa transformar gravações de sessões em texto pesquisável. Qual descreve corretamente a tarefa principal de ASR?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar cada pessoa em um canal de áudio independente a partir de um arquivo único.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter cada palavra escrita em uma forma de onda falada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter automaticamente o sinal de fala em texto, estimando as palavras ditas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Determinar por biometria a identidade civil de cada voz gravada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar juridicamente se as afirmações da sessão são verdadeiras.",
+          "correct": false
+        }
+      ],
+      "explanation": "ASR estima texto a partir do sinal de fala. Síntese faz texto virar áudio; identificação biométrica é outra tarefa; separar fontes e verificar a verdade do conteúdo também não são funções definidoras de ASR.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No reconhecimento automático de fala, o sistema escolhe uma sequência textual provável com base no sinal acústico e em padrões linguísticos, podendo cometer erros mesmo quando o áudio é inteligível para uma pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ASR é uma inferência condicionada pelo áudio e pelo modelo; ruído, pronúncia, ambiguidade e contexto podem levar a uma hipótese errada.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde melhor a uma arquitetura end-to-end de fala?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma única rede neural aprende o mapeamento do áudio diretamente para tokens textuais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um operador transcreve manualmente cada gravação e o computador apenas a arquiva.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um modelo acústico independente entrega fonemas a um dicionário obrigatório e imutável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema converte texto em voz e considera essa saída uma transcrição do áudio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O programa localiza falantes por canal físico sem estimar nenhuma palavra.",
+          "correct": false
+        }
+      ],
+      "explanation": "End-to-end aprende o mapeamento áudio-texto como tarefa integrada. Pode haver unidades intermediárias internas, mas a definição contrasta com um pipeline em que componentes externos separados são montados manualmente.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um reconhecedor produziu duas substituições, uma exclusão e uma inserção numa referência de 20 palavras. A WER desse exemplo é 20%.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A soma de erros é quatro; dividida por 20 palavras de referência, resulta em 0,20. WER não é limitada a 100% em casos com muitas inserções.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação à interpretação da WER, assinale a alternativa correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mede exclusivamente erros de pontuação e ignora palavras substituídas, inseridas ou excluídas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Corresponde sempre à proporção de gravações integralmente corretas no conjunto avaliado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exige comparar a transcrição com a identidade biométrica do locutor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não pode ultrapassar 100%, pois inserções não entram no cálculo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conta edições contra uma referência, sem ponderar a gravidade semântica de cada erro.",
+          "correct": true
+        }
+      ],
+      "explanation": "WER soma substituições, exclusões e inserções e divide pelo total de palavras de referência. A contagem não sabe que uma negação trocada é mais grave que uma vírgula e inserções podem elevar o resultado acima de 100%.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Whisper é descrito pelo projeto oficial como um modelo sequência-a-sequência que pode realizar reconhecimento multilíngue, tradução de fala e identificação de idioma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O README do projeto apresenta essas tarefas como capacidades do modelo multitarefa; transcrição no idioma original e tradução para inglês são operações distintas.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um avaliador compara transcrições de dois sotaques e encontra WER média idêntica. Qual conclusão metodológica é mais sólida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar os sistemas equivalentes porque a média coincide, sem examinar erros nem condições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inspecionar os erros críticos e os resultados separados por condição e sotaque.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Descartar a referência e usar somente a confiança média do modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a avaliação pela quantidade de minutos processados por hora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher o resultado com mais palavras, pois inserções demonstram cobertura.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mesma WER pode esconder perfis diferentes de erro e erros de impacto desigual. A análise segmentada mostra se o desempenho é consistente nos sotaques e condições que importam para o uso.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em streaming, uma hipótese parcial pode ser substituída por outro texto quando o reconhecedor recebe mais áudio e contexto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Muitos serviços separam resultados provisórios de segmentos finais; a aplicação deve sinalizar que a hipótese parcial ainda pode mudar.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transmissão de audiência requer exibir palavras enquanto os oradores falam. Qual propriedade é diretamente relevante para o atraso percebido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checksum de integridade do arquivo arquivado, que não mede o tempo de resposta da transcrição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tamanho do glossário de nomes de parlamentares armazenado em disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de pontuação editorial inserida após o término da sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O atraso entre a fala e o momento em que o texto utilizável aparece na tela.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Número de canais de áudio que não participam do fluxo de captura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência é o atraso até a resposta útil e importa para exibição ao vivo. Outros fatores podem afetar a operação, mas não definem o atraso percebido.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que recebe áudio contínuo, emite um trecho provisório e depois o confirma ao detectar uma pausa está usando um fluxo compatível com transcrição em tempo real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Streaming processa blocos durante a captura e pode produzir hipóteses parciais e finais; a detecção de fim de turno ajuda a consolidar segmentos.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve melhor um LLM multimodal de áudio nativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode receber áudio como entrada, e alguns modelos também o geram como saída, numa interação multimodal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É necessariamente um ASR tradicional que só aceita texto previamente transcrito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante transcrição literal sem erros e dispensa qualquer validação posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um formato de arquivo de áudio que determina sozinho a identidade do locutor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É sinônimo de separação acústica de cada participante em canal mono.",
+          "correct": false
+        }
+      ],
+      "explanation": "Modelos de áudio nativo aceitam ou geram áudio em uma interação multimodal. Isso não implica perfeição, identificação civil nem separação de fontes; a arquitetura pode não depender de texto como única representação intermediária.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma API retorna timestamps por palavra, cada timestamp confirma que a palavra foi reconhecida corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O timestamp localiza temporalmente a hipótese textual; não certifica a correção lexical. A palavra e seu alinhamento ainda podem estar errados.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende usar o código aberto do Whisper como se ele já fosse uma API de streaming de baixa latência pronta para produção. Qual é a ressalva adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Whisper só sintetiza áudio e não possui funcionalidade de reconhecimento de fala.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A versão aberta exige que o usuário transcreva manualmente todos os segmentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O código aberto trabalha em janelas; streaming de baixa latência exige implementação adicional.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O modo de transcrição converte obrigatoriamente toda fala para o inglês.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O projeto só funciona com fala monofônica em inglês.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do projeto descreve o processamento do áudio em janelas deslizantes, e o modelo não traz streaming de baixa latência como interface pronta. Aplicações externas podem construir fluxos de baixa latência, mas isso é implementação adicional.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um registro que exige revisão, a interface deve diferenciar hipóteses provisórias de segmentos finais recebidos do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa distinção evita que texto instável seja tomado como consolidado; o fluxo final ainda requer revisão conforme a finalidade do registro.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo caracteriza melhor diarização em uma gravação mono com dois participantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconstruir dois arquivos de áudio isolados, pois esse é o resultado exigido pela diarização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Determinar o nome civil dos participantes sem cadastro ou verificação externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter automaticamente cada frase do português para outro idioma.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a taxa de amostragem do microfone sem classificar trechos de fala.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agrupar os trechos por voz e rotulá-los anonimamente, como speaker 0 e speaker 1.",
+          "correct": true
+        }
+      ],
+      "explanation": "Diarização agrupa segmentos em turnos por voz e pode usar rótulos anônimos. Separar fontes e descobrir nomes são tarefas diferentes, e o resultado pode falhar em sobreposição.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A etiqueta speaker 0 produzida por um sistema de diarização identifica necessariamente, com validade biométrica, a pessoa cadastrada como presidente da sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O rótulo normalmente apenas distingue um grupo de segmentos vocais dentro do resultado. Associá-lo a uma pessoa exige processo separado de identificação e conferência.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo estéreo foi gravado com cada microfone de participante em canal distinto. Que recurso aproveita diretamente essa organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adaptação de modelo, que transforma os canais gravados em vocabulário personalizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Processar ou transcrever cada canal separadamente, atribuindo o texto a cada microfone.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Capitalização automática, que determina qual microfone capturou a voz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tradução de fala, que separa os participantes pela língua de saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VAD, que associa cada canal a uma identidade civil verificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificação de canal aproveita a separação física já gravada e pode transcrever cada canal independentemente. Diarização, por sua vez, estima falantes em segmentos, inclusive quando estão misturados num único canal.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Diarização e separação de fontes são nomes intercambiáveis para a mesma operação técnica: ambas sempre devolvem um arquivo de áudio por participante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Diarização segmenta e rotula turnos; separação de fontes tenta reconstruir sinais vocais isolados. Um serviço de diarização pode devolver somente texto com IDs e tempos.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a diarização pode confundir participantes numa audiência com falas sobrepostas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sobreposição faz o serviço receber canais físicos separados por pessoa, mesmo em áudio mono.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema deixa de receber áudio porque toda fala simultânea é removida pelo VAD.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diarização transforma as palavras em tradução e perde por definição o idioma original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duas vozes simultâneas misturam o sinal e dificultam a atribuição acústica a cada falante.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O rótulo do primeiro turno se torna necessariamente o nome verdadeiro do segundo falante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sobreposição mistura sinais e reduz evidência clara de fronteiras vocais. O resultado pode atribuir texto ou turno de forma incorreta; separação física em canais não ocorre automaticamente.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Vírgulas e pontos são elementos gráficos literalmente contidos na forma de onda da fala; o ASR apenas copia esses sinais para o texto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A onda contém propriedades acústicas como pausas e entonação; pontuação e capitalização são estimadas pelo sistema segundo contexto e convenções.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transcrição limpa remove hesitações e repetições, enquanto uma política verbatim pode preservá-las. O padrão editorial deve ser consistente e documentado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essas políticas produzem textos diferentes a partir do mesmo áudio; fixar o padrão mantém comparabilidade e transparência editorial.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ata deve registrar uma palavra inaudível. Qual procedimento reduz o risco de inventar conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Completar a frase com o termo mais esperado pelo tema discutido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inserir a palavra mais frequente do glossário parlamentar disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Marcar o trecho conforme a convenção editorial e preservar o ponto temporal para revisão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir o trecho por uma conclusão provável do debatedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir a palavra ao speaker 0 mesmo sem evidência de voz.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trecho inaudível deve ser sinalizado de acordo com padrão definido, sem completar por expectativa. O contexto pode orientar a revisão, mas não é evidência suficiente para afirmar a palavra.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pausa longa no discurso sempre corresponde a um ponto final e autoriza o sistema a encerrar a frase sem considerar o contexto posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pausas são evidência útil, mas não correspondem perfeitamente à pontuação; o contexto e a prosódia podem indicar continuidade ou outra fronteira. A inserção automática é uma inferência.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao elaborar vocabulário parlamentar, qual método é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar termos com grafia verificada e testar a lista em áudio representativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Inserir todas as palavras possíveis, sem limite nem validação, para evitar qualquer omissão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas palavras comuns porque nomes próprios não podem ser adaptados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar cada frase da lista como confirmação de que ela foi pronunciada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar uma lista única sem revisão em toda língua, sessão e modalidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um glossário selecionado com fonte e grafia validadas e testado em contexto real pode ajudar termos raros. A lista ampla e sem controle pode gerar inserções e não substitui revisão.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adaptação de vocabulário pode favorecer o reconhecimento de termos raros, mas uma lista excessiva também pode elevar falsos positivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Viés maior pode reduzir omissões de termos desejados e, ao mesmo tempo, levar a inseri-los quando não foram ditos. A avaliação deve medir os dois efeitos.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o Google Cloud Speech-to-Text documenta a adaptação de modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente pela separação do áudio em canais estéreo, recurso que altera o sinal gravado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exclusivamente por alteração manual do texto após a resposta da API.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Por meio de identificação civil automática de todas as vozes gravadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Por uma função que elimina qualquer falso positivo sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Com PhraseSet, classes personalizadas e valores de boost, em modelos e idiomas compatíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação do Google descreve SpeechAdaptation, PhraseSet, CustomClass e boost para favorecer palavras ou frases em configurações compatíveis. O recurso é probabilístico e precisa ser avaliado.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O material oficial do Azure descreve phrase lists como listas prévias que podem favorecer nomes próprios, siglas e palavras de domínio no reconhecimento compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lista de frases é um mecanismo de viés de reconhecimento para termos como nomes e expressões específicas; suporte depende da modalidade e configuração.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em plenário, o modelo favorecido passou a inserir o nome de uma comissão em frases nas quais esse nome não foi pronunciado. Qual diagnóstico é mais plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diarização necessariamente converteu o nome de um falante em texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O viés da adaptação pode estar forte demais, gerando falsos positivos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A WER não conta inserções quando elas correspondem a termos técnicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A pontuação automática sempre cria nomes próprios a partir de pausas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O canal estéreo torna impossível que qualquer palavra seja reconhecida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Boost e listas aumentam a probabilidade de certas hipóteses e podem produzir falsos positivos se forem excessivos ou mal contextualizados. Revise lista e peso e avalie em amostra representativa.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quais fatores podem aumentar erros de ASR em Português Brasileiro numa sessão parlamentar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o tamanho do arquivo de texto depois que a transcrição foi salva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A pontuação escolhida pelo revisor, sem relação com áudio ou contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ausência de qualquer sigla ou nome próprio no debate gravado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sotaques, fala sobreposta, ruído, microfone distante e termos pouco frequentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pausas curtas entre uma fala e outra, mesmo com áudio limpo e boa captação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variação de pronúncia, acústica difícil e vocabulário raro afetam as evidências e probabilidades do reconhecimento. A avaliação deve incluir condições reais do plenário.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como deve ser avaliada a inclusão de nomes e siglas em uma lista de adaptação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que todos os itens listados serão pronunciados em todas as sessões futuras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas a quantidade de palavras da lista como medida de precisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar acertos e inserções indevidas em amostras representativas de áudio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir todo resultado do modelo pela primeira expressão do glossário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar amostras de sotaques porque a lista modifica o sinal acústico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A adaptação muda preferências do reconhecedor, não a gravação. Testar acertos e falsos positivos em dados representativos permite saber se o vocabulário melhora a saída sem impor termos indevidos.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O glossário de uma comissão foi preparado para um domínio. Aplicá-lo a qualquer áudio sem revisão garante a melhor transcrição possível, pois toda frase da lista é contexto útil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um glossário irrelevante ou forte demais pode enviesar a hipótese e inserir palavras ausentes. Adaptação deve ser contextual, testada e revista.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferenciação entre os recursos de fala oferecidos pelos provedores é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os recursos variam conforme serviço, idioma, modelo e configuração do pedido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os serviços oferecem a mesma API e as mesmas capacidades em qualquer idioma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um nome de produto garante diarização em todas as línguas e modos de uso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma API de lote é sempre um fluxo de baixa latência com resultados parciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recursos de adaptação independem de modelo, idioma e parâmetros do pedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Capacidades como streaming, diarização e adaptação são específicas da API, do idioma, modelo e configuração. A documentação aplicável deve ser consultada para o caso concreto.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O repositório oficial do Whisper apresenta o projeto como modelo geral de reconhecimento de fala, com reconhecimento multilíngue e tradução de fala.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O README descreve Whisper como modelo geral, multitarefa e multilíngue, incluindo reconhecimento no idioma falado e tradução para inglês.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer favorecer expressões técnicas incomuns com Google Cloud Speech-to-Text. Qual recurso documentado pode atender a esse objetivo em modelos compatíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Channel identification, que insere palavras técnicas automaticamente no canal correto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "VAD, que substitui os termos raros por classes ortográficas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Translation, que mantém a saída no idioma e favorece siglas sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Speaker labels, que convertem cada rótulo de falante em expressão de domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adaptação com frases, classes personalizadas e boost, que favorece os termos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação Google descreve adaptação com PhraseSet, CustomClass e boost para aumentar a chance de palavras e frases específicas. A disponibilidade varia por modelo e língua, e o viés precisa ser testado.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Amazon Transcribe documenta vocabulários personalizados e opção de rótulos de falantes em configurações compatíveis; são recursos distintos da tarefa básica de converter áudio em palavras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de Settings descreve uso de vocabulário personalizado e habilitação de speaker partitioning com a opção correspondente e número máximo de rótulos.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa escolher entre reconhecimento em lote e em streaming. Qual critério diferencia diretamente os dois modos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O lote identifica pessoas cadastradas, e o streaming só emite texto depois da sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Streaming acompanha o áudio conforme chega; lote processa uma gravação já submetida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Streaming só aceita arquivos completos e lote exige microfone conectado ao vivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lote não reconhece palavras e serve exclusivamente para pontuação editorial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os dois modos são idênticos, mudando apenas o nome do formato de áudio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Streaming acompanha a chegada do áudio e pode fornecer resultados parciais. Lote processa gravação submetida como trabalho, muitas vezes após a captura, e não implica latência interativa.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de selecionar um serviço para transcrever sessões em português, deve-se confirmar suporte ao locale, modalidade, recurso de diarização e configuração efetivamente usados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A lista de idiomas e recursos varia entre serviços e workloads; uma capacidade documentada para certo idioma ou modo não implica disponibilidade universal.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual plano permite comparar com mais validade dois serviços de ASR para atas parlamentares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar uma sessão limpa de um serviço com uma gravação ruidosa do outro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher o provedor que produziu mais texto, independentemente de inserções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar somente uma frase curta e concluir para todos os sotaques brasileiros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar as mesmas amostras e convenções de transcrição, registrando modelo e parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar a versão do modelo, pois todas as configurações são invariáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comparação controlada exige áudio, referência e convenções equivalentes, além de registrar modelo e parâmetros. Isso permite atribuir diferenças ao sistema e analisar erros por condição.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa listas de termos e obtém ganho médio de WER. Isso basta para dispensar escuta humana de negações, nomes e números num documento oficial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WER média não demonstra que trechos críticos estejam corretos, e adaptação pode inserir termos. Registros formais requerem revisão proporcional ao impacto do erro.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A qual distinção corresponde a saída textual com segmentos de fala rotulados e tempos, sem arquivo de áudio separado para cada pessoa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Diarização pode rotular segmentos com tempos sem isolar as fontes sonoras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Separação de fontes sempre exige uma transcrição plana e nunca reconstrói sinais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificação biométrica é o nome padrão de qualquer timestamp por palavra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adaptação de linguagem converte speaker IDs em canais gravados independentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capitalização automática identifica a pessoa por sua forma de escrever.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diarização associa segmentos a rótulos de voz e pode entregar texto e tempos sem gerar sinais de áudio separados. Separação de fontes procura reconstruir esses sinais, uma tarefa distinta.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir o impacto de sotaques e de microfones distantes, a equipe deve avaliar gravações que representem essas condições e pode melhorar a captura antes de alterar o vocabulário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Representatividade permite medir falhas reais; microfone, nível e ruído afetam o sinal entregue ao modelo. Vocabulário adaptado não substitui qualidade de captura.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em processamento de fala, o que a detecção de atividade vocal (VAD) procura fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Determinar a grafia oficial de siglas parlamentares a partir de um cadastro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Traduzir automaticamente cada palavra falada para outro idioma.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Distinguir trechos com atividade de fala de pausas e de segmentos sem voz relevante.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Atribuir validade jurídica à ata produzida por reconhecimento automático.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um canal físico de gravação para cada participante durante a sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "VAD localiza atividade vocal para segmentação e processamento; não resolve grafia, tradução, validade jurídica nem cria canais físicos separados.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma frase técnica foi omitida pelo ASR, adicionar o termo ao vocabulário adaptado pode aumentar sua chance de reconhecimento, mas não confirma que a frase ocorreu no áudio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Adaptação favorece hipóteses textuais; a evidência acústica ainda importa e a saída deve ser conferida para evitar inserções ou correções inadequadas.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que cuidados são centrais para um conjunto de avaliação de ASR parlamentar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excluir nomes e siglas para que a pontuação média pareça mais estável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente falas de um único orador em estúdio silencioso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a convenção de transcrição para cada sistema sem registrar a mudança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Avaliar somente a velocidade do serviço, sem comparar palavras de referência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Incluir sotaques, ruído, sobreposição, termos raros e referência com convenção uniforme.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um conjunto representativo precisa cobrir as condições e termos que desafiam o uso pretendido. Convenção estável torna comparações de WER interpretáveis, e análise de erros críticos complementa a métrica.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de diarização retornou speaker 1 para duas falas separadas. É correto concluir, sem outra evidência, que ambas foram pronunciadas pela mesma pessoa cadastrada no sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O rótulo sugere agrupamento de voz dentro daquela execução, sujeito a erro, e não identifica por si só uma pessoa cadastrada. Associação requer verificação separada.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual política protege melhor a fidelidade de uma transcrição parlamentar revisada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar automaticamente toda palavra incluída no vocabulário do modelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir negações, nomes e números no áudio, com convenção editorial explícita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Completar frases inaudíveis de acordo com o assunto provável da pauta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover timestamps e falantes para que divergências não possam ser localizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar pontuação automática como evidência conclusiva da intenção do orador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conferir trechos de alto impacto diretamente no áudio e manter convenção consistente reduz distorções. Glossário, contexto e pontuação ajudam, mas não substituem evidência acústica nem revisão.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No AWS Transcribe, a documentação de configurações associa habilitar rótulos de falante à definição de um limite máximo de rótulos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A API Settings documenta ShowSpeakerLabels e indica que a configuração MaxSpeakerLabels também deve ser fornecida. Isso é configuração de diarização, sujeita às capacidades do workload.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer processar áudio gravado depois de encerrada a sessão, sem necessidade de exibir texto durante a fala. Qual modalidade é normalmente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Streaming interativo com latência obrigatoriamente nula.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Síntese de voz sem enviar áudio gravado ao serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Diarização biométrica offline, que não produz qualquer texto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transcrição em lote, submetendo a gravação como trabalho de processamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Identificação de idioma, que sempre reconstrói o áudio em canais separados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lote é adequado ao processamento de uma gravação submetida quando não se exige resposta interativa enquanto ela chega. Streaming serve ao acompanhamento contínuo e pode priorizar baixa latência.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende avaliar somente a WER global, embora erros de negação e de nomes de pessoas tenham impacto alto. Essa métrica isolada descreve completamente a qualidade útil do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WER conta operações sem ponderar o impacto semântico. Revisão de categorias críticas e avaliação segmentada complementam a medida global para a finalidade real.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Azure Speech oferece uma configuração de diarização para associar identificadores de falante a frases reconhecidas em workloads compatíveis; em certos modos a documentação requer áudio mono.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de transcrição rápida descreve opções de diarização e identificadores por frase, e especifica restrições de canal para essa modalidade. É preciso conferir o workload e a versão usados.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual caso uma phrase list tende a ter utilidade mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando termos raros do domínio são previstos na gravação, como nomes e siglas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quando é preciso provar por biometria a identidade de quem fala.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando se pretende separar dois sinais vocais já misturados em um canal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando a aplicação precisa converter texto escrito em som sintetizado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando a equipe quer eliminar timestamps da resposta de transcrição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Listas de frases podem favorecer palavras raras e expressões próprias do domínio. Não fazem autenticação, separação de fontes, síntese de voz nem controle de timestamps por definição.",
+      "section": "4. Português Brasileiro e adaptação do vocabulário parlamentar",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A identificação automática do idioma pode ser útil quando o idioma não é conhecido, mas fornecer um locale correto previamente também pode reduzir ambiguidades em alguns fluxos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Detecção automática e idioma fixado são opções distintas; documentação de serviços recomenda restringir locales candidatos quando são conhecidos, conforme workload.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comitê quer saber se uma correção de capitalização reflete a pronúncia ou uma regra editorial. Qual explicação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A voz humana emite letras maiúsculas ao pronunciar um nome, e o ASR copia esse sinal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O timestamp de uma palavra determina sua capitalização de forma universal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Maiúsculas são decisão textual de modelo ou editor, e não sinal presente na onda.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Diarização identifica nomes próprios e por isso define toda capitalização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O vocabulário personalizado substitui a necessidade de qualquer convenção editorial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma gráfica é produzida pelo reconhecedor ou pelo editor com base em contexto e regras; a onda não contém caixa alta. Nomes e siglas exigem convenção e revisão.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para o projeto de uma API de transcrição ao vivo, usar apenas o resultado final e ignorar completamente eventos intermediários pode aumentar a latência percebida, embora simplifique a interface.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esperar o segmento final pode atrasar a exibição; eventos parciais permitem resposta mais rápida, desde que sejam mostrados como provisórios e depois atualizados.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a revisão pode usar timestamps de modo produtivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar a palavra correta sem reescuta, pois o timestamp certifica a precisão lexical.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Provar que o speaker label corresponde ao nome cadastrado do parlamentar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar qualquer diferença entre hipóteses parciais e finais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a transcrição automaticamente em texto de outro idioma.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Localizar o trecho duvidoso no áudio e reescutá-lo para conferir a hipótese.",
+          "correct": true
+        }
+      ],
+      "explanation": "Timestamps permitem navegar ao trecho de áudio e conferir a hipótese. Eles facilitam revisão, mas não são prova de que texto ou falante foram reconhecidos corretamente.",
+      "section": "2. Áudio nativo, tempo real e saída da transcrição",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline clássico pode manter modelo acústico e modelo de linguagem como componentes separados, enquanto uma solução end-to-end aprende o mapeamento integrado; ambas podem ser sistemas de ASR.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São organizações arquiteturais diferentes para a tarefa de reconhecimento; end-to-end não é sinônimo de síntese e pipeline modular não deixa de ser ASR.",
+      "section": "1. O que é ASR e como os modelos reconhecem fala",
+      "errorConceptKey": null,
+      "sourceType": "REAL",
+      "board": "OpenAI",
+      "agency": "OpenAI",
+      "year": 2024,
+      "sourceUrl": "https://platform.openai.com/docs/guides/audio"
+    },
+    {
+      "statement": "Uma gravação contém duas vozes simultâneas e uma transcrição retorna texto de ambas, mas os speaker IDs parecem trocados. Qual controle é adequado antes de publicar a ata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter os rótulos sem revisão, pois diarização garante identidade pessoal verificada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reescutar os trechos e revisar as atribuições com apoio do contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar automaticamente os rótulos sempre que houver uma pausa longa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar a gravação e conservar somente o texto gerado pelo modelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar ambos os IDs ao primeiro nome listado no vocabulário adaptado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sobreposição pode comprometer reconhecimento e diarização. A revisão deve voltar ao áudio e usar evidências de turno, preservando a distinção entre rótulo do modelo e identidade verificada.",
+      "section": "3. Diarização, pontuação e qualidade editorial",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa vai trocar o serviço de ASR. Para manter a reprodução dos resultados, deve registrar pelo menos modelo ou versão, parâmetros relevantes, locale e glossário aplicado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Registrar configuração e recursos aplicados permite entender diferenças e repetir avaliações. Serviços gerenciados podem mudar de modelo, então a configuração faz parte da evidência do resultado.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa resume com precisão o uso de ASR num fluxo de registro formal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Produzir texto juridicamente certificado e definitivo, dispensando áudio original e revisão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todas as regras editoriais por maiúsculas e pontuação padrão do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter toda fala em identidade civil e conclusão sobre a intenção do orador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Produzir uma hipótese textual sujeita a erro e a revisão conforme a finalidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Garantir que termos adaptados nunca apareçam como inserções indevidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "ASR agiliza a elaboração de texto, mas a saída é uma hipótese sujeita a erro. Revisão, convenção editorial e controle de trechos críticos são necessários para um registro confiável.",
+      "section": "5. Ferramentas, APIs e seleção de um fluxo de trabalho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Whisper — README do projeto",
+      "publisher": "OpenAI",
+      "reference": "Modelo sequência-a-sequência, tarefas de reconhecimento, tradução e identificação de idioma, processamento em janelas",
+      "url": "https://github.com/openai/whisper",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Whisper — Model Card",
+      "publisher": "OpenAI",
+      "reference": "Capacidades, limitações e uso dos modelos de reconhecimento e tradução",
+      "url": "https://github.com/openai/whisper/blob/main/model-card.md",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Improve transcription results with model adaptation",
+      "publisher": "Google Cloud",
+      "reference": "PhraseSet, classes personalizadas e boost para adaptar reconhecimento",
+      "url": "https://docs.cloud.google.com/speech-to-text/docs/adaptation-model",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Use the fast transcription API",
+      "publisher": "Microsoft Learn",
+      "reference": "Transcrição rápida, diarização, phrase list e opções de idioma",
+      "url": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/fast-transcription-create",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configure language identification and diarization for speech transcription",
+      "publisher": "Microsoft Learn",
+      "reference": "Configuração de idioma e diarização em fluxos em tempo real, rápidos e em lote",
+      "url": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/configure-language-identification-diarization",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Settings — Amazon Transcribe API",
+      "publisher": "Amazon Web Services",
+      "reference": "Speaker partitioning, limite de falantes e vocabulário personalizado",
+      "url": "https://docs.aws.amazon.com/transcribe/latest/APIReference/API_Settings.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Partitioning speakers (diarization)",
+      "publisher": "Amazon Web Services",
+      "reference": "Identificação de segmentos por falante em transcrição",
+      "url": "https://docs.aws.amazon.com/transcribe/latest/dg/diarization.html",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Custom vocabularies — Amazon Transcribe",
+      "publisher": "Amazon Web Services",
+      "reference": "Criação e uso de vocabulários personalizados",
+      "url": "https://docs.aws.amazon.com/transcribe/latest/dg/custom-vocabulary.html",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}
