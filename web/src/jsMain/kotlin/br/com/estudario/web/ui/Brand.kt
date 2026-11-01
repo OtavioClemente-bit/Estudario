@@ -95,16 +95,6 @@ fun rememberSeed(): Long = remember { (Date.now() / 1000).toLong() }
 
 // ------------------------------------------------------------------ espera "trabalhando"
 
-/** A cena do processamento (process.js): Folha lendo no meio, folhas orbitando e galáxia atrás. */
-@Composable
-fun ProcessScene(size: Int = 300) {
-    TagElement<org.w3c.dom.HTMLElement>(
-        elementBuilder = ElementBuilder.createBuilder("estudario-process"),
-        applyAttrs = { classes("process-scene"); attr("size", size.toString()) },
-        content = null,
-    )
-}
-
 /**
  * Tela de processamento (EstudarioProcessView do app): título, a cena, o balão em que o Folha conta
  * o que está fazendo, a trilha das etapas e o tempo. As etapas andam pelo tempo ([stageMillis]) e a

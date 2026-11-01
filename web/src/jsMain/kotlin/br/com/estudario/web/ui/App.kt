@@ -120,8 +120,9 @@ fun App() {
         Splash.gone = true
     }
     when (val load = Store.load) {
-        LoadState.Loading -> if (kotlinx.browser.document.getElementById("splash") == null) {
-            CenterMessage { ProcessScene(220); B({ classes("loading-title") }) { Text("Abrindo seus estudos…") } }
+        // carregando de novo (depois de escolher a conta Google): volta a mesma abertura do início
+        LoadState.Loading -> androidx.compose.runtime.SideEffect {
+            if (kotlinx.browser.document.getElementById("splash") == null) { val show = kotlinx.browser.window.asDynamic().__showSplash; if (show != null) show(); Splash.gone = false }
         }
         LoadState.SignedOut -> LoginScreen()
         is LoadState.Failed -> CenterMessage {
