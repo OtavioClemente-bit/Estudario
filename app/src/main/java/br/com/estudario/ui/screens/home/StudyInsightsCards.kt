@@ -48,7 +48,9 @@ fun StudyInsightsSection(
     attempts: List<QuestionAttemptEntity>, questionTopic: Map<Long, Long>, topics: List<TopicEntity>, subjects: List<SubjectEntity>,
     streak: StreakSummary?, onTrainSubject: (Long) -> Unit,
 ) {
-    val answers = remember(attempts.size, topics.size) { studyAnswers(attempts, questionTopic, topics, subjects) }
+    // o mapa questão→tópico chega depois das tentativas ao abrir o app: sem ele na chave, a conta ficava
+    // sem matéria (sem ponto fraco) até a tela ser refeita
+    val answers = remember(attempts, questionTopic, topics, subjects) { studyAnswers(attempts, questionTopic, topics, subjects) }
     val context = LocalContext.current
     val done = remember(answers, MissionStore.version.intValue) { StudyInsights.missionResult(MissionStore.get(context), answers, System.currentTimeMillis()) }
     val train = { id: Long, name: String, fallback: Int -> MissionStore.start(context, id, name, StudyInsights.subjectAccuracy(answers, id, System.currentTimeMillis()) ?: fallback); onTrainSubject(id) }

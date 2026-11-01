@@ -374,7 +374,7 @@ fun HomeScreen(
                 }
                 // missão do ponto fraco cumprida: ele comemora o antes e o depois aqui no balão
                 val context = androidx.compose.ui.platform.LocalContext.current
-                val missionLine = remember(attempts.size, br.com.estudario.ui.screens.home.MissionStore.version.intValue) {
+                val missionLine = remember(attempts, questions, topics, subjects, br.com.estudario.ui.screens.home.MissionStore.version.intValue) {
                     val qt = questions.associate { it.question.id to it.question.topicId }
                     br.com.estudario.domain.StudyInsights.missionResult(
                         br.com.estudario.ui.screens.home.MissionStore.get(context), br.com.estudario.ui.screens.home.studyAnswers(attempts, qt, topics, subjects), System.currentTimeMillis(),
