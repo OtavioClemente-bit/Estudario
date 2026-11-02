@@ -42,11 +42,23 @@ object Forecast {
         val topicsLeftOut: Int,
         val atRiskSubjects: List<String>,
         val extraMinutesPerDayToFit: Int,
+        /** O caminho mês a mês (para o mês do plano mostrar o que vem depois das tarefas marcadas). */
+        val months: List<MonthSummary> = emptyList(),
     ) {
         val slackDays: Long get() = coverageDate?.let { daysBetween(it, contentDeadline) } ?: 0
     }
 
-    private fun summary(r: EditalRoadmapResult) = RoadmapSummary(r.totalTopics, r.studiedTopics, r.coverageDate, r.contentDeadline, r.verdict, r.topicsLeftOut, r.atRiskSubjects, r.extraMinutesPerDayToFit)
+    /** Um mês do caminho do edital: quantos tópicos novos, de quais matérias, e quanto do edital fica visto. */
+    @Serializable
+    data class MonthSummary(val year: Int, val month: Int, val newTopics: Int, val coveragePercent: Int, val subjects: List<SubjectSlice>)
+
+    @Serializable
+    data class SubjectSlice(val name: String, val newTopics: Int)
+
+    private fun summary(r: EditalRoadmapResult) = RoadmapSummary(
+        r.totalTopics, r.studiedTopics, r.coverageDate, r.contentDeadline, r.verdict, r.topicsLeftOut, r.atRiskSubjects, r.extraMinutesPerDayToFit,
+        r.months.map { m -> MonthSummary(m.month.year, m.month.month.ordinal + 1, m.newTopics, m.coveragePercent, m.slices.filter { it.newTopics > 0 }.sortedByDescending { it.newTopics }.map { SubjectSlice(it.name, it.newTopics) }) },
+    )
 
     /** Executado exclusivamente no worker, nunca durante a composição das telas. */
     internal fun compute(data: Snapshot, plan: StudyPlan, freeRules: Boolean, excludedTopicIds: Set<Long>): Result? {
