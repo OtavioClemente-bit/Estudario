@@ -238,7 +238,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                                     classes("mo-item", kind)
                                     attr("title", "${kindLabel(kind)} · ${task.topicName ?: task.subjectName} · ${short(task.minutes)}")
                                     dragSource(task)(this)
-                                }) { Text(shortSubject(task.subjectName)) }
+                                }) { Span({ classes("mo-item-text") }) { Text(shortSubject(task.subjectName)) } }
                             }
                             if (list.size > show) Div({ classes("mo-more") }) { Text("+${list.size - show} estudos") }
                         }
