@@ -16,6 +16,10 @@ const GEN_MODEL = "gemini-3.8-flash-high";
 const AUD_MODEL = "claude-opus-5-5-medium";
 const AUD_GEMINI = "gemini-4-argon-high";
 const AUD_FLASH = "gemini-3.8-flash-high";
+// Quem escreve: o Flash alto; quando a cota dele acaba (02/11: volta só em ~4 dias), o Argon, que tem
+// cota semanal própria, escreve até o Flash voltar (tenta de novo a cada 6 horas).
+let genModel = GEN_MODEL;
+let flashTentaEm = 0;
 const META = 150;            // um recorte com isso já está bom; passa para o próximo
 // 25 por resposta: o Flash corta respostas maiores (com 50 dava "exceeded the output token limit").
 const LOTE = 25;
@@ -29,16 +33,20 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (s: string) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 // --api: segundo gerador em paralelo, que escreve pela API grátis do Google (Flash) e audita pelo agy.
 const MODO_API = args.has("--api");
-const TRAB = `${WORK}/_trabalho${MODO_API ? "-api" : ""}`;
+// --conta2: terceiro gerador, igual ao principal, mas com outro login do Antigravity (pasta de usuário própria).
+const CONTA2 = args.has("--conta2");
+const HOME_CONTA2 = "C:/Users/otavi/.agy-conta2";
+const SUF = MODO_API ? "-api" : CONTA2 ? "-conta2" : "";
+const TRAB = `${WORK}/_trabalho${SUF}`;
 Deno.mkdirSync(TRAB, { recursive: true });
 Deno.mkdirSync(`${WORK}/travas`, { recursive: true });
 Deno.mkdirSync(`${WORK}/aceitos`, { recursive: true });
 function log(msg: string) {
-  const line = `[${new Date().toLocaleString("pt-BR")}] ${MODO_API ? "[api] " : ""}${msg}`;
+  const line = `[${new Date().toLocaleString("pt-BR")}] ${MODO_API ? "[api] " : CONTA2 ? "[conta2] " : ""}${msg}`;
   console.log(line);
   Deno.writeTextFileSync(`${WORK}/log.txt`, line + "\n", { append: true });
 }
-const estadoPath = `${WORK}/estado${MODO_API ? "-api" : ""}.json`;
+const estadoPath = `${WORK}/estado${SUF}.json`;
 let estado: Json = { pares: {}, aceitosDesdePublicacao: 0, totalAceitas: 0 };
 try { estado = JSON.parse(Deno.readTextFileSync(estadoPath)); } catch { /* primeira vez */ }
 const salvarEstado = () => Deno.writeTextFileSync(estadoPath, JSON.stringify(estado, null, 1));
@@ -48,7 +56,7 @@ const arquivoTrava = (key: string) => `${WORK}/travas/${key.replace(/[^a-z0-9.-]
 function travado(key: string) {
   try { return Date.now() - Deno.statSync(arquivoTrava(key)).mtime!.getTime() < 3_600_000; } catch { return false; }
 }
-const travar = (key: string) => Deno.writeTextFileSync(arquivoTrava(key), MODO_API ? "api" : "agy");
+const travar = (key: string) => Deno.writeTextFileSync(arquivoTrava(key), MODO_API ? "api" : CONTA2 ? "conta2" : "agy");
 const destravar = (key: string) => { try { Deno.removeSync(arquivoTrava(key)); } catch { /* já saiu */ } };
 
 // ------------------------------------------------------------------ API grátis do Google (gerador --api)
@@ -115,8 +123,19 @@ function filas() {
     const est = estado.pares[key] ?? {};
     return (est.falhasSeguidas ?? 0) >= 3 && agora - (est.ultimo ?? 0) < 86_400_000;
   };
+  // Recortes que estão com o ChatGPT/Gemini (pedido na fila, ou enviado há menos de 2 dias): ficam com eles.
+  const comChat = new Set<string>();
+  try {
+    const dataEnvio = (s: string) => { const m = String(s).match(/^(\d{2})\/(\d{2})\/(\d{4}), (\d{2}):(\d{2})/); return m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0; };
+    for (const i of JSON.parse(Deno.readTextFileSync(`${ROOT}conteudo/entrada/chatgpt/fila.json`)) as Json[]) {
+      if (i.tipo !== "QUESTOES" || (i.enviado && agora - dataEnvio(i.enviado) > 2 * 86_400_000)) continue;
+      comChat.add(String(i.nome).replace(/\.chatgpt-\d+$/, "")); // "<pasta>.<topic>"
+    }
+  } catch { /* sem fila */ }
+  const pastaDe = (path: string) => path.replace(/\\/g, "/").split("/").slice(-2, -1)[0];
   const ampliar = [...recortes.entries()]
     .map(([key, r]) => ({ key, ...r, novo: false, uso: uso.get(key) ?? 0 }))
+    .filter((x) => !comChat.has(`${pastaDe(x.path)}.${x.key.split("|")[0]}`))
     .filter((x) => x.uso >= MIN_EDITAIS && x.n < META && !travado(x.key) && !descansando(x.key))
     .sort((a, b) => b.uso * (META - b.n) - a.uso * (META - a.n));
   // Recortes que ainda não existem: banca × matéria que aparece em pelo menos 20 editais.
@@ -131,6 +150,7 @@ function filas() {
         path: `${ROOT}conteudo/recortes/${pasta}/${topic}.json`, materiaPath: `${ROOT}conteudo/materias/${dir}/${arq}.json` };
     })
     // matéria tem de existir; e não pega o que o Codex já entregou no lote 3
+    .filter((x) => !comChat.has(`${x.pasta}.${x.topic}`))
     .filter((x) => { try { Deno.statSync(x.materiaPath); } catch { return false; } try { Deno.statSync(`${ROOT}conteudo/entrada/recortes-luna-3/${x.pasta}/${x.topic}.json`); return false; } catch { return true; } })
     .sort((a, b) => b.uso - a.uso);
   return { ampliar, novos };
@@ -217,6 +237,7 @@ async function agy(model: string, prompt: string, minutos: number): Promise<stri
     args: ["-p", pedidoLinha,
       "--model", model, "--output-format", "json", "--print-timeout", `${minutos}m`, "--disable-slash-commands"],
     cwd: TRAB, stdout: "piped", stderr: "piped",
+    ...(CONTA2 ? { env: { USERPROFILE: HOME_CONTA2, HOME: HOME_CONTA2 } } : {}),
     // O --print-timeout nem sempre corta (em 29/10 uma chamada ficou 4 h parada): mata o processo 5 min depois.
     signal: AbortSignal.timeout((minutos + 5) * 60_000),
   });
@@ -301,18 +322,34 @@ ${compacto}`;
   estado.auditorias = (estado.auditorias ?? 0) + 1;
   // Sem Claude (a cota dele acabou em 1 hora). Argon e Flash alto se alternam; se o Argon acabar, o Flash assume.
   // 29/10: a cota semanal do Argon acabou (o resto do Antigravity segue livre); Claude Opus e Flash se alternam.
-  const modelo = estado.auditorias % 2 === 1 ? AUD_MODEL : AUD_FLASH;
+  // 02/11: com o Argon escrevendo (cota do Flash acabou), quem audita é sempre o Opus (ou o Argon, se o Opus acabar).
+  const modelo = genModel !== GEN_MODEL ? AUD_MODEL : estado.auditorias % 2 === 1 ? AUD_MODEL : AUD_FLASH;
   let resp: string;
   if (MODO_API) { log(`   auditando pela API (${AUD_API_MODELS.join("/")})`); resp = await geminiApi(prompt, AUD_API_MODELS); }
   else {
     log(`   auditando com ${modelo}`);
     try { resp = await agy(modelo, prompt, 20); }
-    catch (e) { if (e instanceof Cota && modelo !== AUD_FLASH) resp = await agy(AUD_FLASH, prompt, 20); else throw e; }
+    catch (e) {
+      const alt = modelo === AUD_FLASH ? AUD_MODEL : genModel !== GEN_MODEL ? AUD_GEMINI : AUD_FLASH;
+      if (e instanceof Cota && alt !== modelo) resp = await agy(alt, prompt, 20); else throw e;
+    }
   }
   const r = extrairJson(resp);
   const remover = new Set<number>((r.remover ?? []).map((x: any) => Number(x)));
   for (const [n, m] of Object.entries(r.motivos ?? {})) log(`   auditoria removeu ${n}: ${String(m).slice(0, 140)}`);
   return remover;
+}
+
+async function escrever(prompt: string): Promise<string> {
+  if (genModel !== GEN_MODEL && Date.now() > flashTentaEm) genModel = GEN_MODEL;
+  try { return await agy(genModel, prompt, 20); }
+  catch (e) {
+    if (!(e instanceof Cota) || genModel !== GEN_MODEL) throw e;
+    log("   cota do Flash esgotada; o Argon passa a escrever");
+    genModel = AUD_GEMINI;
+    flashTentaEm = Date.now() + 6 * 3600_000;
+    return await agy(genModel, prompt, 20);
+  }
 }
 
 // ------------------------------------------------------------------ juntar ao recorte
@@ -384,7 +421,7 @@ async function loteTravado(item: Json): Promise<void> {
   let retorno = "", aprovados: Json[] = [];
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
     const pedidoTxt = montarPedido(item, recorte, materia, retorno);
-    const resp = MODO_API ? await geminiApi(pedidoTxt) : await agy(GEN_MODEL, pedidoTxt, 20);
+    const resp = MODO_API ? await geminiApi(pedidoTxt) : await escrever(pedidoTxt);
     let itens: Json[];
     let bruto: any;
     try { bruto = extrairJson(resp); } catch { retorno = "A resposta não era um JSON válido."; log("   resposta sem JSON válido"); continue; }
@@ -414,7 +451,7 @@ async function loteTravado(item: Json): Promise<void> {
     const base2 = { ...recorte, questions: aprovados };
     try {
       const pedido2 = montarPedido(mais, base2, materia);
-      const resp2 = MODO_API ? await geminiApi(pedido2) : await agy(GEN_MODEL, pedido2, 20);
+      const resp2 = MODO_API ? await geminiApi(pedido2) : await escrever(pedido2);
       const it2 = extrairJson(resp2);
       if (Array.isArray(it2)) {
         const c2 = conferir(it2, mais, base2, materia);
