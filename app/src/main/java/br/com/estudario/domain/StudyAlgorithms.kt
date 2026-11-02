@@ -15,9 +15,29 @@ object ReviewPolicy {
     fun nextPerTopic(reviews: List<ReviewScheduleEntity>): List<ReviewScheduleEntity> =
         reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, list) -> list.minBy { it.stage } }
 
-    /** As de hoje e as atrasadas, uma por tópico: a mesma conta no plano, no Início e nas Revisões (e no site). */
-    fun dueToday(reviews: List<ReviewScheduleEntity>, now: Long = System.currentTimeMillis()): List<ReviewScheduleEntity> =
-        nextPerTopic(reviews).filter { status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }
+    /**
+     * Teto de revisões por dia (ReviewQueue.capFor do tempo de hoje no plano ativo); o plano atualiza ao
+     * carregar. Sem plano, 10.
+     */
+    @Volatile var dailyCap: Int = 10
+
+    /**
+     * As de hoje, uma por tópico: as que vencem hoje e as atrasadas, até o teto do dia (as que passam
+     * aparecem nos próximos dias, ReviewQueue). A mesma conta no plano, no Início e nas Revisões (e no site).
+     */
+    fun dueToday(reviews: List<ReviewScheduleEntity>, now: Long = System.currentTimeMillis()): List<ReviewScheduleEntity> {
+        val due = nextPerTopic(reviews).filter { status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) }
+        if (due.size <= dailyCap) return due
+        val zone = java.time.ZoneId.systemDefault()
+        val today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay()
+        val day = { ms: Long -> java.time.Instant.ofEpochMilli(ms).atZone(zone).toLocalDate().toEpochDay() }
+        val placed = ReviewQueue.spread(due.map { ReviewQueue.Item(it.id, day(it.dueAt), it.stage) }, today) { dailyCap }
+        return due.filter { placed[it.id] == today }
+    }
+
+    /** Quantas revisões vencidas ficaram para os próximos dias por causa do teto. */
+    fun queuedBeyondToday(reviews: List<ReviewScheduleEntity>, now: Long = System.currentTimeMillis()): Int =
+        nextPerTopic(reviews).count { status(it, now) in setOf(ComputedReviewStatus.DISPONIVEL, ComputedReviewStatus.ATRASADA) } - dueToday(reviews, now).size
 
     /**
      * Pelo dia do calendário, como o site e o plano: de hoje é a que vence até o fim de hoje; atrasada,

@@ -54,10 +54,29 @@ object Queries {
         data.subjects.filter { competitionId == null || it.competitionId == competitionId }.sortedBy { it.position }
 
     fun dueReviews(data: Snapshot): List<Review> {
+        val today = todayEpoch()
+        val placed = reviewDays(data)
+        return pendingReviews(data).filter { placed[it.id] == today }.sortedBy { it.dueAt }
+    }
+
+    /** Uma por tópico (a menor etapa pendente): a seguinte só abre depois da anterior. */
+    fun pendingReviews(data: Snapshot): List<Review> =
+        data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, l) -> l.minBy { it.stage } }
+
+    /**
+     * O dia em que cada revisão pendente aparece, com o teto por dia (ReviewQueue): um quarto do tempo
+     * do dia no plano ativo. As vencidas que passam do teto vão para os próximos dias.
+     */
+    fun reviewDays(data: Snapshot): Map<Long, Long> {
+        val plan = activePlan(data)
+        val cap: (Long) -> Int = { day -> br.com.estudario.domain.ReviewQueue.capFor(plan?.let { Planning.dayLimit(data, it.id, day) }) }
+        return br.com.estudario.domain.ReviewQueue.spread(pendingReviews(data).map { br.com.estudario.domain.ReviewQueue.Item(it.id, dateOf(it.dueAt).toEpochDay(), it.stage) }, todayEpoch(), cap)
+    }
+
+    /** Vencidas que ficaram para os próximos dias por causa do teto. */
+    fun queuedReviews(data: Snapshot): Int {
         val end = endOfToday()
-        // uma por tópico (a menor etapa pendente): a seguinte só abre depois da anterior
-        return data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, l) -> l.minBy { it.stage } }
-            .filter { it.dueAt < end }.sortedBy { it.dueAt }
+        return pendingReviews(data).count { it.dueAt < end } - dueReviews(data).size
     }
 
     fun pendingErrors(data: Snapshot): List<ErrorEntry> = data.errors.filter { it.status != "CORRIGIDO" }
