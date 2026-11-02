@@ -17,7 +17,7 @@ type Json = Record<string, any>;
 const ler = (p: string) => JSON.parse(Deno.readTextFileSync(p).replace(/^﻿/, ""));
 
 // Matérias novas declaradas, com os itens de edital que cada uma deve cobrir.
-function pendentes(): { id: string; itens: string[] }[] {
+function pendentes(so: Set<string> | null = null): { id: string; itens: string[] }[] {
   const porId = new Map<string, string[]>();
   for (const e of Deno.readDirSync(ITENS)) {
     if (!e.name.endsWith(".json")) continue;
@@ -35,8 +35,15 @@ function pendentes(): { id: string; itens: string[] }[] {
   // Matérias pedidas em outro lugar (chat do ChatGPT pelo navegador): o Codex não pega.
   let reservadas = new Set<string>();
   try { reservadas = new Set(Deno.readTextFileSync(`${ROOT}conteudo/entrada/materias-reservadas.txt`).split(/\s+/).filter(Boolean)); } catch { /* sem reservas */ }
-  return [...porId.entries()].filter(([id]) => id && !existe(id) && !reservadas.has(id)).map(([id, itens]) => ({ id, itens: [...new Set(itens)] }))
-    .sort((a, b) => b.itens.length - a.itens.length);
+  // Prioridade pedida pelo dono (conteudo/fila/materias-prioridade.json): matérias de um edital que precisa
+  // delas logo, com os itens que cada uma cobre. Vêm antes de todas as outras, na ordem do arquivo.
+  let prioridade: { id: string; itens: string[] }[] = [];
+  try { prioridade = ler(`${ROOT}conteudo/fila/materias-prioridade.json`); } catch { /* sem prioridade */ }
+  for (const p of prioridade) porId.set(p.id, [...p.itens, ...(porId.get(p.id) ?? [])]);
+  const ordem = new Map(prioridade.map((p, i) => [p.id, i]));
+  // só a lista de prioridade: não confere os outros rascunhos (o conferidor em todos levava ~15 min por rodada)
+  return [...porId.entries()].filter(([id]) => id && (!so || so.has(id)) && !existe(id) && !reservadas.has(id)).map(([id, itens]) => ({ id, itens: [...new Set(itens)] }))
+    .sort((a, b) => (ordem.get(a.id) ?? 1e9) - (ordem.get(b.id) ?? 1e9) || b.itens.length - a.itens.length);
 }
 // Tentativas de cada matéria, guardadas entre execuções: o ciclo do .cmd reabre este programa e não deve insistir
 // para sempre na mesma. Até 12 rodadas no total (escrita + correções); depois o rascunho fica para a minha revisão.
@@ -49,21 +56,38 @@ const contarFalha = (id: string) => {
   total[id] = (total[id] ?? 0) + 1;
   Deno.writeTextFileSync(FALHAS, JSON.stringify(total, null, 1));
 };
+// O conferidor só roda de novo quando o rascunho muda: com mais de mil rascunhos, conferir todos a cada escolha
+// deixava cada trabalhador minutos parado antes de começar (02/11).
+const jaConferido = new Map<string, { mtime: number; ok: boolean }>();
 function aprovada(id: string): boolean {
-  const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, `${SAIDA}/${id}.json`], stdout: "piped", stderr: "piped" }).outputSync();
-  return new TextDecoder().decode(o.stdout).trim().endsWith("OK");
+  const caminho = `${SAIDA}/${id}.json`;
+  let mtime = 0;
+  try { mtime = Deno.statSync(caminho).mtime?.getTime() ?? 0; } catch { return false; }
+  const c = jaConferido.get(id);
+  if (c && c.mtime === mtime) return c.ok;
+  const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, caminho, "--estrito"], stdout: "piped", stderr: "piped" }).outputSync();
+  const ok = new TextDecoder().decode(o.stdout).trim().endsWith("OK");
+  jaConferido.set(id, { mtime, ok });
+  return ok;
 }
 
 // Várias rodadas do Codex ao mesmo tempo, cada uma numa matéria diferente (CODEX_PARALELO, padrão 6).
 const PARALELO = Number(Deno.env.get("CODEX_PARALELO") ?? 6);
 const emAndamento = new Set<string>();
-log(`fase 2 iniciada: ${pendentes().length} matérias novas a escrever, ${PARALELO} em paralelo`);
+log(`fase 2 iniciada: ${pendentes(Deno.env.get("CODEX_SO_PRIORIDADE") === "1" ? prioritarias() : null).length} matérias novas a escrever, ${PARALELO} em paralelo`);
 async function trabalhador(n: number) {
  let semAvanco = 0;
  let fixo: { id: string; itens: string[] } | null = null;
  await sleep(n * 15_000);
  while (true) {
-  const fila = pendentes().filter((p) => (falhas.get(p.id) ?? 0) < 6 && (total[p.id] ?? 0) < MAX_TOTAL && !emAndamento.has(p.id));
+  // CODEX_SO_PRIORIDADE=1: uma instância extra só para a lista de prioridade, sem disputar a fila normal
+  const so = Deno.env.get("CODEX_SO_PRIORIDADE") === "1" ? prioritarias() : null;
+  const fila = pendentes(so).filter((p) => (falhas.get(p.id) ?? 0) < 6 && (total[p.id] ?? 0) < MAX_TOTAL && !emAndamento.has(p.id));
+  if (so) fila.splice(0, fila.length, ...fila.filter((p) => so.has(p.id)));
+  // Segunda conta do Codex (CODEX_ORDEM=reversa): pega do fim da lista, para não disputar a mesma matéria com a primeira.
+  if (Deno.env.get("CODEX_ORDEM") === "reversa") fila.reverse();
+  // Terceira conta (CODEX_ORDEM=meio): começa do meio da lista.
+  if (Deno.env.get("CODEX_ORDEM") === "meio") fila.push(...fila.splice(0, Math.floor(fila.length / 2)));
   if (!fixo && !fila.length) { log(`[${n}] nada mais a pegar`); break; }
   const alvo: { id: string; itens: string[] } = fixo ?? fila[0];
   fixo = null;
@@ -72,7 +96,7 @@ async function trabalhador(n: number) {
   // mesmo trabalhador: as rodadas seguintes mandam só a lista do conferidor e pedem para corrigir aquilo.
   const conferir = () => {
     try { Deno.statSync(`${SAIDA}/${alvo.id}.json`); } catch { return null; }
-    const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, `${SAIDA}/${alvo.id}.json`], stdout: "piped", stderr: "piped" }).outputSync();
+    const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, `${SAIDA}/${alvo.id}.json`, "--estrito"], stdout: "piped", stderr: "piped" }).outputSync();
     return (new TextDecoder().decode(o.stdout) + new TextDecoder().decode(o.stderr)).trim();
   };
   const erros = conferir();
@@ -95,7 +119,7 @@ Escreva AGORA, por inteiro, a matéria de id "${alvo.id}" e grave em conteudo/en
 (pode escrever em pedaços e juntar). Ela deve cobrir estes itens de edital:
 ${alvo.itens.slice(0, 25).map((t) => `- ${t}`).join("\n")}
 Use conteudo/materias/informatica/flyway-migracao-banco.json como modelo de estrutura. Valide com
-deno run --allow-read --allow-env scripts/biblioteca/conferir-materia.ts conteudo/entrada/materias-codex-2/${alvo.id}.json
+deno run --allow-read --allow-env scripts/biblioteca/conferir-materia.ts conteudo/entrada/materias-codex-2/${alvo.id}.json --estrito
 e corrija até dar OK. Escreva cada capítulo e cada questão você mesmo; não gere conteúdo por script.
 Se não souber um número de lei, artigo, prazo ou valor, explique sem o número. Não faça mais nada nesta rodada.
 Ensine fatos CONCRETOS do assunto (para norma: órgãos, competências, composição, requisitos, prazos e procedimentos
@@ -103,6 +127,14 @@ que estão no texto oficial; para município/povo/região: dados reais de histó
 oficial na internet antes de escrever. Matéria só com generalidades ("é importante consultar a norma", "o servidor
 deve agir com ética") é rejeitada na revisão. Confira em cada questão: só UMA alternativa defensável, gabarito
 marcado na alternativa certa e explicação da própria questão.
+JÁ NA PRIMEIRA VERSÃO (é o que mais reprova): escreva as 5 alternativas com tamanho parecido; a certa NÃO pode ser
+a mais longa (no máximo em 4 de cada 10 questões); alongue as erradas com detalhe plausível e errado de verdade.
+Espalhe a letra certa por igual entre A, B, C, D e E (cerca de 1/5 cada) e em Certo/Errado metade de cada.
+Antes de gravar, conte quantas vezes a certa é a mais longa e quantas vezes cada letra é gabarito, e ajuste.
+Nunca a mesma letra certa em mais de 2 questões seguidas. Cada alternativa errada deve ser um erro que um candidato
+cometeria (nada absurdo nem frase extra só para alongar). Todo enunciado de múltipla escolha termina em pergunta,
+nunca alternativas "Sim/Não". Certo/Errado não pode depender só de "jamais", "apenas", "exclusivamente". Não repita
+o mesmo fato em duas questões. Cubra cada parte do título e do escopo (se o título fala de X e Y, ensine os dois).
 Se o arquivo já existir, NÃO recomece: rode o conferidor e corrija só o que ele apontar (explicações curtas,
 alternativa certa longa demais, gabarito concentrado numa letra) até dar OK.
 Se os itens forem só números de atos sem assunto e você não achar o conteúdo, escreva a matéria sobre o tipo de ato
@@ -137,3 +169,7 @@ Se os itens forem só números de atos sem assunto e você não achar o conteúd
 }
 await Promise.all([...Array(PARALELO).keys()].map(trabalhador));
 log("fase 2 concluída");
+
+function prioritarias(): Set<string> {
+  try { return new Set((ler(`${ROOT}conteudo/fila/materias-prioridade.json`) as { id: string }[]).map((p) => p.id)); } catch { return new Set(); }
+}
