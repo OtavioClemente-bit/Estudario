@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do ChatGPT
 // @namespace    estudario
-// @version      1.0
+// @version      1.2
 // @description  Envia os pedidos da fila do Estudário ao projeto "Gerador Estudário" e salva no PC os arquivos entregues.
 // @match        https://chatgpt.com/*
 // @grant        GM_xmlhttpRequest
@@ -16,8 +16,11 @@
   const PROJ = "/g/g-p-6ae29815eb9c81918f823336b21516cf/project";
   const GIZMO = "g-p-6ae29815eb9c81918f823336b21516cf";
   const SERV = "http://127.0.0.1:8788";
-  const POR_CICLO = 30;
-  const INTERVALO = 15 * 60_000;
+  // Ritmo constante (1 pedido a cada 2 a 3 min, com variação) em vez de rajadas de 30: as rajadas geravam
+  // "unusual activity".
+  const POR_CICLO = 5;
+  const INTERVALO = 0;
+  const ESPACO = () => (2 + Math.random()) * 60_000;
   const PREFIXO = "ENTREGA OBRIGATÓRIA EM ARQUIVO: use a ferramenta de código (Python) para gravar o JSON em /mnt/data/<nome>.json e responda apenas com o link de download. NÃO escreva as questões nem o gabarito no chat; resposta em texto sem arquivo não serve. Pedido: ";
 
   const w = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -55,6 +58,7 @@
   let enviando = false;
   async function passo() {
     if (enviando || !get("ativo", false)) return;
+    if (Date.now() < get("proximoEnvio", 0)) return;
     enviando = true;
     try {
       const naProjeto = location.pathname === PROJ;
@@ -80,6 +84,7 @@
       for (let i = 0; i < 60 && !/\/c\/[0-9a-f]{8}-/.test(location.pathname); i++) await w(500);
       if (!/\/c\//.test(location.pathname)) { atualizar("envio não confirmado; tento de novo"); await w(3000); location.href = PROJ; return; }
       fila.shift(); set("fila", fila);
+      set("proximoEnvio", Date.now() + ESPACO());
       set("enviados", get("enviados", 0) + 1);
       atualizar(`enviado; faltam ${fila.length}`);
       await w(3000);

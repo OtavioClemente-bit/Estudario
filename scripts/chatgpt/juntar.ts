@@ -90,7 +90,7 @@ for (const e of [...Deno.readDirSync(DIR)].filter((e) => /\.chatgpt-\d+\.json$/.
   const arq = `${DIR}/${e.name}`;
   let j: Json;
   try { j = ler(arq); } catch { console.log(`✗ ${e.name}: JSON quebrado`); continue; }
-  if (j.auditado !== true || j.juntado) continue;
+  if (!j.auditado || j.juntado) continue;
   const [pasta, area, ...resto] = e.name.replace(/\.chatgpt-\d+\.json$/, "").split(".");
   const topic = `${area}.${resto.join(".")}`;
   const rPath = `${ROOT}conteudo/recortes/${pasta}/${topic}.json`;

@@ -11,6 +11,12 @@ const ler = (p: string) => JSON.parse(Deno.readTextFileSync(p).replace(/^﻿/, "
 const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const existeMateria = (id: string) => { const [a, ...b] = id.split("."); try { Deno.statSync(`${ROOT}conteudo/materias/${a}/${b.join(".")}.json`); return true; } catch { return false; } };
 
+// "30/10/2026, 16:15:07" → ms ("pulado" e outros textos contam como antigos).
+function dataEnvio(s: string): number {
+  const m = String(s).match(/^(\d{2})\/(\d{2})\/(\d{4}), (\d{2}):(\d{2})/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]).getTime() : 0;
+}
+
 function montar(): Item[] {
   const antiga: Item[] = (() => { try { return ler(FILA); } catch { return []; } })();
   const ja = new Set(antiga.map((i) => i.nome));
@@ -44,6 +50,7 @@ function montar(): Item[] {
     for (const d of ed.disciplinas ?? []) for (const t of d.topicos ?? []) if (t.topico) vistos.add(`${b}/${t.topico}`);
     for (const k of vistos) editais.set(k, (editais.get(k) ?? 0) + 1);
   }
+  const agy: Record<string, { ultimo?: number }> = (() => { try { return ler(`${ROOT}conteudo/entrada/agy/estado.json`).pares ?? {}; } catch { return {}; } })();
   const lotes: { k: string; peso: number; item: Item }[] = [];
   for (const banca of Deno.readDirSync(`${ROOT}conteudo/recortes`)) {
     if (!banca.isDirectory) continue;
@@ -52,10 +59,20 @@ function montar(): Item[] {
       const topic = f.name.replace(/\.json$/, "");
       if (topic.startsWith("atualidades")) continue;
       const n = editais.get(`${banca.name}/${topic}`) ?? 0;
-      if (n < 15) continue;
+      if (n < 5) continue;
       const r = ler(`${ROOT}conteudo/recortes/${banca.name}/${f.name}`);
       const qs = (r.questions ?? []).length;
-      if (qs >= 120) continue;
+      if (qs >= 200) continue;
+      // Rodadas: o mesmo recorte pode receber novo lote (chatgpt-2, -3…) quando o anterior foi enviado há mais
+      // de 2 dias; nunca dois lotes do mesmo recorte esperando ao mesmo tempo. 7 e 8xx ficam para outras fontes.
+      const prefixo = `${banca.name}.${topic}.chatgpt-`;
+      const anteriores = antiga.filter((i) => i.nome.startsWith(prefixo));
+      const recente = anteriores.some((i) => !i.enviado || Date.now() - dataEnvio(i.enviado) < 2 * 86_400_000);
+      if (recente) continue;
+      // O gerador do Antigravity trabalhou neste recorte nos últimos 2 dias: deixa com ele (evita os dois no mesmo).
+      if (Date.now() - (agy[`${topic}|${banca.name.replace(/-/g, " ")}`]?.ultimo ?? 0) < 2 * 86_400_000) continue;
+      let rodada = anteriores.length + 1;
+      if (rodada === 7) rodada = 9;
       const [a, ...b] = topic.split(".");
       let secoes: string[] = [];
       let titulo = topic;
@@ -63,7 +80,7 @@ function montar(): Item[] {
       const ce = /cebraspe|quadrix/.test(banca.name);
       const topico = titulo;
       const estilo = String(r.board ?? banca.name);
-      const nome = `${banca.name}.${topic}.chatgpt-1`;
+      const nome = `${prefixo}${rodada}`;
       if (ja.has(nome)) continue;
       lotes.push({ k: nome, peso: n / (qs + 10), item: { nome, tipo: "QUESTOES", pedido: `QUESTÕES: banca=${estilo}; topico=${topico}; formato=${ce ? "Certo/Errado" : "múltipla escolha"}; quantidade=40; secoes=${secoes.join(" | ")}; nome=${nome}` } });
     }
@@ -85,9 +102,21 @@ if (cmd === "montar") {
   Deno.writeTextFileSync(FILA, JSON.stringify(f, null, 1));
   console.log(`fila: ${f.length} pedidos (${f.filter((i) => i.tipo === "MATERIA").length} matérias, ${f.filter((i) => i.tipo === "QUESTOES").length} lotes), ${f.filter((i) => i.enviado).length} já enviados`);
 } else if (cmd === "proximos") {
-  const f: Item[] = ler(FILA);
+  let f: Item[] = ler(FILA);
   const n = Number(Deno.args[1] ?? 10);
-  const sel = f.filter((i) => !i.enviado).slice(0, n);
+  const tipo = Deno.args[2]; // "QUESTOES" para quem só faz questões (Gemini)
+  const livres = () => f.filter((i) => !i.enviado && (!tipo || i.tipo === tipo));
+  // Fila quase vazia: monta de novo sozinha (novas rodadas dos recortes que ainda têm poucas questões).
+  if (livres().length < 40) { f = montar(); Deno.writeTextFileSync(FILA, JSON.stringify(f, null, 1)); }
+  // Matéria que o Codex começou depois que a fila foi montada (já tem rascunho ou já foi publicada): não manda ao
+  // ChatGPT, senão as duas escrevem a mesma.
+  for (const i of livres()) {
+    if (i.tipo !== "MATERIA") continue;
+    let comCodex = existeMateria(i.nome);
+    try { Deno.statSync(`${ROOT}conteudo/entrada/materias-codex-2/${i.nome}.json`); comCodex = true; } catch { /* não começou */ }
+    if (comCodex) i.enviado = "pulado (Codex)";
+  }
+  const sel = livres().slice(0, n);
   const agora = new Date().toLocaleString("pt-BR");
   for (const i of sel) i.enviado = agora;
   Deno.writeTextFileSync(FILA, JSON.stringify(f, null, 1));
