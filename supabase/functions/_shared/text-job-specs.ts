@@ -25,7 +25,7 @@ import { type ExpectedVersions, validateStudyPlan, validateTopicContent } from "
 import { applyReview, type ContentReview, runContentReview } from "./content-review.ts";
 import { resolveOpenAiModel } from "./openai-provider.ts";
 import { CACHE_MAX_AGE_DAYS, contentCacheKey } from "./content-cache.ts";
-import { assembleFromLibrary, composeMaterials, foreignStateMaterial, GENERAL_BOARD_NORM, inferFocus, LIBRARY_MODEL_VERSION, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
+import { assembleFromLibrary, borrowFromOtherBoards, composeMaterials, foreignStateMaterial, GENERAL_BOARD_NORM, inferFocus, LIBRARY_MODEL_VERSION, lookupAliases, normalizeAlias, normalizeBoard } from "./library.ts";
 import { planSimulationFromLibrary } from "./simulation-library.ts";
 import { routeTopic } from "./topic-router.ts";
 import type { LibraryHit } from "../ai-syllabus-worker/index.ts";
@@ -170,15 +170,24 @@ async function libraryContent(
     });
   }
   // Sem recorte desta banca (ou concurso sem banca): o "Padrão das provas" da matéria, se houver.
+  // Folga para as já vistas e para o formato pedido: pegar emprestado até umas 3 vezes o pedido.
+  const wantPool = input.options.questionCount * 3 + input.avoidStatements.length;
   if (!found.note) {
     found.note = await store.libraryBoardNote?.(primary.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
+    // Sem recorte da banca (ou concurso sem banca) e "Padrão das provas" curto ou ausente: entram as
+    // questões das outras bancas do tópico (as mais parecidas primeiro; sem banca, várias misturadas)
+    // antes de a IA escrever o que falta.
+    const general = (found.note?.questions as unknown[] | undefined) ?? [];
+    const borrowed = general.length < wantPool ? await borrowFromOtherBoards(store, primary.topicId, boardNorm, wantPool - general.length) : [];
+    if (borrowed.length > 0) found.note = { ...(found.note ?? { board: input.board ?? "GERAL" }), questions: [...general, ...borrowed], borrowedQuestions: true, ownQuestions: 0 };
   } else if (normalizeBoard(String(found.note.board ?? "")) !== GENERAL_BOARD_NORM) {
     // Recorte da banca com poucas questões (ou nenhuma, ou todas já vistas): as do "Padrão das
-    // provas" entram depois das da banca, em vez de a IA paga escrever o que falta. O perfil e as
-    // dicas da banca continuam.
+    // provas" e as das bancas mais parecidas entram depois das da banca, em vez de a IA paga escrever
+    // o que falta. O perfil e as dicas da banca continuam.
     const general = await store.libraryBoardNote?.(primary.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
     const own = (found.note.questions as unknown[] | undefined) ?? [];
-    const extra = (general?.questions as unknown[] | undefined) ?? [];
+    let extra = (general?.questions as unknown[] | undefined) ?? [];
+    if (own.length + extra.length < wantPool) extra = [...extra, ...await borrowFromOtherBoards(store, primary.topicId, boardNorm, wantPool - own.length - extra.length)];
     if (extra.length > 0) found.note = { ...found.note, questions: [...own, ...extra], borrowedQuestions: own.length === 0, ownQuestions: own.length };
   }
   const fresh = !moreQuestions(input);

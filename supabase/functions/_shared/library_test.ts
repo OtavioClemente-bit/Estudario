@@ -1,6 +1,8 @@
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
 import {
   assembleFromLibrary,
+  borrowFromOtherBoards,
+  nearestBoards,
   deliverQuestion,
   LibraryValidationError,
   lookupAliases,
@@ -287,4 +289,33 @@ Deno.test("matéria publicada sem título: o id dá o nome e o tópico amplo nã
   const topic = "Articulação textual: expressões referenciais, nexos, operadores sequenciais, coerência e coesão.";
   assertEquals(inferFocus(material, topic), { capitulos: [3], questoes: [] });
   assertEquals(inferFocus(material, topic, "portugues.coesao-textual"), null);
+});
+
+Deno.test("nearestBoards: banca parecida primeiro, depois o mesmo formato e as maiores", () => {
+  const boards = [
+    { boardNorm: "cebraspe", questionCount: 300 },
+    { boardNorm: "fundatec", questionCount: 50 },
+    { boardNorm: "fcc", questionCount: 40 },
+    { boardNorm: "vunesp", questionCount: 80 },
+    { boardNorm: "geral", questionCount: 500 },
+    { boardNorm: "fgv", questionCount: 0 },
+  ];
+  assertEquals(nearestBoards("fgv", boards), ["fcc", "vunesp", "fundatec", "cebraspe"]);
+  assertEquals(nearestBoards("quadrix", boards), ["cebraspe", "fcc", "vunesp", "fundatec"]);
+  assertEquals(nearestBoards("", boards), ["cebraspe", "vunesp", "fundatec", "fcc"]);
+});
+
+Deno.test("borrowFromOtherBoards: junta questões das bancas vizinhas com o estilo de origem", async () => {
+  const notes: Record<string, Record<string, unknown>> = {
+    fcc: { board: "FCC", questions: [{ statement: "a" }, { statement: "b" }] },
+    vunesp: { board: "Vunesp", questions: [{ statement: "c" }] },
+  };
+  const store = {
+    libraryBoardList: () => Promise.resolve([{ boardNorm: "fcc", questionCount: 2 }, { boardNorm: "vunesp", questionCount: 1 }]),
+    libraryBoardNote: (_t: string, b: string) => Promise.resolve(notes[b] ?? null),
+  };
+  const got = await borrowFromOtherBoards(store, "t", "fgv", 2);
+  assertEquals(got.map((q) => [q.statement, q.estilo]), [["a", "FCC"], ["b", "FCC"]]);
+  const mixed = await borrowFromOtherBoards(store, "t", "", 1);
+  assertEquals(mixed.length, 3);
 });

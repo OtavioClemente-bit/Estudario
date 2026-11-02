@@ -1,4 +1,4 @@
-import { deliverQuestion, fitsStyle, foreignStateMaterial, GENERAL_BOARD_NORM, inferFocus, type LibraryFocus, lookupAliases, normalizeAlias, normalizeBoard, shuffled, topicWords } from "./library.ts";
+import { borrowFromOtherBoards, deliverQuestion, fitsStyle, foreignStateMaterial, GENERAL_BOARD_NORM, inferFocus, type LibraryFocus, lookupAliases, normalizeAlias, normalizeBoard, shuffled, topicWords } from "./library.ts";
 import { questionKey, type RematchSource, type SimulationItem, type SimulationJobInput } from "./simulation.ts";
 
 // Simulado montado da biblioteca: as questões prontas e conferidas de cada tópico da planta, sem
@@ -7,6 +7,9 @@ import { questionKey, type RematchSource, type SimulationItem, type SimulationJo
 // a biblioteca não cobre vai para a IA.
 
 type Json = Record<string, unknown>;
+
+/** Questões por tópico abaixo das quais a prova pega emprestado de outras bancas. */
+const BORROW_TARGET = 30;
 
 export interface SimulationLibraryHit {
   topicId: string;
@@ -18,6 +21,7 @@ export interface SimulationLibraryHit {
 export interface SimulationLibraryStore {
   libraryLookup?(aliases: string[], boardNorm: string, roleNorm: string): Promise<SimulationLibraryHit | null>;
   libraryBoardNote?(topicId: string, boardNorm: string, roleNorm: string): Promise<Json | null>;
+  libraryBoardList?(topicId: string): Promise<Array<{ boardNorm: string; questionCount: number }>>;
 }
 
 export interface SimulationLibraryPlan {
@@ -172,6 +176,13 @@ async function hitFor(store: SimulationLibraryStore, subjectName: string | null,
   // Matéria de outro estado não entra na prova de quem não é de lá.
   if (foreignStateMaterial(hit.topicId, [input.competitionName, input.agency, subjectName, ...topicPath])) return null;
   if (!hit.note) hit.note = await store.libraryBoardNote?.(hit.topicId, GENERAL_BOARD_NORM, "").catch(() => null) ?? null;
+  // Banca sem questões bastantes neste tópico (ou prova sem banca): entram as das outras bancas,
+  // as mais parecidas primeiro (sem banca, várias misturadas), antes de a IA escrever o que falta.
+  const own = (hit.note?.questions as Json[] | undefined) ?? [];
+  if (own.length < BORROW_TARGET) {
+    const borrowed = await borrowFromOtherBoards(store, hit.topicId, boardNorm, BORROW_TARGET - own.length);
+    if (borrowed.length > 0) hit.note = { ...(hit.note ?? { board: input.board ?? "GERAL" }), questions: [...own, ...borrowed] };
+  }
   return hit;
 }
 

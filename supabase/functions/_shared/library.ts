@@ -108,6 +108,54 @@ export function preferredStyles(board: string | null | undefined): string[] {
   return STYLE_AFFINITY[norm] ?? ["FCC", "CESGRANRIO", "VUNESP"];
 }
 
+/** Bancas que cobram sobretudo Certo/Errado; as outras, múltipla escolha. */
+const TRUE_FALSE_BOARDS = new Set(["cebraspe", "quadrix", "iades"]);
+
+/**
+ * Ordem das outras bancas de onde emprestar questões de um tópico: primeiro as de estilo mais
+ * parecido com a banca pedida (STYLE_AFFINITY), depois as do mesmo formato (Certo/Errado ou
+ * múltipla escolha) e, dentro disso, as com mais questões. Sem banca, todas, das maiores às menores.
+ */
+export function nearestBoards(boardNorm: string, boards: Array<{ boardNorm: string; questionCount: number }>): string[] {
+  const prefer = (STYLE_AFFINITY[boardNorm] ?? []).map((style) => normalizeBoard(style));
+  const trueFalse = TRUE_FALSE_BOARDS.has(boardNorm);
+  const rank = (b: { boardNorm: string }) => {
+    const i = prefer.indexOf(b.boardNorm);
+    if (i >= 0) return i;
+    if (!boardNorm) return prefer.length;
+    return prefer.length + (TRUE_FALSE_BOARDS.has(b.boardNorm) === trueFalse ? 0 : 1);
+  };
+  return boards
+    .filter((b) => b.boardNorm && b.boardNorm !== boardNorm && b.boardNorm !== GENERAL_BOARD_NORM && b.questionCount > 0)
+    .sort((a, b) => rank(a) - rank(b) || b.questionCount - a.questionCount)
+    .map((b) => b.boardNorm);
+}
+
+export interface BoardBorrowStore {
+  libraryBoardList?(topicId: string): Promise<Array<{ boardNorm: string; questionCount: number }>>;
+  libraryBoardNote?(topicId: string, boardNorm: string, roleNorm: string): Promise<Json | null>;
+}
+
+/**
+ * Questões das outras bancas sobre o mesmo tópico, para quando a banca pedida não tem (ou tem
+ * poucas): as de banca mais parecida primeiro; sem banca, várias bancas misturadas. Vem antes da IA.
+ * Cada questão leva o "estilo" da banca de origem, que ordena o empréstimo em assembleFromLibrary.
+ */
+export async function borrowFromOtherBoards(store: BoardBorrowStore, topicId: string, boardNorm: string, need: number): Promise<Json[]> {
+  if (need <= 0 || !store.libraryBoardList || !store.libraryBoardNote) return [];
+  const order = nearestBoards(boardNorm, await store.libraryBoardList(topicId).catch(() => []));
+  const out: Json[] = [];
+  // Sem banca, junta pelo menos 4 bancas para a mistura não sair toda de uma só.
+  const minBoards = boardNorm ? 1 : 4;
+  for (const [i, other] of order.slice(0, 8).entries()) {
+    if (out.length >= need && i >= minBoards) break;
+    const note = await store.libraryBoardNote(topicId, other, "").catch(() => null);
+    const style = String(note?.board ?? other).toUpperCase();
+    for (const q of (note?.questions as Json[] | undefined) ?? []) out.push({ ...q, estilo: q.estilo ?? style });
+  }
+  return out;
+}
+
 function styleRank(prefer: string[], question: Json): number {
   const i = prefer.indexOf(String(question.estilo ?? "").toUpperCase());
   return i < 0 ? prefer.length : i;

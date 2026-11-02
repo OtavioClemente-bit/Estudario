@@ -186,6 +186,8 @@ export interface SyllabusWorkerStore {
   saveLibraryRoute?(topicNorm: string, subjectNorm: string, route: { topicIds: string[]; coverage: string }, catalogSize: number): Promise<void>;
   libraryMaterials?(ids: string[]): Promise<Record<string, unknown>[]>;
   libraryBoardNote?(topicId: string, boardNorm: string, roleNorm: string): Promise<Record<string, unknown> | null>;
+  /** Bancas com recorte do tópico (sem cargo) e quantas questões cada uma tem. */
+  libraryBoardList?(topicId: string): Promise<Array<{ boardNorm: string; questionCount: number }>>;
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Plano efetivo da conta e quantas matérias a IA já escreveu para ela neste mês (as da biblioteca não contam). */
   aiMaterialsThisMonth?(userId: string): Promise<{ tier: string; used: number }>;
@@ -1502,7 +1504,7 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     const material = row.material ?? await this.libraryFile(row.material_path);
     if (!material) return null;
     const note = row.note ?? await this.libraryFile(row.note_path);
-    return { topicId: row.topic_id, version: row.version, material, note: note ?? null, focus: row.focus ?? null };
+    return { topicId: row.topic_id, version: row.version, material, note: note ? withoutDisabledSources(note) : null, focus: row.focus ?? null };
   }
   async recordLibraryHit(topicId: string): Promise<void> {
     const response = await this.rest("rpc/library_record_hit", { method: "POST", body: JSON.stringify({ p_topic_id: topicId }) });
@@ -1564,7 +1566,17 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
       return null;
     }
     const row = (await response.json() as Array<{ note: Record<string, unknown> | null; note_path: string | null }>)[0];
-    return row ? row.note ?? await this.libraryFile(row.note_path) : null;
+    const note = row ? row.note ?? await this.libraryFile(row.note_path) : null;
+    return note ? withoutDisabledSources(note) : null;
+  }
+  async libraryBoardList(topicId: string): Promise<Array<{ boardNorm: string; questionCount: number }>> {
+    const response = await this.rest(`library_board_notes?select=board_norm,question_count&topic_id=eq.${encodeURIComponent(topicId)}&role_norm=eq.`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      return [];
+    }
+    const rows = await response.json() as Array<{ board_norm: string; question_count: number | null }>;
+    return rows.map((row) => ({ boardNorm: row.board_norm, questionCount: row.question_count ?? 0 }));
   }
   async boardProfile(boardNorm: string): Promise<Record<string, unknown> | null> {
     const response = await this.rest(`library_board_profiles?select=profile&board_norm=eq.${encodeURIComponent(boardNorm)}&limit=1`);
@@ -1889,4 +1901,13 @@ if (import.meta.main) {
 function toolsFor(spec: AiJobSpec, job: SyllabusWorkerJob): unknown[] | undefined {
   const tools = typeof spec.tools === "function" ? spec.tools(job) : spec.tools;
   return tools && tools.length > 0 ? tools : undefined;
+}
+
+/**
+ * Chave das questões de prova real (sourceType "REAL", pasta conteudo/recortes-oficiais): com o
+ * segredo OFFICIAL_QUESTIONS_ENABLED=false elas somem de tudo o que o servidor entrega, na hora.
+ */
+function withoutDisabledSources(note: Record<string, unknown>): Record<string, unknown> {
+  if (Deno.env.get("OFFICIAL_QUESTIONS_ENABLED") !== "false" || !Array.isArray(note.questions)) return note;
+  return { ...note, questions: (note.questions as Array<Record<string, unknown>>).filter((q) => q.sourceType !== "REAL") };
 }
