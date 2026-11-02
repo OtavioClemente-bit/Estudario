@@ -80,6 +80,13 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         service.removeEngineTasksFromImportedPlan(planId)
         val plan = repository.plan(planId) ?: return ActivePlanUiState(allPlans = plans, selectedSection = section) to { error("sem plano") }
         val availability = repository.availabilityOnce(planId)
+        // Teto de revisões de hoje: um quarto do tempo de hoje no plano (ReviewQueue).
+        run {
+            val today = LocalDate.now()
+            val override = repository.dayOverridesOnce(planId).firstOrNull { it.epochDay == today.toEpochDay() }
+            val limit = when { override?.unavailable == true -> 0; override?.availableMinutes != null -> override.availableMinutes; else -> availability.firstOrNull { it.dayOfWeek == today.dayOfWeek.value }?.let { if (it.unavailable) 0 else it.availableMinutes } }
+            br.com.estudario.domain.ReviewPolicy.dailyCap = br.com.estudario.domain.ReviewQueue.capFor(limit)
+        }
         val mapped = StudyPlanUiMapper.map(
             plan = plan,
             tasks = repository.tasksOnce(planId),

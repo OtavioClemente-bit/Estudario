@@ -82,13 +82,22 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
     val gridEnd = gridStart + ((nextMonth - gridStart + 6) / 7) * 7
     val byDay = planTasks.filter { it.day in gridStart until gridEnd && it.status !in setOf("REPROGRAMADA", "CANCELADA", "NAO_REALIZADA") }
         .groupBy { it.day }
-    // Revisões espaçadas pendentes, no dia em que vencem (as vencidas contam em hoje).
+    // Revisões espaçadas pendentes, no dia em que aparecem: a data marcada, com o teto por dia
+    // (ReviewQueue). Elas não se arrastam: o dia certo da curva é o que faz a revisão funcionar.
     val reviewsByDay = remember(data.reviews, data.topics, todayEpoch) {
         val topicName = data.topics.associate { it.id to it.title }
-        data.reviews.filter { it.completedAt == null && it.ignoredAt == null }.groupBy { it.topicId }.map { (_, l) -> l.minBy { it.stage } }
-            .groupBy { maxOf(Queries.dateOf(it.dueAt).toEpochDay(), todayEpoch) }
+        val placed = Queries.reviewDays(data)
+        Queries.pendingReviews(data).groupBy { placed[it.id] ?: todayEpoch }
             .mapValues { (_, l) -> l.map { DayReview(topicName[it.topicId] ?: "Tópico", it.stage) } }
     }
+    val reviewMinutes = { day: Long -> reviewsByDay[day].orEmpty().size * br.com.estudario.domain.ReviewQueue.MINUTES_EACH }
+    // Compacto (o mês de uma vez) ou detalhado (dias altos, cada estudo com o nome inteiro): fica guardado.
+    var detailed by remember { mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem("estudario.mes.detalhado") }.getOrNull() == "1") }
+    // A ajuda abre sozinha na primeira vez.
+    var help by remember { mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem("estudario.mes.ajuda") }.getOrNull() == null) }
+    // O estudo sendo arrastado e o dia por cima do qual ele está (o dia mostra como fica antes de soltar).
+    var dragging by remember { mutableStateOf<PlanTask?>(null) }
+    var hover by remember { mutableStateOf<Long?>(null) }
     val lastPlanned = planTasks.filter { it.status in PENDING }.maxOfOrNull { it.day }
 
     fun drop(taskId: String, toDay: Long, onTask: PlanTask?) {
@@ -98,7 +107,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             pending = PendingMove(task, toDay, 0, 0, swapWith = onTask); return
         }
         val limit = Planning.dayLimit(data, planId, toDay)
-        val load = Planning.dayLoad(data, planId, toDay)
+        val load = Planning.dayLoad(data, planId, toDay) + reviewMinutes(toDay)
         if (load + task.minutes > limit) { pending = PendingMove(task, toDay, load, limit); return }
         Store.update { Planning.moveTask(it, task.id, toDay) }
         selected = toDay
@@ -113,7 +122,9 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                 if (!canEdit) { e.preventDefault(); onUpgrade(); return@addEventListener }
                 e.nativeEvent.asDynamic().dataTransfer.setData("text/plain", task.id)
                 e.nativeEvent.asDynamic().dataTransfer.effectAllowed = "move"
+                dragging = task
             }
+            addEventListener("dragend") { dragging = null; hover = null }
         }
     }
 
@@ -123,6 +134,17 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             B({ classes("mo-month") }) { Text("${Queries.monthLong[first.month.ordinal].replaceFirstChar(Char::uppercase)} de ${first.year}") }
             IconButton("chevron_right", "Próximo mês") { onMonth(monthOffset + 1) }
             if (monthOffset != 0) Btn("Hoje", { onMonth(0); selected = todayEpoch }, style = "ghost", small = true)
+        }
+        Div({ classes("mo-tools") }) {
+            Div({ classes("mo-seg") }) {
+                listOf(false to "Compacto", true to "Detalhado").forEach { (v, label) ->
+                    Button({
+                        classes(*listOfNotNull("mo-seg-b", if (detailed == v) "on" else null).toTypedArray())
+                        onClick { detailed = v; runCatching { kotlinx.browser.localStorage.setItem("estudario.mes.detalhado", if (v) "1" else "0") } }
+                    }) { Text(label) }
+                }
+            }
+            Button({ classes("mo-help-b"); attr("aria-label", "Como usar o mês"); onClick { help = true } }) { Text("?") }
         }
         Div({ classes("mo-legend") }) {
             listOf("Teoria" to "theory", "Questões" to "questions", "Revisão" to "review", "Simulado" to "sim", "Atrasado" to "late").forEach { (label, k) ->
@@ -146,7 +168,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                 }
                 Span({ classes("small", "muted") }) { Text("Até o fim do mês, ${monthPlan.coveragePercent}% do edital visto.") }
             }
-            Div({ classes("mo-grid") }) {
+            Div({ classes(*listOfNotNull("mo-grid", if (detailed) "detailed" else null).toTypedArray()) }) {
                 listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom").forEach { Div({ classes("mo-dow") }) { Text(it) } }
                 var epoch = gridStart
                 while (epoch < gridEnd) {
@@ -154,7 +176,11 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                     val list = byDay[day].orEmpty().sortedWith(compareBy({ it.status == "CONCLUIDA" }, { it.type != "THEORY" }))
                     val reviews = reviewsByDay[day].orEmpty()
                     val limit = Planning.dayLimit(data, planId, day)
-                    val load = list.sumOf { it.minutes }
+                    val study = list.sumOf { it.minutes }
+                    val revMin = reviewMinutes(day)
+                    val load = study + revMin
+                    // arrastando por cima: como o dia fica se soltar aqui
+                    val preview = dragging?.takeIf { hover == day && it.day != day }?.let { load + it.minutes }
                     val off = limit == 0
                     val past = day < todayEpoch
                     val done = list.count { it.status == "CONCLUIDA" }
@@ -175,10 +201,10 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                             menu = MenuAt((ev.clientX as Number).toInt(), (ev.clientY as Number).toInt(), day, null)
                         }
                         if (canEdit && !past) {
-                            addEventListener("dragover") { e -> e.preventDefault(); (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.add("drop") }
+                            addEventListener("dragover") { e -> e.preventDefault(); (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.add("drop"); if (hover != day) hover = day }
                             addEventListener("dragleave") { e -> (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.remove("drop") }
                             addEventListener("drop") { e ->
-                                e.preventDefault(); (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.remove("drop")
+                                e.preventDefault(); (e.nativeEvent.currentTarget as? org.w3c.dom.Element)?.classList?.remove("drop"); hover = null; dragging = null
                                 val id = e.nativeEvent.asDynamic().dataTransfer.getData("text/plain") as? String
                                 if (!id.isNullOrBlank()) drop(id, day, null)
                             }
@@ -188,11 +214,19 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                             Span({ classes("mo-n") }) { Text("${LocalDate.fromEpochDays(day.toInt()).day}") }
                             when {
                                 off -> Span({ classes("mo-cap") }) { Text("folga") }
-                                list.isNotEmpty() -> Span({ classes(*listOfNotNull("mo-cap", if (load > limit) "over" else null).toTypedArray()) }) { Text("${short(load)}/${short(limit)}") }
+                                preview != null -> Span({ classes(*listOfNotNull("mo-cap", "preview", if (preview > limit) "over" else "fits").toTypedArray()) }) { Text("${short(load)} → ${short(preview)}/${short(limit)}") }
+                                load > 0 -> Span({ classes(*listOfNotNull("mo-cap", if (load > limit) "over" else null).toTypedArray()) }) { Text("${short(load)}/${short(limit)}") }
                             }
                         }
-                        if (!off && list.isNotEmpty()) Div({ classes(*listOfNotNull("mo-load", if (load > limit) "over" else null).toTypedArray()) }) {
-                            Span({ attr("style", "width:${(load * 100 / limit.coerceAtLeast(1)).coerceIn(4, 100)}%") })
+                        // o limite do dia em duas cores: revisões (azul) e estudos (verde)
+                        if (!off && load > 0) Div({ classes(*listOfNotNull("mo-load", "split", if (load > limit) "over" else null).toTypedArray()) }) {
+                            val cap = maxOf(limit, load).coerceAtLeast(1)
+                            if (revMin > 0) Span({ classes("rev"); attr("style", "width:${revMin * 100 / cap}%") })
+                            Span({ classes("study"); attr("style", "width:${study * 100 / cap}%") })
+                        }
+                        // revisões: faixa fixa no topo do dia (não se arrasta)
+                        if (reviews.isNotEmpty() && !past) Div({ classes("mo-srs"); attr("title", "Revisões espaçadas do dia: ficam no dia certo da curva") }) {
+                            Text("↻ ${reviews.size} · ${short(revMin)}")
                         }
                         if (past && list.isNotEmpty()) {
                             // Dia que passou: só o resumo (a lista fica no painel).
@@ -200,19 +234,22 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                                 Text(if (done == list.size) "✓ tudo feito" else "$done de ${list.size} feitos")
                             }
                         } else {
-                            val show = if (reviews.isEmpty()) 4 else 3
+                            val show = if (detailed) list.size else if (reviews.isEmpty()) 4 else 3
                             list.take(show).forEach { task ->
                                 val kind = kindOf(task, todayEpoch)
                                 Div({
                                     classes("mo-item", kind)
                                     attr("title", "${kindLabel(kind)} · ${task.topicName ?: task.subjectName} · ${short(task.minutes)}")
                                     dragSource(task)(this)
-                                }) { Text(shortSubject(task.subjectName)) }
+                                }) {
+                                    if (detailed) Span({ classes("mo-item-body") }) {
+                                        Span({ classes("mo-item-kind") }) { Text("${kindLabel(kind)} · ${short(task.minutes)}") }
+                                        Span({ classes("mo-item-topic") }) { Text(task.topicName ?: task.subjectName) }
+                                        Span({ classes("mo-item-sub") }) { Text(shortSubject(task.subjectName)) }
+                                    } else Text(shortSubject(task.subjectName))
+                                }
                             }
                             if (list.size > show) Div({ classes("mo-more") }) { Text("+${list.size - show} estudos") }
-                            if (reviews.isNotEmpty()) Div({ classes("mo-item", "review", "srs") }) {
-                                Text(if (reviews.size == 1) "↻ 1 revisão" else "↻ ${reviews.size} revisões")
-                            }
                         }
                     }
                     epoch++
@@ -227,7 +264,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
         val dayTasks = byDay[selected].orEmpty().sortedWith(compareBy({ it.status == "CONCLUIDA" }, { it.type != "THEORY" }))
         val dayReviews = reviewsByDay[selected].orEmpty()
         val limit = Planning.dayLimit(data, planId, selected)
-        val load = dayTasks.sumOf { it.minutes }
+        val load = dayTasks.sumOf { it.minutes } + reviewMinutes(selected)
         val selPast = selected < todayEpoch
         Div({
             classes("mo-panel")
@@ -277,7 +314,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                     }
                 }
                 if (dayReviews.isNotEmpty()) {
-                    Div({ classes("mo-psec") }) { Text("Revisões espaçadas do dia") }
+                    Div({ classes("mo-psec") }) { Text("Revisões espaçadas · fixas no dia certo") }
                     dayReviews.forEach { r ->
                         Div({ classes("mo-card", "review", "srs") }) {
                             Div({ classes("mo-ckind") }) { Text("Revisão · ${r.stage}ª volta") }
@@ -299,6 +336,34 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             P({ classes("xs", "muted", "mo-hint") }) {
                 Text(if (canEdit) "Arraste um estudo para outro dia do calendário. Botão direito mostra mais ações." else "Mudar estudos de dia é dos planos Essencial e Pro. Botão direito mostra as ações.")
             }
+        }
+    }
+
+    // o "?": o que dá para fazer no mês e como (abre sozinho na primeira vez)
+    if (help) Modal({ help = false; runCatching { kotlinx.browser.localStorage.setItem("estudario.mes.ajuda", "1") } }) {
+        H3 { Text("Como usar o seu mês") }
+        Div({ classes("mo-helplist") }) {
+            listOf(
+                "today" to ("Escolher e abrir um dia" to "Um clique escolhe o dia e mostra tudo dele no painel. Clique de novo (ou dê dois cliques) para abrir o dia e estudar."),
+                "event_busy" to ("Botão direito" to "No dia: abrir, dar folga (os estudos vão para os próximos dias) ou tirar a folga. No estudo: abrir, desafixar ou passar para o dia seguinte."),
+                "calendar_month" to ("Arrastar um estudo" to if (canEdit) "Segure um estudo e solte em outro dia. Antes de soltar, o dia mostra como fica (verde cabe, vermelho passa do seu limite). Se passar, você escolhe: trocar com um estudo de lá, colocar mesmo assim ou cancelar. Soltar em cima de outro estudo troca os dois." else "Nos planos Essencial e Pro você arrasta cada estudo para o dia que quiser. No Grátis o plano se ajusta sozinho."),
+                "auto_awesome" to ("Fixado" to "O estudo que você mudou de dia fica fixado: o plano não mexe nele ao se reorganizar. Botão direito, Desafixar, devolve para o plano."),
+                "event_available" to ("Revisões espaçadas" to "A faixa azul (↻) são as revisões do dia. Elas não se arrastam: revisar no dia certo da curva é o que fixa a matéria. Cada dia tem um teto (um quarto do seu tempo); quando acumula, as mais atrasadas vêm primeiro e o resto entra nos próximos dias."),
+                "today" to ("A barra de cada dia" to "Mostra quanto do seu tempo do dia já está ocupado: azul são as revisões, verde os estudos. Vermelho passou do limite."),
+            ).forEach { (icon, pair) ->
+                Div({ classes("mo-helpitem") }) {
+                    Span({ classes("mo-helpic") }) { Icon(icon) }
+                    Div { B { Text(pair.first) }; P({ classes("small", "muted") }) { Text(pair.second) } }
+                }
+            }
+        }
+        Div({ classes("mo-help-colors") }) {
+            listOf("Teoria" to "theory", "Questões" to "questions", "Revisão" to "review", "Simulado" to "sim", "Atrasado" to "late").forEach { (label, k) ->
+                Span({ classes("mo-lg", k) }) { Text(label) }
+            }
+        }
+        Div({ classes("row", "end"); attr("style", "margin-top:14px") }) {
+            Btn("Entendi", { help = false; runCatching { kotlinx.browser.localStorage.setItem("estudario.mes.ajuda", "1") } })
         }
     }
 
