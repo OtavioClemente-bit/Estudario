@@ -26,7 +26,7 @@ private val PENDING = setOf("PLANEJADA", "EM_ANDAMENTO")
 private class MenuAt(val x: Int, val y: Int, val day: Long, val task: PlanTask?)
 
 /** Uma mudança que passa do limite do dia (ou cai numa folga) e precisa da pessoa decidir. */
-private class PendingMove(val task: PlanTask, val toDay: Long, val load: Int, val limit: Int, val swapWith: PlanTask? = null)
+private class PendingMove(val task: PlanTask, val toDay: Long, val load: Int, val limit: Int, val swapWith: PlanTask? = null, val theoryCap: Int? = null)
 
 /** Uma revisão espaçada que vence no dia (uma por tópico, a próxima etapa). */
 private class DayReview(val topic: String, val stage: Int)
@@ -91,8 +91,6 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             .mapValues { (_, l) -> l.map { DayReview(topicName[it.topicId] ?: "Tópico", it.stage) } }
     }
     val reviewMinutes = { day: Long -> reviewsByDay[day].orEmpty().size * br.com.estudario.domain.ReviewQueue.MINUTES_EACH }
-    // Compacto (o mês de uma vez) ou detalhado (dias altos, cada estudo com o nome inteiro): fica guardado.
-    var detailed by remember { mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem("estudario.mes.detalhado") }.getOrNull() == "1") }
     // A ajuda abre sozinha na primeira vez.
     var help by remember { mutableStateOf(runCatching { kotlinx.browser.localStorage.getItem("estudario.mes.ajuda") }.getOrNull() == null) }
     // O estudo sendo arrastado e o dia por cima do qual ele está (o dia mostra como fica antes de soltar).
@@ -105,6 +103,13 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
         if (task.day == toDay && onTask == null) return
         if (onTask != null && onTask.id != task.id && onTask.status in PENDING) {
             pending = PendingMove(task, toDay, 0, 0, swapWith = onTask); return
+        }
+        // Matérias novas por dia: o mesmo teto do plano (Grátis 2, pagos 4). Sem ele, dava para juntar
+        // dez teorias num dia e gerar todas de uma vez.
+        if (task.type == "THEORY") {
+            val cap = br.com.estudario.domain.planner.PlannerSnapshotBuilder.topicsPerDay(br.com.estudario.web.data.LibraryGaps.free())
+            val theories = Planning.tasksOfDay(data, planId, toDay).count { it.type == "THEORY" && it.id != task.id }
+            if (theories >= cap) { pending = PendingMove(task, toDay, 0, 0, theoryCap = cap); return }
         }
         val limit = Planning.dayLimit(data, planId, toDay)
         val load = Planning.dayLoad(data, planId, toDay) + reviewMinutes(toDay)
@@ -136,14 +141,6 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             if (monthOffset != 0) Btn("Hoje", { onMonth(0); selected = todayEpoch }, style = "ghost", small = true)
         }
         Div({ classes("mo-tools") }) {
-            Div({ classes("mo-seg") }) {
-                listOf(false to "Compacto", true to "Detalhado").forEach { (v, label) ->
-                    Button({
-                        classes(*listOfNotNull("mo-seg-b", if (detailed == v) "on" else null).toTypedArray())
-                        onClick { detailed = v; runCatching { kotlinx.browser.localStorage.setItem("estudario.mes.detalhado", if (v) "1" else "0") } }
-                    }) { Text(label) }
-                }
-            }
             Button({ classes("mo-help-b"); attr("aria-label", "Como usar o mês"); onClick { help = true } }) { Text("?") }
         }
         Div({ classes("mo-legend") }) {
@@ -168,7 +165,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                 }
                 Span({ classes("small", "muted") }) { Text("Até o fim do mês, ${monthPlan.coveragePercent}% do edital visto.") }
             }
-            Div({ classes(*listOfNotNull("mo-grid", if (detailed) "detailed" else null).toTypedArray()) }) {
+            Div({ classes("mo-grid") }) {
                 listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom").forEach { Div({ classes("mo-dow") }) { Text(it) } }
                 var epoch = gridStart
                 while (epoch < gridEnd) {
@@ -234,20 +231,14 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                                 Text(if (done == list.size) "✓ tudo feito" else "$done de ${list.size} feitos")
                             }
                         } else {
-                            val show = if (detailed) list.size else if (reviews.isEmpty()) 4 else 3
+                            val show = if (reviews.isEmpty()) 4 else 3
                             list.take(show).forEach { task ->
                                 val kind = kindOf(task, todayEpoch)
                                 Div({
                                     classes("mo-item", kind)
                                     attr("title", "${kindLabel(kind)} · ${task.topicName ?: task.subjectName} · ${short(task.minutes)}")
                                     dragSource(task)(this)
-                                }) {
-                                    if (detailed) Span({ classes("mo-item-body") }) {
-                                        Span({ classes("mo-item-kind") }) { Text("${kindLabel(kind)} · ${short(task.minutes)}") }
-                                        Span({ classes("mo-item-topic") }) { Text(task.topicName ?: task.subjectName) }
-                                        Span({ classes("mo-item-sub") }) { Text(shortSubject(task.subjectName)) }
-                                    } else Text(shortSubject(task.subjectName))
-                                }
+                                }) { Text(shortSubject(task.subjectName)) }
                             }
                             if (list.size > show) Div({ classes("mo-more") }) { Text("+${list.size - show} estudos") }
                         }
@@ -340,7 +331,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
     }
 
     // o "?": o que dá para fazer no mês e como (abre sozinho na primeira vez)
-    if (help) Modal({ help = false; runCatching { kotlinx.browser.localStorage.setItem("estudario.mes.ajuda", "1") } }) {
+    if (help) Modal({ help = false; runCatching { kotlinx.browser.localStorage.setItem("estudario.mes.ajuda", "1") } }, wide = true, extraClass = "mo-help-modal") {
         H3 { Text("Como usar o seu mês") }
         Div({ classes("mo-helplist") }) {
             listOf(
@@ -397,7 +388,23 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
         Modal({ pending = null }) {
             val to = dayTitle(p.toDay, todayEpoch)
             val name = p.task.topicName ?: p.task.subjectName
-            if (p.swapWith != null) {
+            if (p.theoryCap != null) {
+                H3 { Text("Esse dia já tem ${p.theoryCap} matérias novas") }
+                P { Text("O máximo do seu plano é ${p.theoryCap} matérias novas por dia: mais que isso não fixa, só acumula. Troque com uma delas ou escolha outro dia.") }
+                val theories = Planning.tasksOfDay(data, planId, p.toDay).filter { it.type == "THEORY" && it.status in PENDING }
+                Div({ classes("stack"); attr("style", "gap:6px") }) {
+                    theories.forEach { other ->
+                        Button({
+                            classes("mo-swap")
+                            onClick { Store.update { Planning.swapTasks(it, p.task.id, other.id) }; pending = null; Toast.show("Trocados de dia.") }
+                        }) {
+                            B { Text("Trocar com ${other.topicName ?: other.subjectName}") }
+                            Span({ classes("small", "muted") }) { Text(" · ${other.subjectName}") }
+                        }
+                    }
+                }
+                Div({ classes("row", "end"); attr("style", "margin-top:14px") }) { Btn("Escolher outro dia", { pending = null }, style = "ghost") }
+            } else if (p.swapWith != null) {
                 H3 { Text("Trocar os dois de dia?") }
                 P { Text("\"$name\" vai para ${dayTitle(p.swapWith.day, todayEpoch)} e \"${p.swapWith.topicName ?: p.swapWith.subjectName}\" vai para ${dayTitle(p.task.day, todayEpoch)}. Os dois ficam fixados.") }
                 Div({ classes("row", "end", "wrap"); attr("style", "gap:8px;margin-top:14px") }) {
