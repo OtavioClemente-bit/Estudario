@@ -1,0 +1,1975 @@
+{
+  "id": "informatica.videoconferencia-protocolo-h323",
+  "subject": "Informática — Redes de Computadores e Comunicação Multimídia",
+  "title": "Videoconferência e H.323",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Videoconferência e H.323",
+    "Videoconferência e protocolos H.323."
+  ],
+  "scope": {
+    "covers": "Conceito e qualidade da videoconferência; arquitetura e componentes H.323; H.225.0, RAS e sinalização de chamadas; H.245, canais e codecs; RTP/RTCP; MCU; gateway e comparação com SIP; segurança H.235; NAT, firewalls e diagnóstico de comunicação.",
+    "excludes": "Administração específica de plataformas comerciais, detalhes proprietários de configuração, implementação de codecs e modelos avançados de criptografia fora do escopo cobrado em redes."
+  },
+  "theoryTitle": "Videoconferência: arquitetura, sinalização, mídia e operação no H.323",
+  "chapters": [
+    {
+      "title": "Fundamentos da videoconferência e arquitetura H.323",
+      "markdown": "## O que é videoconferência em redes de pacotes\n\nVideoconferência é comunicação audiovisual interativa, em tempo real, entre participantes remotos. Diferentemente do vídeo sob demanda, a conversação é bidirecional: a rede precisa transportar a fala com atraso suficientemente baixo para permitir alternância natural dos interlocutores. Câmera, microfone, codificação, rede, decodificação e reprodução integram uma cadeia. A qualidade percebida depende tanto das capacidades dos equipamentos quanto das condições de transmissão. **Largura de banda** é capacidade disponível; **latência** é o tempo de percurso; **jitter** é a variação desse atraso; **perda de pacotes** é o desaparecimento de unidades transmitidas. Alta taxa de bits, isoladamente, não assegura boa experiência.\n\n## A recomendação H.323\n\nA **Recomendação ITU-T H.323** descreve sistemas de comunicação multimídia sobre redes baseadas em pacotes, inclusive aquelas que **não garantem qualidade de serviço**. Ela não é um codec isolado, não é um aplicativo de reuniões e não equivale ao protocolo IP. É uma arquitetura que articula terminais, sinalização, controle, transporte de mídia e serviços auxiliares. Na versão de março de 2022, a ITU-T reafirma o alcance a comunicações de áudio, vídeo e dados em redes de pacotes, em ligações ponto a ponto ou multiponto. A norma se preocupa com interoperabilidade: equipamentos precisam compreender procedimentos e modos compatíveis.\n\nO **áudio é obrigatório** para terminais H.323; vídeo e dados são opcionais. Essa distinção é uma pegadinha clássica: embora o nome da disciplina evoque videoconferência, a ausência de câmera não impede, por si só, um terminal de participar de uma comunicação H.323 que ofereça áudio conforme os requisitos pertinentes. Quando um tipo de mídia opcional está presente, o equipamento deve dispor de um modo comum de funcionamento previsto para permitir interoperação com os demais terminais que suportam aquele tipo.\n\n## Componentes lógicos\n\n- **Terminal H.323:** equipamento ou software de usuário que origina e recebe chamadas; implementa as funções necessárias ao serviço multimídia.\n- **Gatekeeper:** componente de controle de zona. Pode cuidar de registro de terminais, resolução de endereços, admissão e políticas de largura de banda. **Não é obrigatório em todas as instalações H.323.**\n- **Gateway:** elemento de interfuncionamento entre ambientes ou tecnologias diferentes, por exemplo um domínio H.323 e uma rede telefônica de outra natureza. Pode adaptar sinalização, endereçamento e mídia.\n- **MCU (Multipoint Control Unit):** componente de suporte a conferências multiponto. Inclui função de controle multiponto (MC) e pode incluir processadores multiponto (MPs) para tratamento de fluxos.\n\n**Zona H.323** é o conjunto de elementos administrados por um gatekeeper; ela não deve ser automaticamente confundida com uma sub-rede IP, uma VLAN, um domínio DNS ou uma rede física inteira. Dois terminais ligados à mesma infraestrutura podem pertencer a políticas de controle diferentes. Além disso, funções lógicas podem ser integradas em um mesmo produto: a existência de um equipamento físico único não apaga a diferença entre gatekeeper, gateway e MCU.\n\n## Plano de controle e plano de mídia\n\nUma sessão envolve etapas que não devem ser misturadas. **Sinalizar a chamada** significa localizar, convidar e estabelecer ou terminar a comunicação. **Negociar capacidades e canais** significa descobrir como os terminais conseguirão transmitir e receber áudio ou vídeo. **Transportar mídia** significa efetivamente carregar amostras e quadros codificados. Em H.323, são comuns H.225.0 para sinalização de chamada e RAS, H.245 para controle multimídia e RTP/RTCP para fluxos e informações de controle de transporte. Essas funções convivem sem serem sinônimas. O conteúdo audiovisual não passa a ser uma mensagem H.245 só porque foi negociado por ele.\n\n### Exemplo orientador\n\nNuma reunião entre duas filiais, um terminal procura o destinatário, pode solicitar admissão a um gatekeeper, efetua sinalização H.225.0, ajusta capacidades com H.245 e inicia a mídia. Se houver uma MCU, a topologia da conferência poderá mudar; se houver um gateway, pode haver conversão de sinalização ou de codecs. **Para a prova:** identifique primeiro se o enunciado descreve terminal, controle da zona, interligação de tecnologias ou conferência com vários participantes. Esse procedimento resolve boa parte das trocas de conceito."
+    },
+    {
+      "title": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "markdown": "## Duas funções relacionadas, mas distintas\n\n**H.225.0** especifica protocolos de sinalização de chamadas e aspectos de empacotamento e sincronização de fluxos para sistemas multimídia baseados em pacotes. Nos exercícios, aparecem duas vertentes fundamentais: a **sinalização de chamada**, que estabelece e encerra conexões, e **RAS**, sigla de *Registration, Admission and Status*, que troca informações entre entidades H.323 e o gatekeeper. Ambas são relacionadas ao H.225.0, mas seus objetivos e interlocutores diferem. Não marque como correta uma assertiva que diga que RAS é o fluxo de voz ou que H.225.0 só transporta áudio.\n\n## Canal RAS: descoberta, registro e admissão\n\nEm uma implantação com gatekeeper, o terminal pode precisar descobrir o controlador, informar sua identidade e solicitar autorização para iniciar chamadas. O grupo de operações RAS inclui **descoberta**, **registro**, **admissão**, informação de **estado**, alterações de largura de banda e **desengajamento**. As mensagens com nomes abreviados ajudam na memorização: GRQ/GCF para solicitação e confirmação de descoberta de gatekeeper; RRQ/RCF para registro; ARQ/ACF para solicitação e confirmação de admissão; uma rejeição de admissão pode ser indicada por ARJ. A associação desses pares é importante, mas os procedimentos completos têm condições e outras mensagens próprias.\n\nO **registro** indica que uma entidade se apresenta ao gatekeeper e associa identificadores a informações de contato. A **admissão** verifica se uma chamada proposta é aceita segundo as políticas e recursos aplicáveis. Logo, estar registrado não equivale automaticamente a ter todas as chamadas autorizadas: a admissão pode considerar capacidade, regras de controle e parâmetros solicitados. De modo análogo, uma solicitação de banda não é a própria transmissão de vídeo. Trata-se de controle administrativo ou de recursos da comunicação.\n\n## Sinalização da chamada\n\nPara iniciar a conexão entre terminais são usados procedimentos H.225.0 com mensagens e conceitos derivados de **Q.931**, como **Setup**, **Alerting**, **Connect** e **Release Complete**, conforme o cenário. O Setup representa o estabelecimento da chamada; Alerting indica sinalização de alerta no destino; Connect expressa aceitação/conexão; Release Complete integra a liberação. **Não confunda Connect com o início inevitável e instantâneo de todo fluxo de mídia:** negociações, endereços de transporte, condições da rede e variações de procedimento influenciam o momento da troca efetiva de mídia.\n\nEm modelos usuais, a sinalização de chamada e o controle H.245 recorrem a transporte confiável, enquanto RAS costuma usar UDP. A mídia em tempo real normalmente é transportada por RTP, frequentemente sobre UDP. Esses padrões não justificam concluir que todos os pacotes H.323 usam um único protocolo de transporte nem que os meios de sinalização e mídia seguem exatamente o mesmo caminho. Em redes com equipamentos intermediários, a sinalização pode ser roteada por gatekeeper ou seguir modelo direto, conforme a implantação.\n\n## Endereçamento e tradução\n\nIdentificadores do usuário, aliases e endereços de transporte não são a mesma coisa. Um **alias** facilita identificar o destino de maneira lógica; já um endereço de transporte identifica onde uma comunicação pode ser alcançada na rede. O gatekeeper pode auxiliar a resolução e o roteamento de chamadas dentro da zona; gateway tem papel distinto: interconectar sistemas e, se necessário, adaptar protocolos e codificações. Um exemplo de caso é o terminal João registrado na zona A tentando chamar o terminal Maria. A administração da zona pode permitir descobrir e autorizar o destino, mas isso não prova compatibilidade automática de todos os codecs disponíveis.\n\n## Sequência didática de uma chamada\n\nUma sequência simplificada em cenário com gatekeeper é: (1) descoberta ou configuração do gatekeeper; (2) registro dos terminais; (3) admissão da chamada; (4) estabelecimento por sinalização; (5) ajuste de capacidades e canais; (6) envio de mídia; (7) encerramento e atualização de controle. Trata-se de uma **sequência pedagógica, não de uma ordem rígida universal**: otimizações, como *fast connect* e tunelamento de H.245, permitem variações no posicionamento ou no encapsulamento das trocas de controle. O correto é saber **o que** cada protocolo faz, e não decorar que toda chamada deve ter exatamente o mesmo número de mensagens ou de conexões."
+    },
+    {
+      "title": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "markdown": "## Controle de capacidades com H.245\n\nO **H.245** define sinalização de controle para comunicações multimídia: intercâmbio de capacidades dos terminais, preferência de modos, procedimentos para canais lógicos e indicações de controle. O terminal anuncia o que pode transmitir ou receber; em seguida são estabelecidos canais que correspondem aos fluxos negociados. A mensagem **TerminalCapabilitySet** está associada ao intercâmbio de capacidades. A abertura de um canal lógico é feita por procedimentos como **OpenLogicalChannel**. Assim, um canal de áudio e outro de vídeo podem ser tratados separadamente; habilitar o vídeo não significa que ele substitua o áudio.\n\n**Codec** é mecanismo de codificação/decodificação de conteúdo; **protocolo de sinalização** organiza decisões da sessão. Exemplos clássicos da família H.323 incluem codecs de áudio da série G e codecs de vídeo da série H. Dois terminais podem estar acessíveis e até aceitar sinalização, mas terem dificuldades para disponibilizar determinada mídia se não dispuserem de modo compatível. Em contrapartida, codec em comum não prova que a chamada será estabelecida: resolução de endereços, política de admissão, portas e firewall também importam.\n\n## Transporte de mídia: RTP\n\nO **RTP (Real-time Transport Protocol)**, documentado pelo IETF na RFC 3550, transporta dados de aplicações em tempo real, como áudio e vídeo. Seus campos permitem identificar sequências, usar marcas de tempo e distinguir fontes de sincronização. Esses recursos são importantes para reprodução e para estimativas de perda e ordenação, mas RTP **não reserva banda**, **não garante entrega**, **não reduz sozinho o atraso da rede** e **não criptografa automaticamente** os pacotes. Comumente usa UDP, cuja ausência de retransmissões obrigatórias faz sentido quando um pacote atrasado pode ser menos útil que a continuidade da conversa.\n\n## RTCP: acompanhamento e feedback\n\nO **RTCP (RTP Control Protocol)** funciona em associação ao RTP e fornece informações de controle, como relatórios sobre recepção, estatísticas de perda e jitter. Com isso, remetentes e sistemas de monitoramento podem avaliar a qualidade e, conforme recursos da aplicação, adaptar a operação. **RTCP não é o canal que substitui o RTP no transporte principal da fala.** O fato de um relatório identificar perda de pacotes não significa que o RTCP recupere automaticamente cada pacote perdido, nem que assegure confidencialidade.\n\n## Desempenho de áudio e vídeo\n\n**Latência** alta prejudica o diálogo; **jitter** causa irregularidade na chegada; **perda de pacotes** pode produzir cortes de áudio ou artefatos de imagem; **congestionamento** aumenta a probabilidade desses problemas. **Buffer de jitter** pode suavizar variações de chegada ao armazenar mídia temporariamente, mas adicionar buffer normalmente custa atraso adicional. Reduzir a taxa do vídeo pode aliviar a demanda de largura de banda, com possível perda de nitidez ou fluidez. Uma boa solução de engenharia equilibra capacidade, resolução, taxa de quadros, controle de congestionamento e latência.\n\nMedidas de **QoS (Quality of Service)** podem incluir classificação e priorização de tráfego, políticas de filas, provisionamento de capacidade e mecanismos de controle de admissão. Priorização ajuda em gargalos configurados, porém não cria largura de banda inexistente nem corrige, por si só, qualquer defeito de rota. É incorreto afirmar que a adoção de H.323 transforma uma rede IP não gerenciada em uma infraestrutura com qualidade garantida. A própria recomendação admite redes que não oferecem tal garantia.\n\n## Segurança e mídia protegida\n\nO RTP convencional não deve ser tomado como sinônimo de criptografia. A **RFC 3711** define o **SRTP**, que acrescenta mecanismos de proteção de conteúdo e autenticação de mensagens RTP, dentro das opções previstas por sua especificação. Contudo, a simples existência de mídia RTP em uma sessão H.323 **não demonstra que ela esteja protegida por SRTP**. Para examinar a segurança real é necessário identificar os mecanismos negociados, o suporte dos terminais e a configuração da instalação. No H.323, a família **H.235** aborda proteção, autenticação e privacidade em sistemas multimídia. O candidato deve separar codec, transporte, monitoramento e criptografia."
+    },
+    {
+      "title": "Conferências multiponto, interconexão e segurança",
+      "markdown": "## Ponto a ponto e multiponto\n\nEm chamada **ponto a ponto**, dois terminais participam de uma comunicação. Na conferência **multiponto**, três ou mais participantes podem integrar a mesma sessão lógica. Em arquiteturas H.323, a **MCU** é associada ao controle de conferências com diversos terminais. Ela compreende a função **MC (Multipoint Controller)**, relativa às decisões e ao controle da conferência, e pode envolver **MPs (Multipoint Processors)**, empregados quando é necessário processar, misturar, comutar ou distribuir mídias. Não é correto reduzir a MCU a uma simples câmera coletiva nem afirmar que todo gatekeeper é MCU.\n\nUma conferência pode operar em modelos mais **centralizados** ou **descentralizados**, conforme as capacidades dos participantes e o arranjo de controle e mídia. Em um arranjo centralizado, fluxos podem seguir para um elemento multiponto que concentra seu processamento; em outro, o controle e a distribuição de mídia podem ter organização diferente. Isso explica por que o emprego de uma MCU não implica, necessariamente, a mesma topologia física e o mesmo tratamento para todos os fluxos. Quando uma MCU transcodifica, é possível acomodar exigências diferentes entre participantes, ao custo de processamento e eventual impacto de qualidade.\n\n## Gateway: comunicação entre mundos diferentes\n\nO **gateway H.323** permite interfuncionamento com sistemas de outras arquiteturas de comunicação, como redes telefônicas, plataformas que usam sinalização distinta ou infraestruturas que requerem adaptações. Dependendo do cenário, são necessárias tradução de sinalização, conversão de endereços, escolha de codecs e transcodificação. Isso é diferente da função do gatekeeper, voltada à administração e ao controle de uma zona H.323. Um gateway **não garante interoperabilidade irrestrita**: recursos precisam ser efetivamente suportados e configurados nas duas extremidades.\n\n## H.323 e SIP\n\n**H.323** é uma família de recomendações ITU-T para comunicação multimídia em redes de pacotes; **SIP (Session Initiation Protocol)** é um protocolo de sinalização do IETF, documentado na **RFC 3261**, usado para criar, modificar e terminar sessões. Ambos podem aparecer em sistemas de voz e vídeo sobre IP, mas os mecanismos de sinalização são diferentes. Em termos didáticos, H.323 tradicionalmente utiliza H.225.0/H.245, enquanto o SIP utiliza métodos de requisição e respostas, podendo transportar descrições de sessão, como SDP. Em ambos os casos, o transporte de mídia pode recorrer a RTP, sem que isso torne os protocolos de sinalização equivalentes.\n\nAo integrar terminal H.323 e terminal SIP, a presença de IP e RTP nos dois lados **não dispensa o interfuncionamento de sinalização**, normalmente realizado por gateway ou recurso específico da plataforma. Também pode ser preciso adaptar endereçamento e negociar codecs compatíveis. Portanto, a comparação correta é funcional: **sinalização** define criação e gerenciamento da chamada; **mídia** é aquilo que efetivamente transporta som e imagem. Um sistema pode suportar os dois padrões por meio de funções distintas e não necessariamente em uma única conversa sem conversão.\n\n## Autenticação, privacidade e ameaças\n\nA segurança de videoconferências envolve verificar quem participa, prevenir acessos indevidos e proteger conteúdo e dados de controle. O arcabouço **H.235**, da ITU-T, contempla recursos de autenticação e privacidade para ambientes H.323 e correlatos. **H.235 não é um codec de vídeo e não substitui o H.245**. O simples anúncio de compatibilidade H.323 não prova que autenticação forte ou criptografia esteja ativada. Devem ser considerados implementação, política de chaves, configuração de endpoints, gateways, registros e eventuais elementos de confiança.\n\nAlém da criptografia de fluxos, a operação segura pede controle de acesso administrativo, atualizações, segmentação quando pertinente, supervisão de acessos, tratamento de gravações e medidas de proteção contra negação de serviço. Uma chamada criptografada pode permanecer exposta a vazamento se alguém divulgar uma senha de reunião ou der acesso indevido à gravação. Já uma credencial correta não substitui medidas para garantir confidencialidade dos dados transmitidos. **Para concursos:** não confunda autenticação (identidade) com confidencialidade (sigilo), integridade (detecção de alteração) e disponibilidade (serviço acessível)."
+    },
+    {
+      "title": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "markdown": "## O desafio do NAT e dos firewalls\n\nUm sistema H.323 pode precisar atravessar redes privadas com **NAT (Network Address Translation)**, que traduz endereços, e **firewalls**, que controlam tráfego permitido. Isso apresenta desafios porque a sinalização pode informar endereços e portas para canais de controle ou mídia, enquanto os dispositivos intermediários exigem regras de passagem adequadas. Uma chamada pode tocar ou até estabelecer a sinalização e, ainda assim, apresentar **áudio unilateral, ausência de vídeo ou falha na abertura de canais**. O problema deve ser investigado no caminho real dos fluxos e nas negociações, não resolvido por atribuir tudo ao codec.\n\nA ITU-T publicou extensões específicas para travessia dessas barreiras, como **H.460.18**, relacionada à sinalização, e **H.460.19**, relacionada à mídia em ambientes com NAT/firewall. Elas não significam que qualquer roteador execute automaticamente tais procedimentos; endpoints e componentes de travessia devem oferecer o suporte correspondente. Também não se deve supor que liberar indiscriminadamente todas as portas seja a resposta correta. A solução segura combina mecanismos compatíveis, regras mínimas necessárias e confirmação de tráfego.\n\n## Diagnóstico por etapas\n\nUm método confiável de diagnóstico separa camadas e momentos da sessão:\n\n1. **Conectividade:** IP, resolução de nomes quando empregada, rotas e alcance entre participantes.\n2. **Controle de zona:** existência e estado de gatekeeper, registro, políticas e respostas de admissão.\n3. **Sinalização:** troca de mensagens H.225.0, resposta do destino e eventual encerramento antecipado.\n4. **Negociação:** capacidades H.245, codecs comuns, abertura de canais e endereços de mídia.\n5. **Transporte:** RTP/RTCP, portas, NAT, firewall, perda, jitter e latência.\n6. **Aplicação e equipamento:** microfone, câmera, processamento, consumo de banda e configurações de segurança.\n\nSe uma chamada nem chega a ser oferecida ao destino, faz sentido começar por identificação, admissão, sinalização e rotas. Se a chamada conecta, mas não há voz, é útil verificar negociação e pacotes RTP, inclusive a possibilidade de bloqueio assimétrico em firewall. Se o áudio está inteligível e o vídeo apresenta quadros congelados, avaliar banda, perda, processamento e capacidade de codec é mais preciso que simplesmente reiniciar o gatekeeper.\n\n## Leitura de métricas\n\nRelatórios RTCP podem fornecer indicadores de qualidade, mas a análise exige contexto. **Perda de pacotes** pode refletir congestionamento ou falha de enlace; **jitter** alto pode sugerir variação de filas e caminhos; **latência** depende de rotas, enfileiramento e buffers. Ajustar o buffer pode melhorar a continuidade e, simultaneamente, agravar o atraso. Elevar a prioridade de mídia em um enlace congestionado pode trazer benefícios se a política for consistente, mas **não substitui provisionamento de capacidade nem elimina toda perda**.\n\nAo dimensionar uma conferência com vários participantes, não basta multiplicar cegamente a taxa de bits de uma chamada ponto a ponto: a arquitetura (distribuição direta, composição ou retransmissão pela MCU), a direção dos fluxos, o número de vídeos simultâneos, a resolução e a política de qualidade mudam o consumo real. Também é importante separar **banda útil de mídia** do tráfego adicional de cabeçalhos, sinalização e controle, evitando estimativas de capacidade excessivamente otimistas.\n\n## Roteiro de revisão de prova\n\nMemorize a sequência conceitual **quem controla — quem sinaliza — quem negocia — quem transmite — quem monitora — quem protege**. A resposta é: gatekeeper para controle de zona; H.225.0 para estabelecimento e RAS; H.245 para capacidades e canais; RTP para mídia em tempo real; RTCP para relatórios de recepção e controle; H.235 e outros mecanismos configurados para proteção. O **gateway** converte entre sistemas; a **MCU** dá suporte ao multiponto. Revise as negativas: não há obrigatoriedade universal de gatekeeper; vídeo não é obrigatório para todo terminal H.323; RTP não garante entrega; RTCP não conduz a fala principal; firewall pode bloquear mídia mesmo após a chamada ser atendida.\n\n### Miniestudo de caso\n\nUma equipe informa: “A chamada foi atendida, ambos veem o indicador de conectado, mas apenas a pessoa da filial A escuta a outra; o vídeo falha ocasionalmente.” O raciocínio mais útil é decompor o caso: houve alguma sinalização bem-sucedida; resta verificar negociação de canais, endereços anunciados, direcionalidade dos fluxos RTP e filtragem no caminho. Para o vídeo intermitente, examine métricas, congestionamento e condições de codec/processamento. **A conexão da chamada não prova que todas as mídias estejam operacionais**. Essa separação técnica é a chave para questões situacionais com pegadinhas."
+    }
+  ],
+  "summary": "**H.323** é uma arquitetura padronizada pela ITU-T para comunicações multimídia em redes de pacotes que podem não garantir QoS. O áudio é obrigatório; vídeo e dados são opcionais. Seus elementos incluem o **terminal**, o **gatekeeper** (controle de zona, registro e admissão), o **gateway** (integração entre tecnologias) e a **MCU** (conferências multiponto). **H.225.0** trata da sinalização de chamada e do RAS, enquanto **H.245** negocia capacidades e canais. **RTP** leva a mídia em tempo real, e **RTCP** oferece informações de controle e qualidade; nenhum deles, por si só, assegura entrega ou confidencialidade. **H.235** reúne mecanismos de segurança; **H.460.18/H.460.19** auxiliam travessia de NAT/firewall. Na prática, uma chamada conectada ainda pode ter áudio unilateral ou vídeo ruim: examine codecs, canais, endereços de mídia, perda, jitter, latência, filas e largura de banda. H.323 e SIP são soluções de sinalização diferentes e podem exigir interfuncionamento, ainda que compartilhem RTP.",
+  "flashcards": [
+    {
+      "front": "Qual o objeto da recomendação H.323?",
+      "back": "Arquitetura de sistemas de comunicação multimídia em redes baseadas em pacotes, mesmo sem garantia de QoS."
+    },
+    {
+      "front": "Qual mídia é obrigatória para terminais H.323?",
+      "back": "Áudio; vídeo e dados são opcionais conforme os requisitos de interoperabilidade aplicáveis."
+    },
+    {
+      "front": "O que faz um terminal H.323?",
+      "back": "Participa de chamadas multimídia, implementando funções de sinalização, controle e mídia."
+    },
+    {
+      "front": "Para que serve o gatekeeper?",
+      "back": "Administra uma zona H.323, com funções como registro, admissão e resolução de endereços."
+    },
+    {
+      "front": "O gatekeeper é obrigatório em todo cenário H.323?",
+      "back": "Não. O sistema H.323 pode funcionar em arquiteturas sem gatekeeper."
+    },
+    {
+      "front": "O que é um gateway H.323?",
+      "back": "Componente que permite interfuncionamento com outras redes ou tecnologias de comunicação."
+    },
+    {
+      "front": "Para que serve uma MCU?",
+      "back": "Suporta conferências multiponto, com controle multiponto e, conforme a arquitetura, processamento de mídias."
+    },
+    {
+      "front": "Qual é a principal função do H.225.0?",
+      "back": "Sinalização de chamadas, procedimentos RAS e aspectos de empacotamento de mídia."
+    },
+    {
+      "front": "O que significa RAS?",
+      "back": "Registration, Admission and Status: registro, admissão e estado, com operações relacionadas ao gatekeeper."
+    },
+    {
+      "front": "O que indicam RRQ e RCF?",
+      "back": "Solicitação e confirmação de registro no contexto do RAS."
+    },
+    {
+      "front": "O que indicam ARQ e ACF?",
+      "back": "Solicitação e confirmação de admissão da chamada no contexto do RAS."
+    },
+    {
+      "front": "Qual a função do H.245?",
+      "back": "Troca capacidades, preferências de modo e controla canais lógicos de mídia."
+    },
+    {
+      "front": "Para que serve TerminalCapabilitySet?",
+      "back": "Para comunicar capacidades dos terminais durante o controle H.245."
+    },
+    {
+      "front": "Qual a função básica do RTP?",
+      "back": "Transportar amostras de áudio e vídeo em tempo real, sem garantir entrega ou QoS."
+    },
+    {
+      "front": "Qual a função básica do RTCP?",
+      "back": "Fornecer relatórios e informações de controle da recepção e qualidade relacionadas ao RTP."
+    },
+    {
+      "front": "O que é jitter?",
+      "back": "Variação no atraso de chegada dos pacotes, diferente da latência média."
+    },
+    {
+      "front": "Qual o risco do buffer de jitter excessivo?",
+      "back": "Aumentar a latência mesmo quando suaviza irregularidades no recebimento."
+    },
+    {
+      "front": "O que cobre a família H.235?",
+      "back": "Mecanismos de segurança, como autenticação e privacidade, em sistemas H.323 e relacionados."
+    },
+    {
+      "front": "Qual a diferença entre SIP e H.323?",
+      "back": "São arquiteturas de sinalização distintas; ambos podem usar RTP, mas sua sinalização não é intercambiável por simples coincidência."
+    },
+    {
+      "front": "O que pode causar áudio unilateral com a chamada conectada?",
+      "back": "Bloqueio de RTP por NAT/firewall, endereçamento incorreto ou falha na negociação de canais."
+    },
+    {
+      "front": "O que tratam H.460.18 e H.460.19?",
+      "back": "Recursos de travessia de NAT/firewalls ligados, respectivamente, à sinalização e à mídia em H.323."
+    },
+    {
+      "front": "O que é um codec?",
+      "back": "Mecanismo de codificação e decodificação da mídia; não se confunde com o protocolo de sinalização."
+    }
+  ],
+  "tips": [
+    "Crie um mapa: H.225.0 = chamada e RAS; H.245 = capacidades e canais; RTP = mídia; RTCP = relatórios.",
+    "Antes de responder a casos, identifique a etapa que falhou: registro, admissão, conexão, negociação ou fluxo de áudio/vídeo.",
+    "Memorize as funções dos componentes: terminal participa; gatekeeper administra zona; gateway integra redes; MCU coordena multiponto.",
+    "Não confunda banda, atraso, variação do atraso e perda: os quatro indicadores descrevem problemas diferentes.",
+    "Em itens absolutos com “sempre”, “obrigatoriamente” ou “garante”, verifique se o padrão realmente impõe essa condição.",
+    "Em integração H.323/SIP, cobre a tradução de sinalização, além da compatibilidade de codecs e do transporte da mídia."
+  ],
+  "traps": [
+    "Confundir gatekeeper com gateway: o primeiro administra a zona, o segundo faz interfuncionamento.",
+    "Exigir vídeo ou dados em qualquer terminal H.323: apenas o áudio é obrigatório na arquitetura básica.",
+    "Tratar RTP como protocolo de reserva de banda, criptografia ou entrega garantida.",
+    "Trocar H.225.0 por H.245: um organiza chamada/RAS, o outro negocia capacidades e canais.",
+    "Afirmar que atender a chamada garante áudio e vídeo: mídia pode falhar por NAT, firewall e codecs.",
+    "Confundir o RTCP com o transporte principal do áudio e o H.235 com um codec.",
+    "Presumir que todos os cenários H.323 exigem um gatekeeper ou MCU dedicado."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva, em ordem lógica, os principais momentos de uma chamada H.323 com gatekeeper.",
+      "answer": "Descoberta/registro, admissão, sinalização da chamada, negociação de capacidades e canais, envio de mídia e encerramento; existem otimizações de fluxo."
+    },
+    {
+      "question": "Explique por que registro não equivale a admissão.",
+      "answer": "Registro identifica e associa o terminal à zona; admissão examina autorização e recursos para a chamada específica."
+    },
+    {
+      "question": "Diferencie H.225.0 e H.245.",
+      "answer": "H.225.0 organiza a sinalização da chamada e RAS; H.245 controla capacidades e canais multimídia."
+    },
+    {
+      "question": "Qual a diferença entre RTP e RTCP?",
+      "answer": "RTP transporta amostras de mídia; RTCP veicula relatórios e informações de controle associadas à sessão RTP."
+    },
+    {
+      "question": "O que distingue latência de jitter?",
+      "answer": "Latência é atraso de trânsito; jitter é sua variação ao longo dos pacotes."
+    },
+    {
+      "question": "Por que é possível uma chamada conectar sem áudio?",
+      "answer": "A sinalização pode ocorrer enquanto endereços, canais, codecs ou portas de RTP permanecem inadequados ou bloqueados."
+    },
+    {
+      "question": "Como uma MCU se diferencia de um gateway?",
+      "answer": "A MCU dá suporte ao multiponto; o gateway interliga domínios e tecnologias diferentes."
+    },
+    {
+      "question": "Que cuidados são exigidos para afirmar que uma conferência está criptografada?",
+      "answer": "Verificar os mecanismos de segurança efetivamente suportados, negociados e ativados, sem inferir criptografia pela mera presença de H.323 ou RTP."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre componentes lógicos",
+      "summary": "Gatekeeper controla e administra uma zona; gateway traduz entre tecnologias; MCU atende ao multiponto. Um mesmo aparelho físico pode acumular funções sem torná-las equivalentes."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre sinalização e negociação",
+      "summary": "H.225.0 trata sinalização e RAS, ao passo que H.245 define capacidades e abertura de canais. A chamada pode ter sinalização concluída e mídia indisponível."
+    },
+    {
+      "key": "e3",
+      "title": "Interpretação indevida de RTP e RTCP",
+      "summary": "RTP conduz a mídia em tempo real; RTCP fornece relatórios e informação de controle, mas nenhum deles, por si, garante qualidade ou sigilo."
+    },
+    {
+      "key": "e4",
+      "title": "Generalização sobre QoS e segurança",
+      "summary": "H.323 aceita redes sem QoS garantida, e criptografia depende de mecanismos implementados e configurados, como os previstos por H.235."
+    },
+    {
+      "key": "e5",
+      "title": "Diagnóstico superficial de NAT e codecs",
+      "summary": "Uma chamada conectada não garante fluxo RTP bidirecional; bloqueio de portas, endereços negociados e ausência de modo de mídia comum precisam ser distinguidos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A recomendação H.323 define uma arquitetura de comunicação multimídia sobre redes de pacotes que podem não oferecer garantia de qualidade de serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão H.323 foi concebido para redes de pacotes, inclusive ambientes sem QoS assegurada. Isso exige separar mecanismos de controle de chamadas das medidas de engenharia que reduzem atraso, jitter e perda.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo terminal que atende à recomendação H.323 deve transmitir vídeo e dados, além de áudio, para ser considerado interoperável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A arquitetura exige suporte a áudio, ao passo que vídeo e dados são opcionais. Quando uma mídia opcional é suportada, aplicam-se requisitos de modo comum para interoperabilidade; não há exigência geral de câmera.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O gatekeeper é um componente obrigatório e deve existir em dispositivo físico exclusivo em qualquer zona H.323.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gatekeeper não é universalmente obrigatório em sistemas H.323. Além disso, funções lógicas podem coexistir no mesmo equipamento, de modo que uma implementação física não define sozinha a arquitetura de controle.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway e uma MCU desempenham necessariamente a mesma função porque ambos são intermediários da transmissão de áudio e vídeo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gateway viabiliza interfuncionamento entre tecnologias ou redes; a MCU suporta controle de conferências multiponto e possível processamento de mídia. Ser intermediário não torna suas atribuições equivalentes.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma autarquia planeja uma solução de videoconferência H.323 e deseja um componente para registrar os terminais, aplicar políticas de admissão e administrar uma zona lógica. Qual é o elemento mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gateway de interfuncionamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codificador de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Processador multiponto de mídia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gatekeeper.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Protocolo RTCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gatekeeper administra zona H.323 e pode atuar em registro, admissão e resolução de endereços. Gateway interliga arquiteturas; codec e processador de mídia não executam por si o controle da zona.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede H.323, um equipamento liga uma solução multimídia a um ambiente de telefonia que exige adaptação de sinalização. O papel lógico predominante desse equipamento é de",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "gateway.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "gatekeeper.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "terminal receptor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "controlador de jitter.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "servidor RTCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gateway é o elemento de interfuncionamento entre tecnologias de comunicação, podendo traduzir sinalização e adaptar mídia. Gatekeeper coordena a zona; RTP/RTCP e buffers têm responsabilidades diferentes.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma reunião entre três setores, o administrador procura o componente arquitetural associado ao suporte de conferência com múltiplos participantes. A escolha conceitualmente correta é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gatekeeper, necessariamente responsável por misturar os vídeos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MCU.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gateway, obrigatoriamente responsável pela sala multiponto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.225.0, como dispositivo de captura de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTP, como servidor de admissão de usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "A MCU oferece suporte à conferência multiponto e inclui a função de controle MC, podendo contar com processadores de mídia. Gatekeeper e gateway têm finalidades distintas e protocolos não são dispositivos de conferência.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um candidato afirmou que uma “zona H.323” é, por definição, exatamente igual a uma VLAN. A correção adequada é a seguinte:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Zona é o mesmo que uma faixa fixa de endereços privados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Zona é qualquer conexão exclusivamente ponto a ponto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Zona indica somente um domínio DNS público.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Zona corresponde ao conjunto de entidades administradas por um gatekeeper, não necessariamente a uma VLAN.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Zona é sinônimo de hardware MCU com seus codecs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Zona designa um agrupamento lógico de entidades sob controle de um gatekeeper. O conceito não é determinado diretamente por VLAN, DNS, faixa de IP ou topologia física, embora essas estruturas possam coexistir.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois terminais possuem microfone, mas somente um dispõe de câmera. Conforme a regra básica da recomendação H.323 sobre tipos de mídia, assinale a conclusão tecnicamente correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O terminal sem câmera viola automaticamente todos os requisitos H.323.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O áudio é opcional e o vídeo é sempre a mídia obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O suporte obrigatório recai sobre áudio; vídeo é opcional.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A falta de dados T.120 impede qualquer chamada de voz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos devem possuir uma MCU interna para conversar.",
+          "correct": false
+        }
+      ],
+      "explanation": "H.323 prevê áudio como mídia obrigatória e trata vídeo e dados como opcionais. A interoperabilidade requer capacidades compatíveis para a mídia utilizada, mas não torna a câmera um elemento obrigatório de todo terminal.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No planejamento de um serviço conversacional, qual associação entre grandeza de rede e seu significado está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência: quantidade total de câmeras participantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Perda: diferença entre as resoluções de dois monitores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Jitter: variação do atraso de chegada dos pacotes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Largura de banda: garantia absoluta de entrega de cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Jitter: mecanismo que cifra os quadros de vídeo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Jitter mede a variação temporal do atraso, importante para áudio e vídeo em tempo real. Latência representa atraso, largura de banda indica capacidade e perda de pacotes descreve ausência de dados esperados.",
+      "section": "Fundamentos da videoconferência e arquitetura H.323",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura H.323 com gatekeeper, o procedimento RAS de registro equivale à autorização definitiva e irrestrita de qualquer chamada futura do terminal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Registrar um terminal e admitir uma chamada são operações diferentes. A admissão pode depender de políticas e capacidade em determinado momento, de forma que o registro não libera automaticamente todas as tentativas de conexão.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sinalização de estabelecimento de chamadas H.323 utiliza procedimentos H.225.0, enquanto o H.245 atende ao controle de capacidades e canais lógicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "H.225.0 contempla sinalização e funções RAS, e H.245 coordena capacidades e canais multimídia. A distinção continua válida mesmo quando otimizações permitem levar mensagens de controle em outros canais de sinalização.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As mensagens ARQ e ACF, no contexto RAS, referem-se respectivamente a pedido e confirmação de admissão da chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O par ARQ/ACF integra os procedimentos de admissão no RAS. Não deve ser confundido com RRQ/RCF, associado ao registro, nem com mensagens Setup ou Connect, que pertencem à sinalização da chamada.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a sinalização de chamada é feita por H.225.0, todo fluxo de voz deve usar a mesma conexão confiável que transporta as mensagens Setup e Connect.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O controle da chamada e o transporte da mídia pertencem a funções distintas. Áudio e vídeo comumente seguem RTP sobre UDP, ao passo que mensagens de sinalização podem utilizar transporte confiável; os percursos podem diferir.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um terminal já foi registrado em um gatekeeper, mas, ao tentar iniciar determinada chamada, recebe uma rejeição por política de recursos. Qual etapa foi impedida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descoberta inicial da rede IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Admissão da chamada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Codificação do quadro de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reprodução de áudio via RTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronização de relógio pela câmera.",
+          "correct": false
+        }
+      ],
+      "explanation": "Após o registro, a admissão verifica se a chamada pode ser estabelecida conforme políticas e recursos. A rejeição é da etapa de autorização da chamada, não uma evidência direta de defeito de codec ou reprodução.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na análise de uma captura de tráfego H.323, aparecem mensagens Setup, Alerting e Connect. Esse conjunto está mais diretamente associado a",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "relatórios periódicos de RTP elaborados pelo RTCP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "sinalização de chamada no âmbito de H.225.0.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "negociação de codecs exclusivamente pelo H.235.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "transmissão do vídeo bruto pela câmera.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "descoberta e registro RAS, apenas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Setup, Alerting e Connect aparecem em procedimentos de sinalização de chamadas H.225.0. Não são pacotes de mídia, relatórios RTCP nem mensagens de autenticação da família H.235.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista precisa reconhecer a dupla de mensagens de solicitação e confirmação de registro de terminal no serviço RAS. A correspondência é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ARQ e ACF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Setup e Connect.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RRQ e RCF.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RTP e RTCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OpenLogicalChannel e CloseLogicalChannel.",
+          "correct": false
+        }
+      ],
+      "explanation": "RRQ e RCF identificam operações de solicitação e confirmação de registro perante o gatekeeper. ARQ/ACF cuidam de admissão; Setup/Connect pertencem à chamada; canais lógicos são tratados em H.245.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Diante da frase “o terminal recebeu a mensagem Connect, logo toda mídia audiovisual já trafega com qualidade”, qual é a avaliação adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conclusão é indevida, pois sinalização concluída não comprova canais e fluxos de mídia funcionais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conclusão é válida porque Connect contém obrigatoriamente todo o áudio codificado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conclusão é válida porque H.225.0 garante perda zero após o Connect.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conexão se confirma apenas após uma mensagem de criptografia SRTP obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A presença de Connect prova que não há dispositivos NAT entre as pontas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta positiva de sinalização não demonstra negociação de todos os canais, alcance dos endereços de RTP ou qualidade do percurso. Codec, NAT, firewall, perdas e condições de rede ainda podem impedir mídia adequada.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação H.323 usa gatekeeper e o administrador deseja diferenciar registro de admissão. Qual afirmação representa corretamente essa distinção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Admissão identifica a câmera; registro comprime vídeo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registro é a transmissão RTP; admissão é a geração RTCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registro identifica o terminal na zona; admissão avalia a possibilidade de uma chamada específica.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Admissão ocorre apenas depois de todo conteúdo ter sido transmitido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro e admissão são nomes distintos da mesma mensagem Connect.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro relaciona identidade e contato do terminal com a zona. A admissão integra o controle de cada tentativa de chamada e pode avaliar autorização e recursos, não servindo de substituto para transmissão de mídia.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre otimizações de estabelecimento em sistemas H.323, como fast connect e tunelamento de H.245, é correto afirmar que",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "podem modificar a sequência e a forma de transportar informações de controle sem eliminar suas funções lógicas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "obrigam que todo terminal use uma MCU, inclusive em chamadas ponto a ponto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "convertem o fluxo RTP em mensagens de registro RRQ.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "substituem permanentemente H.323 por SIP em todas as chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "dispensam a negociação de compatibilidade multimídia entre terminais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mecanismos de otimização podem antecipar informações ou transportar mensagens H.245 dentro da sinalização H.225.0. Isso não transforma RTP em RAS nem afasta a necessidade de capacidades compatíveis.",
+      "section": "H.225.0, sinalização de chamadas e procedimentos RAS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No controle H.245, mensagens de capacidades e procedimentos de abertura de canais lógicos colaboram para definir quais mídias podem ser trocadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O H.245 trata da troca de capacidades e do estabelecimento de canais lógicos para áudio, vídeo ou dados compatíveis. Ele controla a forma de comunicação, mas não substitui o protocolo de transporte da mídia.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo RTP garante entrega ordenada de todos os pacotes de áudio e reserva largura de banda suficiente durante toda a conferência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "RTP oferece informações como sequência e tempo de mídia, mas não assegura entrega confiável ou reserva de recursos. A qualidade depende também de rede, políticas de tráfego, codecs e tratamento de perdas.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Relatórios RTCP podem ajudar a analisar perda de pacotes e jitter em uma sessão, sem que o RTCP seja o transporte principal das amostras de áudio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "RTCP fornece informações de controle e estatísticas úteis à avaliação de qualidade, enquanto RTP transporta a mídia. Relatório de perda não implica recuperação automática de pacotes desaparecidos.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar indefinidamente o buffer de jitter melhora a continuidade de reprodução e simultaneamente diminui, em qualquer situação, a latência da conversa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O buffer pode suavizar variações no recebimento, mas aumentar sua retenção tende a adicionar atraso. O ajuste precisa equilibrar regularidade de reprodução, latência e características do tráfego.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois terminais H.323 conseguem estabelecer a chamada, mas precisam informar que codecs e modos de operação suportam. Qual protocolo responde mais diretamente por essa negociação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "H.245.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RTCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.235.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "H.245 abrange mensagens como TerminalCapabilitySet e procedimentos de canais lógicos. RTP transmite dados da mídia, RTCP informa estatísticas, DNS auxilia nomes e H.235 relaciona-se à segurança.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma videoconferência, um administrador necessita identificar o protocolo que transporta em tempo real as amostras codificadas de áudio e os quadros de vídeo. A resposta é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RAS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "H.245.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RTP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "RTCP, exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "H.235.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTP é o transporte típico de mídia em tempo real em sessões H.323. RTCP acompanha e relata aspectos da recepção, e H.225.0/H.245 realizam funções de sinalização e negociação, não o transporte principal das amostras.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um engenheiro observa variação significativa nos intervalos de chegada dos pacotes, apesar de a taxa média de transferência permanecer estável. O fenômeno descrito é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "resolução espacial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "jitter.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "taxa de amostragem do microfone.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "registro RAS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "transcodificação obrigatória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Jitter é a variação do atraso entre pacotes, capaz de dificultar reprodução contínua mesmo se a taxa média parecer satisfatória. Não se deve confundi-lo com perda, latência média ou transformação de codecs.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O monitoramento de uma sessão RTP identifica relatórios sobre qualidade de recepção e perda de pacotes. Qual componente da pilha explica esses relatórios?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "H.225.0 Setup.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTCP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Protocolo RAS de registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "T.120.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Codificador H.261.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTCP complementa RTP com relatórios e informações de controle, úteis ao acompanhamento da qualidade. O fato de existirem relatórios não significa que RTCP transporte a voz ou restabeleça cada pacote perdido.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico propõe usar RTP puro como solução suficiente para garantir criptografia e autenticação do conteúdo de vídeo. A correção técnica é que",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTP cifra qualquer fluxo automaticamente ao usar UDP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A numeração sequencial do RTP equivale a uma assinatura digital.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A simples existência do RTCP protege o conteúdo contra interceptação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTP, isoladamente, não fornece essas garantias; são necessários mecanismos de proteção apropriados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Todo codec de vídeo impõe confidencialidade criptográfica às chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos de sequência e tempo do RTP não equivalem a autenticação ou sigilo. Recursos de proteção podem ser providos por mecanismos como SRTP e pelas soluções de segurança suportadas pela implantação H.323.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede congestionada, uma equipe cogita elevar o buffer de jitter para evitar cortes de fala. Qual avaliação expressa corretamente a troca envolvida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode haver maior regularidade de reprodução ao custo de mais atraso de conversação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O buffer elimina fisicamente todo congestionamento da rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O buffer substitui a necessidade de codec compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O acréscimo de buffer reduz sempre o tempo ponta a ponta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O buffer transforma RTP em transporte com entrega garantida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O buffer de jitter absorve variações temporais de chegada, mas reter dados por mais tempo adiciona latência. Ele não cria capacidade de rede, não garante entrega e não supre a compatibilidade de codificação.",
+      "section": "H.245, codecs, RTP, RTCP e qualidade de serviço",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma MCU H.323 pode oferecer controle de conferência multiponto e, conforme o desenho da solução, processamento de fluxos de mídia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A função MC participa do controle multiponto, enquanto processadores de mídia podem atuar no tratamento dos fluxos. A MCU não deve ser confundida automaticamente com gateway ou gatekeeper, embora funções possam coexistir.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SIP e H.323 utilizam obrigatoriamente a mesma sinalização, pois ambos podem transmitir áudio e vídeo por RTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Compartilhar o transporte de mídia não torna iguais as arquiteturas de sinalização. H.323 articula H.225.0 e H.245; SIP segue procedimentos próprios, como os definidos na RFC 3261.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma integração entre sistemas SIP e H.323, a compatibilidade da rede IP dispensa qualquer tradução de sinalização ou verificação das capacidades de mídia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "IP e RTP podem ser componentes comuns, mas as chamadas ainda exigem sinalização compatível e modos de mídia utilizáveis. Um gateway ou recurso equivalente pode ser necessário para interoperabilidade efetiva.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de H.323, por si só, demonstra que uma conferência está cifrada e que todos os seus participantes foram autenticados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Conformidade com a arquitetura H.323 não equivale à ativação automática de criptografia e autenticação. Devem ser examinados mecanismos de segurança compatíveis, credenciais e a configuração concreta do serviço.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão deseja que quatro salas compartilhem uma conferência sob um elemento central de coordenação multiponto. Qual componente H.323 corresponde a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servidor exclusivamente DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gatekeeper como substituto obrigatório da MCU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Protocolo RTCP funcionando como controlador de reuniões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Firewall de borda como codificador compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MCU.",
+          "correct": true
+        }
+      ],
+      "explanation": "A MCU é o componente arquitetural típico de conferências multiponto, com controlador MC e possíveis processadores MP. DNS, RTCP e firewall não assumem isoladamente essas funções de conferência.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a contratação de uma ponte H.323/SIP, a administração pede a função indispensável de interoperação entre sinalizações diferentes. O recurso descrito é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "gateway ou função de interfuncionamento entre protocolos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "buffer de jitter sem lógica de chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "apenas aumento de resolução das câmeras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTCP utilizado como protocolo de registro de usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "uma VLAN, que por definição traduz toda a sinalização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ponte entre H.323 e SIP exige tratar diferenças de sinalização, e pode exigir adaptação de endereços ou codecs. A simples presença de rede IP e de RTP não fornece essa tradução.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação H.323, o administrador procura a família normativa que prevê mecanismos de autenticação e privacidade para sistemas multimídia. Deve consultar",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "H.261 como protocolo de controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTP como mecanismo de autenticação de usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "H.225.0 como cifrador universal automático.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTCP como substituto integral de certificados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "H.235.",
+          "correct": true
+        }
+      ],
+      "explanation": "A família H.235 trata de proteção e autenticação em ambientes H.323. Isso não significa que todo equipamento esteja configurado para criptografar, nem que H.235 seja codec ou substituto dos protocolos de chamada.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma MCU é anunciada como capaz de tratar participantes com diferentes codificações de vídeo. A funcionalidade que pode tornar isso possível é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "registro RRQ, que altera obrigatoriamente o codec da câmera.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DNS reverso, que reconstrói quadros de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "transcodificação ou adaptação da mídia no processamento multiponto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "mensagem Connect, que garante transcodificação em todos os endpoints.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTCP, que substitui integralmente o processador multimídia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Processamento multiponto pode incluir transcodificação e outras adaptações quando os equipamentos possuem capacidades diferentes. Registro, DNS, Connect e RTCP não implementam por si a conversão de codecs.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre a afirmação de que a função de controle MC e os processadores MP são sempre elementos físicos separados, é correto concluir que",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "a norma proíbe integração de funções lógicas em um produto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "a distinção é funcional, podendo existir implementação integrada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MC corresponde exclusivamente à placa de áudio e MP ao gatekeeper.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MP é a sigla de protocolo de admissão do RAS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MCU só pode existir quando há telefonia analógica envolvida.",
+          "correct": false
+        }
+      ],
+      "explanation": "MC e MP representam papéis lógicos relacionados a controle e processamento multiponto. A arquitetura não exige que correspondam sempre a aparelhos físicos independentes; a solução concreta define sua implementação.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um responsável pela segurança afirma que, por utilizar SRTP para determinado fluxo, o sistema pode dispensar políticas de autenticação e controle de gravações. A melhor avaliação é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SRTP impede por definição qualquer compartilhamento indevido de gravação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os codecs de vídeo substituem políticas de acesso quando existe SRTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A criptografia torna impossível qualquer falha de disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.245 deixa de existir quando a segurança de mídia é ativada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "a proteção do fluxo não elimina a necessidade de gestão de identidades e acesso às gravações.",
+          "correct": true
+        }
+      ],
+      "explanation": "A proteção criptográfica da mídia em trânsito não resolve todas as dimensões de segurança. Participantes, credenciais, armazenamento de gravações e operações administrativas ainda exigem controles adequados.",
+      "section": "Conferências multiponto, interconexão e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada H.323 pode ser atendida com sucesso e ainda apresentar áudio unilateral caso o tráfego de mídia seja bloqueado por regras de NAT ou firewall.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A sinalização pode alcançar o destino enquanto portas ou endereços anunciados para RTP não são alcançáveis. Por isso, conexão estabelecida não demonstra necessariamente transporte bidirecional de mídia.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de H.460.19 está ligado a mecanismos de travessia de mídia H.323 em cenários com NAT e firewalls.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "H.460.19 foi elaborado para auxiliar a travessia dos fluxos de mídia, em complemento a recursos de sinalização como H.460.18. A disponibilidade da extensão depende de suporte e configuração, não é automática.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma chamada H.323 alcança a etapa de Connect, está descartada a possibilidade de bloqueio de portas de mídia e de incompatibilidade de capacidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Connect pertence à sinalização, não à validação de todos os fluxos audiovisuais. Falhas em H.245, negociação de codec, portas RTP ou regras de firewall podem persistir após a aceitação da chamada.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um buffer de jitter maior e a priorização de tráfego garantem que qualquer videoconferência H.323 funcione sem perdas, mesmo com enlace permanentemente saturado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O buffer apenas lida com variação temporal, e a priorização organiza filas conforme as políticas implantadas. Sem capacidade suficiente, perda e atraso podem continuar; não há garantia absoluta de qualidade.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe consegue ouvir o toque, atende a chamada e vê “conectado”, mas o áudio é unilateral. Qual verificação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cor de fundo do aplicativo de videoconferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordem alfabética dos participantes no diretório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente as opções de alerta da mensagem Alerting.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fuso horário do relógio de parede da sala.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Endereços de mídia negociados, tráfego RTP e filtragem por NAT/firewall.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sinalização concluída com áudio unilateral sugere examinar negociação, endereços, portas e percurso RTP. A análise do fluxo nos dois sentidos é mais útil que atributos visuais ou cadastrais sem relação com mídia.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sala remota apresenta voz compreensível, mas vídeo com congelamentos durante picos de utilização do enlace. Qual hipótese deve ser avaliada com prioridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigatoriedade de instalar novo gatekeeper em toda VLAN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ausência de criptografia como causa única de congelamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falha do DNS como explicação automática para qualquer quadro perdido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impossibilidade de usar vídeo em redes baseadas em pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Congestionamento, perda de pacotes e adequação da taxa de vídeo à capacidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Congestionamento, perdas e limitações de processamento ou taxa de vídeo podem produzir congelamentos. Como há comunicação funcional, não se justifica atribuir o problema automaticamente ao gatekeeper ou a outro componente.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto H.323 atravessa NAT e precisa de mecanismos específicos para sinalização e mídia. Qual associação é a mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "H.245 para traduzir endereço IP e T.120 para cifrar vídeo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTP para registro RAS e RTCP para controlar DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "H.235 como codec e H.261 como protocolo de firewall.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.460.18 para sinalização e H.460.19 para mídia.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SIP como substituto obrigatório de toda travessia H.323.",
+          "correct": false
+        }
+      ],
+      "explanation": "H.460.18 e H.460.19 estão associados a recursos de travessia de NAT e firewall, respectivamente relacionados à sinalização e ao caminho da mídia. Seu uso depende de compatibilidade entre componentes.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para investigar uma falha que ocorre antes de o destinatário receber a tentativa de chamada H.323, o procedimento inicial mais lógico é conferir",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "apenas resolução de vídeo do monitor local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "exclusivamente a taxa de quadros da câmera remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "somente a quantidade de relatórios RTCP recebidos após a chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "primeiro a posição do microfone na mesa, sem analisar a rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "conectividade, endereçamento, políticas de admissão e sinalização H.225.0.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se a chamada sequer alcança o destino, devem-se investigar IP, rotas, registro, admissão e sinalização. Métricas de mídia podem nem existir nessa fase, e a análise dos periféricos não substitui o diagnóstico de controle.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador lê relatórios RTCP com aumento de perda e jitter durante chamadas. Qual conclusão é tecnicamente sustentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os relatórios provam que a origem está obrigatoriamente no microfone.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RTCP garante recuperação imediata dos pacotes de áudio perdidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os relatórios demonstram que não existe congestionamento na rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os indicadores sugerem degradação de transporte e orientam a investigação de filas, rotas e capacidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Essas métricas são usadas exclusivamente para registro no gatekeeper.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTCP permite observar qualidade de recepção, incluindo indicadores de perda e variação temporal. A análise precisa de contexto e outras medições; o relatório não atribui causa única nem recupera cada pacote perdido.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão planeja aumentar o número de participantes de uma conferência multiponto e estima banda apenas multiplicando a taxa de um único fluxo por todos os usuários. A ressalva técnica mais correta é que",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "a taxa total de uso é sempre idêntica à taxa de uma chamada individual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "o emprego de H.323 elimina cabeçalhos e tráfego de controle da rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "o gatekeeper reduz automaticamente a banda total a zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "a topologia e o processamento da MCU, as direções dos fluxos e as taxas efetivas devem ser considerados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "a presença de vídeo não altera necessidade de processamento de mídia.",
+          "correct": false
+        }
+      ],
+      "explanation": "O consumo depende de topologia, fluxos simultâneos, resolução, codificação e atuação multiponto, além dos overheads. Uma multiplicação simples pode ignorar retransmissão, composição ou distribuição de vídeo.",
+      "section": "Implantação, NAT, diagnóstico e revisão aplicada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Recomendação ITU-T H.323 (03/2022): sistemas multimídia baseados em pacotes",
+      "publisher": "União Internacional de Telecomunicações (ITU-T)",
+      "reference": "H.323, versão 8, março de 2022",
+      "url": "https://www.itu.int/rec/T-REC-H.323-202203-I/en",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recomendação ITU-T H.225.0 (03/2022): sinalização e empacotamento",
+      "publisher": "União Internacional de Telecomunicações (ITU-T)",
+      "reference": "H.225.0, versão 8, março de 2022",
+      "url": "https://www.itu.int/rec/T-REC-H.225.0-202203-I",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recomendação ITU-T H.245 (03/2022): protocolo de controle multimídia",
+      "publisher": "União Internacional de Telecomunicações (ITU-T)",
+      "reference": "H.245, versão de março de 2022",
+      "url": "https://www.itu.int/rec/T-REC-H.245-202203-I/en",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recomendação ITU-T H.235.0: estrutura de segurança em H.323",
+      "publisher": "União Internacional de Telecomunicações (ITU-T)",
+      "reference": "H.235.0, janeiro de 2014",
+      "url": "https://www.itu.int/ITU-T/recommendations/rec.aspx?rec=H.235.0",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recomendação ITU-T H.460.19: travessia de mídia em NAT e firewalls",
+      "publisher": "União Internacional de Telecomunicações (ITU-T)",
+      "reference": "H.460.19, mecanismos de travessia NAT/firewall",
+      "url": "https://www.itu.int/ITU-T/recommendations/rec.aspx?rec=8586",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3550: RTP, transporte para aplicações em tempo real",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "RFC 3550, julho de 2003",
+      "url": "https://datatracker.ietf.org/doc/rfc3550/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3711: Secure Real-time Transport Protocol",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "RFC 3711, março de 2004",
+      "url": "https://datatracker.ietf.org/doc/rfc3711/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 3261: Session Initiation Protocol (SIP)",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "RFC 3261, junho de 2002",
+      "url": "https://www.rfc-editor.org/info/rfc3261/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}
