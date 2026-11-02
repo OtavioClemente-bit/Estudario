@@ -131,7 +131,7 @@ JÁ NA PRIMEIRA VERSÃO (é o que mais reprova): escreva as 5 alternativas com t
 a mais longa (no máximo em 4 de cada 10 questões); alongue as erradas com detalhe plausível e errado de verdade.
 Espalhe a letra certa por igual entre A, B, C, D e E (cerca de 1/5 cada) e em Certo/Errado metade de cada.
 Antes de gravar, conte quantas vezes a certa é a mais longa e quantas vezes cada letra é gabarito, e ajuste.
-Nunca a mesma letra certa em mais de 2 questões seguidas. Cada alternativa errada deve ser um erro que um candidato
+Cada alternativa errada deve ser um erro que um candidato
 cometeria (nada absurdo nem frase extra só para alongar). Todo enunciado de múltipla escolha termina em pergunta,
 nunca alternativas "Sim/Não". Certo/Errado não pode depender só de "jamais", "apenas", "exclusivamente". Não repita
 o mesmo fato em duas questões. Cubra cada parte do título e do escopo (se o título fala de X e Y, ensine os dois).
