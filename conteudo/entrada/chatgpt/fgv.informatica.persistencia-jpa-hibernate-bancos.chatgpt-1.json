@@ -1,0 +1,546 @@
+{
+  "secoes": [
+    {
+      "numero": 1,
+      "titulo": "1. JPA, Hibernate e ciclo de vida das entidades"
+    },
+    {
+      "numero": 2,
+      "titulo": "2. Mapeamento de relações, consultas e desempenho"
+    },
+    {
+      "numero": 3,
+      "titulo": "3. Hibernate Envers: auditoria histórica e revisões"
+    },
+    {
+      "numero": 4,
+      "titulo": "4. Flyway e evolução controlada do esquema"
+    },
+    {
+      "numero": 5,
+      "titulo": "5. PostgreSQL, H2, Oracle, SQL Server e autenticação SSO"
+    }
+  ],
+  "questoes": [
+    {
+      "secao": 1,
+      "enunciado": "Em um módulo de gestão de contratos, a instância de Contrato foi carregada por um EntityManager, que depois foi fechado. O serviço altera seu objeto e, em nova transação, invoca merge(contrato). Consideradas as regras de persistência JPA, qual afirmação descreve corretamente o efeito?",
+      "alternativas": [
+        "O estado informado é copiado para uma instância gerenciada, devolvida pelo método; o objeto recebido pode continuar destacado.",
+        "O objeto recebido é obrigatoriamente reassociado ao novo contexto, e merge sempre devolve exatamente a mesma referência, mesmo quando outra referência de mesmo identificador já existe no contexto.",
+        "A chamada executa um INSERT incondicional, mesmo que já exista registro com a chave primária apresentada.",
+        "O método só aceita instâncias novas, motivo pelo qual uma entidade destacada provoca falha obrigatória da transação.",
+        "A operação dispensa transação e assegura atualização definitiva no banco antes de seu retorno, mesmo sem commit."
+      ],
+      "gabarito": "A",
+      "explicacao": "O merge propaga o estado para uma instância gerenciada e retorna essa referência; não transforma necessariamente a instância original em gerenciada. As demais opções confundem cópia de estado, inserção e conclusão transacional."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma aplicação registra uma nova entidade por meio de persist e chama flush antes do término da transação. Uma falha posterior causa rollback. O analista conclui que o flush salvou o registro de forma definitiva. Assinale a avaliação adequada.",
+      "alternativas": [
+        "Flush sempre inaugura transação independente e, por isso, impede o cancelamento do INSERT já executado, inclusive quando a transação principal termina com rollback por erro de negócio.",
+        "Flush substitui o método persist e impede qualquer instrução SQL enquanto a transação estiver aberta.",
+        "Flush sincroniza alterações pendentes com o banco, mas não confirma a transação; um rollback pode desfazê-las.",
+        "Flush torna a entidade destacada automaticamente e obriga a chamar merge antes de efetuar commit.",
+        "Flush encerra a sessão JDBC, transferindo a responsabilidade de gravação definitiva para o banco."
+      ],
+      "gabarito": "C",
+      "explicacao": "A sincronização antecipada pode emitir SQL e detectar restrições, mas não equivale a commit. O rollback da transação pode reverter as operações; as demais alternativas atribuem ao flush efeitos de gestão de transação e estado que ele não possui."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Em transação aberta, uma servidora recupera uma entidade gerenciada por find, modifica seu campo descricao e encerra a unidade de trabalho com commit, sem invocar explicitamente update. O resultado esperado, na configuração usual do Hibernate, é:",
+      "alternativas": [
+        "A impossibilidade de atualizar a linha, porque o padrão JPA exige invocação explícita de update em toda modificação, até mesmo após o provedor sincronizar o contexto de persistência no commit.",
+        "A exclusão da linha anterior e a inserção de outra, pois o campo alterado não integra a chave primária.",
+        "A atualização somente após chamar detach, pois entidades gerenciadas são imutáveis até o fim da transação.",
+        "A gravação obrigatória no instante exato da atribuição do campo Java, sem qualquer etapa de sincronização.",
+        "A detecção automática de alterações em uma entidade gerenciada, com sincronização do novo valor no momento apropriado."
+      ],
+      "gabarito": "E",
+      "explicacao": "O mecanismo de dirty checking identifica mudanças no estado persistente de objetos gerenciados e pode gerar UPDATE durante o flush. Não há update obrigatório nem substituição automática da linha por exclusão e inserção."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Um processamento em lotes consulta milhares de entidades e, para liberar o contexto de persistência, chama EntityManager.clear(). Minutos depois, altera uma das instâncias previamente consultadas sem reinseri-la no contexto. Qual é a consequência própria de clear?",
+      "alternativas": [
+        "Todas as linhas correspondentes são removidas fisicamente, como se houvesse uma operação de exclusão em cascata.",
+        "As entidades que estavam gerenciadas tornam-se destacadas, sem sincronização automática das mudanças posteriores.",
+        "Somente as entidades sem identificador são destacadas, permanecendo gerenciadas todas as demais.",
+        "As alterações posteriores são registradas obrigatoriamente pelo dirty checking, pois clear apenas limpa consultas em cache.",
+        "O banco cancela automaticamente a transação, e o EntityManager torna-se irrecuperavelmente fechado após a chamada."
+      ],
+      "gabarito": "B",
+      "explicacao": "Clear esvazia o contexto de persistência e destaca as entidades que ali estavam; não apaga registros nem encerra por si só o EntityManager. Mudanças feitas depois em objetos destacados não são rastreadas automaticamente."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Na implementação de um serviço de exclusão, um desenvolvedor passa diretamente ao método remove uma instância destacada, obtida em requisição anterior. Em relação à operação padronizada do EntityManager, assinale a orientação correta.",
+      "alternativas": [
+        "Remove transforma silenciosamente qualquer objeto destacado em gerenciado e executa DELETE em nova transação implícita, sem exigir que a referência esteja associada ao contexto de persistência corrente.",
+        "A exclusão depende da anotação @Version na classe; sem ela, a operação remove é proibida pela JPA.",
+        "A passagem de um objeto destacado sempre apaga tanto o registro quanto todo o esquema de auditoria de forma automática.",
+        "Deve-se obter uma instância gerenciada correspondente antes de removê-la; remove não aceita diretamente entidade destacada.",
+        "Somente objetos transitórios podem ser removidos, pois os gerenciados são protegidos pelo contexto de persistência."
+      ],
+      "gabarito": "D",
+      "explicacao": "Na JPA, remove de uma entidade destacada deve causar IllegalArgumentException, na chamada ou ao efetivar o flush. É preciso primeiro trabalhar com referência gerenciada; não existe reassociação implícita garantida por remove."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Dois atendentes leem a mesma entidade versionada e tentam gravar alterações sucessivas. A equipe deseja detectar atualização concorrente, evitando que a segunda escrita sobrescreva silenciosamente a primeira. O recurso de mapeamento mais diretamente associado a essa finalidade é:",
+      "alternativas": [
+        "O atributo @Version, utilizado para controle de concorrência otimista na atualização da entidade.",
+        "O atributo @Transient, utilizado para obrigar a gravação de informações temporárias no registro.",
+        "A anotação @Enumerated, porque bloqueia qualquer transação que leia valores enumerados.",
+        "A anotação @Column(nullable = false), que impede atualizações simultâneas por dois processos.",
+        "A opção fetch = FetchType.EAGER, porque adquire bloqueio exclusivo sempre que carrega a entidade, independentemente de dois usuários tentarem gravar alterações conflitantes."
+      ],
+      "gabarito": "A",
+      "explicacao": "@Version suporta verificação otimista de concorrência e permite detectar gravação com versão desatualizada. As demais anotações cuidam de persistência de campos, enumerações, nulidade ou carregamento, não do conflito de versões."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Em uma mesma unidade de persistência ativa, o serviço executa duas chamadas find para a classe Processo com a mesma chave primária, sem limpar o contexto. A segunda chamada deve considerar a identidade já gerenciada. Isso decorre de que:",
+      "alternativas": [
+        "O Hibernate deve sempre instanciar dois objetos diferentes para evitar o uso de cache de primeiro nível.",
+        "Cada operação find abre necessariamente outra transação e esvazia o contexto ativo da chamada anterior.",
+        "O contexto de persistência mantém uma identidade de objeto gerenciado para cada identidade persistente nele representada.",
+        "O atributo de chave primária perde sua função quando o objeto é carregado por métodos do EntityManager.",
+        "Apenas consultas SQL nativas preservam identidade, já que o método find não reconhece classes de entidades, mesmo quando a mesma chave é pesquisada repetidamente no mesmo contexto."
+      ],
+      "gabarito": "C",
+      "explicacao": "O contexto de persistência garante unicidade de instância gerenciada para uma identidade persistente em seu escopo. A segunda busca pode reutilizar a instância, sem implicar nova transação ou desconsiderar a chave primária."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma entidade Pedido contém itens e mapeia cascade = PERSIST sobre a associação. O desenvolvedor supõe que essa opção também eliminará automaticamente os itens ao remover o pedido. Qual interpretação é correta?",
+      "alternativas": [
+        "A cascata PERSIST equivale obrigatoriamente a ALL e cobre remoção, atualização, atualização forçada e destacamento.",
+        "A cascata PERSIST opera exclusivamente sobre o banco, não afetando chamadas do EntityManager feitas em objetos Java.",
+        "A remoção dos itens é garantida pela simples existência de associação bidirecional, mesmo sem configuração adicional, ainda que a associação tenha sido criada apenas na memória da aplicação.",
+        "A cascata PERSIST impede que itens novos sejam persistidos com o pedido e somente funciona para atualizar entidades.",
+        "A cascata PERSIST propaga a persistência aos associados; exclusão em cascata requer configuração própria e adequada ao modelo."
+      ],
+      "gabarito": "E",
+      "explicacao": "PERSIST é uma operação específica de cascata, distinta de REMOVE e ALL. A exclusão de dependentes depende de semântica apropriada, como remoção em cascata ou orphanRemoval; associação por si só não determina apagamento."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma modelagem JPA declara Departamento com @OneToMany(mappedBy = \"departamento\") e Empregado com @ManyToOne e @JoinColumn. Ao revisar a relação bidirecional, a equipe precisa identificar o lado responsável pela chave estrangeira. Assinale a opção adequada.",
+      "alternativas": [
+        "O lado de Departamento é sempre o proprietário porque reúne uma coleção de funcionários subordinados.",
+        "O lado de Empregado, que declara @JoinColumn, é o proprietário do relacionamento e controla o valor da chave estrangeira.",
+        "Ambas as pontas são proprietárias e geram duas chaves estrangeiras redundantes na tabela de associação.",
+        "mappedBy indica a coluna física que deve ser criada na tabela Departamento, independentemente de @JoinColumn, inclusive quando apenas o lado inverso é alterado no código Java da entidade.",
+        "Nenhum lado detém propriedade, porque relacionamentos bidirecionais dispensam chaves estrangeiras no banco."
+      ],
+      "gabarito": "B",
+      "explicacao": "Em relacionamento bidirecional desse tipo, mappedBy marca o lado inverso, enquanto a associação many-to-one com a coluna de junção é proprietária. Alterar apenas a coleção inversa não assegura atualização da FK."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma equipe deixa de indicar fetch em dois atributos: @ManyToOne em Ordem e @OneToMany em Cliente. No comportamento padrão especificado pela JPA, as estratégias correspondentes são, respectivamente:",
+      "alternativas": [
+        "LAZY para ambos, pois o carregamento tardio é exigido para todas as associações de entidade.",
+        "EAGER para ambos, em razão da necessidade de manter a integridade referencial no banco de dados.",
+        "LAZY para many-to-one e EAGER para one-to-many, independentemente do provedor utilizado.",
+        "EAGER para many-to-one e LAZY para one-to-many, embora a consulta concreta possa ajustar o plano de busca.",
+        "Nenhuma estratégia padrão, pois omitir fetch torna obrigatório informar manualmente cada associação via SQL."
+      ],
+      "gabarito": "D",
+      "explicacao": "A JPA define EAGER por padrão para @ManyToOne e LAZY para @OneToMany. EAGER é exigência de carregamento, e LAZY é uma indicação de adiamento; essas escolhas não se confundem com propriedade da associação."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um cadastro de NotaFiscal possui linhas dependentes, representadas por uma coleção com orphanRemoval = true. Um item é retirado da coleção de sua nota, de forma consistente com o mapeamento. Qual efeito a configuração pretende produzir?",
+      "alternativas": [
+        "A remoção da entidade dependente que deixou de integrar a relação com o pai, quando sincronizadas as alterações.",
+        "A interrupção de qualquer operação de exclusão sobre a entidade-pai, mesmo que haja pedido explícito de remoção, mesmo quando a retirada do item ocorre em transação válida e confirmada.",
+        "A conversão automática do item retirado em uma nova linha independente, preservando-o sem relação com a nota.",
+        "A alteração exclusiva do carregamento de EAGER para LAZY, sem qualquer efeito sobre o ciclo de vida dos itens.",
+        "A exclusão obrigatória de todas as notas do banco, pois a retirada de um item invalida o relacionamento inteiro."
+      ],
+      "gabarito": "A",
+      "explicacao": "OrphanRemoval vincula o ciclo de vida do dependente à associação e permite excluí-lo quando se torna órfão. Não é equivalente a trocar fetch, eliminar o pai ou garantir preservação do item destacado da coleção."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um analista troca um SQL nativo por JPQL para buscar registros da entidade Servidor cujo atributo matricula corresponda a um parâmetro. Na nova consulta, o uso correto da linguagem de persistência pressupõe:",
+      "alternativas": [
+        "Escrever obrigatoriamente SELECT * FROM tabela, pois JPQL apenas repassa SQL literal ao banco de dados.",
+        "Usar a coluna física para todo atributo e ignorar completamente o nome Java da propriedade da entidade.",
+        "Referenciar a entidade e seus atributos mapeados, em vez de depender diretamente dos nomes físicos de tabelas e colunas.",
+        "Recorrer exclusivamente a procedimentos armazenados, já que JPQL não oferece parâmetros em consultas.",
+        "Substituir a expressão WHERE pelo nome de um índice, pois os atributos de entidade não são acessíveis em filtros, porque o processamento de cada atributo exige uma instrução SQL literal distinta."
+      ],
+      "gabarito": "C",
+      "explicacao": "JPQL modela consultas sobre entidades e seus atributos; o provedor traduz a expressão para SQL do banco. Não se trata de simples SQL nativo, e parâmetros podem ser usados para filtrar propriedades mapeadas."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Após carregar 80 clientes, um relatório navega para o endereço de cada um e dispara numerosas buscas adicionais. A associação está configurada para carregamento tardio. Qual medida é tecnicamente adequada para enfrentar o problema N+1 nessa consulta específica?",
+      "alternativas": [
+        "Ativar EAGER em todas as coleções do domínio, independentemente da necessidade de cada operação do sistema.",
+        "Adicionar @Transient ao endereço, mantendo acesso automático e persistência do relacionamento no relatório.",
+        "Executar flush após cada cliente, porque a sincronização evita todas as consultas extras de carregamento.",
+        "Trocar a chave primária por um campo textual, pois o problema decorre exclusivamente do tipo numérico do identificador.",
+        "Planejar a busca dos endereços necessários com join fetch ou EntityGraph, observando a cardinalidade das associações."
+      ],
+      "gabarito": "E",
+      "explicacao": "N+1 ocorre quando a carga inicial é seguida de consultas por associação acessada. Um plano de busca adequado à operação pode reduzi-las; EAGER global, flush e alteração de tipos não resolvem o acesso repetitivo."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma tela paginada apresenta pedidos e seus muitos itens. O desenvolvedor escreve uma consulta com fetch join da coleção e aplica setMaxResults(20), presumindo paginação sempre eficiente no servidor. Que ressalva deve ser considerada?",
+      "alternativas": [
+        "A JPQL proíbe qualquer fetch join com associações many-to-one, mas aceita sem ressalvas todas as coleções paginadas, mesmo que cada pedido possua centenas de itens no banco de dados.",
+        "Fetch join de coleção pode multiplicar linhas e comprometer a paginação no banco, exigindo estratégia de consulta apropriada.",
+        "A paginação com fetch join garante que cada pedido será representado por uma única linha no resultado SQL.",
+        "O uso de setMaxResults torna o SQL imune a produto cartesiano quando mais de uma coleção é carregada.",
+        "A solução obrigatória é ordenar por campo não indexado, pois isso elimina duplicações causadas pelo relacionamento."
+      ],
+      "gabarito": "B",
+      "explicacao": "Carregar coleção por junção pode repetir linhas do pai e levar o provedor a paginar em memória ou rejeitar a consulta conforme a configuração. Paginam-se primeiro os pais ou emprega-se estratégia controlada de carregamento."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Para filtrar colaboradores por nome, uma rotina concatena diretamente o texto recebido do usuário à consulta JPQL. O revisor sugere utilizar parâmetros vinculados na API. A principal justificativa é que:",
+      "alternativas": [
+        "Parâmetros vinculados fazem o Hibernate ignorar toda verificação de tipos e aceitar qualquer expressão como valor.",
+        "A concatenação é mandatória em JPQL e somente o SQL nativo admite declaração de parâmetros nomeados.",
+        "A parametrização garante que nenhum plano de execução seja recompilado em qualquer banco e cenário possível.",
+        "A parametrização separa valores da estrutura da consulta, reduzindo risco de injeção e problemas de escape.",
+        "O uso de parâmetros muda automaticamente uma consulta de leitura para uma transação serializável no banco."
+      ],
+      "gabarito": "D",
+      "explicacao": "Parâmetros separam dados da sintaxe da consulta e evitam que a entrada do usuário seja interpretada como comandos JPQL. Eles não garantem plano fixo, isolamento mais forte ou dispensa de verificação de tipos."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma API retorna resumo de clientes, sem necessitar dos pedidos de cada um. Em outra rota, detalhes completos são necessários. Para conciliar desempenho e clareza sem tornar todo relacionamento eager, a equipe deve:",
+      "alternativas": [
+        "Definir planos de busca adequados a cada caso, com projeções ou EntityGraph quando justificável.",
+        "Configurar todas as associações como EAGER, pois nenhuma rota paginada pode acessar dados parcialmente.",
+        "Remover a anotação @Entity das classes relacionadas para impedir consultas adicionais em todo o sistema.",
+        "Usar cascade = ALL como substituto de fetch, pois cascata determina exatamente o momento de leitura.",
+        "Executar refresh em cada item de toda listagem para ativar o cache global de consultas por associação."
+      ],
+      "gabarito": "A",
+      "explicacao": "Projeções evitam trazer dados não usados, e EntityGraph permite especificar associações necessárias por operação. Cascata trata operações de ciclo de vida, não plano de busca; EAGER global tende a ampliar custos."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma autarquia pretende consultar versões antigas de um cadastro após sucessivas alterações e adotou Hibernate Envers. A classe Cadastro é persistente e deve ter seus campos auditáveis registrados automaticamente. Qual providência é central para a configuração básica?",
+      "alternativas": [
+        "Anotar exclusivamente o repositório de consultas com @Transactional, dispensando qualquer indicação dos dados auditáveis.",
+        "Substituir a chave primária por @Version, que por si só cria tabelas de revisão completas para todos os campos.",
+        "Adicionar a dependência do Envers e marcar com @Audited a entidade ou os atributos que deverão ser auditados.",
+        "Instalar Flyway e alterar o número da versão da migração após cada UPDATE realizado sobre a entidade.",
+        "Criar apenas um índice na tabela principal, pois o Envers reconstrói históricos com base nos arquivos de log do servidor."
+      ],
+      "gabarito": "C",
+      "explicacao": "@Audited identifica os dados cujo histórico o Envers deve manter, desde que a extensão esteja configurada. @Version trata concorrência; Flyway versiona esquemas, e índices ou logs de banco não substituem a auditoria de entidades."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma transação altera simultaneamente duas entidades auditadas e persiste essas mudanças. Ao consultar a auditoria, um técnico encontra referências ao mesmo número de revisão. A interpretação compatível com o Envers é que:",
+      "alternativas": [
+        "Cada atributo alterado gera obrigatoriamente uma revisão independente, mesmo quando a mudança é realizada em uma só transação.",
+        "Revisões são identificadores de entidades e, por definição, jamais podem aparecer nas tabelas de classes distintas.",
+        "Uma revisão é criada apenas depois que a entidade auditada é excluída, não havendo revisões de inserção ou atualização.",
+        "O número de revisão corresponde ao número de linhas da tabela original no momento da confirmação da transação.",
+        "A revisão identifica um conjunto de mudanças auditadas ocorrido em uma transação, podendo abranger diferentes entidades."
+      ],
+      "gabarito": "E",
+      "explicacao": "Envers modela revisões em torno das alterações auditadas produzidas na transação, permitindo que linhas históricas distintas compartilhem o identificador de revisão. Ele não numera isoladamente cada atributo alterado."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma fiscalização solicita o estado do registro de um fornecedor tal como existia na revisão 12, embora seu conteúdo atual já seja diferente. Considerando a API de auditoria do Envers, a solução apropriada consiste em:",
+      "alternativas": [
+        "Chamar EntityManager.refresh na entidade atual e indicar 12 como tempo de espera por bloqueio otimista.",
+        "Empregar AuditReader para recuperar a representação histórica da entidade correspondente à revisão informada.",
+        "Executar flush com o número 12, obrigando o banco a desfazer todas as transações posteriores àquela revisão.",
+        "Consultar a tabela de migrações do Flyway, porque cada revisão do Envers corresponde a uma versão do esquema.",
+        "Usar @GeneratedValue na classe e esperar que os novos identificadores tragam automaticamente valores anteriores."
+      ],
+      "gabarito": "B",
+      "explicacao": "AuditReader consulta versões históricas de entidades auditadas sem restaurar automaticamente o banco ao passado. Refresh recarrega estado atual; flush e geração de identificadores não executam consultas temporais de auditoria."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma equipe compara as estratégias de auditoria padrão e de validade do Envers. A primeira armazena a revisão inicial de uma linha histórica; a segunda acrescenta informação sobre o fim de sua vigência. Qual conclusão é adequada?",
+      "alternativas": [
+        "Ambas deixam de registrar revisões de alteração e armazenam exclusivamente o estado mais recente da entidade.",
+        "A estratégia padrão grava necessariamente uma coluna de revisão final em todas as linhas, enquanto a de validade a remove, sem registrar qualquer intervalo temporal ou vinculação entre as revisões.",
+        "A estratégia de validade proíbe consultas de versões anteriores à última transação confirmada pelo banco.",
+        "A estratégia de validade facilita consultas por intervalo de revisões, ao custo de trabalho adicional ao atualizar limites históricos.",
+        "A única diferença é o nome físico das tabelas de histórico, sem impacto no modo de consultar versões passadas."
+      ],
+      "gabarito": "D",
+      "explicacao": "A estratégia de validade registra limites inicial e final da vigência histórica, podendo simplificar a busca do estado válido; exige atualizar a linha histórica anterior. A estratégia padrão costuma resolver isso com consultas sobre revisões."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Em uma entidade auditada, um campo técnico de uso transitório não deve compor o histórico, embora os demais atributos devam continuar rastreados. Qual decisão de mapeamento é mais alinhada ao Envers?",
+      "alternativas": [
+        "Assinalar o atributo específico com @NotAudited, preservando a auditoria dos demais campos configurados.",
+        "Excluir @Id da entidade inteira, porque identificadores impedem a exclusão seletiva de atributos do histórico.",
+        "Aplicar @Audited novamente ao campo técnico, pois a dupla anotação cancela a auditoria de forma automática.",
+        "Declarar fetch = EAGER sobre o atributo técnico, o que evita sua inscrição nas tabelas históricas.",
+        "Remover a dependência do Envers durante cada transação que modificar esse campo e reinstalá-la depois."
+      ],
+      "gabarito": "A",
+      "explicacao": "@NotAudited permite excluir seletivamente um campo da auditoria de uma classe auditada. O mecanismo não é controlado por fetch ou por remoção dinâmica da dependência, e retirar @Id compromete o mapeamento da entidade."
+    },
+    {
+      "secao": 3,
+      "enunciado": "A corregedoria quer registrar, em cada revisão, um identificador do operador responsável pela alteração. Uma desenvolvedora afirma que o Envers obtém esse dado automaticamente do sistema corporativo de SSO. Para atender ao requisito com segurança, a solução deve:",
+      "alternativas": [
+        "Considerar que o número da revisão é sempre igual ao identificador do operador no provedor de identidade.",
+        "Marcar a entidade de negócio com @Version, pois isso copia automaticamente os dados de SSO para cada revisão.",
+        "Usar metadados personalizados de revisão e integrar explicitamente a identidade do operador autenticado ao mecanismo de auditoria.",
+        "Dispensar qualquer integração com o contexto de segurança, porque Envers lê nativamente todos os tokens OIDC.",
+        "Guardar a senha de cada operador na tabela histórica, para obter por comparação a identidade do autor da mudança, mesmo quando a aplicação não repassa nenhuma informação do usuário autenticado."
+      ],
+      "gabarito": "C",
+      "explicacao": "É possível personalizar a entidade e o listener de revisão para registrar metadados como usuário. Isso exige integração com a autenticação da aplicação; Envers não infere automaticamente a identidade a partir de qualquer SSO."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma entidade está auditada e um registro é excluído com êxito. Posteriormente, um servidor pesquisa o histórico e sustenta que a exclusão apagou necessariamente todas as versões pretéritas. Quanto ao comportamento esperado do Envers, assinale a afirmação correta.",
+      "alternativas": [
+        "A exclusão física sempre remove também todas as tabelas de auditoria, porque elas têm o mesmo ciclo de vida das tabelas originais.",
+        "O Envers só audita INSERT e ignora por definição operações de UPDATE e DELETE de entidades anotadas.",
+        "Uma entidade excluída mantém obrigatoriamente todos os seus valores preenchidos na linha da revisão de exclusão.",
+        "O histórico é mantido apenas no cache de primeiro nível e desaparece quando se fecha o EntityManager usado na exclusão.",
+        "A auditoria pode preservar revisões históricas e registrar a exclusão, permitindo investigar a trajetória anterior do registro."
+      ],
+      "gabarito": "E",
+      "explicacao": "Envers registra operações de exclusão de entidades auditadas e preserva linhas históricas, conforme sua configuração. O armazenamento de dados na própria revisão de exclusão é configurável, não uma garantia absoluta."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Em projeto de modernização, a equipe utiliza Envers para trilha de mudanças e Flyway para evolução estrutural. Um gerente propõe dispensar os backups porque já há tabelas auditadas. A objeção técnica mais consistente é que:",
+      "alternativas": [
+        "Envers preserva cópias integrais de todo o cluster de banco e permite recuperar qualquer objeto de infraestrutura apagado, mesmo em caso de perda de arquivos físicos e corrupção do armazenamento primário.",
+        "Envers acompanha alterações auditáveis de entidades, mas não substitui backup, recuperação de desastres nem governança de migrações.",
+        "Flyway é uma extensão de Envers destinada a guardar versões anteriores de cada linha de todas as tabelas sem configuração.",
+        "Backups só são necessários quando Hibernate é usado sem JPQL, independentemente dos requisitos de recuperação.",
+        "Configurar @Audited faz o banco registrar automaticamente transações não confirmadas e backups externos completos."
+      ],
+      "gabarito": "B",
+      "explicacao": "O histórico lógico de entidades não oferece, por si, recuperação de arquivos, objetos não auditados ou falhas de infraestrutura. Migrações do esquema e políticas de backup têm finalidades complementares, não substituíveis."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Na implantação de um sistema, encontra-se um script denominado V3__adiciona_coluna_status.sql. A versão 3 já foi aplicada com sucesso no banco de homologação e não sofreu alteração. Diante de novo comando migrate, qual comportamento corresponde à migração versionada?",
+      "alternativas": [
+        "Executar novamente V3 em toda inicialização, ainda que a versão e o checksum permaneçam inalterados.",
+        "Apagar o histórico e recriar a tabela alterada sempre que o comando migrate for invocado em qualquer ambiente, sem consultar os registros mantidos na tabela de histórico de migrações.",
+        "Executar V3 exclusivamente quando existir mudança no conteúdo da consulta SELECT que usa a nova coluna.",
+        "Não reaplicar a versão 3 já registrada; executar apenas migrações pendentes aplicáveis, conforme o histórico de esquema.",
+        "Renomear automaticamente o arquivo aplicado para R3, convertendo a migração versionada em repetível."
+      ],
+      "gabarito": "D",
+      "explicacao": "Migrações versionadas têm execução controlada pelo histórico, sendo normalmente aplicadas uma vez por banco. Editar ou reaplicar scripts já implantados é prática inadequada; mudanças posteriores requerem novas versões."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um projeto armazena a definição de uma view em R__visao_resumo.sql. Após alterar essa definição no controle de versão, a equipe executa migrate. Considerando a semântica das migrações repetíveis, o Flyway tende a:",
+      "alternativas": [
+        "Reexecutar a migração repetível quando seu checksum mudar, após processar as migrações versionadas pendentes.",
+        "Recusar a existência do arquivo, porque o Flyway aceita exclusivamente migrações numeradas por versões.",
+        "Executar o arquivo apenas na criação inicial do banco, desconsiderando qualquer alteração posterior no conteúdo.",
+        "Apagar todas as migrações versionadas precedentes antes de atualizar o objeto definido pela view.",
+        "Alterar a versão do banco para um número obtido do nome R__, impedindo novas migrações versionadas."
+      ],
+      "gabarito": "A",
+      "explicacao": "Migrações R__ não têm número de versão e podem ser reaplicadas quando muda seu checksum. Elas são úteis para objetos redefiníveis, como views; não substituem o histórico de migrações versionadas."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um integrante edita o conteúdo de V2__cria_tabela.sql já aplicado a produção e recebe erro de validação no pipeline. O coordenador deseja identificar a alteração indevida antes de qualquer intervenção no histórico. Qual comando atende diretamente à verificação?",
+      "alternativas": [
+        "flyway clean, que preserva todas as tabelas de produção e apenas atualiza checksums de migrações alteradas.",
+        "flyway repair, que executa necessariamente o novo DDL e faz rollback automático de todo o banco afetado.",
+        "flyway validate, que compara as migrações disponíveis e seus metadados com os registros aplicados no banco.",
+        "flyway baseline, que reexecuta todas as versões antigas para confirmar equivalência entre ambientes.",
+        "flyway migrate, que deve ignorar automaticamente diferenças de checksum em scripts anteriormente executados."
+      ],
+      "gabarito": "C",
+      "explicacao": "Validate verifica discrepâncias entre migrações resolvidas e histórico, inclusive mudanças de checksum. Clean é destrutivo, repair altera metadados históricos e baseline não é mecanismo de comparação."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Após uma alteração não autorizada em um script previamente aplicado, um administrador sugere executar repair para que a validação deixe de acusar a diferença. Antes dessa medida, a equipe deve reconhecer que o comando:",
+      "alternativas": [
+        "Garante a restauração de todos os dados para o instante anterior à última migração realizada, sem necessidade de backup, mesmo quando o SQL executado anteriormente criou objetos incompatíveis.",
+        "Substitui automaticamente todas as tabelas existentes por cópias auditadas geradas pelo Hibernate Envers.",
+        "Tem a função de executar apenas migrações repetíveis, convertendo scripts versionados com checksum divergente.",
+        "É um comando exclusivamente de leitura, incapaz de alterar registros da tabela de histórico do Flyway.",
+        "Pode ajustar metadados do histórico, mas não executa automaticamente o DDL correto nem desfaz alterações físicas indevidas."
+      ],
+      "gabarito": "E",
+      "explicacao": "Repair pode realinhar checksums e outras informações na tabela de histórico ou remover registros de falha, conforme o caso. Não é ferramenta de restauração física nem substitui investigar a divergência e corrigir o ambiente."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um sistema legado já possui um esquema operacional, mas nunca utilizou Flyway. A equipe quer começar a gerenciar alterações sem aplicar scripts iniciais que reconstruiriam objetos existentes. Qual recurso expressa essa transição?",
+      "alternativas": [
+        "Executar clean em produção para reiniciar do zero e recuperar os registros exclusivamente pelo cache JPA.",
+        "Estabelecer um baseline apropriado ao estado existente, passando a aplicar migrações posteriores à versão de referência.",
+        "Renomear todas as entidades Java para incluir a palavra Audited, de modo que Flyway detecte a estrutura instalada, inclusive se o banco contém dados operacionais que não podem ser perdidos.",
+        "Configurar toda migração histórica como repetível e forçar sua reaplicação sobre as tabelas existentes.",
+        "Apagar os arquivos de migração versionada do repositório, deixando apenas instruções SQL informais em produção."
+      ],
+      "gabarito": "B",
+      "explicacao": "Baseline permite adotar o controle de migrações em um esquema existente, marcando uma versão inicial apropriada. Scripts até essa referência não são reaplicados; isso exige conferir previamente o estado real do banco."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um repositório contém V1, V2 e V3. No banco de testes, apenas V1 foi aplicado. O desenvolvedor executa migrate com a configuração padrão e scripts válidos. Quanto à ordem esperada das migrações versionadas pendentes, o Flyway:",
+      "alternativas": [
+        "Aplica V3 antes de V2, pois a versão maior é sempre priorizada para reduzir o tempo de implantação.",
+        "Escolhe os scripts por ordem aleatória, já que o nome V é exclusivamente decorativo na ferramenta.",
+        "Executa V1 novamente e só então tenta V3, ignorando V2 em função da presença de versões superiores.",
+        "Aplica V2 antes de V3, respeitando a ordenação das versões e registrando os resultados no histórico.",
+        "Reaplica apenas os arquivos que contêm INSERT, pois migrações DDL não participam da ordenação versionada."
+      ],
+      "gabarito": "D",
+      "explicacao": "O Flyway ordena migrações versionadas pela versão e executa as pendentes na sequência correspondente. O histórico identifica as já aplicadas; não há sorteio de scripts nem preferência pelo maior número."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma migração falha após executar parte de seu SQL, e o comportamento de DDL transacional do banco-alvo precisa ser investigado. Qual cautela é adequada ao procedimento de recuperação?",
+      "alternativas": [
+        "Verificar os efeitos físicos e a capacidade transacional do banco antes de corrigir o script e o histórico de migração.",
+        "Assumir que todo SGBD desfaz integralmente qualquer DDL e que não pode restar alteração física após uma falha.",
+        "Executar somente repair e concluir que qualquer tabela parcialmente criada foi automaticamente eliminada pela ferramenta.",
+        "Desativar as restrições de integridade do banco em definitivo, pois o Flyway não gerencia histórico de erros.",
+        "Repetir manualmente o comando com o mesmo número de versão, sem conferir objetos ou dados já modificados."
+      ],
+      "gabarito": "A",
+      "explicacao": "Falhas podem deixar efeitos diferentes conforme o SGBD e o suporte a DDL transacional. Antes de reparar metadados ou reexecutar scripts, deve-se inspecionar o estado físico e definir uma correção segura."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Em uma aplicação que usa Hibernate e Flyway, dois mecanismos tentam alterar o esquema na inicialização: o gerador automático de DDL e as migrações versionadas. Para reduzir divergências entre ambientes, é recomendável:",
+      "alternativas": [
+        "Ativar create-drop do Hibernate em produção, pois isso mantém o histórico do Flyway após remover todas as tabelas.",
+        "Deixar que ambos modifiquem o mesmo esquema livremente, pois os mecanismos compartilham um histórico único de versões, mesmo quando o gerador de DDL do Hibernate remove estruturas em produção.",
+        "Concentrar a evolução estrutural no Flyway e empregar validação do mapeamento Hibernate, quando compatível com o projeto.",
+        "Configurar @Audited em todas as entidades para impedir operações ALTER TABLE realizadas pelo gerador de esquema.",
+        "Desativar qualquer teste de compatibilidade, porque migrações e mapeamentos nunca divergem quando usam JDBC."
+      ],
+      "gabarito": "C",
+      "explicacao": "Flyway mantém histórico explícito de alterações do esquema; o Hibernate pode validar a compatibilidade do mapeamento. Alterações automáticas independentes dos dois lados tendem a prejudicar rastreabilidade e previsibilidade."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um serviço Hibernate deve executar em PostgreSQL e Oracle. O arquiteto quer aproveitar JPQL e seleção do dialeto apropriado sem prometer equivalência completa entre bancos. Qual afirmação é tecnicamente consistente?",
+      "alternativas": [
+        "O dialeto transforma automaticamente todas as funções proprietárias de SQL nativo em operações idênticas nos dois bancos, inclusive quando os bancos divergem em tipos, funções e níveis de isolamento.",
+        "JPQL elimina a necessidade de um driver JDBC, pois Hibernate comunica-se com qualquer SGBD sem protocolo específico.",
+        "O dialeto dispensa configurar credenciais ou conexão e resolve automaticamente todo requisito de autenticação SSO.",
+        "A escolha do dialeto iguala integralmente regras de concorrência, índices e procedimentos armazenados entre fornecedores.",
+        "O dialeto orienta a geração de SQL específico, mas diferenças de tipos, funções e comportamento dos bancos ainda exigem testes."
+      ],
+      "gabarito": "E",
+      "explicacao": "O dialeto ajuda o Hibernate a produzir SQL compatível com o banco, não a uniformizar todas as suas características. Consultas nativas, tipos específicos, concorrência e migrações continuam exigindo validação por SGBD."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Em testes automatizados, a equipe emprega H2 com MODE=PostgreSQL e afirma que os resultados provarão compatibilidade total com o PostgreSQL de produção. Qual posicionamento é correto?",
+      "alternativas": [
+        "O modo de compatibilidade executa internamente o servidor PostgreSQL real, tornando dispensável qualquer teste externo, ainda que a extensão PostgreSQL utilizada não exista na implementação do H2.",
+        "O modo de compatibilidade aproxima certos comportamentos, mas não reproduz integralmente os recursos e particularidades do PostgreSQL.",
+        "O H2 torna-se automaticamente um cluster PostgreSQL, inclusive com índices e extensões instalados em produção.",
+        "O H2 passa a aceitar todos os tipos proprietários e a mesma semântica de concorrência, sem quaisquer diferenças.",
+        "O modo de compatibilidade impede executar SQL padrão, sendo apropriado somente para consultas JPQL sem filtros."
+      ],
+      "gabarito": "B",
+      "explicacao": "Os modos do H2 simulam subconjuntos de diferenças de outros SGBDs, não toda a implementação do PostgreSQL. Para SQL nativo, migrações e isolamento, convém testar também no banco real."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma aplicação utiliza @GeneratedValue para identificadores e pretende ser portada para PostgreSQL e SQL Server. A equipe discute GenerationType.IDENTITY e GenerationType.SEQUENCE. Qual entendimento geral é adequado?",
+      "alternativas": [
+        "SEQUENCE significa gerar IDs em arquivo de texto mantido pelo Hibernate, sem consultar mecanismos do banco.",
+        "IDENTITY exige que a aplicação gere números aleatórios em Java, independentemente de suporte do banco.",
+        "As estratégias são apenas sinônimos de @Version e servem para impedir modificações simultâneas no registro.",
+        "IDENTITY usa colunas de identidade; SEQUENCE usa sequências, e a escolha deve observar as capacidades do SGBD e do mapeamento.",
+        "A seleção de estratégia elimina a necessidade de chave primária, já que o SGBD pode identificar cada objeto pelo nome."
+      ],
+      "gabarito": "D",
+      "explicacao": "As estratégias de geração indicam mecanismos diferentes de obtenção de identificadores. O suporte do SGBD e o comportamento do provedor importam; nenhuma delas substitui @Id ou a verificação de concorrência."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um sistema legado Oracle usa sequências explícitas. Na migração de código JPA, um colega afirma que o Oracle não admite nenhuma outra forma de coluna geradora de identidade e que SEQUENCE independe da configuração de sequência. A correção mais precisa é:",
+      "alternativas": [
+        "O Oracle também dispõe de colunas de identidade em versões modernas; mapeamentos explícitos de sequência devem corresponder ao esquema real.",
+        "Todo Oracle moderno rejeita sequências e exige exclusivamente que a aplicação gere chaves com UUID em memória.",
+        "Qualquer anotação @SequenceGenerator obriga o Hibernate a trocar a sequência por tabela temporária no H2.",
+        "A escolha de @GeneratedValue dispensa identificar a chave primária e permite inserir duplicidades sem restrição.",
+        "Não há diferença entre sequências, colunas de identidade e tabelas auxiliares, pois todas executam sempre o mesmo SQL."
+      ],
+      "gabarito": "A",
+      "explicacao": "Sequências e colunas de identidade são recursos distintos e podem coexistir em bancos modernos. No mapeamento SEQUENCE, nome e propriedades precisam ser coerentes com a estrutura; SQL gerado não é universal."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma aplicação Java acessa SQL Server em rede corporativa e pretende usar autenticação integrada do domínio, sem armazenar uma senha SQL no aplicativo. Que requisito não pode ser dispensado na solução?",
+      "alternativas": [
+        "Incluir @Audited em todas as entidades, pois o Envers envia automaticamente credenciais do domínio à conexão JDBC.",
+        "Utilizar JPQL em lugar de SQL nativo, porque essa troca habilita autenticação integrada sem qualquer configuração.",
+        "Configurar o driver JDBC e o ambiente de autenticação integrada suportado, como Kerberos, com identidade autorizada no servidor.",
+        "Definir apenas GenerationType.IDENTITY, suficiente para o banco reconhecer o usuário Windows da aplicação.",
+        "Ativar Flyway baseline, que fornece automaticamente tickets de domínio a todas as conexões do pool JDBC."
+      ],
+      "gabarito": "C",
+      "explicacao": "Autenticação integrada depende de suporte e configuração do driver, do ambiente e da identidade autorizada no SQL Server. Anotações JPA, consultas e migrações não realizam por si o protocolo de autenticação."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma intranet autentica usuários via OpenID Connect no provedor corporativo. O serviço de persistência acessa PostgreSQL com uma conta técnica gerenciada por pool. Um auditor pergunta se o login único do usuário também o autentica automaticamente no banco. Qual resposta é adequada?",
+      "alternativas": [
+        "Sim; todo token OpenID Connect é recebido diretamente pelo PostgreSQL como senha nativa, sem adaptação ou configuração.",
+        "Sim; a anotação @Entity transforma automaticamente claims do usuário final em credenciais de conexão por requisição.",
+        "Não; qualquer sistema com SSO é proibido de empregar pool de conexões ou usuários técnicos de banco de dados.",
+        "Sim; basta usar Envers para que as conexões passem a ter o mesmo principal autenticado no navegador.",
+        "Não; o SSO da aplicação e a autenticação da conexão JDBC são camadas distintas e só se integram mediante solução explícita."
+      ],
+      "gabarito": "E",
+      "explicacao": "OIDC autentica o usuário na camada de aplicação. A conexão JDBC utiliza seu próprio mecanismo e identidade; eventual propagação de identidade requer integração específica, sem decorrer automaticamente do login único."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Em um ambiente SQL Server, a URL JDBC configura encrypt=true e trustServerCertificate=true. A equipe sustenta que, por haver criptografia TLS, o cliente também verifica a identidade do servidor. A avaliação correta é:",
+      "alternativas": [
+        "O parâmetro trustServerCertificate=true obriga validação de cadeia e hostname antes de estabelecer qualquer conexão.",
+        "Há solicitação de criptografia, mas trustServerCertificate=true dispensa a validação do certificado do servidor pelo driver.",
+        "O uso de encrypt=true impede o uso de certificados digitais e força comunicação por texto puro na conexão JDBC.",
+        "Essa combinação ativa automaticamente o SSO do navegador e transfere credenciais de usuários para o SQL Server.",
+        "Em conexão TLS, a validação do certificado é dispensável em toda produção, porque não há risco de servidor falso."
+      ],
+      "gabarito": "B",
+      "explicacao": "Criptografar o tráfego não equivale a autenticar corretamente o servidor. No driver JDBC do SQL Server, confiar indiscriminadamente no certificado desativa sua validação; em produção, deve-se validar a cadeia e o nome."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um produto deve admitir PostgreSQL, Oracle e SQL Server, além de usar H2 nos testes unitários. As migrações Flyway contêm DDL próprio de cada fornecedor e relatórios usam consultas nativas. Qual estratégia de qualidade melhor enfrenta os riscos?",
+      "alternativas": [
+        "Usar exclusivamente H2 em qualquer modo, pois o dialeto JPA converte inclusive todo DDL nativo do Flyway.",
+        "Substituir todas as chaves estrangeiras por @Transient e garantir portabilidade pelo desaparecimento das relações.",
+        "Configurar um único driver JDBC para todos os bancos, evitando inconsistência na interpretação dos protocolos.",
+        "Executar testes de integração e migração nos SGBDs reais suportados, isolando diferenças de dialeto e scripts específicos.",
+        "Desligar a validação de migrações em produção, para que scripts incompatíveis sejam ignorados durante a atualização."
+      ],
+      "gabarito": "D",
+      "explicacao": "Diferenças de DDL, funções e semântica de bancos exigem validação nos alvos reais; H2 oferece testes rápidos, mas não prova portabilidade. Segmentar scripts e exercitar migrações e consultas nativas reduz falhas."
+    }
+  ]
+}

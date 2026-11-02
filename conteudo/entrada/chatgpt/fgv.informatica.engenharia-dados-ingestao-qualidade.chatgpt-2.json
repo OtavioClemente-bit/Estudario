@@ -1,0 +1,546 @@
+{
+  "secoes": [
+    {
+      "numero": 1,
+      "titulo": "1. Fundamentos, fontes e formatos de ingestão"
+    },
+    {
+      "numero": 2,
+      "titulo": "2. Pipelines, ETL/ELT, lotes, streaming e CDC"
+    },
+    {
+      "numero": 3,
+      "titulo": "3. Qualidade, integridade, governança e segurança"
+    },
+    {
+      "numero": 4,
+      "titulo": "4. Limpeza, transformação e preparo analítico"
+    },
+    {
+      "numero": 5,
+      "titulo": "5. Operação confiável, serviços gerenciados e casos integrados"
+    }
+  ],
+  "questoes": [
+    {
+      "secao": 1,
+      "enunciado": "Uma rede de clínicas extrai, a cada madrugada, o cadastro completo de pacientes de um banco transacional. O volume cresceu, e o novo requisito é transportar apenas registros alterados desde a última execução, sem perder exclusões. Qual solução atende mais diretamente a esse requisito?",
+      "alternativas": [
+        "Comparar apenas a quantidade de linhas entre extrações e transferir tabelas com totais distintos.",
+        "Filtrar os registros pela data de criação, pois exclusões e atualizações preservam esse atributo.",
+        "Reexecutar a cópia integral com frequência maior, dispensando qualquer identificação de mudanças.",
+        "Consumir alterações do log transacional por CDC, incluindo eventos de exclusão e um ponto de retomada.",
+        "Usar exclusivamente a data de modificação informada pela aplicação, que sempre registra exclusões físicas."
+      ],
+      "gabarito": "D",
+      "explicacao": "O CDC baseado no log captura inserções, atualizações e exclusões com ordenação e posição de leitura. Data de criação não revela atualizações; contagens iguais ocultam mudanças e exclusões físicas podem não ter marca temporal."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma equipe arquivará bilhões de registros de vendas e fará consultas recorrentes somente às colunas município, data e valor, embora o conjunto possua dezenas de atributos. Busca reduzir leitura de bytes e melhorar compressão. O formato mais apropriado é",
+      "alternativas": [
+        "Parquet, por ser colunar e permitir que mecanismos compatíveis leiam somente as colunas necessárias.",
+        "JSON Lines, porque a representação textual assegura compressão colunar nativa do arquivo.",
+        "Um arquivo de texto delimitado por tabulação, porque índices de coluna são obrigatórios nesse padrão.",
+        "CSV, porque cada registro em uma linha garante projeção física de colunas sem leitura adicional.",
+        "XML, porque a marcação de elementos elimina a necessidade de análise sintática."
+      ],
+      "gabarito": "A",
+      "explicacao": "Parquet organiza dados por colunas, favorecendo projeção e compressão, inclusive com estatísticas para descarte de grupos. CSV, JSON, XML e TSV podem ser úteis à troca de dados, mas não oferecem esse layout colunar nativamente."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Um aplicativo móvel publica eventos em JSON. Em uma atualização, o atributo 'versao_app' é adicionado a algumas mensagens, mas produtores antigos continuam emitindo eventos sem esse campo. No ponto de ingestão, a conduta tecnicamente adequada é",
+      "alternativas": [
+        "Converter todas as propriedades em números, eliminando automaticamente diferenças de esquemas.",
+        "Excluir o campo novo de qualquer evento, porque evoluções de esquema não são possíveis em JSON.",
+        "Adotar contrato de esquema compatível e tratar o novo campo como opcional, observando versões e validações.",
+        "Rejeitar permanentemente eventos anteriores, pois JSON proíbe propriedades ausentes em versões antigas. mesmo quando o contrato de entrada admite campos opcionais.",
+        "Presumir que todos os consumidores suportam a mudança e desativar testes de compatibilidade."
+      ],
+      "gabarito": "C",
+      "explicacao": "A evolução compatível permite produtores de versões distintas, desde que consumidores e validações contemplem a ausência do atributo. JSON não impõe por si só campos obrigatórios; conversão indiscriminada e testes dispensados não resolvem o contrato."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma organização pretende receber arquivos de múltiplos parceiros, preservando-os inicialmente no formato de origem. A interpretação de seus campos será definida quando diferentes equipes realizarem consultas. Essa característica corresponde, principalmente, a",
+      "alternativas": [
+        "Consistência linearizável: todo consumidor visualiza cada evento exatamente no instante da emissão.",
+        "Normalização transacional: o armazenamento é obrigatoriamente organizado em tabelas relacionais até a terceira forma normal.",
+        "Schema-on-write: todos os arquivos precisam ter modelo rígido antes de serem recebidos.",
+        "Particionamento horizontal: a leitura não requer conhecer o significado dos campos armazenados.",
+        "Schema-on-read: a estrutura é interpretada no momento da leitura ou do processamento dos dados."
+      ],
+      "gabarito": "E",
+      "explicacao": "No schema-on-read, os dados podem chegar antes de um modelo analítico comum, e a estrutura é aplicada ao consumi-los. Schema-on-write valida o modelo antes da gravação; normalização, consistência e particionamento tratam de outros aspectos."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma API de fornecedores devolve resultados paginados por cursor e limita o número de requisições por minuto. Uma rotina precisa extrair todas as páginas sem sobrecarregar o serviço. Qual desenho de ingestão é o mais adequado?",
+      "alternativas": [
+        "Desabilitar tratamento de erros HTTP, porque respostas com limite de taxa indicam dados inválidos.",
+        "Persistir o cursor de continuação e aplicar controle de taxa, com novas tentativas graduais em falhas transitórias.",
+        "Retomar sempre da página inicial sem controle de duplicidade, pois cursores não podem ser persistidos.",
+        "Disparar milhares de chamadas simultâneas para evitar que o cursor expire, ignorando os limites. e dispensar qualquer política de novas tentativas ou de limitação de taxa.",
+        "Solicitar apenas a primeira página e inferir os registros restantes pelo total informado pela API."
+      ],
+      "gabarito": "B",
+      "explicacao": "O cursor representa a continuidade definida pela API; persistir o progresso permite retomada, enquanto limites e retentativas graduais evitam bloqueios. Ignorar paginação, códigos de erro ou duplicidades prejudica a completude da ingestão."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma plataforma de mobilidade registra a corrida às 10h02 no dispositivo, mas a mensagem só chega ao servidor às 10h17 devido à falta de conexão. Para análises sobre o horário em que a corrida ocorreu, deve-se privilegiar",
+      "alternativas": [
+        "O tempo de ingestão, porque a rede garante que ele corresponda ao início real de cada corrida.",
+        "A data de criação da tabela analítica, que determina a ocorrência de todos os eventos de origem.",
+        "O tempo de processamento, pois ele nunca é afetado por filas ou reinícios de consumidores.",
+        "O tempo do evento, preservando também o horário de ingestão para auditoria e mensuração do atraso.",
+        "O horário do último backup, porque ele representa a linha temporal de negócio dos registros."
+      ],
+      "gabarito": "D",
+      "explicacao": "O tempo do evento descreve quando o fato ocorreu; o de ingestão informa quando chegou ao sistema. Processamento, criação de tabela e backup medem outros marcos e podem distorcer análises quando há transmissão atrasada."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma empresa adota uma camada de entrada para arquivos de sensores, antes de aplicar regras de limpeza. A auditoria exige reprocessar dias anteriores após ajustes de código, sem depender do fornecedor. A arquitetura mais apropriada deve",
+      "alternativas": [
+        "Sobrescrever os arquivos de entrada sempre que uma nova versão transformada estiver disponível.",
+        "Manter apenas tabelas agregadas, já que dados brutos não ajudam na recomputação de métricas.",
+        "Preservar os arquivos brutos, com metadados de origem e ingestão, antes de gerar versões tratadas.",
+        "Descartar registros rejeitados sem identificar motivo, para reduzir a necessidade de catalogação.",
+        "Alterar o arquivo original a cada correção, sem manter histórico das operações aplicadas."
+      ],
+      "gabarito": "C",
+      "explicacao": "A camada bruta imutável ou versionada favorece rastreabilidade e replay de transformações. Sobrescrever a origem, conservar apenas agregados ou eliminar rejeições e histórico impede reconstruir resultados e identificar erros antigos."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Um órgão recebe tabelas relacionais, documentos JSON e gravações de áudio. O catálogo precisa orientar a ingestão sem confundir estrutura dos dados com meio de transporte. Assinale a classificação adequada.",
+      "alternativas": [
+        "Tabelas são estruturadas; JSON costuma ser semiestruturado; gravações de áudio, não estruturadas.",
+        "Arquivos enviados por API são invariavelmente estruturados, independentemente do conteúdo.",
+        "JSON e áudio são estruturados, desde que tenham sido enviados pela mesma interface HTTP.",
+        "Tabelas são não estruturadas quando possuem chaves primárias; áudio é estruturado por conter duração.",
+        "Tabelas e áudio são sempre semiestruturados, ao passo que todo JSON é necessariamente relacional."
+      ],
+      "gabarito": "A",
+      "explicacao": "Classificação estrutural depende da organização interna e do esquema dos dados, não do canal de envio. Tabelas têm estrutura explícita, JSON usa chaves e hierarquias flexíveis, e áudio não segue um esquema tabular de conteúdo."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma empresa transfere dados de múltiplos sistemas para um warehouse em nuvem e deseja usar a capacidade de processamento do próprio destino para padronizar dimensões e calcular métricas. Nesse desenho, a sequência característica do ELT é",
+      "alternativas": [
+        "Executar somente processos de limpeza manual, porque ELT dispensa transformação automatizada.",
+        "Extrair, carregar dados no destino e transformá-los com a capacidade computacional desse ambiente.",
+        "Validar os painéis antes de captar as fontes, sem persistir resultados intermediários.",
+        "Transformar integralmente os dados em cada sistema-fonte, antes de permitir qualquer extração.",
+        "Eliminar a etapa de carga, pois consultas ao sistema de origem substituem o armazenamento de destino."
+      ],
+      "gabarito": "B",
+      "explicacao": "No ELT, a carga precede as transformações analíticas no ambiente de destino. No ETL tradicional, transforma-se antes da carga final. Os demais caminhos confundem extração, armazenamento, validação de painéis e automação do preparo."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Em um pipeline diário, a tarefa 'publicar_indicadores' deve ser executada somente após o sucesso de 'carregar_vendas' e 'carregar_clientes', que podem ocorrer em paralelo. O mecanismo de orquestração adequado é",
+      "alternativas": [
+        "Uma rotina que interrompa a carga de clientes sempre que vendas terminar primeiro. e considerar todas as tabelas prontas mesmo se uma carga tiver falhado.",
+        "Uma fila que execute todos os trabalhos em ordem alfabética, sem verificar seus estados.",
+        "Um agendador que dispare a publicação em horário fixo, independentemente do resultado das cargas.",
+        "Um grafo acíclico de dependências que libera a publicação após as duas tarefas anteriores concluírem.",
+        "Uma topologia circular em que a publicação libera a própria tarefa de carregar vendas."
+      ],
+      "gabarito": "D",
+      "explicacao": "Um DAG expressa precedências e permite paralelismo entre tarefas independentes, com barreira antes da publicação. Ordem alfabética, relógio isolado e ciclos não asseguram que os dados necessários tenham sido carregados com êxito."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma operadora recebe milhões de eventos por hora e precisa atualizar indicadores com atraso tolerável de poucos minutos, sem exigir atualização evento a evento. A alternativa que se ajusta ao requisito é",
+      "alternativas": [
+        "Processamento em microlotes curtos, reunindo eventos em pequenas unidades periódicas de execução.",
+        "Uma consolidação mensal, que reduz a latência mesmo quando só executada no fim do período.",
+        "Uma fila sem consumidores, na qual o armazenamento da mensagem já atualiza o indicador analítico.",
+        "Uma cópia integral anual, porque o tamanho da base define automaticamente a atualização instantânea.",
+        "Um backup completo diário, que substitui a computação incremental de métricas."
+      ],
+      "gabarito": "A",
+      "explicacao": "Microlotes oferecem compromisso entre frequência de atualização e custo de agendamento. Consolidar mensalmente, copiar anualmente ou realizar backup não atende à latência; reter eventos em fila não produz, por si, métricas atualizadas."
+    },
+    {
+      "secao": 2,
+      "enunciado": "A equipe vai iniciar CDC de uma tabela que já possui milhões de registros. O objetivo é construir uma cópia completa e continuar incorporando as mudanças produzidas durante a migração. A estratégia adequada envolve",
+      "alternativas": [
+        "Bloquear permanentemente toda gravação na origem, mesmo depois de concluída a carga inicial.",
+        "Reiniciar a extração completa ao receber qualquer atualização, dispensando acompanhamento do log.",
+        "Ler apenas os eventos futuros, aceitando que os registros existentes jamais apareçam no destino.",
+        "Realizar uma exportação inicial sem coordená-la com mudanças posteriores, porque não há risco de lacunas.",
+        "Uma carga inicial consistente, coordenada com a posição do log a partir da qual serão consumidas mudanças."
+      ],
+      "gabarito": "E",
+      "explicacao": "A combinação entre snapshot consistente e posição do log cobre o estado inicial e a evolução subsequente. Só eventos novos não recompõem o passado, e a exportação sem coordenação pode gerar lacunas ou sobreposições não tratadas."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um consumidor recebe mensagens com garantia de entrega pelo menos uma vez. Após gravar um pedido no destino, ele falha antes de confirmar o avanço no fluxo, e o evento é entregue novamente. Para evitar pedidos duplicados, deve-se",
+      "alternativas": [
+        "Eliminar qualquer confirmação de progresso, pois isso obriga processamento único de cada mensagem.",
+        "Realizar escrita idempotente, utilizando um identificador estável do evento ou do pedido para deduplicação.",
+        "Desabilitar a persistência do pedido até que todo o tópico esteja esgotado.",
+        "Confiar que a garantia de pelo menos uma vez impeça todas as reentregas após falhas. pois o mesmo identificador será sempre gerado de forma diferente a cada repetição.",
+        "Trocar a chave do pedido em cada tentativa, dificultando a comparação com execuções anteriores."
+      ],
+      "gabarito": "B",
+      "explicacao": "Na entrega pelo menos uma vez, a repetição é admissível; chaves estáveis e operações idempotentes tornam o replay seguro. A garantia não elimina duplicatas, e trocar identificadores ou suprimir progresso agrava o problema."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um serviço calcula a quantidade de acessos em janelas de cinco minutos pelo horário real do clique. Alguns eventos chegam atrasados. Para lidar com esses eventos sem usar somente o relógio do processador, a equipe deve aplicar",
+      "alternativas": [
+        "Janelamento por tempo do evento, com watermark e política explícita de aceitação de atrasos.",
+        "Descarte de todos os eventos cujo horário de chegada difira em um segundo do clique registrado.",
+        "Janelamento apenas pelo horário da gravação em disco, tratando todo evento atrasado como atual.",
+        "Ordenação lexical do identificador do usuário, que substitui a dimensão temporal dos eventos.",
+        "Agregação sem janelas, pois fluxos potencialmente infinitos sempre têm um encerramento conhecido."
+      ],
+      "gabarito": "A",
+      "explicacao": "Janelas por tempo do evento preservam o significado temporal; watermark e atraso permitido orientam fechamento e revisões. Tempo de chegada distorce janelas, e um fluxo sem fim não pode ser agregado integralmente como conjunto fechado."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma integração lê registros de um tópico e os grava em uma base externa. O time anuncia 'exatamente uma vez' apenas porque ativou transações no broker. A avaliação tecnicamente correta dessa afirmação é",
+      "alternativas": [
+        "As transações internas do broker tornam qualquer banco externo automaticamente transacional com ele.",
+        "Os offsets do consumidor impedem, em todos os cenários, uma gravação duplicada fora do broker.",
+        "Qualquer mensagem publicada uma vez será necessariamente consumida uma única vez, sem configuração adicional.",
+        "A ausência de falhas no código de transformação elimina a possibilidade de repetição após reinícios.",
+        "A garantia ponta a ponta depende também da coordenação com o destino ou de escrita idempotente nele."
+      ],
+      "gabarito": "E",
+      "explicacao": "Transações do broker podem cobrir operações internas, mas não tornam automaticamente atômica a gravação em sistemas externos. Sem coordenação ou idempotência no destino, falhas entre escrita e confirmação podem duplicar efeitos."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um erro de regra de negócio afetou os últimos três dias de um fluxo transformado. Os dados brutos e a versão corrigida do código estão disponíveis. Para reconstruir o resultado histórico de modo controlado, a equipe deve",
+      "alternativas": [
+        "Reexecutar o pipeline sem delimitar intervalos, checkpoints ou critérios de sobreposição.",
+        "Esperar que os eventos já processados se corrijam espontaneamente após a alteração do código.",
+        "Executar um backfill delimitado ao período afetado, com controle de versão e proteção contra duplicações.",
+        "Apagar toda a história do armazenamento bruto e reconstruir apenas os eventos futuros.",
+        "Substituir os dados corrigidos por amostras aleatórias, evitando reconciliar os totais do período."
+      ],
+      "gabarito": "C",
+      "explicacao": "Backfill é o reprocessamento histórico de um intervalo, usando origem recuperável e transformações corretas. Alterar apenas o código não retifica o passado; replay descontrolado e amostragem podem duplicar ou perder fatos."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma seguradora recebe lotes diários de apólices. O arquivo de hoje contém todos os campos preenchidos, mas sua extração se refere a três semanas atrás. A dimensão de qualidade diretamente comprometida é",
+      "alternativas": [
+        "Integridade referencial, porque atrasos implicam necessariamente chaves estrangeiras inválidas.",
+        "Precisão, pois informações antigas são sempre numericamente falsas desde sua origem.",
+        "Unicidade, já que qualquer atraso indica a existência de linhas duplicadas na base.",
+        "Completude, porque registros completos não podem ter carimbo temporal anterior à ingestão.",
+        "Atualidade (timeliness), pois dados completos podem estar desatualizados para a finalidade prevista."
+      ],
+      "gabarito": "E",
+      "explicacao": "A atualidade avalia se os dados estão disponíveis e recentes o suficiente para o uso. Campos preenchidos tratam de completude; duplicidade, referências e precisão são dimensões distintas e não decorrem necessariamente do atraso."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Em um cadastro unificado, dois sistemas enviam clientes com o mesmo identificador tributário, mas nomes e endereços divergentes. A equipe quer produzir um registro confiável sem apagar a evidência original. A solução mais adequada é",
+      "alternativas": [
+        "Atribuir um novo identificador a cada variação e proibir investigação posterior de duplicidades.",
+        "Escolher sempre o último arquivo recebido, porque a data de chegada garante veracidade cadastral. inclusive quando a informação mais recente provém de uma fonte menos confiável.",
+        "Aplicar correspondência de entidades e regras de sobrevivência, preservando proveniência e registros de origem.",
+        "Somar os campos textuais conflitantes e sobrescrever o identificador comum dos dois clientes.",
+        "Descartar ambos os cadastros sem registrá-los, pois conflitos inviabilizam qualquer rastreabilidade."
+      ],
+      "gabarito": "C",
+      "explicacao": "Resolução de entidades identifica registros do mesmo objeto; regras de sobrevivência escolhem atributos com critérios e linhagem. A ordem de chegada isolada não garante confiabilidade, e apagar evidências inviabiliza auditoria."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma tabela de pedidos contém 'cliente_id', que deve existir na dimensão de clientes. Após a carga, alguns pedidos apontam para identificadores ausentes. O controle de qualidade diretamente pertinente é",
+      "alternativas": [
+        "Verificar apenas se os valores de pedido são positivos, sem comparar relações entre tabelas.",
+        "Verificar integridade referencial entre o campo de pedidos e a chave correspondente em clientes.",
+        "Executar somente remoção de espaços em branco na descrição textual de cada pedido.",
+        "Conferir a compressão dos arquivos, porque inconsistências entre chaves decorrem do codec usado.",
+        "Conferir o tamanho do cluster, pois mais memória torna todas as chaves automaticamente válidas."
+      ],
+      "gabarito": "B",
+      "explicacao": "A integridade referencial exige que valores de referência encontrem registros correspondentes, conforme as regras do modelo. Checar sinal de valores, compressão, capacidade computacional ou espaços não demonstra existência do cliente."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma auditoria solicitou saber quais arquivos de entrada, transformações e tabelas intermediárias produziram um indicador financeiro apresentado em painel. A capacidade de governança exigida é",
+      "alternativas": [
+        "Replicação, que cria cópias de dados sem explicar necessariamente sua origem e derivação.",
+        "Mascaramento, que oculta valores sensíveis sem reconstruir o trajeto das transformações.",
+        "Balanceamento de carga, que distribui consumidores entre servidores sem registrar dependências.",
+        "Linhagem de dados, que relaciona fontes, etapas de transformação e ativos resultantes.",
+        "Compactação, que reduz espaço ocupado por arquivos independentemente da história dos dados."
+      ],
+      "gabarito": "D",
+      "explicacao": "Linhagem torna rastreável a derivação de ativos, útil à investigação de mudanças e impactos. Replicação, compactação, mascaramento e balanceamento atendem a outros objetivos e não descrevem, por si, o percurso dos dados."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma empresa pretende compartilhar uma base analítica com equipe que precisa apenas de região e volume de transações. O conjunto de origem também contém CPF e endereço residencial. Sob o princípio da minimização de dados, é recomendável",
+      "alternativas": [
+        "Substituir controle de acesso por simples aviso de confidencialidade exibido no painel.",
+        "Copiar integralmente a base para cada analista, garantindo independência da política de acesso.",
+        "Manter todos os identificadores visíveis para facilitar investigações que talvez ocorram no futuro. mesmo que os dados pessoais não contribuam para qualquer cálculo ou finalidade do painel.",
+        "Transformar CPF em letras maiúsculas, procedimento suficiente para anonimizar qualquer pessoa.",
+        "Excluir da visão compartilhada os identificadores pessoais desnecessários e restringir o acesso ao restante."
+      ],
+      "gabarito": "E",
+      "explicacao": "Minimização limita o tratamento aos dados necessários à finalidade, associada a políticas de acesso. Avisos não substituem restrições; mudança de caixa não anonimiza identificadores e replicar tudo amplia a exposição."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Em um fluxo de pagamentos, o percentual de registros com campo 'valor' nulo saltou de 0,2% para 18% após uma alteração no produtor. O mecanismo mais apropriado para detecção imediata é",
+      "alternativas": [
+        "Substituir nulos por zero antes de medir o problema, impedindo a identificação de sua origem.",
+        "Verificar apenas a existência física da tabela de destino, independentemente do conteúdo das linhas.",
+        "Desativar métricas de qualidade quando houver mudança no sistema de origem.",
+        "Aumentar o tamanho do arquivo produzido, pois isso reduz automaticamente o percentual de nulos.",
+        "Monitorar a proporção de nulos com limites de alerta e vincular a anomalia à versão do produtor."
+      ],
+      "gabarito": "E",
+      "explicacao": "Uma métrica de completude acompanhada ao longo do tempo revela deterioração e ajuda a localizar mudanças causais. Existência de tabela e volume não medem o defeito; substituir ou ocultar nulos antes do alerta mascara a falha."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma área de dados quer publicar alterações no esquema de um tópico sem quebrar consumidores legados que desconhecem campos recém-criados. Qual procedimento de governança reduz esse risco?",
+      "alternativas": [
+        "Versionar o contrato de dados e validar a compatibilidade das mudanças antes de promover o produtor.",
+        "Remover a documentação do contrato, porque esquemas flexíveis dispensam comunicação.",
+        "Publicar sempre dados de testes no tópico produtivo para observar se surgem falhas.",
+        "Alterar o significado dos campos existentes sem aviso, desde que os nomes permaneçam iguais.",
+        "Exigir que cada consumidor descubra a estrutura exclusivamente por tentativa e erro em produção."
+      ],
+      "gabarito": "A",
+      "explicacao": "Contratos versionados e verificações de compatibilidade permitem evolução controlada entre produtores e consumidores. Manter nomes com semântica alterada pode quebrar aplicações; testes improvisados em produção não substituem governança."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Um pipeline encontra linhas com data inválida. O requisito é impedir sua publicação analítica, mas conservar evidências para investigação e eventual reparo. A prática mais adequada é",
+      "alternativas": [
+        "Isolar as linhas em quarentena, com motivo da rejeição, identificação do lote e possibilidade de reprocessamento.",
+        "Excluir silenciosamente as linhas, sem registrar sua frequência ou o campo responsável pelo erro.",
+        "Manter os dados inválidos na visão de consumo sem sinalização, transferindo o problema ao usuário final.",
+        "Converter toda data inválida na data atual e considerar os registros automaticamente confiáveis.",
+        "Interromper permanentemente a ingestão de quaisquer registros futuros, mesmo depois da correção."
+      ],
+      "gabarito": "A",
+      "explicacao": "A quarentena separa registros inválidos e guarda contexto para correção e auditoria, sem contaminá-los na camada confiável. Exclusão silenciosa e substituição arbitrária escondem defeitos; bloqueio permanente é desproporcional."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma tabela de fornecedores apresenta 'São Paulo', 'sao paulo' e ' SÃO PAULO ' como valores da mesma localidade. Antes de agrupar despesas por município, qual tratamento é mais adequado?",
+      "alternativas": [
+        "Substituir todos os municípios pelo primeiro valor da tabela, eliminando variações cadastrais.",
+        "Apagar as linhas cujos nomes tenham acento, pois caracteres não ASCII são sempre inválidos.",
+        "Padronizar espaços, caixa e equivalência de grafias mediante regra controlada, preservando o valor original.",
+        "Agrupar diretamente as cadeias originais, porque o mecanismo de soma corrige diferenças textuais. mesmo quando as localidades correspondem ao mesmo município e deveriam ser consolidadas.",
+        "Converter a coluna para inteiro, presumindo que os nomes serão automaticamente mapeados por posição."
+      ],
+      "gabarito": "C",
+      "explicacao": "Padronização textual com dicionário ou regras explícitas reúne representações equivalentes e permite auditoria pelo valor bruto. Excluir caracteres acentuados, ignorar variações ou trocar todos os valores destrói informação."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Durante o preparo de uma base de crédito, a equipe identifica que 'renda_mensal' está ausente em parte dos registros. O campo é numérico, mas zero representa ausência real de renda. Qual medida inicial é tecnicamente mais prudente?",
+      "alternativas": [
+        "Interpretar valores vazios como strings literais e realizar cálculos sem conversão de tipos.",
+        "Eliminar a coluna integralmente, pois qualquer valor ausente invalida a variável numérica.",
+        "Investigar o mecanismo dos ausentes e distinguir valor zero de desconhecido antes de imputar ou excluir.",
+        "Preencher todos os ausentes com zero, porque ausência de observação equivale a ausência de renda.",
+        "Preencher com o maior valor da amostra, garantindo que todos os casos sejam conservadores."
+      ],
+      "gabarito": "C",
+      "explicacao": "Zero e nulo têm significados diferentes: um é valor observado; o outro pode representar desconhecimento. A estratégia de imputação depende da distribuição e da causa da ausência; preenchimento automático introduz viés."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma tabela de pedidos possui uma linha por pedido. Outra tabela registra vários pagamentos por pedido. Ao fazer JOIN direto e somar 'valor_pedido', a equipe encontra receita inflada. O diagnóstico correto é",
+      "alternativas": [
+        "Uma ordenação alfabética antes da junção elimina automaticamente a multiplicação de linhas.",
+        "A junção mudou a granularidade e repetiu valores dos pedidos; pagamentos devem ser agregados ou tratados na granularidade adequada.",
+        "A duplicação prova que o campo de valor foi originalmente armazenado como texto. e a ordem dos pagamentos determinará, sem agregações, quantos pedidos realmente ocorreram.",
+        "A receita maior é sempre correta, pois cada pagamento corresponde a um novo pedido independente.",
+        "O JOIN torna os valores monetários maiores por definição, mesmo quando há correspondência um para um."
+      ],
+      "gabarito": "B",
+      "explicacao": "Uma relação um-para-muitos replica a linha do pedido na saída, elevando indevidamente somas do cabeçalho. Agregar pagamentos por pedido ou modelar fatos em grãos distintos evita o erro; ordenar não altera cardinalidades."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma rede varejista deseja analisar vendas históricas conforme a região à qual cada loja pertencia na data de cada operação. As lojas mudam de região ao longo dos anos. A técnica apropriada para a dimensão de lojas é",
+      "alternativas": [
+        "Sobrescrever sempre a região antiga pela atual, porque análises históricas ignoram mudanças cadastrais.",
+        "Guardar somente uma coluna booleana de loja ativa, sem registrar mudanças de região.",
+        "Trocar o identificador de cada venda quando ocorrer uma atualização no cadastro das lojas.",
+        "Manter versões históricas com intervalos de vigência, como em uma dimensão lentamente mutável do tipo 2.",
+        "Eliminar a região das tabelas dimensionais e atribuir todas as lojas à mesma localidade."
+      ],
+      "gabarito": "D",
+      "explicacao": "Uma dimensão tipo 2 preserva versões e datas de vigência para relacionar fatos ao contexto histórico correto. Sobrescrever o atributo corresponde ao tipo 1 e faz vendas antigas parecerem pertencer à região atual."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um data mart consolida receitas faturadas em dólares e euros, convertendo-as para reais. As taxas variam no tempo, e a controladoria exige resultado reproduzível. O modelo de transformação adequado é",
+      "alternativas": [
+        "Substituir os símbolos monetários por 'R$', preservando os números originais sem cálculo.",
+        "Somar previamente todos os valores, ignorando moedas, e multiplicar o resultado por uma taxa arbitrária.",
+        "Usar a média simples dos saldos de clientes como substituto para a taxa de câmbio.",
+        "Relacionar cada transação a uma taxa definida pela moeda, data e regra de conversão, guardando a referência aplicada.",
+        "Aplicar a taxa do dia da consulta a todas as transações históricas sem registrar esse critério. sem guardar a data de referência nem permitir a reprodução posterior do demonstrativo."
+      ],
+      "gabarito": "D",
+      "explicacao": "Conversão reproduzível exige identificar moeda, data de referência e taxa efetivamente utilizada. Somar moedas distintas ou mudar retrospectivamente a taxa sem registro altera resultados sem controle; trocar símbolo não converte valores."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma plataforma global registra compras com timestamps em UTC e apresenta relatórios por dia civil da loja. Algumas unidades estão em regiões com horário de verão. Para evitar alocação no dia errado, recomenda-se",
+      "alternativas": [
+        "Apagar a informação de fuso no armazenamento, pois ela não interfere em agrupamentos diários.",
+        "Arredondar todo horário para meio-dia, eliminando diferenças de calendário entre localidades.",
+        "Converter cada instante UTC para o fuso da loja com regras históricas antes de derivar a data local.",
+        "Trocar apenas o texto 'UTC' pelo nome da cidade, sem alterar o instante representado.",
+        "Subtrair sempre três horas de todos os timestamps, independentemente da localização e da época."
+      ],
+      "gabarito": "C",
+      "explicacao": "O dia civil depende do fuso e de suas mudanças históricas; bibliotecas de zonas horárias permitem derivá-lo de instantes UTC. Deslocamentos fixos, troca de rótulo e arredondamento não respeitam essas regras."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Na preparação de dados de temperatura, sensores defeituosos geram leituras de 600 °C em um processo cuja operação normal fica entre 10 °C e 60 °C. Uma equipe quer tratar essas ocorrências sem apagar evidências. A melhor abordagem é",
+      "alternativas": [
+        "Marcar valores suspeitos por regra de domínio, analisá-los e registrar toda exclusão ou correção efetuada.",
+        "Excluir qualquer valor acima da média, já que todo extremo estatístico é necessariamente um erro. pois toda observação diferente da média representa necessariamente falha de captação.",
+        "Manter os valores suspeitos no treinamento como se fossem medições corretas e verificadas.",
+        "Remover a identificação do sensor, tornando impossível investigar a origem dos desvios.",
+        "Alterar todas as temperaturas para a mediana global, eliminando diferenças reais entre sensores."
+      ],
+      "gabarito": "A",
+      "explicacao": "Regras de domínio ajudam a identificar leituras incompatíveis, mas a correção deve ser rastreável e justificada. Extremos não são sempre erros, e substituir tudo pela mediana ou ignorar a anomalia prejudica a análise."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma equipe treina modelo para prever inadimplência na contratação do crédito. No conjunto de atributos, incluiu uma variável 'dias_de_atraso_após_vencimento', calculada meses depois da contratação. O problema é",
+      "alternativas": [
+        "Cardinalidade excessiva, porque qualquer atributo temporal produz necessariamente milhões de classes.",
+        "Desbalanceamento de classes, demonstrado apenas pela presença de uma variável de atraso.",
+        "Normalização incorreta, pois atrasos futuros precisam ser convertidos de dias para horas.",
+        "Particionamento horizontal, causado pelo treinamento de dados em diferentes períodos.",
+        "Vazamento temporal: o treinamento utiliza uma informação que não estará disponível na ocasião da previsão."
+      ],
+      "gabarito": "E",
+      "explicacao": "Um atributo calculado após o instante da decisão introduz conhecimento do futuro e infla artificialmente o desempenho observado. O defeito é temporal e não se resolve com normalização, balanceamento ou particionamento."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma diretoria define que os dados de vendas deverão estar disponíveis no painel em até 15 minutos após a emissão do evento. A equipe precisa acompanhar o cumprimento desse compromisso. Qual métrica é prioritária?",
+      "alternativas": [
+        "A duração da última cópia de segurança, ainda que o painel seja alimentado por outra rotina.",
+        "A quantidade de linhas históricas armazenadas, independentemente dos instantes de publicação.",
+        "O percentual de utilização do disco, mesmo que não exista relação com atraso na entrega das vendas.",
+        "O número de tabelas cadastradas no catálogo, sem considerar a hora de atualização de cada uma.",
+        "A latência de ponta a ponta entre a ocorrência do evento e sua disponibilidade na camada consumida."
+      ],
+      "gabarito": "E",
+      "explicacao": "O requisito é temporal e deve ser observado no trajeto completo, do evento ao dado consultável. Armazenamento, catálogo e backup são indicadores úteis em outros contextos, mas não medem diretamente o atraso prometido."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um conector de ingestão enfrenta falhas HTTP temporárias e, em alguns registros, erros permanentes de validação. A política de tratamento mais segura e eficiente é",
+      "alternativas": [
+        "Descartar todos os eventos ainda não tentados quando houver uma falha de rede momentânea.",
+        "Aplicar retentativas com espera progressiva às falhas transitórias e separar registros irrecuperáveis para análise.",
+        "Repetir imediatamente toda falha sem limite, mesmo quando a entrada viola o contrato de dados. inclusive quando o erro seja estrutural e nenhuma nova tentativa possa corrigi-lo.",
+        "Reiniciar permanentemente o ambiente inteiro a cada resposta HTTP que não seja de sucesso.",
+        "Tratar códigos de validação como êxito, evitando que as métricas indiquem interrupções."
+      ],
+      "gabarito": "B",
+      "explicacao": "Erros transitórios podem ser resolvidos com retries limitados e backoff; entradas inválidas requerem quarentena ou fila de falhas. Retentativas sem limite causam tempestades, e ignorar validações oculta perda de dados."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma empresa migra seu processamento para serviço gerenciado de pipelines em nuvem. O fornecedor automatiza infraestrutura, escalonamento e manutenção do mecanismo. Mesmo assim, permanece como responsabilidade da equipe usuária",
+      "alternativas": [
+        "Construir fisicamente cada servidor do data center do provedor antes de processar dados.",
+        "Desativar testes funcionais, já que serviços gerenciados asseguram correção lógica dos dados.",
+        "Definir regras de transformação, controles de qualidade, permissões e objetivos de negócio do fluxo.",
+        "Substituir as conexões criptografadas por texto claro, pois a gestão do serviço dispensa segurança.",
+        "Atualizar manualmente os sistemas operacionais de todos os nós internos controlados pelo provedor."
+      ],
+      "gabarito": "C",
+      "explicacao": "Gerenciamento do serviço transfere tarefas operacionais da infraestrutura, não a responsabilidade pelas regras, acessos e qualidade dos dados. Escalabilidade e manutenção automáticas não corrigem transformações mal definidas."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um data lake guarda eventos particionados por dia, mas a rotina de ingestão cria milhares de arquivos minúsculos a cada hora. As consultas ficaram lentas, apesar de filtrarem datas. Uma ação que tende a melhorar o cenário é",
+      "alternativas": [
+        "Criar um diretório novo por evento, elevando a quantidade de objetos e operações de listagem.",
+        "Converter arquivos colunares em texto delimitado, porque isso garante leitura menor em consultas analíticas.",
+        "Desabilitar a coleta de métricas de consulta, uma vez que lentidão é sempre apenas problema de rede.",
+        "Compactar arquivos pequenos em unidades maiores adequadas ao mecanismo, preservando a estratégia de partições.",
+        "Eliminar qualquer filtro de data, forçando consultas a ler o histórico completo em toda execução."
+      ],
+      "gabarito": "D",
+      "explicacao": "Arquivos muito pequenos geram sobrecarga de metadados e abertura, mesmo com particionamento útil. Compactação controlada reduz esse custo; aumentar objetos, retirar filtros ou trocar formato sem critério não resolve o problema."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um job de streaming utiliza processamento com estado para somar pedidos por usuário. Após falha do worker, deve voltar a operar sem perder o progresso consistente de contadores e posições de leitura. O recurso central é",
+      "alternativas": [
+        "Checkpoint consistente do estado e da posição de consumo, com restauração coordenada após a falha.",
+        "O aumento do tamanho da memória, que impede qualquer falha futura de energia ou de software.",
+        "A reordenação alfabética de eventos, sem guardar posições ou o estado da janela.",
+        "Um arquivo de log local não replicado, apagado sempre que o processo reinicia.",
+        "Uma consulta manual aos painéis, suficiente para recuperar o estado interno de agregação."
+      ],
+      "gabarito": "A",
+      "explicacao": "Checkpoints guardam estado e progresso coerentes, permitindo retomada de jobs com agregações contínuas. Logs locais voláteis, mais memória e painéis não fornecem restauração confiável nem coordenação com as leituras."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um pipeline diário abastece cinco tabelas de um painel. Para evitar que analistas vejam parte da carga nova junto a tabelas antigas, a equipe decide publicar apenas conjuntos integralmente validados. A solução apropriada é",
+      "alternativas": [
+        "Disponibilizar cada tabela na primeira linha recebida, ainda que as demais etapas estejam em execução.",
+        "Carregar em área temporária e promover uma versão consistente das tabelas após concluir validações.",
+        "Impedir permanentemente qualquer leitura histórica para que usuários não percebam atualizações parciais.",
+        "Apagar as tabelas definitivas antes de iniciar cada extração, deixando o painel sempre indisponível.",
+        "Declarar a carga concluída pelo simples início do agendador, sem verificar resultado das tarefas."
+      ],
+      "gabarito": "B",
+      "explicacao": "Publicação controlada por versão ou troca atômica, quando suportada, evita exposição de resultados parciais. Liberar tabelas incompletas ou apagar o destino antes da validação prejudica consistência e disponibilidade."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um serviço de ingestão recebe credenciais de um banco externo. A equipe quer permitir rotação frequente e impedir que segredos apareçam em repositórios ou logs de execução. O desenho mais adequado é",
+      "alternativas": [
+        "Imprimir as credenciais no início de cada job, facilitando diagnóstico em incidentes de autenticação.",
+        "Fixar a senha no código-fonte, pois o sistema de controle de versão protege automaticamente seu conteúdo.",
+        "Gravar a senha em arquivos públicos junto aos dados brutos, garantindo acesso homogêneo às equipes.",
+        "Usar gerenciador de segredos com controle de acesso restrito, injeção segura e política de rotação.",
+        "Compartilhar a mesma conta administradora entre todos os pipelines, evitando granularidade de permissões."
+      ],
+      "gabarito": "D",
+      "explicacao": "Segredos devem ser obtidos por mecanismos próprios, com permissões mínimas e rotação, sem exposição em artefatos ou logs. Repositórios e arquivos públicos não são cofres; contas compartilhadas dificultam responsabilização."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma empresa integrou pedidos por CDC, pagamentos por arquivos horários e cancelamentos por API. O painel mostra receita maior que a contabilidade. Antes de corrigir valores manualmente, a engenharia deve",
+      "alternativas": [
+        "Excluir os eventos de cancelamento, porque sistemas diferentes nunca devem ser combinados.",
+        "Reconciliar totais e chaves por origem e período, examinando atrasos, duplicações e regras de cancelamento.",
+        "Alterar aleatoriamente pagamentos duplicados até que os totais coincidam, sem preservar histórico.",
+        "Desconsiderar os horários das fontes, pois latências distintas não interferem em conciliações.",
+        "Somar novamente a receita de todos os pedidos até alcançar o valor esperado pela diretoria."
+      ],
+      "gabarito": "B",
+      "explicacao": "Conciliação por chaves, períodos e eventos identifica causas de diferença entre fluxos com latências diversas. Ajustes manuais sem trilha, exclusão de cancelamentos e desconsideração de duplicações podem mascarar a causa."
+    }
+  ]
+}

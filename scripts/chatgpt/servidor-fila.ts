@@ -16,8 +16,11 @@ Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
   const u = new URL(req.url);
   if (req.method === "GET" && u.pathname === "/proximos") {
     const n = Math.min(Number(u.searchParams.get("n") ?? 10), 40);
-    const o = await new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/chatgpt/fila.ts`, "proximos", String(n)], stdout: "piped" }).output();
-    const linhas = new TextDecoder().decode(o.stdout).trim().split("\n").filter(Boolean);
+    const o = await new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/chatgpt/fila.ts`, "proximos", String(n), ...(u.searchParams.get("tipo") === "QUESTOES" ? ["QUESTOES"] : [])], stdout: "piped" }).output();
+    // Nos pedidos de múltipla escolha, lembra de espalhar o gabarito (o Gemini concentrava quase tudo em A e B).
+    const OBS = "; OBS: distribua o gabarito por igual entre A, B, C, D e E (cerca de 1/5 cada) e a alternativa correta não pode ser sempre a mais longa; a ordem das letras certas deve parecer aleatória (nunca um ciclo A,B,C,D,E repetido nem a mesma letra 3 vezes seguidas)";
+    const linhas = new TextDecoder().decode(o.stdout).trim().split("\n").filter(Boolean)
+      .map((l) => /^QUESTÕES:/.test(l) && !/formato=Certo\/Errado/i.test(l) ? l + OBS : l);
     log(`entregues ${linhas.length} pedidos ao script`);
     return json(linhas);
   }
