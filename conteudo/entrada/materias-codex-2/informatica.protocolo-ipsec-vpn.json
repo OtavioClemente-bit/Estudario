@@ -1,0 +1,610 @@
+{
+  "id": "informatica.protocolo-ipsec-vpn",
+  "subject": "Informática",
+  "title": "IPsec, VPN e autenticação de domínio no DNS e no e-mail",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Protocolos IPsec, DNSSEC, DMARC, DKIM e SPF",
+    "IPsec e VPN de camada de rede",
+    "Segurança IPsec para redes privadas",
+    "Arquitetura de segurança IPsec",
+    "DNSSEC e validação de respostas DNS",
+    "Assinatura digital de zonas DNSSEC",
+    "SPF para autenticar servidores remetentes",
+    "Sender Policy Framework em registros DNS",
+    "DKIM para assinatura de mensagens de e-mail",
+    "DomainKeys Identified Mail e chaves DNS",
+    "DMARC e alinhamento de domínios de e-mail",
+    "Políticas e relatórios DMARC para domínio",
+    "Autenticação de e-mail com SPF e DKIM",
+    "Proteção de tráfego IP com ESP e AH",
+    "VPN IPsec em modo túnel e transporte"
+  ],
+  "scope": {
+    "covers": "Fundamentos e funcionamento de IPsec em VPN: serviços de segurança, AH e ESP, modos transporte e túnel, associações de segurança, SPD, SAD e IKE; DNSSEC: assinatura e validação de dados DNS, cadeia de confiança, DNSKEY, RRSIG, DS, NSEC/NSEC3 e limites; SPF: domínio MAIL FROM, mecanismos, resultados e limites; DKIM: assinatura, seleção de chave no DNS e validação; DMARC: domínio RFC5322.From, alinhamento relaxado e estrito, políticas publicadas no DNS, avaliação e relatórios; relação e diferenças entre os protocolos.",
+    "excludes": "Configuração específica de fabricantes, algoritmos criptográficos recomendados por jurisdição, operação detalhada de servidores DNS ou de correio, protocolos de transporte seguro de e-mail, legislação e políticas internas de provedores."
+  },
+  "theoryTitle": "Proteção de pacotes IP e autenticação de domínios",
+  "chapters": [
+    {
+      "title": "1. IPsec: segurança na camada IP",
+      "markdown": "### O problema que este assunto resolve\n\nUma VPN precisa transportar tráfego por uma rede que não se presume confiável. IPsec é uma arquitetura de segurança da camada IP: aplica políticas aos pacotes e pode protegê-los entre dois hosts, entre dois gateways de segurança ou entre um host e um gateway. Um gateway pode ser um roteador ou firewall que termina o túnel e encaminha o tráfego interno.\n\n> **Siglas e termos deste capítulo**\n> - **IPsec**: conjunto de protocolos e regras de segurança para tráfego IP.\n> - **VPN**: rede privada virtual; um túnel IPsec pode protegê-la sobre uma rede pública.\n> - **SA (Security Association)**: contexto unidirecional que define parâmetros de proteção para o tráfego.\n> - **SPI**: identificador da SA presente no cabeçalho AH ou ESP.\n> - **IKE**: protocolo que negocia parâmetros, autentica pares e estabelece chaves e SAs.\n\n### Decisão de política e estado da associação\n\nA **Security Policy Database (SPD)** contém regras que selecionam o tráfego por características como endereços, protocolo e portas. Para cada pacote, a política pode mandar **PROTECT** (aplicar IPsec), **BYPASS** (deixar passar sem IPsec) ou **DISCARD** (descartar). A **Security Association Database (SAD)** guarda o estado das SAs ativas: protocolo, modo, algoritmos, chaves, SPI, sequência e parâmetros associados. A SPD decide o tratamento; a SAD fornece os parâmetros de uma proteção já estabelecida.\n\nIKE negocia as SAs e administra chaves. No uso comum, IKEv2 autentica os participantes, negocia algoritmos e cria uma IKE SA protegida para a troca de controle; por meio dela, estabelece SAs de tráfego IPsec. IKE não é o protocolo que cifra cada pacote de dados. Também há configuração manual, mas ela não oferece a mesma gestão dinâmica de chaves.\n\n### Serviços e limites\n\nIPsec pode fornecer confidencialidade, integridade, autenticação da origem dos dados, controle de acesso e proteção contra repetição de pacotes. O conjunto efetivo depende do protocolo, modo, SA e algoritmos negociados. A confidencialidade esconde conteúdo, não necessariamente todos os metadados de tráfego; o túnel ainda pode revelar que há comunicação entre certos pontos e em certos horários.\n\nIPsec protege pacotes no caminho entre os pontos que terminam a SA. Não autentica por si só a pessoa que usa uma aplicação, não assegura que o host protegido esteja livre de malware e não elimina a necessidade de política de acesso.\n\n### Como cai na prova\n\n- SPD é política e escolhe proteger, liberar sem IPsec ou descartar; SAD é estado das associações em uso.\n- IKE negocia parâmetros e chaves; ESP ou AH protege o tráfego conforme a SA.\n- VPN é um uso frequente de IPsec, mas VPN e IPsec não são sinônimos universais: há VPNs que usam outros protocolos."
+    },
+    {
+      "title": "2. IPsec: AH, ESP e modos de operação",
+      "markdown": "### O problema que este assunto resolve\n\nA arquitetura IPsec oferece dois protocolos de proteção de pacotes. Saber o que cada um cobre e distinguir transporte de túnel evita confundir criptografia, autenticação e encapsulamento.\n\n> **Siglas e termos deste capítulo**\n> - **AH (Authentication Header)**: cabeçalho de autenticação IPsec, com integridade e autenticação de origem, sem confidencialidade.\n> - **ESP (Encapsulating Security Payload)**: encapsulamento IPsec que pode prover confidencialidade, integridade, autenticação da origem e anti-replay.\n> - **Modo transporte**: protege a carga do pacote IP original, preservando seu cabeçalho IP externo.\n> - **Modo túnel**: encapsula o pacote IP original dentro de um novo pacote IP.\n> - **Anti-replay**: rejeição de pacotes repetidos ou fora da janela de sequência aceita.\n\n### AH e ESP\n\nO **AH** autentica a origem e protege a integridade de partes do pacote, incluindo campos imutáveis do cabeçalho IP; não cifra o conteúdo. Como campos do IP podem mudar em trânsito, AH não pode autenticar de forma útil aqueles que são mutáveis.\n\nO **ESP** pode cifrar a carga e também oferecer integridade e autenticação da origem, além de proteção anti-replay. A confidencialidade é opcional conforme a SA; não se deve presumir que todo ESP cifra. ESP não autentica os campos do cabeçalho IP externo da mesma forma que AH. Na prática, ESP é o protocolo IPsec mais empregado, inclusive em VPNs.\n\n### Transporte ou túnel?\n\nNo modo **transporte**, o cabeçalho IP externo continua identificando os endpoints originais; a proteção recai principalmente sobre a carga IP. É comum em comunicação host a host. No modo **túnel**, o pacote IP original inteiro vira carga interna e recebe um novo cabeçalho IP externo entre os endpoints do túnel. Gateways usam muito esse modo para interligar redes; também atende acesso remoto quando o equipamento do usuário forma o túnel até um gateway.\n\n| Aspecto | Transporte | Túnel |\n| --- | --- | --- |\n| Cabeçalho externo | Do pacote original | Novo cabeçalho entre endpoints do túnel |\n| Pacote interno original | Não é encapsulado como pacote completo | Fica encapsulado por inteiro |\n| Uso frequente | Host a host | Gateway a gateway ou acesso remoto |\n| Identidade dos hosts internos | Mais exposta no cabeçalho | Pode ficar protegida dentro do túnel ESP |\n\n### Como cai na prova\n\n- AH não oferece sigilo; ESP pode oferecer sigilo e integridade.\n- Túnel acrescenta cabeçalho externo e encapsula o pacote original; transporte mantém o cabeçalho IP original.\n- O nome ESP não significa que a criptografia seja obrigatória em toda SA. Integridade e confidencialidade são serviços negociados."
+    },
+    {
+      "title": "3. DNSSEC: autenticidade dos dados DNS",
+      "markdown": "### O problema que este assunto resolve\n\nO DNS tradicional pode ser alvo de respostas forjadas ou adulteradas. DNSSEC acrescenta assinaturas digitais aos conjuntos de registros DNS e permite ao resolvedor validar origem e integridade dos dados recebidos. Não cifra as consultas nem esconde os nomes consultados.\n\n> **Siglas e termos deste capítulo**\n> - **DNSSEC**: extensões de segurança do DNS baseadas em assinaturas digitais.\n> - **RRset**: conjunto de registros de mesmo nome, classe e tipo.\n> - **DNSKEY**: registro que publica uma chave pública da zona.\n> - **RRSIG**: assinatura digital associada a um RRset.\n> - **DS**: registro de delegação que liga uma zona filha à chave da zona pai por um resumo criptográfico.\n> - **NSEC/NSEC3**: mecanismos assinados para demonstrar ausência de um nome ou tipo de registro.\n\n### Como a validação forma uma cadeia\n\nO titular de uma zona assina RRsets com chave privada e publica as chaves públicas em DNSKEY. O resolvedor validador verifica RRSIG com uma DNSKEY confiável. Para estabelecer confiança entre pai e filha, a zona pai publica DS calculado a partir de uma chave da filha; o resolvedor verifica a ligação DS–DNSKEY e segue a cadeia até uma âncora de confiança configurada, em geral a raiz. A assinatura tem período de validade, então relógio e renovação também importam.\n\nNSEC e NSEC3 permitem autenticar respostas negativas, para que um atacante não substitua silenciosamente a ausência de um nome. Na prova, diferencie a autenticidade de uma resposta positiva (RRset assinado) da prova autenticada de inexistência.\n\n### O que DNSSEC oferece e o que não oferece\n\nDNSSEC fornece autenticação de origem e integridade dos dados DNS validados e pode autenticar a inexistência de dados. Não fornece confidencialidade, controle de acesso ao conteúdo, disponibilidade contra negação de serviço ou, por si só, proteção da conexão da aplicação até o endereço resolvido. DNS sobre TLS ou HTTPS trata da proteção do canal entre cliente e resolvedor; isso é distinto da validação DNSSEC dos dados.\n\nDNSSEC pode ajudar a proteger a publicação de chaves usadas por SPF, DKIM e DMARC, mas não substitui esses mecanismos: assinar o DNS não prova que um servidor pode enviar por um domínio nem que a mensagem foi assinada por ele.\n\n### Como cai na prova\n\n- DNSKEY publica chave; RRSIG assina RRset; DS conecta a chave da filha ao pai.\n- Uma resposta DNSSEC validada é autenticada, mas continua legível e pode sofrer indisponibilidade.\n- Validador verifica a cadeia; servidor autoritativo assina e serve os dados. Um registro publicado sem cadeia confiável não é automaticamente confiável."
+    },
+    {
+      "title": "4. SPF e DKIM: autenticação de envio e assinatura",
+      "markdown": "### O problema que este assunto resolve\n\nUm domínio precisa informar quais sistemas estão autorizados a enviar mensagens em seu nome e pode assinar mensagens para que o receptor verifique a assinatura. SPF e DKIM fazem verificações diferentes; nenhum deles, isoladamente, confirma que o domínio visível no campo From é legítimo.\n\n> **Siglas e termos deste capítulo**\n> - **SPF**: Sender Policy Framework, política DNS para avaliar o servidor remetente.\n> - **MAIL FROM**: identidade do envelope SMTP usada pelo SPF; em mensagens de retorno pode diferir do From visível.\n> - **DKIM**: DomainKeys Identified Mail, assinatura criptográfica em cabeçalho de mensagem.\n> - **selector**: rótulo que permite localizar no DNS a chave DKIM de uma assinatura.\n> - **d=**: domínio de assinatura DKIM; **s=**: selector indicado pela assinatura.\n\n### SPF: quais servidores podem enviar?\n\nO domínio publica uma política SPF em TXT no DNS. O receptor avalia o endereço IP que se conectou, o domínio da identidade SPF e os mecanismos da política, que podem autorizar endereços (`ip4`, `ip6`), incluir outra política (`include`) ou apontar para servidores associados ao domínio (`a`, `mx`). O qualificador final e os mecanismos determinam resultados como **pass**, **fail**, **softfail**, **neutral**, **none**, **temperror** ou **permerror**. `~all` costuma indicar softfail e `-all` fail, mas o resultado SPF não é uma sentença universal de rejeição: o receptor toma a decisão de entrega.\n\nSPF verifica o caminho de envio associado ao envelope, não assina o conteúdo da mensagem. Encaminhamento pode fazer a mensagem sair de um IP que não conste na política original; por isso SPF pode falhar após encaminhamento. Limites de consultas DNS e erros de sintaxe também importam.\n\n### DKIM: a mensagem foi assinada por um domínio?\n\nO sistema remetente acrescenta `DKIM-Signature`, que identifica o domínio de assinatura (`d=`), selector (`s=`), cabeçalhos e conteúdo cobertos. O receptor consulta a chave pública em `selector._domainkey.dominio`, verifica a assinatura e obtém pass ou falha. A assinatura pode continuar válida após encaminhamento se as partes assinadas não forem alteradas; alterações em cabeçalhos ou corpo cobertos podem invalidá-la. DKIM não criptografa o e-mail e uma assinatura válida não prova que o conteúdo é benigno.\n\n### Como cai na prova\n\n- SPF autoriza IPs/sistemas para uma identidade do envelope; DKIM valida uma assinatura vinculada ao domínio `d=`.\n- SPF não assina o corpo; DKIM não cifra a mensagem.\n- Encaminhamento costuma afetar SPF; alterações no conteúdo assinado podem afetar DKIM."
+    },
+    {
+      "title": "5. DMARC: alinhamento, política e relatórios",
+      "markdown": "### O problema que este assunto resolve\n\nSPF e DKIM podem passar para domínios que não são o domínio mostrado ao usuário. DMARC conecta os resultados autenticados ao domínio do campo visível `From` (RFC 5322), chamado domínio do autor, exigindo alinhamento com SPF ou DKIM e publicando preferência de tratamento para falhas. A especificação vigente consultada é o RFC 9989, que substituiu o RFC 7489.\n\n> **Siglas e termos deste capítulo**\n> - **DMARC**: Domain-based Message Authentication, Reporting, and Conformance.\n> - **Domínio do autor**: domínio no campo RFC5322.From da mensagem.\n> - **Alinhamento**: comparação entre domínio do autor e identificador autenticado por SPF ou DKIM.\n> - **Alinhamento relaxado**: os domínios compartilham o mesmo domínio organizacional.\n> - **Alinhamento estrito**: os domínios comparados são idênticos.\n> - **rua/ruf**: destinos para relatórios agregados e de falha, respectivamente.\n\n### Avaliação e política\n\nO registro DMARC é publicado como TXT em `_dmarc.<domínio>`. O receptor verifica SPF e DKIM; um DMARC **pass** exige pelo menos um identificador autenticado que passe e esteja alinhado ao domínio do autor. Portanto, SPF passar sem alinhamento e DKIM passar sem alinhamento não bastam. Os modos de alinhamento SPF e DKIM podem ser relaxados ou estritos.\n\nA política publicada inclui `p=none`, `p=quarantine` ou `p=reject`: monitorar sem pedir tratamento específico, colocar falhas em quarentena ou rejeitar, respectivamente. A política expressa preferência do dono do domínio; o receptor considera seus próprios critérios e tratamento local. `sp=` trata política para subdomínios no registro aplicável; `pct` não deve ser presumido como tag vigente sem conferir a especificação atual. Relatórios agregados ajudam a identificar emissores legítimos e falsificações; falha DMARC não é, sozinha, prova de spam ou conteúdo malicioso.\n\n### Relação entre os cinco protocolos\n\n| Mecanismo | O que valida/protege | Onde se configura ou publica | Limite principal |\n| --- | --- | --- | --- |\n| IPsec | Pacotes IP entre endpoints de uma SA | Políticas/associações e IKE | Não autentica o From do e-mail |\n| DNSSEC | Autenticidade e integridade de dados DNS | Assinaturas e cadeia DNS | Não cifra nem decide autorização de envio |\n| SPF | IP remetente contra identidade do envelope | TXT SPF no DNS | Não assina conteúdo; encaminhamento interfere |\n| DKIM | Assinatura de cabeçalhos/corpo e domínio `d=` | Assinatura no e-mail e chave pública DNS | Não cifra e não alinha automaticamente ao From |\n| DMARC | Alinhamento SPF/DKIM com domínio visível e política | TXT em `_dmarc` | Não avalia se o conteúdo é seguro |\n\n### Como cai na prova\n\n- DMARC passa se SPF ou DKIM passar **e** pelo menos um identificador passar alinhamento.\n- O domínio da política e a política de falha não obrigam o receptor a ignorar suas regras locais.\n- DNSSEC pode autenticar a publicação dos registros de e-mail, mas não substitui SPF, DKIM ou DMARC."
+    }
+  ],
+  "summary": "IPsec protege tráfego IP por políticas SPD e associações SAD negociadas frequentemente com IKE. AH oferece integridade e autenticação sem sigilo; ESP pode fornecer confidencialidade, integridade e anti-replay. Transporte protege a carga mantendo o cabeçalho IP original; túnel encapsula o pacote inteiro sob novo cabeçalho. DNSSEC assina RRsets e forma uma cadeia de confiança por DNSKEY, RRSIG e DS, autenticando dados DNS sem cifrá-los. SPF avalia se o IP remetente está autorizado para a identidade do envelope; DKIM valida uma assinatura da mensagem associada ao domínio d= e selector s=. DMARC, pelo RFC vigente 9989, exige que pelo menos um resultado SPF ou DKIM passe e esteja alinhado ao domínio do From visível; a política pode pedir none, quarantine ou reject e pode solicitar relatórios. Nenhum desses resultados garante que a mensagem seja benigna.",
+  "flashcards": [
+    { "front": "Quais ações a SPD pode indicar para um pacote?", "back": "PROTECT com IPsec, BYPASS sem proteção IPsec ou DISCARD." },
+    { "front": "O que guarda a SAD?", "back": "O estado das SAs ativas, com parâmetros como SPI, modo, algoritmos, chaves e sequência." },
+    { "front": "Qual é o papel de IKE?", "back": "Autentica pares, negocia parâmetros e estabelece chaves e associações de segurança." },
+    { "front": "AH cifra o conteúdo?", "back": "Não. AH oferece integridade e autenticação da origem, mas não confidencialidade." },
+    { "front": "ESP sempre cifra?", "back": "Não. A confidencialidade depende dos serviços negociados para a SA." },
+    { "front": "O que muda entre modo transporte e túnel?", "back": "Transporte preserva o cabeçalho IP original; túnel encapsula o pacote original inteiro sob novo cabeçalho IP." },
+    { "front": "O que DNSSEC busca garantir?", "back": "Autenticidade de origem e integridade dos dados DNS validados, inclusive provas de inexistência." },
+    { "front": "DNSSEC torna consultas DNS secretas?", "back": "Não. DNSSEC não fornece confidencialidade." },
+    { "front": "Qual é a função do DNSKEY?", "back": "Publicar chave pública da zona usada na validação de assinaturas." },
+    { "front": "Qual é a função de RRSIG?", "back": "Carregar a assinatura digital associada a um RRset DNS." },
+    { "front": "Como DS liga zonas DNS?", "back": "A zona pai publica um resumo da chave da zona filha para validar a delegação." },
+    { "front": "Para que servem NSEC e NSEC3?", "back": "Para provar de forma autenticável que um nome ou tipo de registro não existe na zona." },
+    { "front": "Qual identidade o SPF examina?", "back": "A identidade do envelope SMTP, em especial o domínio MAIL FROM, junto ao IP que se conectou." },
+    { "front": "SPF assina o corpo do e-mail?", "back": "Não. SPF avalia autorização do servidor remetente para uma identidade do envelope." },
+    { "front": "O que significam d= e s= em DKIM?", "back": "d= identifica o domínio de assinatura; s= identifica o selector para localizar sua chave pública." },
+    { "front": "DKIM cifra a mensagem?", "back": "Não. DKIM permite validar assinatura e integridade de partes cobertas, sem confidencialidade." },
+    { "front": "Qual domínio o DMARC usa como referência?", "back": "O domínio do campo visível RFC5322.From, chamado domínio do autor." },
+    { "front": "O que é alinhamento relaxado no DMARC?", "back": "Os identificadores autenticados e o domínio do autor compartilham o mesmo domínio organizacional." },
+    { "front": "O que é alinhamento estrito?", "back": "O domínio autenticado e o domínio do autor são idênticos." },
+    { "front": "Quando uma mensagem passa DMARC?", "back": "Quando SPF ou DKIM passa e pelo menos um identificador correspondente está alinhado ao domínio do autor." },
+    { "front": "O que pedem p=quarantine e p=reject?", "back": "A primeira pede tratamento de quarentena para falhas; a segunda pede rejeição, sujeitas ao processamento do receptor." },
+    { "front": "O que a política p=none indica?", "back": "Modo de monitoramento sem solicitação específica de quarentena ou rejeição para falhas." }
+  ],
+  "tips": [
+    "Separe política de estado: SPD decide; SAD mantém os parâmetros da SA.",
+    "Associe AH a integridade/autenticação e ESP à possibilidade de confidencialidade; verifique sempre o que foi negociado.",
+    "No túnel há um pacote IP interno inteiro e um novo cabeçalho externo.",
+    "Memorize DNSSEC como validação de dados DNS, não como criptografia do canal.",
+    "SPF olha envelope e IP; DKIM olha assinatura; DMARC compara autenticação com o From visível.",
+    "Em DMARC, um SPF ou DKIM alinhado basta; dois passes não alinhados não bastam."
+  ],
+  "traps": [
+    "Afirmar que AH cifra pacotes ou que todo ESP cifra é trocar serviço possível por serviço obrigatório.",
+    "Confundir a SPD, que escolhe a ação, com a SAD, que contém parâmetros das SAs.",
+    "Dizer que DNSSEC oculta consultas ou impede indisponibilidade: ele autentica dados, não oferece esses serviços.",
+    "Tratar SPF como autenticação do From visível ignora que ele verifica identidade do envelope.",
+    "Dizer que DKIM passa significa que o conteúdo é confiável ignora que assinatura não atesta benignidade.",
+    "DMARC sem alinhamento falha mesmo que SPF ou DKIM tenha passado para domínio diferente."
+  ],
+  "activeRecall": [
+    { "question": "Quais são as três decisões possíveis da SPD?", "answer": "Proteger com IPsec, deixar passar sem IPsec ou descartar." },
+    { "question": "Que informações a SAD associa a um SPI?", "answer": "Parâmetros de uma SA, como protocolo, modo, algoritmos, chaves e controle de sequência." },
+    { "question": "Por que IKE é separado de ESP?", "answer": "IKE negocia parâmetros e chaves; ESP aplica proteção aos pacotes de dados." },
+    { "question": "Qual diferença essencial entre AH e ESP?", "answer": "AH não cifra; ESP pode oferecer confidencialidade e também integridade/autenticação conforme negociação." },
+    { "question": "O que o modo túnel encapsula?", "answer": "O pacote IP original inteiro, acrescentando um novo cabeçalho externo." },
+    { "question": "Quais registros DNSSEC aparecem na cadeia de confiança?", "answer": "DNSKEY, RRSIG e DS; NSEC ou NSEC3 podem autenticar inexistência." },
+    { "question": "Que ataques DNSSEC não resolve?", "answer": "Não dá confidencialidade, controle de acesso nem proteção contra negação de serviço." },
+    { "question": "Por que SPF pode falhar em encaminhamento?", "answer": "O encaminhador conecta usando um IP que pode não estar autorizado pela política SPF do domínio original." },
+    { "question": "Que dados permitem localizar a chave DKIM?", "answer": "O selector s= e o domínio d= apontam ao nome selector._domainkey.domínio." },
+    { "question": "Qual é a condição lógica para DMARC passar?", "answer": "SPF ou DKIM passa e seu identificador autenticado se alinha ao domínio do From." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Papéis internos do IPsec confundidos", "summary": "SPD escolhe PROTECT, BYPASS ou DISCARD; SAD armazena parâmetros das SAs; IKE negocia chaves e associações." },
+    { "key": "e2", "title": "Serviços de AH e ESP invertidos", "summary": "AH não cifra. ESP pode oferecer confidencialidade e integridade, conforme parâmetros da associação." },
+    { "key": "e3", "title": "DNSSEC tratado como criptografia", "summary": "DNSSEC autentica e protege integridade de dados DNS; não cifra consulta, não garante disponibilidade e depende da cadeia de confiança." },
+    { "key": "e4", "title": "SPF e DKIM tratados como equivalentes", "summary": "SPF avalia IP e identidade do envelope; DKIM verifica assinatura e domínio d= em partes cobertas da mensagem." },
+    { "key": "e5", "title": "DMARC sem domínio de referência", "summary": "DMARC exige resultado SPF ou DKIM aprovado e alinhado ao domínio RFC5322.From; o simples pass de qualquer domínio não basta." }
+  ],
+  "questions": [
+    {
+      "statement": "Ao avaliar um pacote, qual componente do IPsec consulta regras para decidir entre proteção, passagem sem IPsec ou descarte?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A SPD seleciona a ação aplicável com base nos seletores do tráfego.", "correct": true },
+        { "key": "B", "text": "A SAD escolhe a ação antes de qualquer regra de tráfego ser consultada.", "correct": false },
+        { "key": "C", "text": "O SPI define sozinho se cada pacote pode atravessar a interface.", "correct": false },
+        { "key": "D", "text": "O IKE examina cada aplicação e decide descartar ou encaminhar seu pacote.", "correct": false },
+        { "key": "E", "text": "O ESP mantém a lista administrativa de tráfego que deve ser protegido.", "correct": false }
+      ],
+      "explanation": "A SPD contém as regras de política e determina se o tráfego será protegido, liberado sem IPsec ou descartado. A SAD armazena parâmetros de SAs ativas, enquanto IKE negocia associações e ESP aplica proteção aos pacotes.",
+      "section": "1. IPsec: segurança na camada IP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A Security Association usada para proteger pacotes em IPsec é normalmente unidirecional.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Uma SA descreve proteção em uma direção; para comunicação protegida nos dois sentidos, em regra são estabelecidas associações distintas para cada direção.",
+      "section": "1. IPsec: segurança na camada IP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal do IKE em uma VPN IPsec?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Cifrar o corpo de cada pacote IP sem criar associações de segurança.", "correct": false },
+        { "key": "B", "text": "Negociar parâmetros, autenticar os pares e estabelecer chaves e associações.", "correct": true },
+        { "key": "C", "text": "Substituir as regras de filtragem da SPD por uma tabela de nomes DNS.", "correct": false },
+        { "key": "D", "text": "Assinar os registros DNS publicados pelos gateways do túnel.", "correct": false },
+        { "key": "E", "text": "Verificar a senha do usuário em cada pacote encaminhado pela VPN.", "correct": false }
+      ],
+      "explanation": "IKE negocia parâmetros de segurança, autentica os extremos e gerencia chaves e SAs. A proteção do tráfego é aplicada por AH ou ESP conforme a associação, não pela inspeção de cada pacote pelo IKE.",
+      "section": "1. IPsec: segurança na camada IP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A SAD contém o estado e os parâmetros de associações de segurança ativas, como SPI, chaves e algoritmos negociados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A Security Association Database mantém os parâmetros necessários para processar tráfego associado, incluindo identificador SPI e parâmetros criptográficos e de sequência.",
+      "section": "1. IPsec: segurança na camada IP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer proteger o tráfego entre duas redes internas por gateways IPsec. Qual configuração de modo é a escolha comum para encapsular pacotes originais?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Modo transporte, que remove os cabeçalhos IP e encaminha só o conteúdo.", "correct": false },
+        { "key": "B", "text": "Modo AH, que cria um pacote TCP dentro de cada pacote IP.", "correct": false },
+        { "key": "C", "text": "Modo túnel encapsula o pacote original sob novo cabeçalho IP.", "correct": true },
+        { "key": "D", "text": "Modo bypass, que cria uma SA sem endereço externo entre os gateways.", "correct": false },
+        { "key": "E", "text": "Modo IKE, que transporta o tráfego da rede dentro da fase de negociação.", "correct": false }
+      ],
+      "explanation": "No modo túnel, o pacote IP original é encapsulado como carga e recebe um novo cabeçalho IP entre os endpoints do túnel, uso comum em gateway a gateway.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O modo transporte mantém o cabeçalho IP original como cabeçalho externo, em vez de encapsular o pacote inteiro sob outro cabeçalho.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. No transporte, o cabeçalho IP original permanece como cabeçalho externo, enquanto a proteção recai principalmente sobre a carga IP. O encapsulamento integral caracteriza o modo túnel.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao protocolo AH?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Fornece apenas compressão e não participa da segurança dos pacotes.", "correct": false },
+        { "key": "B", "text": "Cifra o pacote completo e não verifica integridade de dados.", "correct": false },
+        { "key": "C", "text": "Autentica o servidor DNS e assina o registro de chave pública.", "correct": false },
+        { "key": "D", "text": "Oferece integridade e autenticação de origem, sem confidencialidade.", "correct": true },
+        { "key": "E", "text": "Negocia senhas de usuários e substitui o banco de associações.", "correct": false }
+      ],
+      "explanation": "AH protege integridade e autentica a origem dos dados, mas não cifra o conteúdo. ESP é o protocolo que pode acrescentar confidencialidade.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Toda associação ESP necessariamente cifra o conteúdo do tráfego protegido.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. ESP pode prover confidencialidade, mas os serviços efetivamente utilizados dependem das opções negociadas para a SA. ESP também pode ser usado para integridade sem criptografia.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote protegido contra repetição é comparado com informação de sequência mantida na associação para detectar duplicações ou valores antigos.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O mecanismo anti-replay utiliza números de sequência e uma janela de aceitação associada à SA para rejeitar pacotes repetidos ou demasiadamente atrasados.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O que o uso de ESP em modo túnel permite ocultar do tráfego externo, quando a carga está cifrada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O cabeçalho IP externo e os endereços dos endpoints do próprio túnel.", "correct": false },
+        { "key": "B", "text": "A existência de pacotes e qualquer característica temporal do fluxo.", "correct": false },
+        { "key": "C", "text": "Os dados e endereços IP do pacote original encapsulado.", "correct": true },
+        { "key": "D", "text": "As regras da SPD e a identidade administrativa dos gateways configurados.", "correct": false },
+        { "key": "E", "text": "A necessidade de usar chaves e estabelecer uma SA entre os extremos.", "correct": false }
+      ],
+      "explanation": "Em túnel, o pacote IP original fica dentro da carga ESP e, se cifrada, seus dados e endereços internos ficam ocultos. O cabeçalho externo continua necessário ao encaminhamento, e padrões de tempo e volume podem revelar características do fluxo.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "DNSSEC foi projetado para autenticar a origem e preservar a integridade dos dados DNS assinados, não para ocultar consultas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. DNSSEC valida assinaturas sobre dados DNS e a origem na cadeia de confiança; as respostas continuam legíveis e a consulta não se torna confidencial.",
+      "section": "3. DNSSEC: autenticidade dos dados DNS", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro DNSSEC carrega uma assinatura associada a um conjunto de registros DNS?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O registro SPF, que contém a assinatura codificada de cada RRset.", "correct": false },
+        { "key": "B", "text": "O registro DS, que guarda a assinatura final de toda resposta DNS.", "correct": false },
+        { "key": "C", "text": "O registro MX, que assina os endereços dos servidores autoritativos.", "correct": false },
+        { "key": "D", "text": "O registro DNSKEY, que transporta cada assinatura sobre os registros A.", "correct": false },
+        { "key": "E", "text": "O registro RRSIG, que publica a assinatura digital do RRset.", "correct": true }
+      ],
+      "explanation": "RRSIG contém a assinatura digital associada a um RRset. DNSKEY publica a chave pública de validação e DS liga a chave de uma zona filha à zona pai.",
+      "section": "3. DNSSEC: autenticidade dos dados DNS", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No DNSSEC, qual é o papel do registro DS publicado pela zona pai?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Conter a política de quais endereços IP podem enviar e-mail.", "correct": false },
+        { "key": "B", "text": "Publicar um resumo criptográfico que liga a zona filha à sua chave.", "correct": true },
+        { "key": "C", "text": "Cifrar nomes consultados entre navegador e resolvedor.", "correct": false },
+        { "key": "D", "text": "Armazenar a resposta negativa para nomes que não existem.", "correct": false },
+        { "key": "E", "text": "Indicar o algoritmo de transporte usado pelo servidor autoritativo.", "correct": false }
+      ],
+      "explanation": "DS no pai contém um resumo relacionado à DNSKEY da filha, permitindo ao validador verificar a delegação e continuar a cadeia de confiança.",
+      "section": "3. DNSSEC: autenticidade dos dados DNS", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O resolvedor validador pode seguir a cadeia de confiança DNSSEC desde uma âncora configurada, validando delegações e assinaturas até os dados solicitados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A confiança não vem apenas de encontrar uma DNSKEY: o validador verifica as ligações de delegação e assinaturas em direção a uma âncora de confiança, normalmente a raiz.",
+      "section": "3. DNSSEC: autenticidade dos dados DNS", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que mecanismo pode permitir ao validador confirmar uma resposta DNS negativa autenticada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O mecanismo SPF, que prova que o nome consultado não envia mensagens.", "correct": false },
+        { "key": "B", "text": "A assinatura DKIM, que certifica a ausência de qualquer registro DNS.", "correct": false },
+        { "key": "C", "text": "O registro DMARC, que pede ao resolvedor para negar nomes desconhecidos.", "correct": false },
+        { "key": "D", "text": "Registros NSEC ou NSEC3 assinados, que demonstram espaços sem nomes ou tipos.", "correct": true },
+        { "key": "E", "text": "A mensagem IKE, que autentica a inexistência de hosts no domínio consultado.", "correct": false }
+      ],
+      "explanation": "NSEC e NSEC3 permitem comprovar autenticadamente a inexistência de nome ou tipo de registro na zona. SPF, DKIM, DMARC e IKE têm funções distintas e não provam negação de dados DNS.",
+      "section": "3. DNSSEC: autenticidade dos dados DNS", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "DNSSEC protege contra qualquer ataque de negação de serviço porque o resolvedor rejeita respostas que não tenham assinatura válida.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. DNSSEC autentica dados, mas não garante disponibilidade nem impede ataques de negação de serviço. Operações criptográficas adicionais podem inclusive aumentar carga sobre os componentes DNS.",
+      "section": "3. DNSSEC: autenticidade dos dados DNS", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Como SPF decide se o servidor que conectou está autorizado a enviar pela identidade SPF avaliada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Compara o IP de conexão com mecanismos publicados na política DNS do domínio.", "correct": true },
+        { "key": "B", "text": "Confere se o corpo contém assinatura DKIM válida para o campo Subject.", "correct": false },
+        { "key": "C", "text": "Lê o endereço From visível e compara somente o nome da pessoa.", "correct": false },
+        { "key": "D", "text": "Consulta a política DMARC e ignora o domínio do envelope SMTP.", "correct": false },
+        { "key": "E", "text": "Verifica se o pacote passou por um túnel ESP antes do servidor.", "correct": false }
+      ],
+      "explanation": "SPF consulta a política DNS da identidade do envelope SMTP e avalia se o endereço IP que estabeleceu a conexão corresponde a um mecanismo autorizado.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "SPF avalia a identidade de envelope SMTP, que pode ser diferente do domínio visível no campo From da mensagem.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. SPF avalia a identidade associada ao envelope, normalmente MAIL FROM, e não toma diretamente o domínio do From visível como identidade autenticada.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um domínio quer permitir que um serviço externo envie em seu nome. Qual mecanismo SPF pode incorporar a política publicada por outro domínio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O mecanismo `all`, que importa automaticamente todos os domínios relacionados.", "correct": false },
+        { "key": "B", "text": "O qualificador `~`, que consulta uma assinatura digital remota.", "correct": false },
+        { "key": "C", "text": "O mecanismo `include`, que avalia uma política SPF referenciada.", "correct": true },
+        { "key": "D", "text": "A tag `d=`, que associa um selector DKIM ao servidor SMTP.", "correct": false },
+        { "key": "E", "text": "O registro DS, que autoriza IPs de correio de uma zona filha.", "correct": false }
+      ],
+      "explanation": "O mecanismo include permite que a avaliação SPF considere a política de outro domínio, recurso usado com provedores de envio. Ele não é uma assinatura e não deve ser confundido com tags DKIM ou registros DNSSEC.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma mensagem é encaminhada, o SPF pode falhar porque a conexão chega do IP do encaminhador, que talvez não esteja autorizado pela política original.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O servidor que entrega ao destinatário pode ser o encaminhador, e seu IP pode não constar entre os remetentes autorizados pelo domínio originalmente avaliado.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de dados da assinatura DKIM orienta a consulta da chave pública no DNS?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O endereço IP do destinatário e o valor da política p= do DMARC.", "correct": false },
+        { "key": "B", "text": "O selector s= e o domínio de assinatura d= do cabeçalho DKIM.", "correct": true },
+        { "key": "C", "text": "O número de sequência do pacote e o identificador SPI da conexão.", "correct": false },
+        { "key": "D", "text": "O campo MAIL FROM e a lista de servidores incluídos em SPF.", "correct": false },
+        { "key": "E", "text": "A chave DS da zona pai e a assinatura RRSIG da mensagem inteira.", "correct": false }
+      ],
+      "explanation": "O domínio d= e o selector s= formam o nome DNS da chave pública, normalmente selector._domainkey.domínio. O receptor usa essa chave para verificar a assinatura da mensagem.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma assinatura DKIM válida significa que o conteúdo foi criptografado e só pode ser lido pelo destinatário.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. DKIM é assinatura, não criptografia do e-mail. Ela permite validar domínio de assinatura e integridade das partes cobertas, mas o conteúdo permanece legível.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O domínio d= de uma assinatura DKIM é necessariamente igual ao domínio do From visível para que a própria assinatura possa passar.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. DKIM pode validar uma assinatura associada a domínio diferente do From. A exigência de alinhamento com o domínio do autor é verificada pelo DMARC, não é requisito para a verificação criptográfica básica de DKIM.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o domínio de referência usado pelo DMARC para verificar alinhamento?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O domínio do servidor DNS recursivo que respondeu ao remetente.", "correct": false },
+        { "key": "B", "text": "O domínio do endereço IP que abriu a sessão SMTP.", "correct": false },
+        { "key": "C", "text": "O domínio do MX que recebeu a mensagem no destino.", "correct": false },
+        { "key": "D", "text": "O domínio do campo RFC5322.From, chamado domínio do autor.", "correct": true },
+        { "key": "E", "text": "O domínio do destinatário indicado no envelope SMTP.", "correct": false }
+      ],
+      "explanation": "DMARC usa o domínio do campo From definido no formato da mensagem, chamado domínio do autor. Compara-o aos identificadores autenticados por SPF e DKIM.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para DMARC passar, basta SPF ou DKIM passar para qualquer domínio, mesmo sem relação com o From da mensagem.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Além do pass de SPF ou DKIM, ao menos um identificador autenticado precisa estar alinhado com o domínio do autor. Pass sem alinhamento não valida o domínio exibido no From.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em alinhamento relaxado, como se comparam o identificador autenticado e o domínio do autor?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Devem ter endereços IP idênticos e usar o mesmo servidor de envio.", "correct": false },
+        { "key": "B", "text": "Devem possuir uma chave pública idêntica publicada em qualquer zona.", "correct": false },
+        { "key": "C", "text": "Compartilham o domínio organizacional, mesmo como subdomínios diferentes.", "correct": true },
+        { "key": "D", "text": "Devem estar escritos exatamente da mesma forma, incluindo todo subdomínio.", "correct": false },
+        { "key": "E", "text": "Devem usar políticas de rejeição iguais nos registros DMARC.", "correct": false }
+      ],
+      "explanation": "No modo relaxado, os domínios têm o mesmo domínio organizacional. No modo estrito, precisam ser idênticos. A comparação não depende de IP, chave DNS ou política de rejeição.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No alinhamento estrito de DMARC, o domínio autenticado e o domínio do autor devem ser idênticos.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O alinhamento estrito exige igualdade entre os domínios comparados, enquanto o relaxado aceita domínios com o mesmo domínio organizacional.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual local DNS é usado para publicar a política DMARC de um domínio?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "No nome `_dmarc` acrescentado ao domínio cuja política será consultada.", "correct": true },
+        { "key": "B", "text": "No nome `_domainkey` acrescentado a cada endereço IP remetente.", "correct": false },
+        { "key": "C", "text": "No nome `mailfrom` incluído no campo From de cada mensagem.", "correct": false },
+        { "key": "D", "text": "No nome `_ipsec` associado à chave IKE do servidor de correio.", "correct": false },
+        { "key": "E", "text": "No nome `root` da zona DNS, junto à âncora de confiança.", "correct": false }
+      ],
+      "explanation": "O registro DMARC é publicado como TXT em `_dmarc.<domínio>`, onde o receptor procura a política aplicável ao domínio do autor. O nome `_domainkey` tem outro uso: localizar no DNS a chave pública associada a um selector DKIM.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A política DMARC p=reject solicita ao receptor que rejeite mensagens que falhem DMARC, mas a decisão de tratamento pertence ao receptor.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. p=reject expressa a preferência do dono do domínio para mensagens que falham; a política não substitui os critérios de processamento local do receptor.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem falha SPF, mas possui DKIM válido cujo domínio está alinhado ao From. Qual resultado DMARC é possível?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Necessariamente falha, pois SPF e DKIM precisam passar ao mesmo tempo.", "correct": false },
+        { "key": "B", "text": "Passa se o registro DMARC estiver publicado em uma zona assinada.", "correct": false },
+        { "key": "C", "text": "Falha, pois apenas o alinhamento SPF pode validar o domínio do autor.", "correct": false },
+        { "key": "D", "text": "Passa se DKIM aprovado estiver alinhado ao domínio do autor.", "correct": true },
+        { "key": "E", "text": "Fica sem avaliação até que o servidor de envio renove sua chave IKE.", "correct": false }
+      ],
+      "explanation": "DMARC passa quando SPF ou DKIM fornece um identificador aprovado e alinhado. Não exige que ambos passem, e uma falha no SPF pode ser compensada por DKIM válido e alinhado.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Os relatórios agregados DMARC podem ajudar o administrador a identificar fontes que enviam mensagens usando seu domínio.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Relatórios agregados fornecem informações sobre resultados e fontes observadas, ajudando a distinguir emissores legítimos de uso não autorizado do domínio.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta DNSSEC validada prova que o proprietário do domínio autorizou o servidor que enviou uma mensagem para aquele domínio.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. DNSSEC autentica dados DNS publicados, mas a autorização do IP remetente é avaliada por SPF; a assinatura da mensagem por DKIM; e alinhamento e política por DMARC.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador observa SPF pass para sender.example e o From visível em news.example. No alinhamento relaxado, quando podem estar alinhados?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Quando os dois domínios compartilham o mesmo domínio organizacional.", "correct": true },
+        { "key": "B", "text": "Quando ambos os servidores resolvem para o mesmo endereço IPv6.", "correct": false },
+        { "key": "C", "text": "Quando o domínio SPF tem uma chave DNSSEC maior que a chave do From.", "correct": false },
+        { "key": "D", "text": "Quando a política DMARC solicita rejeição para qualquer falha.", "correct": false },
+        { "key": "E", "text": "Quando o destinatário consta na lista de servidores MX do remetente.", "correct": false }
+      ],
+      "explanation": "No alinhamento relaxado, subdomínios distintos podem alinhar quando compartilham o mesmo domínio organizacional. Endereços IP, tamanho de chaves, política de rejeição e MX não definem alinhamento.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um pass de SPF ou DKIM alinhado garante que o texto da mensagem seja seguro e verdadeiro.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Os mecanismos validam aspectos de domínio, origem ou integridade da mensagem, não a veracidade das alegações nem a ausência de malware ou fraude no conteúdo.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve corretamente a relação entre DNSSEC e SPF, DKIM e DMARC?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "DNSSEC substitui os três protocolos quando a zona do remetente está assinada.", "correct": false },
+        { "key": "B", "text": "DNSSEC autentica DNS; os demais verificam envio, assinatura e alinhamento de e-mail.", "correct": true },
+        { "key": "C", "text": "SPF e DMARC cifram respostas DNS que o DKIM valida como assinaturas de zona.", "correct": false },
+        { "key": "D", "text": "DKIM estabelece a cadeia de confiança dos registros DNSKEY e DS do remetente.", "correct": false },
+        { "key": "E", "text": "DMARC protege pacotes IP no túnel, enquanto DNSSEC negocia chaves ESP.", "correct": false }
+      ],
+      "explanation": "DNSSEC autentica e protege a integridade dos dados DNS. SPF avalia autorização de envio, DKIM verifica assinatura de mensagem e DMARC verifica alinhamento e comunica política.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O RFC 9989 é a especificação DMARC vigente consultada para esta matéria e substitui os RFCs 7489 e 9091.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O RFC Editor identifica o RFC 9989, publicado em 2026, como obsoleto/substituto dos RFCs 7489 e 9091; ele descreve o protocolo DMARC vigente na data de acesso das fontes.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe separa os objetivos dos mecanismos de segurança. Qual associação está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "IPsec autentica domínio From; DMARC protege confidencialidade de pacotes IP.", "correct": false },
+        { "key": "B", "text": "DKIM autoriza endereços IP; SPF assina os cabeçalhos e o corpo do e-mail.", "correct": false },
+        { "key": "C", "text": "DNSSEC define políticas locais de rejeição; IKE assina zonas DNS autoritativas.", "correct": false },
+        { "key": "D", "text": "SPF avalia IP e envelope; DKIM, assinatura; DMARC, alinhamento ao From.", "correct": true },
+        { "key": "E", "text": "ESP autentica servidores de e-mail; AH valida mensagens no campo From.", "correct": false }
+      ],
+      "explanation": "SPF avalia a autorização do IP remetente para a identidade de envelope; DKIM verifica assinatura de mensagem; DMARC exige alinhamento com o From visível. IPsec atua sobre tráfego IP e DNSSEC sobre dados DNS.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma zona DNS assinada por DNSSEC torna desnecessário validar a assinatura DKIM que acompanha cada mensagem.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. DNSSEC autentica a publicação da chave DKIM no DNS, mas o receptor ainda precisa validar a assinatura da mensagem com essa chave. Um dado DNS autêntico não prova que a mensagem foi assinada corretamente.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma VPN IPsec, qual sequência melhor separa a decisão de política da aplicação da proteção?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O SPF verifica o pacote, a DMARC escolhe a SA e o DNSKEY cifra a carga.", "correct": false },
+        { "key": "B", "text": "O ESP cria a política, a SPD guarda a chave e o IKE verifica o From.", "correct": false },
+        { "key": "C", "text": "A SPD seleciona tratamento; a SAD fornece parâmetros de SA; AH ou ESP processa tráfego.", "correct": true },
+        { "key": "D", "text": "O RRSIG escolhe o modo, o DS descarta pacotes e o IKE calcula registros DNS.", "correct": false },
+        { "key": "E", "text": "O DKIM seleciona o tráfego, a SAD assina e o ESP negocia as chaves.", "correct": false }
+      ],
+      "explanation": "A SPD define o tratamento segundo política; a SAD contém os parâmetros da associação; AH ou ESP aplica os serviços de segurança negociados àquele tráfego.",
+      "section": "1. IPsec: segurança na camada IP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem pode passar SPF, mas falhar DMARC se o domínio autenticado por SPF não estiver alinhado com o domínio do From e não houver DKIM alinhado.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. DMARC não considera suficiente um pass isolado. O identificador SPF precisa alinhar com o domínio do autor ou deve existir uma assinatura DKIM aprovada e alinhada.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual protocolo IPsec pode fornecer confidencialidade e também oferece suporte a integridade e proteção anti-replay conforme a SA?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O AH, porque cifra o cabeçalho externo e autentica a senha do usuário.", "correct": false },
+        { "key": "B", "text": "O DNSSEC, porque cifra os pacotes IP antes de validar RRSIG.", "correct": false },
+        { "key": "C", "text": "O IKE, porque transporta dados da aplicação dentro das mensagens de controle.", "correct": false },
+        { "key": "D", "text": "O SPF, porque protege a carga IP com a política de envio publicada.", "correct": false },
+        { "key": "E", "text": "O ESP, cujos serviços dependem dos parâmetros negociados para a associação.", "correct": true }
+      ],
+      "explanation": "ESP pode fornecer confidencialidade, integridade, autenticação da origem e anti-replay, conforme a associação. AH não cifra, enquanto DNSSEC, IKE e SPF têm funções diferentes.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado SPF representa a situação em que não foi encontrada uma política SPF aplicável ao domínio avaliado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O resultado pass, que confirma que todos os servidores estão autorizados.", "correct": false },
+        { "key": "B", "text": "O resultado none, que indica ausência de política SPF aplicável.", "correct": true },
+        { "key": "C", "text": "O resultado fail, que significa que o servidor publicou um registro inválido.", "correct": false },
+        { "key": "D", "text": "O resultado neutral, que atesta que a conexão veio do domínio do autor.", "correct": false },
+        { "key": "E", "text": "O resultado temperror, que confirma uma assinatura DKIM incorreta.", "correct": false }
+      ],
+      "explanation": "None indica que não foi encontrada uma política SPF aplicável. Fail, neutral, temperror e permerror representam resultados distintos e não devem ser usados como sinônimos de ausência de política.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O registro DMARC pode solicitar relatórios agregados para que o domínio acompanhe resultados observados pelos receptores.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. DMARC permite indicar destinos de relatórios agregados, úteis para observar fontes remetentes e resultados de SPF, DKIM e alinhamento no tráfego recebido.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve corretamente a verificação de uma assinatura DKIM recebida?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Localizar a chave com s= e d= no DNS e verificar a assinatura da mensagem.", "correct": false },
+        { "key": "B", "text": "Consultar SPF para obter o IP autorizado e cifrar o conteúdo do e-mail.", "correct": false },
+        { "key": "C", "text": "Ler p=reject no DNS e usar essa política para recalcular os cabeçalhos.", "correct": false },
+        { "key": "D", "text": "Validar a cadeia DS e usar o SPI do túnel para conferir a mensagem.", "correct": false },
+        { "key": "E", "text": "Obter a chave pública do selector e verificar a assinatura nos dados cobertos.", "correct": true }
+      ],
+      "explanation": "O receptor usa o selector e o domínio de assinatura para consultar a chave pública no DNS e verifica a assinatura sobre os cabeçalhos e o corpo cobertos. A validação não cifra o conteúdo nem depende da política DMARC para recalcular a assinatura.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política DMARC com p=quarantine solicita que falhas sejam tratadas em quarentena, mas não define que todas as mensagens serão apagadas.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. quarantine expressa preferência de tratamento de falhas como suspeitas, por exemplo encaminhando-as à pasta de spam. Não significa apagar invariavelmente a mensagem, e o receptor aplica seu processamento local.",
+      "section": "5. DMARC: alinhamento, política e relatórios", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma comunicação IPsec protegida nos dois sentidos, como normalmente se representam as associações de segurança?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma única SA compartilhada por todos os protocolos e direções da rede.", "correct": false },
+        { "key": "B", "text": "Uma SA para os pacotes de dados e outra apenas para os registros DNS.", "correct": false },
+        { "key": "C", "text": "Uma SA bidirecional que usa o mesmo SPI para todos os pares remotos.", "correct": false },
+        { "key": "D", "text": "Uma associação de segurança normalmente unidirecional para cada sentido do tráfego.", "correct": true },
+        { "key": "E", "text": "Uma SA global por aplicação que elimina a necessidade de selecionar tráfego.", "correct": false }
+      ],
+      "explanation": "Uma SA IPsec é normalmente unidirecional. Para proteger tráfego nos dois sentidos, estabelece-se uma associação para cada direção, com seus próprios parâmetros e identificadores.",
+      "section": "1. IPsec: segurança na camada IP", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado SPF indica que houve um erro temporário durante a consulta ou avaliação da política?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "`temperror`, que sinaliza uma condição temporária na verificação.", "correct": true },
+        { "key": "B", "text": "`permerror`, que indica apenas que o IP não foi listado.", "correct": false },
+        { "key": "C", "text": "`none`, que confirma uma falha temporária no servidor autoritativo.", "correct": false },
+        { "key": "D", "text": "`softfail`, que informa que a consulta DNS não foi concluída.", "correct": false },
+        { "key": "E", "text": "`neutral`, que declara uma falha sintática na política publicada.", "correct": false }
+      ],
+      "explanation": "temperror representa erro temporário durante a avaliação, por exemplo quando uma consulta DNS necessária não pôde ser concluída por falha transitória. permerror é permanente; os demais resultados têm significados diferentes.",
+      "section": "4. SPF e DKIM: autenticação de envio e assinatura", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente integridade de confidencialidade em IPsec?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Integridade ajuda a detectar alteração; confidencialidade oculta o conteúdo protegido.", "correct": true },
+        { "key": "B", "text": "Integridade impede que terceiros observem o endereço externo do túnel.", "correct": false },
+        { "key": "C", "text": "Confidencialidade garante que nenhum pacote seja perdido no caminho.", "correct": false },
+        { "key": "D", "text": "Confidencialidade prova a identidade do usuário que abriu a VPN.", "correct": false },
+        { "key": "E", "text": "Integridade significa que o pacote foi encaminhado sem atraso ou reordenação.", "correct": false }
+      ],
+      "explanation": "Integridade permite verificar se os dados protegidos foram alterados; confidencialidade limita a leitura do conteúdo por quem não tem a chave. Nenhum dos conceitos, isoladamente, garante disponibilidade, ausência de atraso ou identidade de usuário da aplicação.",
+      "section": "2. IPsec: AH, ESP e modos de operação", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    { "kind": "OFICIAL", "title": "RFC 4301 — Security Architecture for the Internet Protocol", "publisher": "RFC Editor / IETF", "reference": "Arquitetura IPsec, SPD, SAD, AH/ESP, modos, serviços e políticas", "url": "https://www.rfc-editor.org/rfc/rfc4301.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 4303 — IP Encapsulating Security Payload (ESP)", "publisher": "RFC Editor / IETF", "reference": "Serviços ESP, encapsulamento, sequência e anti-replay", "url": "https://www.rfc-editor.org/rfc/rfc4303.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 7296 — Internet Key Exchange Protocol Version 2 (IKEv2)", "publisher": "RFC Editor / IETF", "reference": "Negociação, autenticação de pares, IKE SA e SAs de tráfego", "url": "https://www.rfc-editor.org/rfc/rfc7296.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 9364 — DNS Security Extensions (DNSSEC)", "publisher": "RFC Editor / IETF", "reference": "Documentos centrais DNSSEC, validação, registros e limites", "url": "https://www.rfc-editor.org/rfc/rfc9364.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 4033 — DNS Security Introduction and Requirements", "publisher": "RFC Editor / IETF", "reference": "Serviços, validação e limites de segurança do DNSSEC", "url": "https://www.rfc-editor.org/rfc/rfc4033.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 4034 — Resource Records for the DNS Security Extensions", "publisher": "RFC Editor / IETF", "reference": "Registros DNSKEY, RRSIG, DS e NSEC", "url": "https://www.rfc-editor.org/rfc/rfc4034.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 7208 — Sender Policy Framework (SPF)", "publisher": "RFC Editor / IETF", "reference": "Identidades, mecanismos, qualificadores e resultados SPF", "url": "https://www.rfc-editor.org/rfc/rfc7208.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 6376 — DomainKeys Identified Mail (DKIM) Signatures", "publisher": "RFC Editor / IETF", "reference": "Formato de assinatura, domínio, selector e validação DKIM", "url": "https://www.rfc-editor.org/rfc/rfc6376.html", "accessedAt": "2026-11-03" },
+    { "kind": "OFICIAL", "title": "RFC 9989 — Domain-Based Message Authentication, Reporting, and Conformance (DMARC)", "publisher": "RFC Editor / IETF", "reference": "Especificação atual DMARC, alinhamento, política e relatórios; substitui RFC 7489 e 9091", "url": "https://www.rfc-editor.org/rfc/rfc9989.html", "accessedAt": "2026-11-03" }
+  ]
+}

@@ -1,0 +1,769 @@
+{
+  "id": "informatica.hyper-threading-memoria-compartilhada",
+  "subject": "Informática",
+  "title": "Hyper-Threading e modelos de memória compartilhada",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Hyper-Threading e memória compartilhada",
+    "Tecnologia Intel Hyper-Threading",
+    "Hyper-Threading em processadores",
+    "Threads lógicas e núcleos físicos",
+    "Modelos de memória compartilhada",
+    "Arquitetura UMA e NUMA",
+    "Multiprocessadores de memória compartilhada",
+    "SMP e acesso uniforme à memória",
+    "NUMA e memória de acesso não uniforme",
+    "Memória compartilhada em programação paralela",
+    "Coerência de cache em multiprocessadores",
+    "Concorrência com threads e sincronização"
+  ],
+  "scope": {
+    "covers": "Funcionamento do Intel Hyper-Threading: contextos lógicos por núcleo físico, estado arquitetural, recursos compartilhados, papel do sistema operacional e efeitos no desempenho; multiprocessadores de memória compartilhada; modelos UMA/SMP e NUMA, localidade, comunicação por espaço de endereçamento comum, coerência de cache, condições de corrida e sincronização entre threads.",
+    "excludes": "Detalhes elétricos ou microarquiteturais específicos de uma geração de processadores, números fixos de ganho de desempenho, programação de APIs particulares e arquiteturas proprietárias não necessárias para distinguir os modelos de memória compartilhada."
+  },
+  "theoryTitle": "Threads lógicas e memória compartilhada",
+  "chapters": [
+    {
+      "title": "1. Hyper-Threading: dois contextos em um núcleo",
+      "markdown": "### O problema que este assunto resolve\n\nUm núcleo pode ficar com unidades de execução ociosas quando uma thread aguarda dados, por exemplo, uma leitura que ainda não chegou da memória. O **Intel Hyper-Threading (HT)** permite que um núcleo físico mantenha mais de um contexto arquitetural e apresente esses contextos ao sistema como **processadores lógicos**. O escalonador pode então executar outra thread no mesmo núcleo enquanto a primeira não aproveita os recursos disponíveis.\n\n> **Siglas e termos deste capítulo**\n> - **Núcleo físico**: unidade de processamento implementada no chip, com recursos de execução.\n> - **Thread de software**: fluxo de instruções e estado de execução de um programa.\n> - **Processador lógico**: contexto que o sistema operacional pode escalonar como uma CPU, embora compartilhe o núcleo físico com outro contexto.\n> - **Estado arquitetural**: estado visível à execução, como registradores e informações de controle.\n> - **Throughput**: quantidade de trabalho concluída por unidade de tempo.\n\nEm uma implementação comum de HT, um núcleo físico expõe dois processadores lógicos. Cada contexto mantém seu próprio estado arquitetural, incluindo registradores, enquanto recursos físicos — como unidades de execução, caches ou interfaces — podem ser compartilhados. O sistema operacional enumera e escalona processadores lógicos; ele não ganha, por isso, novos núcleos físicos.\n\n| Elemento | Como se relaciona com HT |\n| --- | --- |\n| Núcleo físico | Contém os recursos físicos que executam instruções |\n| Contextos lógicos | Mantêm estados independentes e recebem threads do sistema |\n| Recursos de execução | Parte deles é compartilhada entre contextos do mesmo núcleo |\n| Sistema operacional | Enxerga CPUs lógicas e decide em qual contexto escalonar cada thread |\n\n### O que o recurso faz — e o que não faz\n\nHT busca elevar a utilização dos recursos do núcleo e pode aumentar o throughput em cargas com threads que se complementam. O resultado depende da carga e do processador: threads que disputam as mesmas unidades ou a mesma largura de banda podem obter ganho pequeno ou até sofrer contenção. Dois processadores lógicos de um núcleo não equivalem a dois núcleos físicos independentes; tampouco HT duplica automaticamente a frequência, os recursos de execução ou o desempenho.\n\nA tecnologia depende de suporte do processador, de habilitação na configuração de firmware quando aplicável e de suporte do sistema operacional. O programa precisa oferecer trabalho concorrente para que haja outra thread a escalonar. HT não divide automaticamente um programa sequencial em tarefas.\n\n### Como cai na prova\n\n- Se o enunciado disser “um núcleo aparece como dois processadores”, a distinção correta é **dois contextos lógicos em um núcleo físico**.\n- Registradores/estado arquitetural de cada contexto podem ser distintos, enquanto recursos físicos do núcleo são compartilhados.\n- Mais CPUs lógicas não significa igual quantidade de núcleos físicos nem ganho fixo de desempenho."
+    },
+    {
+      "title": "2. Sistemas de memória compartilhada",
+      "markdown": "### O problema que este assunto resolve\n\nEm um multiprocessador de **memória compartilhada**, diferentes processadores podem acessar um espaço de endereçamento comum. Uma thread pode gravar um dado em uma posição compartilhada e outra thread pode ler essa posição usando o endereço correspondente, sem que a aplicação precise enviar uma cópia explícita da mensagem pela rede. Isso facilita a comunicação, mas exige coordenar acessos concorrentes.\n\n> **Siglas e termos deste capítulo**\n> - **Espaço de endereçamento**: conjunto de endereços que instruções de leitura e escrita podem referenciar.\n> - **Multiprocessador**: sistema com mais de uma unidade de processamento.\n> - **SMP**: multiprocessador simétrico; em uso comum, associado a processadores com acesso uniforme à memória compartilhada.\n> - **UMA**: *Uniform Memory Access*, tempo de acesso semelhante para os processadores em relação à memória principal.\n> - **NUMA**: *Non-Uniform Memory Access*, tempo de acesso dependente da localização do processador e da memória.\n\n“Compartilhada” descreve a possibilidade de acessar um espaço de memória comum; não exige que todos os módulos de RAM estejam fisicamente no mesmo lugar. Essa distinção leva a dois modelos importantes:\n\n| Propriedade | UMA (frequentemente SMP) | NUMA |\n| --- | --- | --- |\n| Organização típica | Memória principal central acessada pelos processadores | Memória distribuída em nós ligados aos processadores |\n| Latência de acesso | Aproximadamente uniforme, sem considerar contenção | Menor para memória local; maior para memória remota |\n| Espaço de endereçamento | Compartilhado | Também pode ser compartilhado globalmente |\n| Desafio de desempenho | Contenção no caminho comum e escalabilidade | Preservar localidade e evitar acessos remotos excessivos |\n\n### UMA e NUMA em uso\n\nEm UMA, os processadores têm acesso com latência aproximadamente uniforme às posições da memória principal. “Uniforme” não quer dizer que todo acesso tenha duração invariável: filas, caches e contenção ainda alteram o tempo observado. O termo caracteriza a relação de acesso à memória entre processadores. A denominação SMP destaca a simetria entre processadores nesse acesso.\n\nEm NUMA, a memória é organizada em nós associados a processadores ou conjuntos de processadores. Um processador pode acessar memória de outro nó, preservando o espaço compartilhado, mas a latência e a largura de banda tendem a ser melhores no nó local. Por isso, alocar dados perto das threads que os usam e manter afinidade entre thread e CPU pode melhorar o desempenho. NUMA não significa que cada processador só possa acessar sua memória local.\n\n### Como cai na prova\n\n- A diferença definidora entre UMA e NUMA é a uniformidade do tempo de acesso, não a existência de endereços compartilhados.\n- Em NUMA, memória remota continua acessível; o custo é que pode ser maior.\n- SMP costuma identificar a organização UMA simétrica, mas o termo “memória compartilhada” é mais amplo e inclui sistemas NUMA."
+    },
+    {
+      "title": "3. Threads, dados compartilhados e sincronização",
+      "markdown": "### O problema que este assunto resolve\n\nVárias threads podem ler e escrever a mesma variável. O endereço comum permite a comunicação, mas duas operações sobrepostas podem produzir um resultado diferente conforme a ordem de execução. Uma atualização como “ler contador, somar um, gravar” não é necessariamente uma operação indivisível: duas threads podem ler o mesmo valor e depois gravar o mesmo resultado, perdendo uma das incrementações.\n\n> **Siglas e termos deste capítulo**\n> - **Condição de corrida**: resultado depende da ordem ou do intercalamento de acessos concorrentes.\n> - **Seção crítica**: trecho que acessa estado compartilhado e precisa de coordenação para preservar uma regra.\n> - **Mutex**: mecanismo de exclusão mútua que permite a uma thread por vez ocupar uma seção protegida.\n> - **Barreira**: ponto de sincronização em que threads aguardam até que as participantes alcancem a etapa.\n> - **Coerência de cache**: manutenção de valores consistentes de uma mesma posição que aparece em caches distintos.\n\nPara um dado compartilhado, leituras simultâneas sem escrita geralmente não causam disputa por atualização. Conflitos surgem quando acessos concorrentes incluem escrita e não há sincronização suficiente. Mutexes, operações atômicas, barreiras e outras primitivas estabelecem regras de ordenação ou exclusão. O mecanismo escolhido deve proteger a operação completa que precisa ser indivisível, e não apenas uma instrução isolada.\n\nCaches guardam cópias de dados para acelerar o acesso. Se mais de um núcleo puder armazenar uma cópia da mesma posição, o hardware precisa manter uma visão coerente quando há escrita. **Coerência de cache** trata da consistência das cópias dessa posição; ela não substitui a sincronização lógica do programa. Um contador ainda pode perder atualizações mesmo em sistema com cache coerente, se o incremento concorrente não for atômico ou protegido.\n\nModelos de programação de memória compartilhada também distinguem dados **compartilhados** de dados **privados à thread**. Compartilhar um endereço não quer dizer que cada variável seja automaticamente compartilhada em toda linguagem ou diretiva; regras de escopo definem se uma thread vê uma variável comum ou uma cópia privada. A cópia privada evita disputa por aquele estado, mas seu valor não atualiza por si só o original.\n\n### Como cai na prova\n\n- “Todos os processadores acessam o mesmo endereço” não implica “acessos simultâneos são automaticamente seguros”.\n- Coerência mantém cópias de cache compatíveis; mutexes/atômicas coordenam operações concorrentes do programa.\n- A leitura simultânea não é a situação típica de corrida de dados; escrita concorrente sem coordenação é o caso clássico."
+    },
+    {
+      "title": "4. Comparação dos modelos e escolhas de desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nEscolher ou avaliar um sistema paralelo requer separar três perguntas: **quantas unidades físicas existem**, **como as threads enxergam os dados** e **quanto custa chegar a cada posição de memória**. Hyper-Threading responde à primeira em termos de contextos lógicos por núcleo; memória compartilhada descreve o espaço de comunicação; UMA e NUMA descrevem a uniformidade ou não do acesso físico. São dimensões relacionadas, mas não sinônimas.\n\n> **Siglas e termos deste capítulo**\n> - **Localidade NUMA**: proximidade entre a CPU executora e o nó de memória que contém os dados.\n> - **Afinidade**: preferência ou restrição para executar uma thread em determinado processador.\n> - **Contenção**: disputa de várias threads por um recurso comum, como memória, cache ou unidade de execução.\n> - **Memória distribuída**: cada nó tem seu espaço privado; nós distintos costumam trocar dados por mensagens explícitas.\n\nEm NUMA, otimizar localidade pode reduzir acessos remotos; em UMA, não há a mesma distinção de distância por nó, embora haja contenção. Em ambas, dados compartilhados podem criar contenção de cache e exigir sincronização. Em HT, dois contextos do mesmo núcleo compartilham recursos de execução, então posicionar threads que competem muito pelos mesmos recursos pode não melhorar o throughput. O teste adequado considera a carga real e compara desempenho, latência e uso de recursos, sem presumir um percentual universal.\n\nMemória compartilhada também se distingue de memória distribuída por software: numa arquitetura distribuída, um nó normalmente não lê diretamente uma posição privada de outro nó como se fosse sua RAM local. A comunicação entre processos é feita por mensagens ou mecanismos de rede. Em sistemas NUMA, a memória física distribuída pode continuar apresentada como um espaço de endereçamento compartilhado, portanto NUMA não deve ser confundido com “shared nothing”.\n\n| Conceito | Responde a qual pergunta? | Não significa |\n| --- | --- | --- |\n| Hyper-Threading | Quantos contextos lógicos um núcleo pode oferecer? | Duplicação de núcleos físicos |\n| Memória compartilhada | Threads podem acessar um espaço comum? | Ausência de corrida ou de sincronização |\n| UMA/NUMA | O custo de acesso à memória é uniforme? | Existência/ausência de endereçamento comum |\n| Memória distribuída | Como nós independentes trocam dados? | Acesso transparente a toda RAM remota |\n\n### Como cai na prova\n\nLeia a propriedade descrita: “dois contextos no mesmo núcleo” aponta para HT; “mesmo espaço de endereços” aponta para memória compartilhada; “acesso local mais rápido que remoto” aponta para NUMA; “mesma latência entre processadores” aponta para UMA. Uma alternativa pode misturar verdades de temas diferentes, mas só é correta se responder exatamente ao cenário perguntado."
+    }
+  ],
+  "summary": "Hyper-Threading expõe múltiplos contextos lógicos em um núcleo físico. Cada contexto possui estado arquitetural próprio, mas compartilha recursos do núcleo; o ganho depende da carga e não equivale a duplicar núcleos ou desempenho. Em memória compartilhada, processadores acessam um espaço de endereçamento comum. UMA oferece acesso aproximadamente uniforme; NUMA também permite acesso global, mas favorece a memória local. Acesso compartilhado não elimina condições de corrida: escritas concorrentes requerem sincronização. Coerência de cache mantém cópias consistentes, mas não substitui a coordenação do programa.",
+  "flashcards": [
+    { "front": "O que o Hyper-Threading apresenta ao sistema operacional?", "back": "Mais de um processador lógico por núcleo físico compatível; o sistema pode escalonar uma thread em cada contexto lógico." },
+    { "front": "Processadores lógicos HT são núcleos físicos independentes?", "back": "Não. São contextos em um núcleo físico e compartilham recursos de execução." },
+    { "front": "O que cada contexto lógico de HT mantém de próprio?", "back": "Estado arquitetural próprio, incluindo seus registradores e estado de controle." },
+    { "front": "O que ocorre com recursos físicos no Hyper-Threading?", "back": "Recursos como unidades de execução, caches ou interfaces podem ser compartilhados entre contextos do mesmo núcleo." },
+    { "front": "O que o sistema operacional escala em um processador com HT?", "back": "Threads de software nos processadores lógicos que o hardware apresenta." },
+    { "front": "HT divide automaticamente um programa sequencial?", "back": "Não. O programa ou ambiente precisa fornecer threads concorrentes para aproveitar os contextos." },
+    { "front": "O ganho de HT é fixo?", "back": "Não. Depende da carga, da arquitetura e da contenção pelos recursos compartilhados." },
+    { "front": "O que significa memória compartilhada em multiprocessadores?", "back": "Processadores podem acessar um espaço de endereçamento comum." },
+    { "front": "O que define UMA?", "back": "Acesso com latência aproximadamente uniforme dos processadores às posições da memória principal." },
+    { "front": "Com que arquitetura SMP costuma ser associado?", "back": "A UMA simétrica, em que os processadores têm relação semelhante de acesso à memória." },
+    { "front": "O que define NUMA?", "back": "A latência varia conforme a localização do processador e do nó de memória acessado." },
+    { "front": "Em NUMA, a CPU pode acessar memória de outro nó?", "back": "Sim. A memória remota é acessível, mas tende a ter custo maior que a local." },
+    { "front": "O que é localidade NUMA?", "back": "Manter dados perto do processador que executa as threads que os utilizam." },
+    { "front": "UMA garante latência invariável em todas as situações?", "back": "Não. Contenção, filas e caches alteram o tempo observado; UMA descreve uniformidade relativa entre processadores." },
+    { "front": "O que distingue memória compartilhada de distribuída?", "back": "Na compartilhada, threads acessam endereços comuns; na distribuída, nós trocam dados por mensagens ou mecanismos explícitos." },
+    { "front": "O que é uma condição de corrida?", "back": "Um resultado que depende do intercalamento de acessos concorrentes não coordenados." },
+    { "front": "Por que incrementar um contador compartilhado pode perder atualizações?", "back": "Ler, somar e gravar pode não ser indivisível; duas threads podem ler o mesmo valor e sobrescrever o resultado uma da outra." },
+    { "front": "Para que serve um mutex?", "back": "Para permitir que uma thread por vez execute uma seção protegida que acessa estado compartilhado." },
+    { "front": "Para que serve uma operação atômica?", "back": "Executar uma atualização definida como indivisível em relação a outras operações concorrentes pertinentes." },
+    { "front": "O que faz uma barreira entre threads?", "back": "Faz as participantes aguardarem até que todas alcancem determinado ponto de sincronização." },
+    { "front": "O que é coerência de cache?", "back": "Mecanismos que mantêm consistentes cópias de uma mesma posição de memória presentes em caches diferentes." },
+    { "front": "Coerência de cache substitui mutexes?", "back": "Não. Coerência trata das cópias em cache; sincronização protege regras e operações do programa." },
+    { "front": "Qual acesso concorrente típico não causa corrida de dados?", "back": "Leituras simultâneas sem escrita concorrente sobre a mesma posição." },
+    { "front": "O que é uma variável privada à thread?", "back": "Uma variável com cópia ou armazenamento próprio para aquela thread, sem atualização automática do original compartilhado." },
+    { "front": "Como HT pode melhorar throughput?", "back": "Outra thread pode usar recursos do núcleo quando a primeira não os ocupa, elevando a utilização em cargas adequadas." }
+  ],
+  "tips": [
+    "Separe núcleo físico de processador lógico: HT aumenta contextos visíveis ao sistema, não a quantidade física de núcleos.",
+    "Associe UMA à latência aproximadamente uniforme e NUMA à diferença entre memória local e remota.",
+    "Em NUMA, lembre que o espaço de endereçamento pode ser comum mesmo com módulos de memória fisicamente distribuídos.",
+    "Não misture coerência de cache com sincronização: a primeira mantém cópias consistentes; a segunda ordena ou protege operações do programa.",
+    "Ao analisar uma corrida, procure acessos concorrentes à mesma posição com ao menos uma escrita sem coordenação adequada.",
+    "Desconfie de alternativas que prometem ganho fixo de HT ou dizem que NUMA impede acesso à memória remota."
+  ],
+  "traps": [
+    "A prova afirma que HT transforma um núcleo físico em dois núcleos independentes. Errado: são contextos lógicos que compartilham recursos físicos.",
+    "A prova diz que os dois contextos lógicos usam os mesmos registradores arquiteturais. Errado: cada contexto mantém seu estado arquitetural; recursos físicos podem ser compartilhados.",
+    "A prova define NUMA como memória inacessível fora do nó local. Errado: acessos remotos são possíveis, embora em geral mais caros.",
+    "A prova conclui que memória compartilhada garante ausência de corridas. Errado: endereço comum facilita comunicação, mas escritas concorrentes precisam ser coordenadas.",
+    "A prova trata coerência de cache como substituta de operações atômicas. Errado: manter cópias coerentes não torna uma sequência de leitura e escrita indivisível.",
+    "A prova promete que HT sempre dobra o desempenho. Errado: o resultado depende da carga e da disputa pelos recursos compartilhados."
+  ],
+  "activeRecall": [
+    { "question": "Explique a diferença entre núcleo físico e processador lógico em HT.", "answer": "O núcleo físico é o hardware de execução; processadores lógicos são contextos escalonáveis que mantêm estado arquitetural próprio dentro desse núcleo e compartilham parte dos recursos físicos." },
+    { "question": "Por que HT pode aumentar throughput sem duplicar o núcleo?", "answer": "Uma segunda thread pode aproveitar recursos que ficariam ociosos enquanto a primeira aguarda. A melhora depende de haver recursos disponíveis e trabalho concorrente." },
+    { "question": "Compare UMA e NUMA quanto à latência e à organização.", "answer": "UMA oferece acesso aproximadamente uniforme entre processadores. NUMA distribui a memória em nós: a memória continua acessível globalmente, mas a local tende a ser mais rápida que a remota." },
+    { "question": "Por que NUMA ainda é um modelo de memória compartilhada?", "answer": "Apesar de os módulos estarem fisicamente distribuídos, processadores podem acessar um espaço de endereçamento comum; o custo varia com a localização." },
+    { "question": "Descreva uma condição de corrida com um contador.", "answer": "Duas threads leem o mesmo valor, cada uma soma um e ambas gravam o mesmo resultado. Uma atualização se perde porque a sequência não foi atômica ou protegida." },
+    { "question": "Diferencie coerência de cache e sincronização de threads.", "answer": "Coerência mantém consistentes cópias de linhas de memória em caches. Sincronização impõe exclusão, ordenação ou atomicidade às operações concorrentes do programa." },
+    { "question": "Quando dados privados por thread ajudam?", "answer": "Quando cada thread pode trabalhar com uma cópia independente, evitando disputa naquele estado; combinar resultados exige uma etapa explícita apropriada." },
+    { "question": "Quais fatores considerar ao avaliar HT e NUMA juntos?", "answer": "Carga e contenção nos recursos compartilhados do núcleo, número de threads úteis, colocação local de dados, afinidade e custo de acessos remotos; o efeito deve ser medido na aplicação." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Threads lógicas confundidas com núcleos físicos", "summary": "HT apresenta mais contextos lógicos por núcleo; contexto próprio e recursos compartilhados coexistem, e não há duplicação de núcleos ou garantia de ganho fixo." },
+    { "key": "e2", "title": "UMA e NUMA trocados", "summary": "UMA caracteriza latência aproximadamente uniforme; NUMA, latência que varia conforme a localidade. Em NUMA, memória remota continua acessível." },
+    { "key": "e3", "title": "Endereçamento comum tratado como segurança automática", "summary": "Memória compartilhada permite comunicação por endereço comum, mas escritas concorrentes podem correr; mutexes, atômicas ou sincronização adequada continuam necessários." },
+    { "key": "e4", "title": "Coerência de cache confundida com sincronização", "summary": "Coerência concilia cópias de dados em cache; não transforma sequências compostas em operações atômicas nem substitui a coordenação do programa." },
+    { "key": "e5", "title": "Dimensões de arquitetura misturadas", "summary": "HT descreve contextos por núcleo; memória compartilhada descreve acesso a espaço comum; UMA/NUMA descrevem uniformidade de acesso. NUMA não equivale a memória distribuída sem compartilhamento." }
+  ],
+  "questions": [
+    {
+      "statement": "Em um computador compatível com Hyper-Threading habilitado, como o sistema operacional normalmente representa os contextos adicionais de um núcleo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Como processadores lógicos que podem receber threads de software distintas.", "correct": true },
+        { "key": "B", "text": "Como núcleos físicos extras que possuem unidades de execução independentes.", "correct": false },
+        { "key": "C", "text": "Como áreas de memória virtual que substituem a fila de processos do sistema.", "correct": false },
+        { "key": "D", "text": "Como canais de entrada e saída que não executam instruções de programas.", "correct": false },
+        { "key": "E", "text": "Como cópias integrais do processador que duplicam todos os recursos do chip.", "correct": false }
+      ],
+      "explanation": "O sistema operacional pode escalonar threads nos processadores lógicos apresentados pelo hardware. Esses contextos estão dentro de um núcleo físico e compartilham recursos; não são núcleos extras nem cópias integrais do processador.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente a relação entre estado arquitetural e recursos físicos nos contextos HT do mesmo núcleo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Os contextos dividem os registradores, mas cada um possui unidades de execução exclusivas.", "correct": false },
+        { "key": "B", "text": "O estado arquitetural é mantido pelo sistema operacional, sem registradores no processador.", "correct": false },
+        { "key": "C", "text": "Os contextos compartilham estado arquitetural e recebem caches físicos sem sobreposição.", "correct": false },
+        { "key": "D", "text": "Cada contexto recebe um núcleo inteiro, mas utiliza o mesmo identificador de CPU.", "correct": false },
+        { "key": "E", "text": "Cada contexto mantém estado arquitetural próprio e pode compartilhar recursos do núcleo.", "correct": true }
+      ],
+      "explanation": "O processador mantém estado arquitetural independente para cada contexto lógico, enquanto unidades de execução e outros recursos físicos podem ser compartilhados. Essa combinação permite escalonamento independente sem criar núcleos completos.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma segunda thread pode aumentar a utilização de um núcleo com Hyper-Threading?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Porque a segunda thread recebe metade das unidades de execução sem dividir recursos.", "correct": false },
+        { "key": "B", "text": "Porque o núcleo dobra a frequência quando identifica duas threads prontas.", "correct": false },
+        { "key": "C", "text": "Porque o processador transfere as instruções da primeira thread à segunda.", "correct": false },
+        { "key": "D", "text": "Porque o sistema troca a memória compartilhada por uma cache exclusiva.", "correct": false },
+        { "key": "E", "text": "Porque uma thread pode usar recursos ociosos enquanto a outra aguarda dados.", "correct": true }
+      ],
+      "explanation": "Quando uma thread espera por dados ou não ocupa todos os recursos, outra pode avançar no contexto lógico vizinho. Isso pode elevar a utilização e o throughput, mas não dobra frequência nem garante que as threads não disputarão recursos.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe habilitou HT, mas executa uma única thread sequencial que não cria tarefas paralelas. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A segunda thread é criada automaticamente pelo firmware para dividir o programa.", "correct": false },
+        { "key": "B", "text": "O sistema operacional converte cada instrução sequencial em uma tarefa independente.", "correct": false },
+        { "key": "C", "text": "O programa passa a acessar dois conjuntos de registradores ao mesmo tempo.", "correct": false },
+        { "key": "D", "text": "HT não transforma por si só o programa sequencial em múltiplas threads.", "correct": true },
+        { "key": "E", "text": "A CPU desativa a execução sequencial e aguarda novas tarefas paralelas.", "correct": false }
+      ],
+      "explanation": "HT oferece contextos lógicos ao sistema, mas não decompõe automaticamente o código de uma aplicação em tarefas concorrentes. O programa, biblioteca ou ambiente precisa fornecer threads que possam ser escalonadas.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor com HT apresenta mais CPUs lógicas que núcleos físicos. O que essa contagem permite afirmar?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Cada CPU lógica corresponde a uma cache L1 e a um núcleo físico separado.", "correct": false },
+        { "key": "B", "text": "O servidor tem pelo menos um estado arquitetural por CPU lógica visível.", "correct": true },
+        { "key": "C", "text": "O sistema dispõe de núcleos físicos em quantidade igual às CPUs lógicas.", "correct": false },
+        { "key": "D", "text": "A quantidade maior garante o dobro de instruções concluídas em qualquer carga.", "correct": false },
+        { "key": "E", "text": "Cada processador lógico opera sem compartilhar unidades com seus pares.", "correct": false }
+      ],
+      "explanation": "A enumeração de processadores lógicos representa contextos que o hardware oferece ao escalonador. Ela não permite contar núcleos físicos nem inferir ganho fixo, pois os contextos do mesmo núcleo podem compartilhar recursos.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga de trabalho tem duas threads que disputam intensamente as mesmas unidades de execução. Qual efeito do HT é plausível?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A disputa desaparece porque cada thread recebe unidades físicas exclusivas.", "correct": false },
+        { "key": "B", "text": "O processador migra as unidades disputadas para a memória principal.", "correct": false },
+        { "key": "C", "text": "O ganho pode ser pequeno ou negativo devido à contenção nos recursos compartilhados.", "correct": true },
+        { "key": "D", "text": "O throughput dobra porque as threads usam contextos arquiteturais diferentes.", "correct": false },
+        { "key": "E", "text": "O sistema desconsidera uma thread e transforma o contexto em núcleo físico.", "correct": false }
+      ],
+      "explanation": "Contextos separados não eliminam a disputa por recursos físicos comuns. Se ambas as threads demandam intensamente as mesmas unidades, a contenção pode limitar o ganho e até reduzir o desempenho da carga medida.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa distingue adequadamente UMA de NUMA?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "UMA tem latência aproximadamente uniforme; NUMA varia conforme a localidade da memória.", "correct": true },
+        { "key": "B", "text": "UMA compartilha endereços; NUMA exige mensagens para acessar qualquer endereço remoto.", "correct": false },
+        { "key": "C", "text": "UMA usa memória distribuída; NUMA mantém todos os módulos em um único ponto físico.", "correct": false },
+        { "key": "D", "text": "UMA impede cache; NUMA permite cache somente no processador de memória local.", "correct": false },
+        { "key": "E", "text": "UMA varia com a distância; NUMA garante o mesmo tempo para todos os nós.", "correct": false }
+      ],
+      "explanation": "A distinção central é a uniformidade relativa do tempo de acesso. UMA oferece acesso aproximadamente uniforme; NUMA tem custos diferentes para memória local e remota, sem que isso necessariamente elimine o espaço compartilhado.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura NUMA, uma thread executada no nó 0 precisa ler dados alocados no nó 1. Qual descrição é correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A leitura é impossível porque cada nó possui endereços privados sem comunicação.", "correct": false },
+        { "key": "B", "text": "A thread precisa converter os dados em mensagem antes de cada leitura.", "correct": false },
+        { "key": "C", "text": "O dado remoto é acessível, mas o acesso pode custar mais que um acesso local.", "correct": true },
+        { "key": "D", "text": "A leitura ocorre com latência uniforme, pois NUMA conserva uma memória central.", "correct": false },
+        { "key": "E", "text": "O sistema move obrigatoriamente a thread para o nó 1 antes de ler.", "correct": false }
+      ],
+      "explanation": "Sistemas NUMA de memória compartilhada permitem acesso a nós remotos. A localidade afeta latência e largura de banda; o acesso remoto tende a ser mais caro, mas não exige transformar cada leitura em mensagem explícita.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura é descrita como SMP com acesso uniforme à memória. Qual propriedade corresponde a essa descrição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Cada processador lê somente o módulo de memória conectado ao próprio soquete.", "correct": false },
+        { "key": "B", "text": "A latência depende necessariamente de mensagens de rede entre processadores.", "correct": false },
+        { "key": "C", "text": "O sistema mantém cópias privadas e endereços diferentes em cada processador.", "correct": false },
+        { "key": "D", "text": "Os processadores compartilham memória com relação de acesso aproximadamente simétrica.", "correct": true },
+        { "key": "E", "text": "Os processadores compartilham apenas dispositivos de entrada e saída, não a RAM.", "correct": false }
+      ],
+      "explanation": "SMP é associado à organização simétrica, usualmente UMA, em que processadores têm relação semelhante de acesso à memória comum. Isso não significa endereços privados nem troca obrigatória de mensagens para ler dados compartilhados.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que a colocação dos dados pode importar mais em NUMA do que em UMA?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Porque endereços NUMA não podem ser usados por threads em outros nós.", "correct": false },
+        { "key": "B", "text": "Porque o processador precisa duplicar a memória remota para cada leitura.", "correct": false },
+        { "key": "C", "text": "Porque threads NUMA executam sem cache quando os dados estão fora do nó.", "correct": false },
+        { "key": "D", "text": "Porque NUMA substitui toda leitura de memória por uma operação atômica.", "correct": false },
+        { "key": "E", "text": "Porque acessos locais tendem a ter menor latência e maior largura de banda.", "correct": true }
+      ],
+      "explanation": "Em NUMA, a proximidade entre CPU e nó de memória pode reduzir latência e melhorar largura de banda. Organizar dados e execução para aproveitar memória local favorece o desempenho, embora o acesso remoto continue permitido.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário representa comunicação típica em um sistema de memória compartilhada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um nó envia um pacote para outro, que grava a mensagem em seu espaço privado.", "correct": false },
+        { "key": "B", "text": "Uma thread escreve em uma posição comum e outra a consulta pelo endereço compartilhado.", "correct": true },
+        { "key": "C", "text": "Cada CPU processa uma cópia isolada e nunca consulta dados de outra CPU.", "correct": false },
+        { "key": "D", "text": "A unidade de entrada e saída traduz endereços locais para nomes de processo.", "correct": false },
+        { "key": "E", "text": "O sistema converte cada variável global em arquivo independente no disco.", "correct": false }
+      ],
+      "explanation": "Em memória compartilhada, threads podem se comunicar lendo e escrevendo posições acessíveis por um espaço de endereçamento comum. Isso difere da troca explícita de mensagens entre espaços privados de nós distintos.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação, duas threads incrementam simultaneamente um contador compartilhado por meio da sequência ler, somar e gravar. Qual problema pode ocorrer?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "O contador converte automaticamente suas cópias de cache em memória privada.", "correct": false },
+        { "key": "B", "text": "A segunda thread é removida do espaço de endereçamento pelo sistema operacional.", "correct": false },
+        { "key": "C", "text": "As duas threads podem ler o mesmo valor e uma atualização ser perdida.", "correct": true },
+        { "key": "D", "text": "O processador transforma as duas gravações em leitura sem alterar o contador.", "correct": false },
+        { "key": "E", "text": "A memória compartilhada bloqueia todas as leituras até o programa terminar.", "correct": false }
+      ],
+      "explanation": "Ler, somar e gravar são etapas que podem se intercalar. Se ambas leem o mesmo valor antes de gravar, podem produzir o mesmo resultado final, perdendo uma atualização; é preciso proteger ou tornar atômica a operação.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo é apropriado para permitir que apenas uma thread por vez execute uma seção crítica protegida?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um mutex adquirido antes da seção e liberado depois dela.", "correct": true },
+        { "key": "B", "text": "Uma segunda variável compartilhada que copia o contador sem sincronização.", "correct": false },
+        { "key": "C", "text": "Uma barreira colocada depois da escrita, sem coordenar entradas na seção.", "correct": false },
+        { "key": "D", "text": "Uma cópia privada de cada instrução, executada no mesmo endereço comum.", "correct": false },
+        { "key": "E", "text": "Uma política NUMA que encaminha escritas para o nó mais próximo.", "correct": false }
+      ],
+      "explanation": "Um mutex implementa exclusão mútua: a thread o adquire antes de acessar o estado protegido e o libera ao terminar. Isso evita que várias threads executem simultaneamente aquela seção crítica protegida.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente coerência de cache de sincronização lógica do programa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Coerência protege seções críticas; sincronização substitui todas as caches do sistema.", "correct": false },
+        { "key": "B", "text": "Coerência mantém cópias compatíveis; sincronização coordena operações concorrentes.", "correct": true },
+        { "key": "C", "text": "Coerência elimina escritas; sincronização converte dados compartilhados em privados.", "correct": false },
+        { "key": "D", "text": "Coerência controla o escalonador; sincronização define a latência entre nós NUMA.", "correct": false },
+        { "key": "E", "text": "Coerência e sincronização são nomes equivalentes para o mesmo protocolo de rede.", "correct": false }
+      ],
+      "explanation": "Protocolos de coerência tratam cópias de dados em caches. Primitivas de sincronização determinam exclusão, ordem ou atomicidade para o programa. Ter caches coerentes não torna indivisível uma sequência composta de leitura e escrita.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Duas threads apenas leem simultaneamente a mesma variável compartilhada, sem que outra thread a escreva. Como se caracteriza esse acesso?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Como uma corrida de escrita que exige sempre um mutex exclusivo.", "correct": false },
+        { "key": "B", "text": "Como um conflito NUMA que torna o endereço inacessível à segunda thread.", "correct": false },
+        { "key": "C", "text": "Como uma atualização perdida causada pela duplicação de registradores.", "correct": false },
+        { "key": "D", "text": "Como acesso de leitura concorrente que não produz, por si só, corrida de dados.", "correct": true },
+        { "key": "E", "text": "Como uma operação atômica de escrita executada pelos dois processadores.", "correct": false }
+      ],
+      "explanation": "Leituras simultâneas sem escrita concorrente não alteram a posição e, por si só, não configuram a corrida de dados clássica. Uma escrita concorrente sem sincronização muda a análise e pode exigir coordenação.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um programa precisa que todas as threads terminem a etapa de preenchimento antes de começar a etapa de leitura dos resultados. Qual mecanismo corresponde a esse ponto de encontro?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um escalonador de processadores lógicos com afinidade exclusiva.", "correct": false },
+        { "key": "B", "text": "Uma política de alocação de memória remota para cada variável.", "correct": false },
+        { "key": "C", "text": "Uma barreira que aguarda as threads participantes chegarem ao ponto.", "correct": true },
+        { "key": "D", "text": "Uma cópia privada criada antes de qualquer operação de leitura.", "correct": false },
+        { "key": "E", "text": "Uma linha de cache que duplica o estado arquitetural da aplicação.", "correct": false }
+      ],
+      "explanation": "A barreira é um ponto de sincronização coletivo: cada thread participante aguarda até que as demais alcancem a mesma etapa. Ela é adequada quando a fase seguinte só deve começar após a conclusão das participantes.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma linguagem ou diretiva cria uma cópia privada de uma variável para cada thread. O que ocorre com uma atribuição feita nessa cópia?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A atribuição altera todas as cópias privadas e o valor original por coerência.", "correct": false },
+        { "key": "B", "text": "A atribuição atualiza o original compartilhado quando o cache é descarregado.", "correct": false },
+        { "key": "C", "text": "A atribuição converte automaticamente a variável em uma operação atômica.", "correct": false },
+        { "key": "D", "text": "A atribuição é enviada a outros nós por mensagem no espaço privado.", "correct": false },
+        { "key": "E", "text": "Ela muda a cópia daquela thread, sem atualizar automaticamente o original.", "correct": true }
+      ],
+      "explanation": "Uma variável privada representa estado próprio da thread. Modificações nessa cópia não alteram automaticamente a variável original compartilhada; combinar resultados exige regra explícita, como redução ou cópia posterior conforme o modelo usado.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação NUMA, as threads acessam quase sempre memória localizada no próprio nó. Qual objetivo de desempenho essa organização favorece?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Reduzir a proporção de acessos remotos e aproveitar a localidade da memória.", "correct": true },
+        { "key": "B", "text": "Impedir qualquer comunicação entre processadores de nós diferentes.", "correct": false },
+        { "key": "C", "text": "Fazer com que todas as páginas sejam armazenadas em uma memória central única.", "correct": false },
+        { "key": "D", "text": "Eliminar a necessidade de coerência quando uma posição é compartilhada.", "correct": false },
+        { "key": "E", "text": "Transformar a memória principal em cache privada de cada thread.", "correct": false }
+      ],
+      "explanation": "A localidade favorece acessos à memória próxima ao processador que executa a thread, reduzindo tráfego remoto e custo de acesso. Isso não impede comunicação entre nós nem altera por si só as regras de sincronização.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa compara corretamente um sistema NUMA com um sistema de memória distribuída sem espaço global compartilhado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Ambos exigem mensagens explícitas, pois NUMA não permite leituras remotas de memória entre nós.", "correct": false },
+        { "key": "B", "text": "NUMA pode oferecer espaço compartilhado; memória distribuída costuma trocar mensagens entre espaços privados.", "correct": true },
+        { "key": "C", "text": "Memória distribuída garante acesso uniforme entre nós; NUMA mantém toda RAM em um endereço local.", "correct": false },
+        { "key": "D", "text": "NUMA e memória distribuída são equivalentes, pois módulos separados sempre usam espaços privados.", "correct": false },
+        { "key": "E", "text": "Memória distribuída permite que qualquer thread leia a RAM de outro nó diretamente, sem trocar mensagens.", "correct": false }
+      ],
+      "explanation": "Em NUMA, módulos físicos podem estar distribuídos e ainda participar de um espaço de endereçamento acessível pelos processadores. Em sistemas distribuídos sem espaço comum, cada nó mantém espaço privado e a comunicação ocorre tipicamente por mensagens.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise compara dois processadores em UMA e observa tempos diferentes por causa de filas de memória. Isso contradiz necessariamente a classificação UMA?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Sim, pois UMA exige duração idêntica para cada acesso em qualquer condição, mesmo com filas concorrentes.", "correct": false },
+        { "key": "B", "text": "Sim, pois filas indicam que a arquitetura tem endereços exclusivamente privados.", "correct": false },
+        { "key": "C", "text": "Não, pois UMA descreve a relação aproximada de acesso, e contenção ainda altera tempos observados.", "correct": true },
+        { "key": "D", "text": "Não, pois UMA permite que apenas um processador acesse toda memória por vez.", "correct": false },
+        { "key": "E", "text": "Sim, pois qualquer variação de latência, inclusive por filas de acesso, caracteriza necessariamente NUMA.", "correct": false }
+      ],
+      "explanation": "Uniformidade em UMA é uma propriedade relativa da organização de acesso entre processadores, não uma promessa de latência invariável sob toda carga. Filas, caches e contenção podem produzir tempos observados distintos.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um processador tem HT e o sistema operacional mostra o dobro de CPUs lógicas em relação aos núcleos físicos. Essa contagem prova que o desempenho de qualquer programa dobrou?",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A contagem indica contextos lógicos, não duplicação de núcleos ou desempenho. O efeito depende do paralelismo disponível e da disputa por recursos compartilhados.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implementação HT, cada contexto lógico pode manter seu próprio estado arquitetural mesmo quando compartilha unidades de execução com o contexto vizinho.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O estado arquitetural, como registradores, é mantido por contexto. Recursos físicos do núcleo, entre eles unidades de execução, podem ser compartilhados entre esses contextos.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O Hyper-Threading pode melhorar o aproveitamento do núcleo quando uma thread deixa recursos de execução ociosos enquanto aguarda dados.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Uma thread escalonada no contexto lógico vizinho pode usar recursos disponíveis durante esperas da primeira thread. O ganho depende das características das threads e do núcleo.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para que o HT produza paralelismo de software, o hardware divide automaticamente qualquer fluxo sequencial em duas threads independentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. HT disponibiliza contextos lógicos ao escalonador, mas a aplicação ou seu ambiente precisa fornecer threads concorrentes. A tecnologia não paraleliza automaticamente qualquer programa sequencial.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A possibilidade de o sistema operacional escalonar uma thread em cada processador lógico faz com que esses processadores sejam núcleos físicos independentes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um processador lógico é um contexto escalonável dentro de um núcleo físico. Contextos podem compartilhar recursos físicos, portanto sua representação pelo sistema não os transforma em núcleos independentes.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se duas threads HT demandam recursos físicos comuns ao mesmo tempo, a disputa pode limitar o benefício de throughput.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O compartilhamento de unidades e outros recursos pode levar as threads a competir. HT pode melhorar o uso de recursos ociosos, mas não elimina contenção quando ambas precisam dos mesmos recursos.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "UMA caracteriza acesso com latência aproximadamente uniforme entre processadores em relação à memória principal.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O modelo UMA se distingue pela uniformidade aproximada do acesso dos processadores às posições da memória principal, sem que isso prometa tempos invariáveis sob qualquer contenção.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em NUMA, um processador que acessa memória localizada em outro nó pode encontrar latência maior que ao acessar memória local.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A latência e a largura de banda dependem da distância entre o processador e o nó de memória. Memória local tende a ter acesso mais favorável que a remota.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura NUMA impede que um processador consulte posições de memória alocadas em outro nó.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Em NUMA de memória compartilhada, o acesso remoto é possível. A característica é que o acesso não tem custo uniforme e a memória local tende a ser mais rápida.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "SMP costuma designar um multiprocessador simétrico associado a acesso uniforme à memória compartilhada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No uso clássico, SMP está associado a processadores simétricos com acesso uniforme à memória, um arranjo do tipo UMA. O conceito mais geral de memória compartilhada também abrange NUMA.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A denominação memória compartilhada exige que todos os módulos de RAM estejam fisicamente instalados em um único ponto central.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O termo se refere ao acesso a um espaço de endereçamento comum. NUMA pode distribuir fisicamente a memória em nós sem retirar a possibilidade de acesso compartilhado.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo de memória compartilhada, processadores podem comunicar-se por leitura e escrita em endereços comuns.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O endereço compartilhado oferece um meio de comunicação entre threads. As operações concorrentes ainda precisam respeitar regras de sincronização quando envolvem estado mutável.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quando duas threads leem a mesma variável e nenhuma thread a modifica durante esses acessos, esse fato, isoladamente, caracteriza uma corrida de dados de escrita.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Leituras concorrentes sem escrita não constituem, por si só, a corrida de dados clássica. O risco surge quando acessos concorrentes incluem escrita sem coordenação adequada.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um incremento composto por leitura, soma e gravação pode perder uma atualização quando duas threads o executam sem proteção.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As etapas podem intercalar-se: ambas as threads leem o mesmo valor e gravam o mesmo incremento. Um mecanismo atômico ou de exclusão mútua protege a atualização conforme a necessidade.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A coerência de cache garante, sozinha, que qualquer sequência de leitura, soma e gravação seja executada como uma operação indivisível.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Coerência mantém compatíveis as cópias de uma posição em caches, mas não torna atômica uma sequência composta. Para isso, o programa usa sincronização ou operação atômica apropriada.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável privada de uma thread é uma cópia cujo valor atribuído se propaga automaticamente para a variável original compartilhada.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A cópia privada mantém estado independente. Atribuições a ela não atualizam automaticamente o original; a combinação ou publicação do resultado depende de uma regra explícita do programa ou da diretiva usada.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma barreira pode fazer as threads participantes aguardarem até que todas tenham chegado ao mesmo ponto da execução.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A barreira sincroniza etapas coletivas: uma thread que chegou aguarda até que as participantes previstas também cheguem, permitindo organizar a transição para a etapa seguinte.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema NUMA pode apresentar um espaço de endereçamento compartilhado mesmo que a memória esteja fisicamente dividida em nós.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distribuição física dos módulos e a possibilidade de acesso a endereços comuns são características distintas. NUMA combina memória organizada em nós com acesso não uniforme, mas compartilhado.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma plataforma compatível, que condições gerais permitem ao sistema aproveitar o Hyper-Threading?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Processador compatível, recurso habilitado quando necessário e suporte do sistema operacional.", "correct": true },
+        { "key": "B", "text": "Qualquer CPU, desde que o programa use memória virtual e o firmware desligue o escalonador.", "correct": false },
+        { "key": "C", "text": "Dois módulos de RAM, ainda que o núcleo não exponha processadores lógicos ao sistema.", "correct": false },
+        { "key": "D", "text": "Uma placa de vídeo dedicada e uma thread sequencial compilada para código nativo.", "correct": false },
+        { "key": "E", "text": "Um hypervisor ativo, pois sistemas operacionais comuns não reconhecem nem escalonam CPUs lógicas.", "correct": false }
+      ],
+      "explanation": "A tecnologia depende de suporte do processador e do sistema operacional, além de estar habilitada na configuração da plataforma quando aplicável. Memória adicional ou uma GPU não substituem essas condições.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual grupo reúne recursos que podem ser compartilhados pelos contextos lógicos do mesmo núcleo HT?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "O estado arquitetural completo, inclusive registradores de controle exclusivos de cada contexto lógico.", "correct": false },
+        { "key": "B", "text": "Unidades de execução, caches ou interfaces físicas do núcleo, conforme a implementação.", "correct": true },
+        { "key": "C", "text": "Somente o espaço de endereçamento virtual criado pelo sistema operacional.", "correct": false },
+        { "key": "D", "text": "Apenas os identificadores de processo, sem qualquer recurso dentro do processador.", "correct": false },
+        { "key": "E", "text": "Os arquivos executáveis e as páginas de código armazenadas no disco rígido.", "correct": false }
+      ],
+      "explanation": "A implementação mantém estados arquiteturais separados para os contextos, mas pode compartilhar unidades de execução, caches e interfaces físicas. A organização exata depende da microarquitetura.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual função do sistema operacional é relevante depois que o processador apresenta CPUs lógicas por meio de HT?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Converter cada cache compartilhada em uma região de memória virtual privada.", "correct": false },
+        { "key": "B", "text": "Criar registradores físicos para cada thread de usuário antes da execução.", "correct": false },
+        { "key": "C", "text": "Definir o tempo uniforme de acesso de todos os módulos de RAM.", "correct": false },
+        { "key": "D", "text": "Enxergar os processadores lógicos e escalonar threads nos contextos disponíveis.", "correct": true },
+        { "key": "E", "text": "Duplicar os núcleos do processador sempre que houver processos prontos.", "correct": false }
+      ],
+      "explanation": "O sistema operacional reconhece processadores lógicos e usa seu escalonador para atribuir threads a esses contextos. A existência dos contextos é oferecida pelo hardware; o sistema não cria núcleos físicos.",
+      "section": "1. Hyper-Threading: dois contextos em um núcleo", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe NUMA observa que dados foram alocados longe das CPUs que mais os consultam. Qual ajuste de organização pode favorecer a localidade?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Desativar o espaço de endereçamento comum em todos os processadores do servidor.", "correct": false },
+        { "key": "B", "text": "Enviar uma mensagem de rede para cada leitura feita por uma thread local.", "correct": false },
+        { "key": "C", "text": "Replicar toda variável mutável em todos os nós sem combinar as escritas.", "correct": false },
+        { "key": "D", "text": "Aproximar a alocação dos dados e a execução das threads que os utilizam.", "correct": true },
+        { "key": "E", "text": "Fixar todas as threads em um processador, mesmo quando os dados permanecem remotos.", "correct": false }
+      ],
+      "explanation": "Alinhar a localização dos dados com a execução das threads favorece acessos locais e reduz tráfego remoto. Replicar dados mutáveis sem uma estratégia de combinação pode introduzir divergências, e restringir CPUs sem considerar a memória não resolve o problema.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma thread mantém temporariamente um valor em registrador ou cache antes de uma sincronização. O que isso ilustra em um modelo de memória?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Que o endereço compartilhado deixa de existir enquanto houver armazenamento local.", "correct": false },
+        { "key": "B", "text": "Que toda variável compartilhada precisa estar em memória somente de leitura.", "correct": false },
+        { "key": "C", "text": "Que a memória principal do sistema é distribuída por mensagens entre processos.", "correct": false },
+        { "key": "D", "text": "Que caches locais tornam todas as escritas atômicas sem coordenação adicional.", "correct": false },
+        { "key": "E", "text": "Que uma thread pode ter uma visão temporária por registradores ou cache.", "correct": true }
+      ],
+      "explanation": "Modelos de memória reconhecem que registradores, caches e outros armazenamentos podem intermediar a visão de uma thread sobre a memória. Regras de sincronização e consistência definem quando as alterações se tornam visíveis de modo apropriado.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um programa usa uma operação atômica para atualizar um contador compartilhado. Qual propriedade essa escolha busca assegurar para a atualização?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Que a posição do contador migre para o nó NUMA mais distante.", "correct": false },
+        { "key": "B", "text": "Que cada thread receba uma cópia privada com valor independente.", "correct": false },
+        { "key": "C", "text": "Que a atualização seja observada como indivisível em relação a operações concorrentes pertinentes.", "correct": true },
+        { "key": "D", "text": "Que o processador lógico passe a operar como núcleo físico separado.", "correct": false },
+        { "key": "E", "text": "Que todo acesso futuro à memória seja convertido em leitura exclusiva.", "correct": false }
+      ],
+      "explanation": "Uma operação atômica protege a atualização especificada contra intercalamentos que a dividiriam em etapas visíveis concorrentes. Ela não altera a topologia NUMA nem transforma os dados em cópias privadas.",
+      "section": "3. Threads, dados compartilhados e sincronização", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma máquina UMA com vários processadores, qual limite pode surgir quando todos acessam intensamente um caminho comum até a memória?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Contenção no caminho de acesso, que limita a escalabilidade apesar da latência uniforme.", "correct": true },
+        { "key": "B", "text": "Impossibilidade de compartilhar uma variável entre dois processadores.", "correct": false },
+        { "key": "C", "text": "Conversão automática do sistema para memória distribuída sem endereços globais.", "correct": false },
+        { "key": "D", "text": "Perda de todo estado arquitetural sempre que um núcleo lê a RAM.", "correct": false },
+        { "key": "E", "text": "Acesso remoto mais lento por definição, mesmo quando todos os módulos são simétricos.", "correct": false }
+      ],
+      "explanation": "A uniformidade de latência entre processadores não elimina a capacidade finita de barramentos ou interconexões. Muitos acessos simultâneos podem disputar o caminho comum e limitar a escalabilidade do sistema.",
+      "section": "2. Sistemas de memória compartilhada", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão é mais segura ao estimar o efeito do HT em uma aplicação real?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "A quantidade de processadores lógicos define exatamente o throughput final.", "correct": false },
+        { "key": "B", "text": "Qualquer carga de cálculo ganha mais que uma carga limitada por espera.", "correct": false },
+        { "key": "C", "text": "O ganho independe da concorrência porque os recursos são todos duplicados.", "correct": false },
+        { "key": "D", "text": "O resultado deve ser avaliado na carga, pois depende do uso e da disputa por recursos.", "correct": true },
+        { "key": "E", "text": "Uma comparação de desempenho dispensa considerar número de threads e memória.", "correct": false }
+      ],
+      "explanation": "O efeito do HT varia com a aplicação, o número e o perfil das threads e os recursos de que precisam. Medições na carga relevante são mais confiáveis que deduzir ganho apenas pelo total de CPUs lógicas.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em sistemas NUMA, a afinidade de uma thread com determinada CPU pode ser útil principalmente quando combinada com qual cuidado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Substituir o endereço da variável por um identificador de processo remoto.", "correct": false },
+        { "key": "B", "text": "Considerar onde estão os dados acessados com frequência pela thread.", "correct": true },
+        { "key": "C", "text": "Desativar toda escrita compartilhada entre as threads da aplicação.", "correct": false },
+        { "key": "D", "text": "Migrar todos os dados para o nó mais distante da CPU escolhida.", "correct": false },
+        { "key": "E", "text": "Fixar a thread sem avaliar nós de memória, largura de banda ou localidade.", "correct": false }
+      ],
+      "explanation": "Afinidade pode reduzir migrações da thread, mas o benefício NUMA depende da relação entre a CPU escolhida e os nós que contêm os dados utilizados. Afinidade e posicionamento dos dados devem ser considerados em conjunto.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema NUMA com coerência de cache, qual descrição combina corretamente acesso remoto e coerência?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A coerência transforma a latência remota em uniforme e remove os nós físicos.", "correct": false },
+        { "key": "B", "text": "O processador remoto não consegue consultar dados mantidos em outro nó.", "correct": false },
+        { "key": "C", "text": "A coerência obriga o programa a enviar uma mensagem para cada leitura remota.", "correct": false },
+        { "key": "D", "text": "A memória local perde sua relação com o processador quando há cache compartilhada.", "correct": false },
+        { "key": "E", "text": "A coerência mantém cópias consistentes, enquanto a latência ainda depende da distância.", "correct": true }
+      ],
+      "explanation": "Em ccNUMA, processadores podem acessar memória global e a coerência é mantida por caches e/ou interconexão. Isso não apaga a topologia NUMA: o custo de acesso continua variando conforme a distância até o nó de memória.",
+      "section": "4. Comparação dos modelos e escolhas de desempenho", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Intel® Hyper-Threading Technology — Core Processors Datasheet",
+      "publisher": "Intel",
+      "reference": "Contextos lógicos por núcleo; estado arquitetural próprio; recursos compartilhados; habilitação e suporte do sistema operacional.",
+      "url": "https://edc.intel.com/content/www/us/en/design/ipla/software-development-platforms/client/platforms/alder-lake-desktop/12th-generation-intel-core-processors-datasheet-volume-1-of-2/005/intel-hyper-threading-technology/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Intel® 64 and IA-32 Architectures Optimization Reference Manual",
+      "publisher": "Intel",
+      "reference": "Seções sobre Hyper-Threading, utilização e compartilhamento de recursos de execução; recomendações condicionadas à carga.",
+      "url": "https://cdrdv2-public.intel.com/821612/248966-Optimization-Reference-Manual-V1-050.pdf",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Structure of the OpenMP Memory Model",
+      "publisher": "OpenMP Architecture Review Board",
+      "reference": "Modelo de memória compartilhada, visões temporárias por thread, dados compartilhados e privados.",
+      "url": "https://www.openmp.org/spec-html/5.1/openmpsu9.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is NUMA?",
+      "publisher": "The Linux Kernel Documentation",
+      "reference": "Acessibilidade global em ccNUMA, latência e largura de banda dependentes da distância, localidade de memória.",
+      "url": "https://docs.kernel.org/mm/numa.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenMP Examples — Memory Model",
+      "publisher": "OpenMP Architecture Review Board",
+      "reference": "Corrida em acessos com escrita, diferença entre leitura concorrente e acesso conflitante, sincronização de visões de memória.",
+      "url": "https://www.openmp.org/wp-content/uploads/openmp-examples-4.5.0.pdf",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

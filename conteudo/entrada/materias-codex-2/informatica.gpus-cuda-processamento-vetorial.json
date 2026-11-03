@@ -1,0 +1,1517 @@
+{
+  "id": "informatica.gpus-cuda-processamento-vetorial",
+  "subject": "Informática",
+  "title": "GPUs: arquitetura CUDA e aplicações em processamento vetorial",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "GPUs: arquitetura CUDA e aplicações em processamento vetorial",
+    "Arquitetura CUDA para processamento paralelo",
+    "Programação paralela em GPUs NVIDIA com CUDA",
+    "Processamento vetorial em unidades gráficas",
+    "Modelo de execução CUDA em GPU",
+    "Threads blocos e grids na arquitetura CUDA",
+    "Memória e processamento de dados na GPU",
+    "Aplicações vetoriais em computação acelerada",
+    "CUDA para cálculo de vetores e matrizes"
+  ],
+  "scope": {
+    "covers": "Arquitetura CUDA: host e device, kernels, threads, warps, blocos, grids e multiprocessadores; hierarquia de memória, sincronização e transferência; paralelismo de dados, vetores e matrizes, aplicações e desempenho.",
+    "excludes": "Detalhes de gerações específicas de GPU, instalação de drivers, sintaxe completa de linguagens e comparação comercial entre fabricantes."
+  },
+  "theoryTitle": "Como GPUs CUDA processam dados em paralelo",
+  "chapters": [
+    {
+      "title": "1. Por que uma GPU acelera operações vetoriais",
+      "markdown": "### O problema que este assunto resolve\n\nSomar milhões de pares de valores ou transformar cada pixel de uma imagem repete operações semelhantes sobre muitos dados. Uma CPU costuma priorizar baixa latência e controle complexo; a GPU dedica mais recursos ao throughput de cálculos paralelos. Em CUDA, uma função kernel pode ser executada por muitas threads, cada qual trabalhando em elementos distintos.\n\n> **Siglas e termos deste capítulo**\n> - **GPU**: unidade de processamento gráfico, também usada em computação geral.\n> - **CPU**: processador central que normalmente coordena o programa.\n> - **Paralelismo de dados**: aplicar uma operação a muitos dados independentes.\n> - **Throughput**: quantidade de trabalho concluída por unidade de tempo.\n> - **Kernel**: função lançada para execução paralela na GPU.\n\nA GPU é candidata quando existem muitas operações independentes. Na soma C[i]=A[i]+B[i], cada resultado depende de um par próprio e pode ser calculado sem esperar os demais. Processamento vetorial designa esse padrão de operar sobre coleções, e não significa que cada thread precise processar um vetor inteiro. A CPU continua útil para controle, lógica sequencial e preparação dos dados.\n\n| Aspecto | CPU | GPU CUDA |\n| --- | --- | --- |\n| Ênfase | Baixa latência e fluxo complexo | Alto throughput paralelo |\n| Trabalho adequado | Sequencial ou irregular | Operações semelhantes em muitos dados |\n| Papel comum | Coordena aplicação | Executa kernels |\n\nGPU não acelera tudo: tarefas pequenas, dependências seriais ou transferência custosa podem superar o ganho de cálculo. Imagens, álgebra linear, simulações, sinais, análise de dados e aprendizado de máquina contêm padrões vetoriais frequentes.\n\n### Como cai na prova\n\n- Soma de vetores é exemplo de paralelismo de dados.\n- CPU e GPU têm focos arquiteturais diferentes e podem trabalhar juntas.\n- A aceleração depende de paralelismo suficiente e custo total razoável."
+    },
+    {
+      "title": "2. Host, device e hierarquia de memória",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação CUDA distribui tarefas entre CPU e GPU. O **host** é normalmente a CPU e seu lado da aplicação; o **device** é a GPU que executa o kernel. O host prepara dados, inicia o trabalho e coordena a obtenção de resultados.\n\n> **Siglas e termos deste capítulo**\n> - **Host**: lado da CPU que coordena.\n> - **Device**: GPU que executa código paralelo.\n> - **SM**: Streaming Multiprocessor, unidade que agenda grupos de threads.\n> - **Memória global**: espaço de grande capacidade acessível no device.\n> - **Memória compartilhada**: espaço de cooperação entre threads de um bloco.\n> - **Memória local**: espaço privado logicamente a uma thread.\n\nUma GPU reúne vários SMs. Blocos independentes são distribuídos entre eles e podem executar em ordens diferentes. Registradores e memória local atendem threads individuais; memória compartilhada permite que threads de um bloco reutilizem dados; memória global atende entradas e saídas de maior volume. Espaços constante e de textura atendem padrões de leitura especializados.\n\n| Espaço | Escopo típico | Função |\n| --- | --- | --- |\n| Registradores/local | Thread | Valores privados temporários |\n| Compartilhada | Bloco | Reuso e cooperação local |\n| Global | Device | Dados de entrada e saída em grande escala |\n\nA Unified Memory oferece acesso gerenciado por CPUs e GPUs compatíveis e pode simplificar a programação. Não torna movimentação de dados gratuita nem elimina a importância da localidade. Transferir dados ao device e trazer resultados pode pesar no tempo.\n\n### Como cai na prova\n\n- Host coordena; device executa kernels.\n- Compartilhada é cooperação de bloco; global tem escopo amplo no device.\n- Unified Memory simplifica gestão, não garante custo zero."
+    },
+    {
+      "title": "3. Kernel, threads, blocos, grids e warps",
+      "markdown": "### O problema que este assunto resolve\n\nCUDA organiza o trabalho em uma hierarquia: uma chamada de kernel lança muitas threads; threads são agrupadas em blocos; blocos compõem um grid. Índices embutidos permitem associar cada thread a dados. Em um vetor, índice global i = blockIdx.x × blockDim.x + threadIdx.x mapeia bloco e posição local. Se i < N, a thread processa seu elemento; essa verificação protege a cauda quando sobram threads.\n\n> **Siglas e termos deste capítulo**\n> - **Thread**: fluxo individual de execução.\n> - **Bloco**: grupo de threads que pode cooperar e sincronizar.\n> - **Grid**: conjunto de blocos de uma chamada.\n> - **Warp**: grupo de threads agendado conjuntamente pelo hardware.\n> - **threadIdx**: índice local; **blockIdx**: índice do bloco; **blockDim**: tamanho do bloco.\n\nBlocos precisam ser independentes: podem ser escalonados em qualquer ordem, em paralelo ou em série, o que permite escalar para GPUs com diferentes quantidades de SMs. Threads do mesmo bloco podem trocar dados por memória compartilhada e usar barreiras como __syncthreads(). Essa barreira não sincroniza arbitrariamente todo o grid. Todas as threads participantes devem alcançar corretamente a barreira.\n\nSe threads de um warp seguem ramos diferentes, ocorre divergência e os caminhos podem ser executados em sequência para subconjuntos, reduzindo eficiência.\n\n### Como cai na prova\n\n- Índice global combina índice do bloco, dimensão do bloco e índice local.\n- Proteja acessos com i < N.\n- Sincronização de bloco não equivale a sincronização global."
+    },
+    {
+      "title": "4. Memória e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nO cálculo pode aguardar dados. Threads vizinhas que acessam posições contíguas favorecem **coalescência**: o hardware pode atender solicitações próximas com menos transações. Acessos dispersos desperdiçam largura de banda.\n\n> **Siglas e termos deste capítulo**\n> - **Coalescência**: combinação eficiente de acessos próximos feitos por threads vizinhas.\n> - **Latência**: tempo de espera de uma operação.\n> - **Ocupação**: proporção da capacidade do SM usada por threads residentes.\n> - **Largura de banda**: volume de dados movimentado por tempo.\n\nSe várias threads do bloco reutilizam dados, colocá-los em memória compartilhada pode reduzir leituras globais. A cópia e sincronização têm custo e esse espaço é limitado; reservar demais pode reduzir blocos residentes no SM. Maior ocupação pode ajudar a ocultar latência, mas não garante, sozinha, maior velocidade: instruções, registradores, dependências e tráfego também contam.\n\nAvalie o caminho completo: preparação, transferência host-device, lançamentos, sincronização e kernel. Em lotes pequenos os custos fixos podem dominar; executar várias operações com dados já no device pode amortizá-los. Perfilamento identifica gargalos.\n\n### Como cai na prova\n\n- Acesso contíguo favorece coalescência.\n- Memória compartilhada ajuda com reutilização se o benefício superar custos.\n- Ocupação máxima não é sinônimo automático de desempenho máximo."
+    },
+    {
+      "title": "5. Aplicações vetoriais e limites",
+      "markdown": "### O problema que este assunto resolve\n\nA escolha da GPU começa pelo algoritmo. Transformar pixels, atualizar células de uma simulação, multiplicar matrizes, processar sinais e operar tensores em aprendizado de máquina repetem cálculos sobre muitos elementos. Bibliotecas aceleradas fornecem operações otimizadas sem exigir que cada kernel seja escrito manualmente.\n\n> **Siglas e termos deste capítulo**\n> - **SIMT**: muitas threads executam instruções em grupos.\n> - **BLAS**: operações básicas de álgebra linear, como produtos vetoriais e matriciais.\n> - **Tensor**: arranjo multidimensional de valores.\n> - **Gargalo**: componente que limita o tempo total.\n\nUma tarefa pequena, estritamente sequencial ou com dependências fortes pode ficar melhor na CPU. Restrições de memória do device e transferências repetidas também importam. Operações paralelas de ponto flutuante podem reagrupar somas e produzir pequenas diferenças de arredondamento. CUDA é plataforma e modelo da NVIDIA, com compilador, runtime, bibliotecas e ferramentas; não é sinônimo de toda GPU nem garantia automática de velocidade.\n\n### Como cai na prova\n\n- Reconheça independência de dados antes de mapear para GPU.\n- Imagens, simulações e álgebra linear são aplicações concretas.\n- Compare tempos incluindo transferências e sincronização."
+    }
+  ],
+  "summary": "CUDA organiza kernels em threads, blocos e grids distribuídos pelos multiprocessadores. Host/CPU coordena; device/GPU executa cálculo paralelo. Registradores, memória compartilhada e global têm escopos diferentes. Threads do bloco cooperam e sincronizam; blocos devem ser independentes. GPUs favorecem throughput em paralelismo de dados: vetores, matrizes, imagens, sinais, simulações e aprendizado de máquina. Coalescência, reutilização, ocupação e transferências afetam desempenho; tarefa pequena ou serial pode não acelerar.",
+  "flashcards": [
+    {
+      "front": "Foco típico da CPU e da GPU?",
+      "back": "CPU: baixa latência e controle; GPU: alto throughput paralelo."
+    },
+    {
+      "front": "Paralelismo de dados?",
+      "back": "Aplicar operações semelhantes a muitos elementos independentes."
+    },
+    {
+      "front": "Kernel CUDA?",
+      "back": "Função executada paralelamente por threads no device."
+    },
+    {
+      "front": "Hierarquia de execução?",
+      "back": "Threads formam blocos; blocos formam grids."
+    },
+    {
+      "front": "Host?",
+      "back": "CPU e lado da aplicação que coordena o trabalho."
+    },
+    { "front": "Device?", "back": "GPU que executa kernels." },
+    {
+      "front": "SM?",
+      "back": "Streaming Multiprocessor que agenda grupos de threads."
+    },
+    { "front": "threadIdx?", "back": "Índice local da thread no bloco." },
+    { "front": "blockIdx?", "back": "Índice do bloco no grid." },
+    {
+      "front": "Índice global 1D?",
+      "back": "blockIdx.x × blockDim.x + threadIdx.x."
+    },
+    {
+      "front": "Por que testar i < N?",
+      "back": "Evita acesso fora do vetor quando o grid tem threads excedentes."
+    },
+    {
+      "front": "Escopo da memória compartilhada?",
+      "back": "Threads cooperantes do mesmo bloco."
+    },
+    {
+      "front": "Uso da memória global?",
+      "back": "Dados amplos de entrada e saída acessíveis no device."
+    },
+    {
+      "front": "Coalescência?",
+      "back": "Acessos próximos de threads vizinhas atendidos com menos transações."
+    },
+    {
+      "front": "Divergência de warp?",
+      "back": "Threads do grupo seguem ramos diferentes, possivelmente serializados."
+    },
+    {
+      "front": "__syncthreads()?",
+      "back": "Barreira para threads participantes do mesmo bloco."
+    },
+    {
+      "front": "Blocos dependem de ordem?",
+      "back": "Não; devem ser independentes e podem executar em qualquer ordem."
+    },
+    {
+      "front": "Quando usar memória compartilhada?",
+      "back": "Quando há reutilização no bloco que compense cópia e sincronização."
+    },
+    {
+      "front": "Unified Memory elimina custos?",
+      "back": "Não; simplifica gestão, mas localidade e movimentação ainda afetam desempenho."
+    },
+    {
+      "front": "Exemplos de aplicações vetoriais?",
+      "back": "Pixels, álgebra linear, simulações, sinais e tensores de aprendizado de máquina."
+    },
+    {
+      "front": "Throughput?",
+      "back": "Trabalho concluído por unidade de tempo."
+    },
+    {
+      "front": "Ocupação?",
+      "back": "Proporção de capacidade do SM utilizada por threads residentes."
+    },
+    {
+      "front": "Ocupação máxima garante velocidade?",
+      "back": "Não; tráfego, instruções, dependências e recursos também importam."
+    },
+    {
+      "front": "Por que manter dados no device?",
+      "back": "Pode evitar transferências repetidas entre operações consecutivas."
+    }
+  ],
+  "tips": [
+    "Memorize thread, bloco, grid e associe cada índice ao seu escopo.",
+    "Em vetor use índice global e verifique i < N.",
+    "Host coordena; device executa kernel.",
+    "Compartilhada atende bloco; global atende o device.",
+    "Inclua cópias e sincronização na medição.",
+    "Procure dados independentes, contíguos e reutilizáveis."
+  ],
+  "traps": [
+    "GPU não acelera automaticamente tarefa pequena ou sequencial.",
+    "Barreira de bloco não sincroniza todo grid.",
+    "Memória compartilhada tem escopo e capacidade limitados.",
+    "Threads excedentes precisam evitar acessos fora dos limites.",
+    "Ocupação maior não garante kernel mais rápido.",
+    "Unified Memory não torna movimentação gratuita."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que somar vetores permite paralelismo?",
+      "answer": "Cada saída depende somente do par de entradas na mesma posição."
+    },
+    {
+      "question": "Descreva a hierarquia CUDA.",
+      "answer": "Kernel lança threads, agrupadas em blocos que compõem um grid e são distribuídas pelos SMs."
+    },
+    {
+      "question": "Como mapear thread a elemento?",
+      "answer": "Combinar blockIdx, blockDim e threadIdx, e conferir que o índice está abaixo de N."
+    },
+    {
+      "question": "Compare memória compartilhada e global.",
+      "answer": "Compartilhada atende threads de um bloco; global contém dados acessíveis no device."
+    },
+    {
+      "question": "Por que blocos são independentes?",
+      "answer": "O escalonador pode executá-los em ordem e SMs variados, permitindo escalabilidade."
+    },
+    {
+      "question": "Como favorecer acessos de memória?",
+      "answer": "Mapear threads vizinhas a posições contíguas para coalescência."
+    },
+    {
+      "question": "Quando GPU pode ser mais lenta?",
+      "answer": "Pouco trabalho, dependência serial ou transferências e lançamentos dominantes."
+    },
+    {
+      "question": "Cite usos reais de GPU vetorial.",
+      "answer": "Filtros de imagem, produtos matriciais, simulações, sinais e aprendizado de máquina."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Hierarquia confundida",
+      "summary": "Threads compõem blocos, blocos compõem grids; índices globais combinam posição local e do bloco."
+    },
+    {
+      "key": "e2",
+      "title": "Escopo de memória trocado",
+      "summary": "Memória compartilhada e barreiras são locais ao bloco; global atende o device."
+    },
+    {
+      "key": "e3",
+      "title": "GPU considerada universal",
+      "summary": "Paralelismo, volume e custo de movimentação determinam se há aceleração."
+    },
+    {
+      "key": "e4",
+      "title": "Acesso à memória ignorado",
+      "summary": "Coalescência e reutilização importam; memória compartilhada tem custo e limite."
+    },
+    {
+      "key": "e5",
+      "title": "Limite vetorial esquecido",
+      "summary": "Verificar i < N evita leituras ou escritas fora do vetor."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual característica favorece GPU ao somar vetores extensos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada posição pode ser calculada independentemente por uma thread.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda operação do programa passa a seguir ordem serial fixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória do device dispensa preparar os dados de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A GPU transforma qualquer dependência em cálculo independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada vetor exige um único multiprocessador exclusivo, mesmo quando há vários SMs disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada saída depende de entradas correspondentes, permitindo distribuir posições entre threads. Transferências e dependências de outros algoritmos continuam existindo.",
+      "section": "1. Por que uma GPU acelera operações vetoriais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo CUDA, a CPU coordena o programa e o kernel executa na GPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Host normalmente designa a CPU e device designa a GPU que executa o kernel. O host coordena o fluxo e o device realiza a parte paralela solicitada.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é um kernel CUDA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um arquivo que contém apenas os dados permanentes do host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma função lançada para execução paralela por muitas threads no device.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma barreira global que ordena todos os blocos do grid.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um espaço de memória privado compartilhado por toda a CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um método que transfere resultados automaticamente após cada instrução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kernel é a função executada em paralelo na GPU por muitas threads. Transferências de dados e coordenação pertencem a etapas distintas da aplicação conduzidas pelo host.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Threads se agrupam em blocos, e blocos compõem um grid.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Essa hierarquia organiza o lançamento do kernel e sua distribuição pelos multiprocessadores. Threads formam blocos e os blocos de uma chamada formam o grid.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual memória permite cooperação direta entre threads de um mesmo bloco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Memória host privada e sincronizada em toda instrução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Memória local compartilhada por todos os grids da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Memória compartilhada acessível às threads daquele bloco.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Memória global exclusiva de uma única thread do bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Memória constante que serve como barreira entre todos os blocos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Memória compartilhada é espaço cooperativo dentro do bloco. Memória global tem amplo escopo no device; memória local é privada à thread.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda aplicação fica mais rápida na GPU, mesmo quando tem pouco cálculo paralelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Transferência e lançamento podem dominar um trabalho pequeno ou sequencial. A GPU beneficia volume paralelo suficiente, mas não elimina a latência de preparação.",
+      "section": "1. Por que uma GPU acelera operações vetoriais",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como obter índice global 1D de uma thread?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir blockDim.x pelo tamanho total do vetor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somar o total do grid ao índice local da thread.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Multiplicar apenas threadIdx.x pelo número de blocos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somar blockIdx.x vezes blockDim.x a threadIdx.x.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar somente blockDim.x, idêntico para todas as threads.",
+          "correct": false
+        }
+      ],
+      "explanation": "A posição global combina o deslocamento do bloco, dado por blockIdx vezes blockDim, e a posição local da thread. Assim, blocos diferentes cobrem partes distintas do vetor.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que o kernel testa se o índice é menor que N?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para alterar a memória global para compartilhada automaticamente, sem cópia, sincronização ou cooperação entre threads.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para exigir que cada bloco tenha somente uma thread ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para transferir o último elemento automaticamente ao host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para sincronizar todos os blocos antes de qualquer leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para evitar acesso inválido quando o grid contém threads excedentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "A grade pode arredondar o total de threads para blocos completos, mesmo quando o vetor termina antes da última posição atribuída. A condição i < N protege as leituras e escritas, evitando acessar memória fora da coleção e corromper dados vizinhos.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tarefa tem padrão adequado a processamento vetorial em GPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformar muitos pixels usando uma regra local semelhante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Editar um único caractere e encerrar o programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar passos estritamente dependentes em uma sequência curta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear uma pasta sem calcular sobre dados de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aguardar uma única resposta humana antes de cada instrução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pixels distintos podem receber a mesma transformação em paralelo. A tarefa unitária e as sequenciais não oferecem o mesmo padrão.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Acessos de threads vizinhas a endereços contíguos favorecem coalescência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A solicitação pode ser atendida em menos transações de memória, aproveitando melhor a largura de banda quando os acessos vizinhos são contíguos.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como blocos CUDA são distribuídos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo bloco fica fixo no primeiro SM da GPU, mesmo havendo outros multiprocessadores disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Blocos independentes podem ser escalonados em diferentes SMs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O índice do bloco impõe a ordem global de conclusão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de blocos deve igualar a quantidade de SMs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Blocos só podem executar em sequência no host.",
+          "correct": false
+        }
+      ],
+      "explanation": "O escalonador encaminha blocos independentes aos SMs disponíveis, sem prometer uma ordem fixa de início ou conclusão. Por isso, o programa deve permitir que cada bloco trabalhe sem depender de outro ainda não executado; essa independência também facilita usar GPUs com diferentes quantidades de SMs.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma barreira comum de bloco sincroniza automaticamente todos os blocos do grid.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A barreira de bloco coordena threads participantes daquele bloco, não todo o grid. Blocos podem executar em ordens distintas e não há sincronização global implícita.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que pode anular ganho de kernel curto em vetor pequeno?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cálculo independente de elementos correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A presença de valores contíguos na memória global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Custos de lançamento e transferência entre host e device.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A capacidade de executar muitas threads em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de um índice global por elemento de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para pouco trabalho, custos fixos de preparar e mover dados podem exceder o cálculo economizado. Por isso a comparação deve incluir lançamento, cópias e sincronização.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Memória compartilhada pode reduzir leituras globais repetidas se várias threads reutilizam os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O possível ganho deve superar custos de cópia, sincronização e uso do espaço limitado. Reutilização dos valores pelo bloco é o cenário que pode justificar essa técnica.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel comum do host na aplicação CUDA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter dependências do algoritmo em operações independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Determinar a ordem exata de execução de cada warp no SM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a GPU e executar todos os kernels como CPU serial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Coordenar o programa, preparar dados e iniciar trabalho no device.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Guardar obrigatoriamente cada dado em memória compartilhada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O host, normalmente a CPU, conduz o fluxo da aplicação, prepara ou organiza os dados e inicia os kernels no device. A GPU executa o trabalho paralelo solicitado; decisões como a ordem interna de escalonamento dos warps ficam a cargo do hardware, não do host.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Divergência acontece quando threads de um warp seguem ramos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Caminhos diferentes podem ser executados separadamente para subconjuntos do warp, reduzindo eficiência porque parte das lanes fica inativa em cada caminho.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como reduzir tráfego em multiplicação de matrizes com dados reutilizados no bloco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar resultados numa thread diferente sem comunicação entre elas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar as entradas ao host depois de cada multiplicação parcial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir cada leitura a uma thread sem reutilizar nenhum valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir uma ordem global fixa entre todos os blocos do grid.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carregar tiles para memória compartilhada e coordenar seu reuso.",
+          "correct": true
+        }
+      ],
+      "explanation": "Tiles em memória compartilhada podem servir várias threads do bloco, reduzindo leituras globais. É preciso considerar capacidade e sincronização.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Maximizar ocupação, isoladamente, garante o melhor desempenho do kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Ocupação pode ocultar latência, mas tráfego, instruções, registradores e dependências também determinam o tempo. Ela não deve ser otimizada sem medir o gargalo real.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O grid tem mais threads que posições do vetor. Como impedir acesso inválido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar o índice e executar leitura ou escrita somente se for menor que N.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fazer threads excedentes escreverem no último elemento válido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar a execução do último bloco sem verificar os dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aguardar o host alterar blockDim dentro do kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir leitura além do vetor para completar o bloco alocado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição i < N limita as operações às posições existentes no vetor. Threads cujo índice global atinge ou ultrapassa N não devem ler entradas nem gravar resultados; assim, a cauda incompleta do último bloco não provoca acesso inválido ou alteração de memória alheia.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Unified Memory torna irrelevantes a localidade e todos os custos de movimentação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A gestão pode ser mais simples, mas tráfego e localidade ainda afetam desempenho. O sistema ainda precisa movimentar páginas ou dados para atender os processadores.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que blocos não devem depender da ordem de execução de outros blocos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "blockIdx só é definido após terminar todo o grid.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O escalonador pode executá-los em ordens e SMs diferentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Memória compartilhada é global e ordena automaticamente blocos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O host lança uma execução separada para cada instrução do bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O compilador converte todos os blocos em código serial da CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a ordem de escalonamento não é garantida, um bloco não pode pressupor que outro já terminou para produzir seus dados. Mantê-los independentes permite distribuí-los entre SMs e executá-los em ordens distintas, sem introduzir uma dependência que o modelo comum de blocos não sincroniza globalmente.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reagrupar operações de ponto flutuante em cálculo paralelo pode causar pequenas diferenças de arredondamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Números de ponto flutuante têm precisão finita, e somar valores em uma ordem diferente pode mudar os arredondamentos intermediários e o resultado final em pequena escala. Essa variação não significa, por si só, que o algoritmo esteja logicamente incorreto.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma versão GPU é lenta para entradas pequenas. Qual diagnóstico testar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda thread precisa processar o vetor completo sozinha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CUDA não consegue representar vetores curtos em grids.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lançamento e transferência podem superar o cálculo poupado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A aplicação deve sempre aumentar cópias entre host e device.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tempo do kernel sozinho representa necessariamente o total real.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em entradas pequenas, preparar a execução, transferir dados entre host e device e lançar o kernel pode custar mais que o cálculo paralelo economizado. A avaliação deve medir o fluxo pertinente completo, em vez de concluir pelo tempo isolado do kernel que a GPU necessariamente será mais rápida.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Manter dados no device entre operações sucessivas pode evitar transferências repetidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A reutilização pode amortizar movimentação, respeitando capacidade e localidade da memória. Evitam-se cópias repetidas entre etapas que permanecem no device.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário mostra paralelismo de dados evidente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar um único valor de controle em sequência estrita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar cada passo após depender do resultado do passo anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aguardar uma resposta humana antes de iniciar cada operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar pixels independentes com uma regra local repetida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Interromper o cálculo a cada dado para gravar um relatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pixels independentes sujeitos à mesma regra podem ser transformados paralelamente; os outros exemplos têm dependência ou controle sequencial.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Memória global é privada à thread, enquanto memória local é compartilhada por todo o grid.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Global é acessível amplamente no device; local é privada logicamente a uma thread. O nome local descreve escopo, embora seu armazenamento possa usar memória do dispositivo.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como organizar filtro que usa vizinhanças de pixels e reutiliza dados próximos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigir ordem global dos blocos para que pixels vizinhos existam.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar a imagem toda em uma thread sem explorar paralelismo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proibir leituras de pixels vizinhos mesmo quando o filtro precisa deles.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar cada pixel ao host antes de calcular sua vizinhança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapear pixels a threads e avaliar tiles compartilhados para reuso local.",
+          "correct": true
+        }
+      ],
+      "explanation": "Pixels oferecem paralelismo; tiles compartilhados podem ajudar se vizinhanças forem reutilizadas. Bordas e sincronização também precisam ser tratadas.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma redução paralela pode precisar combinar somas parciais para produzir um resultado único.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Threads podem formar parciais independentes, que depois são combinados por etapas ou cooperação local. Essa combinação reduz muitos valores a um resultado agregado.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre warps e condicionais está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ramos diferentes dentro do warp podem reduzir eficiência por divergência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda condicional cria um bloco separado para cada resultado booleano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Divergência sincroniza globalmente todos os grids em execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada warp tem memória global exclusiva e privada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tamanho do grid elimina caminhos condicionais diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Threads de um warp em caminhos diferentes podem executar esses caminhos separadamente para subconjuntos, reduzindo utilização.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aplicações podem acessar aceleração CUDA por bibliotecas sem escrever cada kernel diretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O ecossistema CUDA inclui bibliotecas, compilador, runtime e ferramentas de desenvolvimento. Bibliotecas encapsulam kernels otimizados para operações comuns.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre CPU e GPU é mais informativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar somente compilação da CPU com cálculo da GPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medir o tempo total pertinente, incluindo cópias e sincronização.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contar blocos sem executar o mesmo volume de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir uma instrução do kernel e ignorar preparação de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar frequência nominal sem executar a aplicação de interesse.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação paga preparação, cópias, lançamentos, sincronização e kernel; a comparação precisa refletir uso equivalente.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Threads de um bloco podem cooperar por memória compartilhada e barreiras locais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A cooperação é local ao bloco e as threads participantes precisam alcançar corretamente a barreira. Ela permite que dados compartilhados estejam prontos antes da etapa seguinte.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Milhões de células usam regras locais semelhantes. Qual característica favorece GPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A GPU só pode operar quando não há memória global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O volume impede a organização do trabalho em blocos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Muitos cálculos similares podem ser independentes sobre os dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cada célula precisa ser processada em ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todo cálculo local depende necessariamente de CPU serial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Grande volume de operações semelhantes oferece paralelismo de dados, embora dependências entre etapas ainda precisem de análise.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reservar muita memória compartilhada por bloco pode reduzir blocos residentes por SM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O recurso é limitado por multiprocessador, então o consumo por bloco pode restringir residência simultânea. Menos blocos residentes podem alterar a ocupação e a capacidade de ocultar latência.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação descreve corretamente a arquitetura CUDA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Memória global pertence só ao host e compartilhada à CPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Grid identifica uma thread e threadIdx nomeia todos os blocos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SM é memória host e kernel é transferência de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bloco agrupa threads cooperativas e grid reúne blocos do lançamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Warp é uma coleção de grids sincronizados entre dispositivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Threads são reunidas em blocos, e cada lançamento organiza seus blocos em um grid. Os SMs executam os blocos atribuídos na GPU; já threadIdx identifica a posição local de uma thread, e warp designa um grupo de execução, não um conjunto de grids sincronizados.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Processamento vetorial em GPU se limita a gráficos tridimensionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Também aparece em álgebra linear, ciência, sinais, análise de dados e aprendizado de máquina. O ponto comum é aplicar trabalho paralelo geral, além da renderização gráfica.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Acessos globais dispersos limitam um kernel. Que ajuste investigar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fazer cada thread ler endereço aleatório sem reutilização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar cópias ao host entre todas as leituras do kernel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover checagem de limites para ler além da coleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Forçar ordem fixa dos blocos sem examinar o padrão de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapear threads vizinhas a endereços próximos e medir coalescência.",
+          "correct": true
+        }
+      ],
+      "explanation": "Threads vizinhas acessando posições próximas favorecem transações coalescidas. Perfilamento confirma se esse é o gargalo real.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Blocos independentes podem executar em paralelo ou em série sem depender de ordem particular.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A independência entre blocos permite que o escalonador os distribua por diferentes SMs e escolha a ordem de execução conforme os recursos disponíveis. Um kernel correto não deve depender de uma sequência particular nem presumir sincronização global entre blocos.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um lote grande usa os mesmos dados em várias operações consecutivas. Que estratégia pode amortizar custos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter os dados no device entre operações quando memória permitir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar cada elemento ao host depois de toda instrução executada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Relançar operações unitárias sem medir o custo de cada lançamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transferir cada valor ao device e devolvê-lo em separado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar todo resultado em espaço local privado de outra thread.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reusar dados residentes no device reduz transferências repetidas e pode amortizar custos, respeitando capacidade e correção.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CUDA combina coordenação de aplicação no host com execução paralela no device.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. CPU e GPU desempenham papéis complementares no modelo heterogêneo CUDA: o host conduz o programa e o device executa kernels paralelos.",
+      "section": "2. Host, device e hierarquia de memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que fatores considerar ao escolher GPU para um algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a existência de qualquer variável do tipo vetor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Paralelismo, volume, dependências e custos de transferência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas a quantidade de blocos sem testar a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a frequência nominal do processador gráfico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A hipótese de que a GPU sempre substitui a CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aceleração depende da estrutura e do custo total. Meça o fluxo com dados, transferências e sincronizações pertinentes.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Coalescência pode reduzir transações quando threads próximas acessam memória próxima.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. É um padrão útil para aproveitar largura de banda em leituras e escritas globais, pois acessos próximos podem ser reunidos em transações eficientes.",
+      "section": "4. Memória e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como tratar thread excedente no último bloco de uma soma vetorial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar o resultado em qualquer posição ainda não usada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fazer a thread ler além do vetor para completar o bloco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar a operação se seu índice global não for menor que N.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Esperar que o host redefina o índice dentro do kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover limites para garantir que todas as threads escrevam.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma checagem do índice global contra N faz com que somente threads associadas a elementos existentes executem as leituras e escritas. As demais ficam sem operação sobre o vetor, o que trata com segurança as threads excedentes do último bloco sem alterar blockDim durante o kernel.",
+      "section": "3. Kernel, threads, blocos, grids e warps",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Produtos matriciais e tensores são usados em aprendizado de máquina e podem aproveitar GPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Produtos matriciais e operações com tensores costumam reunir muitos cálculos semelhantes que podem ser distribuídos entre threads. Esse paralelismo torna a GPU uma opção útil em aprendizado de máquina, embora o ganho ainda dependa do volume, das dependências e do custo de movimentar dados.",
+      "section": "5. Aplicações vetoriais e limites",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "CUDA Programming Guide",
+      "publisher": "NVIDIA",
+      "reference": "Modelo CUDA, execução, memória, sincronização, programação de GPU e aplicações",
+      "url": "https://docs.nvidia.com/cuda/cuda-programming-guide/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CUDA C++ Programming Guide (Legacy)",
+      "publisher": "NVIDIA",
+      "reference": "Throughput, SMs, kernels, thread hierarchy, memória e execução heterogênea (guia legado identificado pela NVIDIA)",
+      "url": "https://docs.nvidia.com/cuda/cuda-c-programming-guide/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CUDA Platform for Accelerated Computing",
+      "publisher": "NVIDIA Developer",
+      "reference": "Toolkit, compilador, bibliotecas, ferramentas e domínios de aplicação CUDA",
+      "url": "https://developer.nvidia.com/cuda",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

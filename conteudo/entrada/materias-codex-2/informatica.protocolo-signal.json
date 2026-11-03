@@ -1,0 +1,1813 @@
+{
+  "id": "informatica.protocolo-signal",
+  "subject": "Informática",
+  "title": "Protocolo Signal",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Protocolo Signal.",
+    "Signal Protocol e criptografia ponta a ponta",
+    "Protocolo de mensagens seguras Signal",
+    "Acordo de chaves PQXDH do Signal",
+    "Algoritmo Double Ratchet do Signal",
+    "Sessões de mensagens no protocolo Signal",
+    "Criptografia de mensagens Signal",
+    "Prekeys e chaves de sessão Signal",
+    "Sigilo futuro no Signal Protocol",
+    "Ratchet pós-quântico em mensagens Signal"
+  ],
+  "scope": {
+    "covers": "Arquitetura do Signal Protocol para mensagens privadas: acordo inicial assíncrono de chaves com PQXDH e prekeys, identidade e autenticação, segredo compartilhado e dados associados; Double Ratchet, cadeias de envio e recepção, chaves por mensagem, sigilo futuro, recuperação após comprometimento e mensagens fora de ordem; gerenciamento de sessões e múltiplos dispositivos com Sesame; conceitos das extensões pós-quânticas ML-KEM Braid, Sparse Post-Quantum Ratchet e Triple Ratchet; limites de segurança, servidor, verificação de identidade e metadados.",
+    "excludes": "Configuração de aplicativos Signal, procedimentos internos não documentados, implementação completa das primitivas criptográficas, detalhes de grupos privados e comparação de produtos de mensagens."
+  },
+  "theoryTitle": "Como o protocolo Signal estabelece e renova chaves",
+  "chapters": [
+    {
+      "title": "1. Arquitetura e início assíncrono da conversa",
+      "markdown": "### O problema que este assunto resolve\n\nUma conversa segura precisa começar mesmo quando o destinatário está desconectado. O Signal Protocol separa esse início da troca contínua de mensagens: um **acordo de chaves** cria material secreto compartilhado e um protocolo de mensagens usa esse material para cifrar e renovar chaves. O servidor pode guardar chaves públicas publicadas e encaminhar mensagens cifradas; não precisa conhecer o segredo de sessão para executar esse papel.\n\n> **Siglas e termos deste capítulo**\n> - **IK (identity key)**: chave pública de identidade duradoura do dispositivo/usuário, associada à autenticação.\n> - **SPK (signed prekey)**: chave pública assinada, renovada periodicamente e publicada para iniciar sessões.\n> - **OPK (one-time prekey)**: prekey de uso único, consumida para uma sessão quando disponível.\n> - **PQKEM**: mecanismo pós-quântico de encapsulamento de chaves; publica chave pública e produz ciphertext e segredo compartilhado.\n> - **AEAD**: cifragem autenticada com dados associados; protege confidencialidade e integridade.\n> - **AD**: dados associados, autenticados junto ao ciphertext, mas não cifrados por essa função.\n\n### PQXDH: combinar chaves sem exigir que o destinatário esteja online\n\nNa especificação atual de PQXDH, Bob prepara e publica sua chave de identidade, uma prekey de curva assinada, prekeys PQKEM assinadas e, quando há estoque, prekeys de curva de uso único. Cada chave publicada tem identificador para que o dispositivo possa localizar depois a chave privada correspondente. A assinatura das prekeys vincula sua chave pública à identidade de Bob. As prekeys de uso único podem ser retiradas do servidor quando entregues a Alice; as chaves de último recurso existem para quando não há prekey PQKEM de uso único disponível.\n\nAlice obtém do servidor um **prekey bundle**, verifica as assinaturas com a chave de identidade de Bob e combina a chave de sua identidade, uma chave efêmera nova, as chaves públicas de Bob e a encapsulação PQKEM. Uma função de derivação de chaves (KDF) combina os segredos em uma chave inicial. A primeira mensagem já pode carregar um ciphertext de aplicação. Bob, ao voltar, usa os identificadores e suas chaves privadas correspondentes para refazer o acordo e autenticar/decriptar a mensagem. Se a autenticação falhar, o processamento é abortado. As chaves privadas de uso único usadas são apagadas para reduzir o risco de exposição futura.\n\nO desenho clássico X3DH também oferece início assíncrono, com chave de identidade, signed prekey, chave efêmera da iniciadora e, opcionalmente, one-time prekey. PQXDH acrescenta o componente de encapsulamento pós-quântico ao acordo. Não confunda a chave efêmera gerada por Alice, que é nova por execução, com as prekeys de Bob, que ele publica antecipadamente.\n\n| Elemento | Quem cria/publica | Função no início |\n| --- | --- | --- |\n| Chave de identidade | Cada participante | Identifica a chave pública e verifica assinaturas das prekeys |\n| Signed prekey de curva | Destinatário | Permite acordo inicial e é renovada periodicamente |\n| One-time prekey | Destinatário | Acrescenta material de uso único quando disponível |\n| Prekey PQKEM | Destinatário | Acrescenta segredo derivado por encapsulamento pós-quântico |\n| Chave efêmera | Iniciador | Participa apenas daquele acordo e não é publicada de antemão |\n\n### Autenticação, servidor e limites\n\nA criptografia da sessão não prova automaticamente ao usuário que a identidade apresentada corresponde à pessoa pretendida. A especificação recomenda comparar fingerprints ou ler um QR code por canal autenticado. Sem essa verificação, um ataque ativo que consiga substituir chaves pode comprometer a certeza sobre com quem se fala. A revisão documentada de PQXDH oferece proteção pós-quântica para sigilo futuro do acordo inicial sob as hipóteses do protocolo, mas a autenticação mútua ainda depende de hipótese clássica de logaritmo discreto; não se deve dizer que toda propriedade de identidade se tornou pós-quântica.\n\nO servidor facilita distribuição e entrega assíncronas. Isso não o transforma em participante que detém as chaves privadas dos usuários, mas também não elimina todos os riscos: disponibilidade, ordenação e substituição de dados publicados importam. PQXDH alerta que uma mensagem inicial sem prekey de curva de uso único pode ser reproduzida; protocolos posteriores devem renovar o segredo, como faz o ratchet.\n\n### Como cai na prova\n\n- Se o destinatário está offline, o iniciador usa o bundle de prekeys publicado anteriormente; não precisa esperar uma resposta em tempo real.\n- A signed prekey é assinada pela identidade do destinatário; a assinatura ajuda a detectar substituição, desde que a identidade seja confiável.\n- A OPK é de uso único; a chave efêmera é nova para a iniciadora em cada acordo.\n- PQXDH é um acordo inicial. O Double Ratchet é uma camada posterior que deriva chaves de mensagens."
+    },
+    {
+      "title": "2. Double Ratchet: chave nova a cada mensagem",
+      "markdown": "### O problema que este assunto resolve\n\nSe uma única chave de longa duração cifrasse toda a conversa, a cópia dessa chave abriria muitas mensagens. O **Double Ratchet** mantém estado que avança: cada mensagem obtém uma chave própria, e novos valores Diffie–Hellman renovam as cadeias de chaves. Isso limita o dano de uma exposição pontual e permite que a comunicação se recupere quando novo segredo imprevisível entra no estado.\n\n> **Siglas e termos deste capítulo**\n> - **RK (root key)**: chave raiz que alimenta derivações de novas cadeias.\n> - **CK (chain key)**: estado de uma cadeia de envio ou recepção.\n> - **MK (message key)**: chave derivada para cifrar ou decifrar uma mensagem individual.\n> - **DH ratchet**: atualização que mistura um novo segredo Diffie–Hellman à chave raiz.\n> - **KDF**: função de derivação de chaves, que transforma segredo de entrada em chaves distintas.\n> - **Forward secrecy**: chaves atuais não revelam automaticamente as chaves e mensagens passadas já apagadas.\n> - **Post-compromise security (PCS)**: possibilidade de recuperar segurança futura após um comprometimento, quando entram segredos novos não conhecidos pelo atacante.\n\n### Duas engrenagens, uma sequência\n\nA **ratchet simétrica** avança a cadeia de envio ou recepção a cada mensagem e produz uma MK distinta. A chave da mensagem e a chave de cadeia anterior podem ser apagadas depois do uso; a chave de mensagem não é usada para derivar as seguintes. A **ratchet Diffie–Hellman** ocorre quando chega uma chave pública de ratchet nova: cada lado calcula um segredo DH, mistura-o à RK por uma KDF e obtém novas cadeias de recepção e envio. Os lados alternam a publicação de novas chaves públicas, num padrão de ida e volta.\n\nA composição é chamada Double Ratchet. Em cada mensagem avança a cadeia simétrica; ao receber uma nova chave pública, primeiro se atualizam as cadeias via DH e depois se deriva a chave daquela mensagem. O cabeçalho inclui a chave pública atual e contadores, como o número da mensagem na cadeia e o tamanho da cadeia anterior. Esses dados permitem sincronizar o estado sem revelar o texto claro.\n\n| Propriedade | De onde vem | O que não significa |\n| --- | --- | --- |\n| Chaves distintas por mensagem | Avanço da cadeia simétrica e KDF | Uma chave independente guardada para sempre |\n| Sigilo futuro | Apagar chaves antigas após o uso | Proteção se o aparelho continua comprometido |\n| Recuperação após comprometimento | Novo segredo DH desconhecido misturado ao estado | Recuperação instantânea sem nova entrada secreta |\n| Tolerância a atraso e reordenação | Contadores e armazenamento limitado de MK puladas | Aceitar qualquer número de mensagens sem limites |\n\n### Mensagens perdidas e fora de ordem\n\nO cabeçalho indica a posição da mensagem na cadeia atual e quantas mensagens havia na cadeia anterior. Se uma mensagem posterior chega antes de outras, o destinatário pode avançar a cadeia e guardar temporariamente as chaves puladas, indexadas pela chave pública de ratchet e pelo número da mensagem. Se a mensagem atrasada chegar depois, usa a MK armazenada e a apaga. Há um limite de saltos para que um remetente malicioso não force cálculo ou armazenamento ilimitados. Uma falha de autenticação descarta a mensagem e não deve consolidar uma alteração inválida do estado.\n\n### Limites práticos\n\nO sigilo futuro depende de apagar material secreto antigo; cópias, backups ou extração do dispositivo podem frustrar essa hipótese. Um comprometimento corrente pode expor as cadeias atuais até que um segredo novo, fora do alcance do invasor, seja misturado. A ratchet clássica de DH não protege contra um adversário quântico futuro que tenha gravado tráfego e consiga resolver o problema matemático usado pelo DH clássico; por isso há pesquisas e extensões pós-quânticas.\n\n### Como cai na prova\n\n- Uma MK por mensagem vem da ratchet simétrica; novas chaves DH alimentam a chave raiz e renovam cadeias.\n- O cabeçalho não substitui a cifra autenticada do conteúdo. Ele carrega dados de estado usados na recepção.\n- Mensagens fora de ordem podem ser decifradas com chaves puladas armazenadas dentro de limites.\n- Forward secrecy protege sobretudo o passado após apagamento; PCS exige entradas novas para curar comprometimento futuro."
+    },
+    {
+      "title": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "markdown": "### O problema que este assunto resolve\n\nUma pessoa pode usar vários dispositivos, reinstalar um cliente, perder estado local ou iniciar uma sessão ao mesmo tempo que o contato. O ratchet descreve a evolução criptográfica de uma sessão; é necessário também decidir quais sessões existem, qual está ativa e para quais dispositivos uma mensagem deve ser cifrada. **Sesame** aborda esse gerenciamento assíncrono e multi-dispositivo.\n\n> **Siglas e termos deste capítulo**\n> - **Sessão**: estado secreto local que permite cifrar e decifrar mensagens correspondentes.\n> - **DeviceID**: identificador de dispositivo único dentro da identidade de usuário, no modelo descrito por Sesame.\n> - **Mailbox**: caixa temporária no servidor para mensagens endereçadas a um dispositivo.\n> - **SCKA**: acordo contínuo de chaves esparso, que gera segredos em épocas ordenadas sem necessariamente gerar um em cada ida e volta.\n> - **ML-KEM**: mecanismo pós-quântico de encapsulamento de chaves usado pelo protocolo ML-KEM Braid.\n> - **SPQR**: Sparse Post-Quantum Ratchet, ratchet pós-quântico que usa uma SCKA.\n> - **Triple Ratchet**: composição de Double Ratchet e SPQR para combinar as chaves de mensagem de ambos.\n\n### Sesame e o estado por dispositivo\n\nSesame foi projetado para administrar sessões assíncronas criadas com X3DH e Double Ratchet, embora seja descrito como um algoritmo genérico para protocolos de sessão compatíveis. Cada dispositivo acompanha uma sessão ativa para cada dispositivo remoto e pode manter sessões inativas. Quando recebe uma mensagem numa sessão inativa, essa sessão pode tornar-se a ativa. O algoritmo trata criação, uso e remoção de sessões e leva em conta adição/remoção de dispositivos, sessões simultâneas, estado apagado ou restaurado e mensagens perdidas, atrasadas, duplicadas ou reordenadas.\n\nO servidor do modelo mantém registros de usuários e dispositivos e caixas postais temporárias. Ele encaminha ciphertext e metadados de roteamento; os dispositivos mantêm o estado criptográfico. Sesame não é uma cifra de conteúdo: é um gerenciamento de sessões e dispositivos. Também não faz os relógios dos dispositivos ficarem sincronizados.\n\n### O passo pós-quântico\n\nPQXDH protege o acordo inicial com um componente de encapsulamento pós-quântico, mas um ratchet clássico posterior ainda poderia deixar mensagens futuras gravadas vulneráveis a um computador quântico. O ML-KEM Braid especifica uma SCKA baseada em ML-KEM que produz uma sequência ordenada de segredos compartilhados. A propriedade **esparsa** permite acomodar mensagens maiores e limites de banda, pois o segredo não precisa ser gerado em toda troca de aplicação. Os segredos podem alimentar um SPQR.\n\nNa especificação do Double Ratchet, o **Triple Ratchet** executa em paralelo o Double Ratchet clássico e um Sparse Post-Quantum Ratchet; deriva uma MK de cada um e combina ambas por uma KDF para formar a chave de cifra. A segurança híbrida pretende exigir a quebra das hipóteses clássica e pós-quântica para comprometer a proteção combinada. O custo e o ritmo de recuperação dependem de mensagens e progresso do acordo esparso; não se deve tratar a extensão como sinônimo de PQXDH nem presumir que toda aplicação já a implantou.\n\n| Componente | Questão que responde | Papel principal |\n| --- | --- | --- |\n| PQXDH | Como iniciar sem o destinatário online? | Acordo e segredo inicial com componente pós-quântico |\n| Double Ratchet | Como renovar chaves numa sessão? | Chaves individuais e atualizações DH |\n| Sesame | Como administrar sessões entre dispositivos? | Seleção, criação e remoção de sessões |\n| ML-KEM Braid / SPQR | Como manter acordo pós-quântico ao longo do tempo? | Novos segredos PQ esparsos e ratchet |\n| Triple Ratchet | Como combinar proteção clássica e pós-quântica? | Combina duas chaves de mensagem numa chave híbrida |\n\n### Como cai na prova\n\n- Sesame organiza sessões em contexto assíncrono e multi-dispositivo; não cifra por si só o conteúdo.\n- A mailbox é temporária e por dispositivo; o servidor pode atrasar, reordenar ou perder mensagens no modelo.\n- ML-KEM Braid é uma SCKA; SPQR usa um acordo esparso; Triple Ratchet combina Double Ratchet e SPQR.\n- PQXDH no começo e ratcheting pós-quântico contínuo são camadas e objetivos diferentes."
+    },
+    {
+      "title": "4. Garantias, ameaças e leitura crítica da segurança",
+      "markdown": "### O problema que este assunto resolve\n\nDizer que um aplicativo usa criptografia ponta a ponta não significa que qualquer ataque, metadado ou falha de dispositivo desapareceu. Para interpretar uma questão, identifique o que está sendo protegido, quais chaves e estados são considerados secretos e qual adversário a especificação cobre.\n\n> **Siglas e termos deste capítulo**\n> - **Ciphertext**: texto cifrado encaminhado pela rede.\n> - **Fingerprint**: representação comparável de uma chave pública de identidade.\n> - **Harvest now, decrypt later**: capturar ciphertext agora para tentar decifrá-lo no futuro.\n> - **Comprometimento**: acesso não autorizado ao estado secreto de um dispositivo ou sessão.\n> - **Integridade**: garantia de detectar alteração ou falsificação do ciphertext.\n> - **Deniability (denegabilidade)**: propriedade criptográfica que dificulta usar uma transcrição como prova verificável de autoria; não é o mesmo que anonimato.\n\n### O que as garantias dizem\n\nA cifragem autenticada protege o conteúdo e detecta alteração sem a chave correta. A KDF separa os usos de segredos e produz chaves de sessão. A eliminação de chaves usadas limita a capacidade de decifrar mensagens antigas após exposição posterior do estado corrente. A atualização DH pode produzir recuperação para mensagens futuras quando o invasor já não conhece a nova chave privada. Nenhuma dessas propriedades impede que malware leia a tela ou capture o texto antes de cifrar e depois de decifrar.\n\nA autenticação depende da associação entre uma chave pública e a identidade que o usuário pretende contatar. A assinatura da prekey é verificada com a chave de identidade obtida no bundle; se o canal que associa essa identidade à pessoa não foi autenticado, a comparação de fingerprint ou QR por canal confiável reduz o risco de aceitar uma chave substituída. A especificação de PQXDH ressalta que sua autenticação não é pós-quântica nesta revisão, ainda que o acordo acrescente segredo pós-quântico para certas garantias.\n\n### O que o servidor e os metadados ainda revelam\n\nO servidor pode armazenar e encaminhar mensagens e manter dados de roteamento necessários à entrega. Conteúdo cifrado não implica que tamanho, momento, destino, origem de conexão ou existência de tráfego sejam invisíveis. Sesame descreve que a mailbox guarda identificadores de usuário/dispositivo com mensagens no modelo. A documentação de uma camada criptográfica não autoriza concluir que toda informação operacional é secreta ou que o serviço não consegue observar qualquer metadado.\n\nDisponibilidade também é diferente de confidencialidade: um servidor pode atrasar, apagar, duplicar, reordenar ou bloquear mensagens sem conseguir decifrar o conteúdo. Um dispositivo desbloqueado ou comprometido pode expor texto e chaves ativos. Backups e restauração de estado merecem cuidado, pois podem reintroduzir estado antigo ou ampliar o material recuperável.\n\n### Como cai na prova\n\n- Criptografia ponta a ponta protege o conteúdo no trânsito contra intermediários sem chaves; não protege um dispositivo já controlado.\n- Verificação de fingerprint/QR autentica a associação da chave à pessoa por outro canal; não é etapa que o servidor possa substituir com uma promessa.\n- Sigilo futuro, recuperação pós-comprometimento, autenticação e ocultação de metadados são propriedades diferentes.\n- PQXDH e Triple Ratchet devem ser descritos conforme a especificação; não afirme implantação universal nem autenticação pós-quântica completa."
+    }
+  ],
+  "summary": "O Signal Protocol compõe mecanismos para iniciar e manter sessões cifradas. PQXDH permite que Alice inicie uma sessão com Bob offline: Bob publica chave de identidade e prekeys assinadas; Alice obtém um bundle, verifica as assinaturas, combina segredos DH e PQKEM e envia uma mensagem inicial cifrada. O Double Ratchet deriva chaves distintas por mensagem e renova cadeias quando recebe novas chaves públicas DH; contadores e chaves puladas permitem tratar mensagens fora de ordem sob limites. Apagar chaves usadas contribui para forward secrecy, e segredos novos podem permitir post-compromise security. Sesame gerencia sessões assíncronas por dispositivo, incluindo dispositivos adicionados/removidos, sessões concorrentes e estado perdido. ML-KEM Braid é uma SCKA pós-quântica; SPQR e Triple Ratchet descrevem extensões para renovação pós-quântica e combinação híbrida. Essas garantias não dispensam verificar a identidade por fingerprint/QR, não ocultam todo metadado e não protegem um dispositivo comprometido. A especificação de PQXDH ressalta que a autenticação ainda depende de hipótese clássica nesta revisão.",
+  "flashcards": [
+    {
+      "front": "Qual problema PQXDH resolve?",
+      "back": "Permite acordar uma chave inicial e enviar a primeira mensagem cifrada mesmo que o destinatário esteja offline, usando prekeys publicadas."
+    },
+    {
+      "front": "O que identifica uma IK?",
+      "back": "A chave pública de identidade do participante, usada para verificar assinaturas de prekeys e associar chaves a uma identidade."
+    },
+    {
+      "front": "Qual a função da signed prekey?",
+      "back": "É uma chave pública publicada e assinada pela chave de identidade do destinatário para apoiar acordos assíncronos; é renovada periodicamente."
+    },
+    {
+      "front": "Como OPK difere da chave efêmera de Alice?",
+      "back": "A OPK é publicada pelo destinatário para um único acordo; Alice gera sua chave efêmera para cada execução, sem publicá-la de antemão."
+    },
+    {
+      "front": "O que vem num prekey bundle PQXDH?",
+      "back": "Identidade de Bob, signed prekey de curva e assinatura, prekey PQKEM assinada e, se disponível, uma OPK de curva, com identificadores."
+    },
+    {
+      "front": "O que faz a KDF no acordo?",
+      "back": "Combina material secreto e deriva chaves com usos separados para iniciar a sessão."
+    },
+    {
+      "front": "O que é AD?",
+      "back": "Dados autenticados junto ao ciphertext, mas que essa cifragem não oculta por si só."
+    },
+    {
+      "front": "Qual papel da ratchet simétrica?",
+      "back": "Avançar a cadeia e derivar uma chave diferente para cada mensagem enviada ou recebida."
+    },
+    {
+      "front": "Quando ocorre a ratchet DH?",
+      "back": "Quando o participante recebe uma nova chave pública de ratchet; o segredo DH atualiza a raiz e as cadeias."
+    },
+    {
+      "front": "O que é RK?",
+      "back": "A chave raiz que recebe saídas DH por uma KDF e alimenta novas cadeias de envio e recepção."
+    },
+    {
+      "front": "O que é MK?",
+      "back": "A chave de mensagem individual derivada da cadeia simétrica e usada para cifrar ou decifrar uma mensagem."
+    },
+    {
+      "front": "Como o Double Ratchet lida com mensagem fora de ordem?",
+      "back": "Usa contadores do cabeçalho, deriva e guarda temporariamente MKs puladas até a mensagem atrasada chegar."
+    },
+    {
+      "front": "Por que limitar o número de chaves puladas?",
+      "back": "Para tolerar atrasos sem permitir que um remetente force consumo excessivo de cálculo ou armazenamento."
+    },
+    {
+      "front": "O que significa forward secrecy?",
+      "back": "Exposição posterior do estado corrente não deve revelar automaticamente mensagens passadas cujas chaves foram apagadas."
+    },
+    {
+      "front": "O que pode permitir recuperação após comprometimento?",
+      "back": "Uma chave nova gerada depois e um segredo DH que o invasor não conhece, incorporados ao ratchet."
+    },
+    {
+      "front": "Qual o papel de Sesame?",
+      "back": "Gerenciar criação, escolha, uso e remoção de sessões em cenário assíncrono e com vários dispositivos."
+    },
+    {
+      "front": "O que é uma mailbox no modelo Sesame?",
+      "back": "Uma caixa temporária no servidor para armazenar mensagens encaminhadas a um dispositivo até serem buscadas."
+    },
+    {
+      "front": "O que significa SCKA?",
+      "back": "Acordo contínuo de chaves esparso, que gera segredos compartilhados em épocas ordenadas, sem necessariamente um segredo por troca de mensagem."
+    },
+    {
+      "front": "O que é ML-KEM Braid?",
+      "back": "Uma SCKA baseada em ML-KEM que produz sequência de segredos pós-quânticos para alimentar protocolos de mensagens."
+    },
+    {
+      "front": "Como o Triple Ratchet combina chaves?",
+      "back": "Obtém uma chave de mensagem do Double Ratchet e outra do SPQR e deriva delas uma chave híbrida de cifragem."
+    },
+    {
+      "front": "PQXDH torna toda autenticação pós-quântica?",
+      "back": "Não. A especificação ainda condiciona a autenticação à hipótese clássica de logaritmo discreto nesta revisão."
+    },
+    {
+      "front": "Para que comparar fingerprints ou QR?",
+      "back": "Para verificar por canal autenticado que a chave de identidade exibida corresponde ao contato pretendido."
+    },
+    {
+      "front": "O que pode fazer um servidor sem a chave de sessão?",
+      "back": "Encaminhar, atrasar, bloquear, reordenar ou duplicar ciphertext, além de tratar dados operacionais de roteamento."
+    },
+    {
+      "front": "Criptografia de conteúdo oculta todos os metadados?",
+      "back": "Não. Roteamento, momento e existência de tráfego podem continuar observáveis conforme o sistema."
+    }
+  ],
+  "tips": [
+    "Separe acordo inicial, ratchet da conversa e gerenciamento de sessões: PQXDH, Double Ratchet e Sesame têm tarefas distintas.",
+    "No bundle, a identidade do destinatário verifica assinaturas; a confiança nessa identidade deve vir de associação autenticada.",
+    "Lembre que OPK é publicada pelo destinatário e usada uma vez; a chave efêmera é criada pelo iniciador em cada execução.",
+    "Uma mensagem atrasada pode usar MK pulada armazenada, mas o número de saltos e a memória são limitados.",
+    "Descreva proteção pós-quântica por componente e hipótese; não transforme isso em promessa de autenticação universalmente resistente a quantum.",
+    "Conteúdo cifrado e metadados são categorias diferentes: confidencialidade da mensagem não significa anonimato de tráfego."
+  ],
+  "traps": [
+    "Trocar o papel do servidor: ele publica/entrega informação e ciphertext, mas não é o gerador das chaves privadas dos usuários.",
+    "Dizer que PQXDH é o próprio Double Ratchet: um inicia a chave compartilhada; o outro renova chaves de mensagens.",
+    "Confundir assinatura de prekey com verificação independente da identidade humana: é preciso confiar na chave de identidade ou compará-la por canal seguro.",
+    "Afirmar que forward secrecy protege um aparelho ainda comprometido ou que o ratchet cura o estado sem nova entropia secreta.",
+    "Supor que Sesame cifra conteúdo: ele gerencia sessões em contexto de dispositivos e assincronismo.",
+    "Equiparar PQXDH, ML-KEM Braid e Triple Ratchet: acordo inicial, acordo contínuo esparso e combinação híbrida são componentes diferentes."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva as etapas de uma primeira mensagem PQXDH para alguém offline.",
+      "answer": "O destinatário publica identidade e prekeys assinadas; o iniciador busca o bundle, verifica assinaturas, deriva segredo com chaves de curva e PQKEM e envia ciphertext inicial; o destinatário recupera as chaves privadas pelos identificadores, deriva o mesmo segredo e autentica/decripta."
+    },
+    {
+      "question": "Diferencie a ratchet simétrica da DH.",
+      "answer": "A simétrica avança a cadeia a cada mensagem e produz MK individual; a DH, disparada por nova chave pública, mistura um segredo ao root key e renova cadeias."
+    },
+    {
+      "question": "Como uma mensagem atrasada ainda pode ser aberta?",
+      "answer": "O destinatário deriva e guarda MKs das posições puladas, indexa-as pela chave de ratchet e contador, e consome/apaga a MK quando a mensagem chega, respeitando limites."
+    },
+    {
+      "question": "O que Sesame administra em um ambiente com vários dispositivos?",
+      "answer": "Sessões ativas e inativas entre dispositivos, criação e remoção, concorrência de inícios, alterações de dispositivos e efeitos de perda ou restauração de estado."
+    },
+    {
+      "question": "Compare PQXDH, ML-KEM Braid e Triple Ratchet.",
+      "answer": "PQXDH acrescenta encapsulamento PQ ao acordo inicial; ML-KEM Braid gera segredos PQ numa SCKA contínua esparsa; Triple Ratchet combina saídas de Double Ratchet e SPQR para uma chave híbrida."
+    },
+    {
+      "question": "Por que verificar uma chave de identidade fora do servidor?",
+      "answer": "A verificação por fingerprint ou QR num canal autenticado associa a chave pública ao contato; sem isso, uma substituição ativa pode deixar incerta a identidade do interlocutor."
+    },
+    {
+      "question": "Quais limites não desaparecem com criptografia ponta a ponta?",
+      "answer": "Comprometimento do dispositivo, disponibilidade, metadados de tráfego e a necessidade de autenticar identidade continuam relevantes; a cifra não protege texto antes/depois de estar no dispositivo."
+    },
+    {
+      "question": "O que quer dizer o componente híbrido no Triple Ratchet?",
+      "answer": "A chave de cifra deriva de chaves de mensagem clássica e pós-quântica, visando que quebrar só uma das hipóteses não baste para quebrar a proteção combinada."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas criptográficas confundidas",
+      "summary": "PQXDH estabelece o segredo inicial; Double Ratchet renova chaves por mensagem; Sesame administra sessões e dispositivos."
+    },
+    {
+      "key": "e2",
+      "title": "Prekeys e identidades trocadas",
+      "summary": "IK identifica; SPK é prekey assinada periódica; OPK é de uso único; chave efêmera é criada pelo iniciador em cada acordo."
+    },
+    {
+      "key": "e3",
+      "title": "Garantias do ratchet exageradas",
+      "summary": "Forward secrecy protege o passado sob apagamento; PCS depende de segredo novo; aparelho ainda comprometido não está protegido."
+    },
+    {
+      "key": "e4",
+      "title": "Extensões pós-quânticas equiparadas",
+      "summary": "PQXDH é inicial; ML-KEM Braid é SCKA; SPQR é ratchet esparso e Triple Ratchet combina saídas clássica e PQ."
+    },
+    {
+      "key": "e5",
+      "title": "Cifra tratada como anonimato total",
+      "summary": "Confidencialidade e integridade do conteúdo não apagam metadados, riscos de disponibilidade ou necessidade de autenticação por canal confiável."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O PQXDH foi concebido para que Alice possa iniciar uma sessão cifrada mesmo quando Bob está desconectado, usando dados publicados previamente pelo destinatário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O destinatário publica chaves e prekeys no servidor; o iniciador busca um bundle, deriva o segredo inicial e pode enviar ciphertext sem aguardar que o destinatário esteja online.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PQXDH, a chave pública de identidade do destinatário é criada pelo servidor a cada mensagem e substitui as chaves privadas dos dispositivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cada participante mantém sua chave de identidade; o servidor armazena e distribui material público. As chaves privadas permanecem com o titular e são necessárias para processar a mensagem inicial.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A signed prekey publicada por Bob é associada à sua identidade por uma assinatura que Alice verifica com a chave pública de identidade recebida no bundle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A assinatura da prekey é feita com a chave de identidade privada do destinatário e sua verificação depende de obter uma chave pública de identidade confiável.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma OPK e a chave efêmera do iniciador são o mesmo objeto: ambas são geradas pelo destinatário e reutilizadas em diversos acordos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A OPK é publicada pelo destinatário para uso único quando disponível; o iniciador gera sua própria chave efêmera nova durante cada execução do acordo.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PQXDH combina material clássico de acordo de chaves com um mecanismo PQKEM, mas a especificação ainda aponta uma hipótese clássica para autenticação nesta revisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O protocolo acrescenta segredo pós-quântico ao acordo, porém a documentação ressalta que a autenticação mútua ainda depende da dificuldade clássica do logaritmo discreto.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a autenticação do ciphertext inicial falhar no destinatário, o PQXDH determina que Bob aceite o texto claro e prossiga com a sessão para evitar perda de mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Falha de autenticação ou de decifragem leva ao aborto do processamento e à eliminação do segredo derivado; aceitar conteúdo não autenticado violaria a integridade.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chave raiz do Double Ratchet alimenta a derivação de novas cadeias quando são incorporados segredos Diffie–Hellman.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A saída DH é misturada à root key por uma KDF; dela resultam nova chave raiz e chaves de cadeias de envio ou recepção.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na ratchet simétrica, cada mensagem utiliza uma chave de mensagem derivada ao avançar a cadeia correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A cadeia de envio ou de recepção avança e produz uma MK específica para a mensagem, em vez de reutilizar indefinidamente uma única chave.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Double Ratchet deriva todas as mensagens da mesma chave estática e não altera suas cadeias depois de enviar ou receber conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O estado avança a cada mensagem na ratchet simétrica e é renovado quando chega uma nova chave pública DH; a evolução das cadeias é central ao algoritmo.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Forward secrecy significa que o comprometimento atual do dispositivo não consegue expor mensagens futuras enquanto o atacante mantiver acesso ao estado corrente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Forward secrecy se refere principalmente à proteção de mensagens passadas após apagamento das chaves usadas. Um atacante com acesso corrente pode acompanhar mensagens até ocorrer recuperação com segredo novo desconhecido.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cabeçalho e os contadores do Double Ratchet ajudam o receptor a identificar a chave pública de ratchet e a posição da mensagem na cadeia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O cabeçalho indica a chave pública DH vigente, o índice da mensagem e o comprimento da cadeia anterior; esses valores orientam a atualização do estado e a recuperação de mensagens puladas.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para tolerar uma mensagem fora de ordem, o receptor pode guardar chaves puladas temporariamente e usá-las quando o ciphertext correspondente chegar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As chaves puladas são indexadas por chave de ratchet e contador. Quando a mensagem chega, a chave correspondente é usada e removida do estado.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recuperação pós-comprometimento é automática, ainda que nenhuma nova entropia ou segredo desconhecido seja introduzido após a invasão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A recuperação exige uma entrada secreta nova que o atacante não conheça, como uma nova contribuição DH cujo segredo privado não foi comprometido.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sesame administra sessões e dispositivos em contexto assíncrono, mas não substitui o algoritmo que cifra cada mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sesame gerencia criação, seleção e remoção de sessões; um protocolo de sessão como Double Ratchet executa a cifragem e decifragem do conteúdo.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ML-KEM Braid é descrito como um acordo contínuo de chaves esparso que pode produzir segredos pós-quânticos em sequência ordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A especificação o define como SCKA baseada em ML-KEM; seus segredos ordenados podem ser usados por camadas superiores de mensagens seguras.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Triple Ratchet obtém chaves de mensagem do Double Ratchet e do SPQR e as combina por uma KDF para cifrar o conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A construção roda os ratchets clássico e pós-quântico em paralelo e deriva uma chave híbrida a partir das duas saídas, buscando proteção apoiada em ambas as hipóteses.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+
+    {
+      "statement": "Uma equipe quer enviar a primeira mensagem a uma pessoa que está offline. Qual mecanismo do protocolo atende diretamente a esse início assíncrono?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ratchet simétrica pode iniciar sem qualquer prekey publicada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sesame escolhendo uma sessão antes de qualquer identidade ser publicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ratchet simétrica esperando que o destinatário envie uma chave em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ML-KEM Braid substituindo a mailbox por uma conexão direta obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PQXDH com prekeys já publicadas pelo destinatário.",
+          "correct": true
+        }
+      ],
+      "explanation": "PQXDH foi projetado para acordo assíncrono: o destinatário publica prekeys e o iniciador busca o bundle. Sesame administra sessões e os demais itens não resolvem sozinhos a ausência do destinatário.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao analisar uma chave de curva publicada por Bob, que elemento prova que a signed prekey foi autorizada por sua identidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de sequência informado pela mailbox do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ciphertext inicial, sem qualquer verificação de chave pública.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave efêmera criada por Alice antes de buscar o bundle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O contador da cadeia de recepção armazenado por Sesame.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura verificada pela identidade pública de Bob.",
+          "correct": true
+        }
+      ],
+      "explanation": "A signed prekey é assinada pela chave privada de identidade do destinatário. Alice verifica a assinatura com a chave pública de identidade, cuja associação a Bob deve ser confiável.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No prekey bundle de PQXDH, qual componente pós-quântico pode ser uma prekey assinada de uso único ou uma prekey assinada de último recurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave de identidade de curva, que é sempre apagada após uma mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A chave DH da ratchet, que Alice recebe de sua própria mailbox.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A prekey PQKEM assinada, de uso único ou de último recurso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A chave de mensagem do Double Ratchet, que Bob publica em texto claro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave de sessão Sesame, criada pelo servidor para todos os dispositivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação prevê prekey PQKEM assinada de uso único e uma signed last-resort prekey quando não há uma de uso único disponível. As chaves de ratchet são parte do estado posterior da sessão.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bundle recebido não traz uma OPK de curva porque o servidor já distribuiu o estoque disponível. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sessão não pode começar, pois toda execução exige uma OPK de curva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor deve gerar uma OPK privada em nome de Bob e anexá-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alice deve reutilizar a chave efêmera da sessão anterior para compensar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A OPK pode faltar; o acordo ainda é possível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O Double Ratchet precisa ser executado antes de calcular qualquer segredo inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A OPK de curva é opcional no bundle quando o estoque se esgota. PQXDH continua usando as chaves de identidade, signed prekey, chave efêmera e material PQKEM previstos.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a especificação recomenda verificar fingerprints ou QR codes por canal autenticado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que a chave pública pertence ao contato pretendido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para recuperar do servidor mensagens cujo ciphertext foi apagado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para recalcular a chave de mensagem sem executar uma KDF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para tornar anônimos os endereços de rede usados na entrega.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para remover a necessidade de assinar prekeys antes da publicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação externa autentica a associação da chave de identidade à pessoa esperada. Ela não recupera mensagens, não substitui KDF, não esconde tráfego e não elimina a assinatura das prekeys.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito prático se espera ao apagar a chave privada de uma OPK depois que ela foi usada com sucesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garantir que nenhuma outra mensagem possa ser enviada pela mailbox.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir a renovação da chave de identidade do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a necessidade de verificar o ciphertext inicial recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter a chave de mensagem disponível para todas as sessões futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir a recuperação de sessões antigas após exposição futura.",
+          "correct": true
+        }
+      ],
+      "explanation": "Apagar a chave privada de uso único usada contribui para forward secrecy: uma exposição futura de chaves retidas não deve permitir refazer aquele acordo. Isso não controla a mailbox nem substitui autenticação.",
+      "section": "1. Arquitetura e início assíncrono da conversa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enunciado pergunta como o Double Ratchet obtém uma chave de cifra específica para cada mensagem da cadeia atual. Qual mecanismo descreve isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A assinatura da identidade, repetida como chave simétrica de conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ratchet simétrica, que deriva uma MK ao avançar a cadeia.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A mailbox, que transforma o identificador do dispositivo em segredo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A comparação de fingerprints, que cifra o texto pelo QR code.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra Sesame que seleciona a sessão ativa para cada contato.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia simétrica avança em cada envio ou recepção e produz a MK individual. Assinaturas, mailbox, verificação visual e gerenciamento de sessão têm outras funções.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Chega um cabeçalho com chave pública de ratchet diferente da conhecida. O que o receptor deve fazer antes de derivar a chave daquela mensagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar qualquer estado e reutilizar a última chave de mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Solicitar ao servidor que decifre o conteúdo para atualizar a sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar o passo DH e renovar as cadeias antes da MK.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter a chave pública nova em uma OPK de identidade permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar o cabeçalho como plaintext e ignorar o conteúdo autenticado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma nova chave DH dispara o passo Diffie–Hellman e a atualização da RK e das cadeias; em seguida a cadeia simétrica deriva a MK para a mensagem recebida.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um invasor obtém hoje a chain key de recepção. Qual afirmação descreve corretamente o limite dessa exposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chain key não permite derivar qualquer chave de mensagem da mesma cadeia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A exposição afeta somente mensagens antigas cujas chaves já foram apagadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A exposição torna impossível qualquer atualização DH futura entre os participantes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O invasor pode seguir a cadeia até ocorrer uma renovação segura.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A exposição revela apenas metadados, pois a chain key não cifra conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chain key atual permite avançar a cadeia simétrica e calcular futuras MKs daquela cadeia. Uma renovação DH com material novo e secreto pode interromper o acesso futuro, mas não apaga o que já foi visto.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem de número maior chega antes das mensagens intermediárias. Como o receptor pode acomodar a ordem observada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Derivar e guardar temporariamente as chaves das posições puladas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pede que o servidor reescreva os contadores antes de encaminhar a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usa uma única chave de conteúdo compartilhada por todas as mensagens puladas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignora os números do cabeçalho e tenta cada chave privada do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reinicia o acordo PQXDH para cada mensagem que chegar atrasada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os contadores possibilitam derivar as MKs das posições puladas e armazená-las temporariamente. O limite MAX_SKIP protege contra solicitação excessiva de cálculo e memória.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que condição é necessária para que uma sessão possa recuperar segurança futura depois de uma chave atual ter sido exposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o servidor retenha cópias de todas as chaves de mensagem antigas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o texto de cada mensagem seja assinado pela mailbox do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que os dois lados deixem de apagar qualquer chave de cadeia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a mesma chave DH comprometida seja reutilizada sem alteração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um segredo novo, secreto também em relação ao invasor.",
+          "correct": true
+        }
+      ],
+      "explanation": "PCS depende de entrada secreta nova que o atacante não conheça. Uma nova troca DH pode fornecer essa contribuição; reter ou reutilizar material comprometido não cura o estado.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação de um cabeçalho de Double Ratchet auxilia a tratar mensagens atrasadas de uma cadeia anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A senha de desbloqueio usada pelo remetente antes de abrir o aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O contador PN, que informa o tamanho da cadeia anterior.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O texto claro integral, armazenado no cabeçalho para sincronização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista de todos os dispositivos registrados na conta do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura de cada chave de mensagem feita pelo servidor após entrega.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os campos PN e N registram, respectivamente, o tamanho da cadeia anterior e o número na cadeia corrente. Eles permitem calcular quantas MKs precisam ser puladas e guardadas.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a verificação criptográfica de um ciphertext falhar, qual tratamento de estado é coerente com o Double Ratchet descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar o conteúdo e gravar os contadores antes de registrar o erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Devolver a MK usada ao servidor para que outro dispositivo decifre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar a mensagem e não consolidar alterações de estado inválidas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ignorar a autenticação porque a chave de ratchet já foi reconhecida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar a chain key atual para que o remetente valide sua cópia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na especificação, uma exceção como falha de autenticação descarta a mensagem e as mudanças de estado correspondentes; somente uma decifragem bem-sucedida é aceita.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adicionou um novo telefone à conta e precisa que sessões correspondentes sejam criadas e acompanhadas para os dispositivos envolvidos. Qual componente tem esse foco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A KDF da ratchet simétrica, que cria os registros de usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mailbox, que escolhe qual identidade deve ser autenticada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PQKEM, que mantém uma sessão por número de telefone.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sesame, que gerencia sessões entre dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A assinatura da SPK, que armazena o histórico de mensagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sesame trata criação, uso, convergência e remoção de sessões associadas a dispositivos. PQKEM, mailbox, assinatura e KDF não desempenham o papel de gerenciador de sessões.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de Sesame, o que pode ocorrer quando uma mensagem chega por uma sessão que estava inativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sessão recebida pode ser escolhida como ativa para novos envios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O servidor apaga permanentemente a chave de identidade de todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A sessão é automaticamente convertida em um prekey PQKEM de último recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem passa a ser pública para sincronizar os relógios dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ratchet simétrico deixa de atualizar chaves por mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sesame descreve que a sessão inativa pela qual uma mensagem é recebida pode tornar-se a sessão ativa, ajudando dispositivos a convergir para uma sessão de uso.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza corretamente a propriedade esparsa de uma SCKA como ML-KEM Braid?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela publica a chave privada de cada participante para acelerar cada mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela exige um segredo novo para cada pacote de texto, sem considerar largura de banda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela elimina a necessidade de ordenar os segredos compartilhados ao longo do tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela usa apenas hashes de conteúdo e não mantém estado entre participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela produz uma sequência ordenada de segredos, sem necessariamente gerar um em cada ida e volta.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação define SCKA como sequência ordenada de segredos e destaca o espaçamento entre saídas para lidar com mensagens maiores e restrições de banda.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição separa corretamente os papéis de PQXDH e do Triple Ratchet?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PQXDH administra mailboxes; Triple Ratchet verifica QR codes presencialmente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PQXDH inicia a chave compartilhada; Triple Ratchet combina saídas de ratchets clássico e pós-quântico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PQXDH armazena sessões por dispositivo; Triple Ratchet distribui prekeys ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PQXDH só cifra grupos; Triple Ratchet é o nome da chave de identidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PQXDH gera metadados de entrega; Triple Ratchet substitui a KDF por uma assinatura.",
+          "correct": false
+        }
+      ],
+      "explanation": "PQXDH é um protocolo de acordo inicial; Triple Ratchet é uma construção para cifragem contínua que combina uma chave do Double Ratchet e outra do SPQR.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Triple Ratchet descrito oficialmente, como a chave usada para cifrar uma mensagem é obtida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copia-se somente a chave raiz clássica e descarta-se toda saída PQ.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usa-se diretamente a assinatura da identidade como chave AEAD.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concatena-se o texto claro à mailbox e trata-se o resultado como segredo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Derivam-se saídas dos dois ratchets e combina-se o material por uma KDF híbrida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O servidor escolhe uma das duas chaves e envia a selecionada em plaintext.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Triple Ratchet obtém MKs do Double Ratchet e do SPQR e passa ambas à função KDF híbrida, que produz a chave de cifragem autenticada.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a especificação de ML-KEM Braid admite que nem toda troca de mensagem de aplicação produza um novo segredo compartilhado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque as saídas em épocas ordenadas podem ser esparsas para acomodar custo e largura de banda.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque o segredo deve ser substituído por uma chave estática de identidade para sempre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque somente o servidor pode executar o mecanismo de encapsulamento pós-quântico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a ordem das épocas é irrelevante para decifrar mensagens fora de ordem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque a SCKA não produz segredo e serve apenas para indicar dispositivos ativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma SCKA emite saídas em sequência ordenada, mas pode espaçar sua produção; isso reduz a sobrecarga de mensagens pós-quânticas grandes em redes limitadas.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar o alcance da criptografia ponta a ponta, qual risco permanece mesmo quando o algoritmo de mensagens funciona corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo é automaticamente divulgado em claro ao servidor de roteamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um dispositivo comprometido pode capturar texto antes da cifra ou após a decifragem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A KDF transforma todas as chaves privadas em identificadores públicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Double Ratchet força todos os usuários a sincronizar os relógios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura de prekey impede mensagens de chegarem com atraso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Criptografia de transporte não protege os pontos finais se o invasor controla o dispositivo e lê o conteúdo antes da cifra ou depois da decifragem.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa verifica uma fingerprint em um canal independente autenticado. Que ameaça essa ação procura reduzir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A perda de disponibilidade causada por um servidor que bloqueia a entrega.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A captura do texto claro por malware instalado no dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A troca ou associação incorreta da chave pública de identidade do contato.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A reordenação de mensagens numa mailbox depois da cifra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falta de largura de banda para transportar mensagens PQKEM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação externa confirma que a chave usada corresponde à pessoa pretendida e reduz ataques de substituição de identidade. Não resolve bloqueio, malware ou ordenação da rede.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue confidencialidade de conteúdo e ocultação de metadados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ciphertext impede que o servidor observe qualquer dado de roteamento ou horário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confidencialidade garante que nenhuma mensagem seja atrasada ou bloqueada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma mailbox transforma remetente e dispositivo em informação sempre invisível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conteúdo pode estar cifrado enquanto dados de tráfego necessários à entrega continuam observáveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A cifra autenticada elimina a necessidade de manter uma sessão por dispositivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Confidencialidade protege o conteúdo para quem não tem a chave. Roteamento, horário e existência de tráfego são informações distintas, que podem continuar visíveis ao serviço ou à rede.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor de mensagens pode atrasar ou descartar ciphertext sem necessariamente conseguir ler o conteúdo. Qual propriedade está sendo afetada diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilidade e entrega, não necessariamente confidencialidade do texto cifrado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A assinatura da identidade, que passa a revelar a chave privada do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sigilo futuro de toda chave antiga que foi apagada corretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ordem matemática das épocas SCKA, que deixa de ser autenticável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A impossibilidade de um dispositivo manter mais de uma sessão ativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bloquear ou atrasar entrega afeta disponibilidade. Sem as chaves de sessão, o servidor ainda pode não conseguir decifrar o conteúdo; são objetivos de segurança diferentes.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista afirma que o Triple Ratchet torna todo ataque quântico impossível, inclusive a identificação ativa de quem participa. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois a combinação híbrida prova identidade contra qualquer adversário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correta, porque ML-KEM remove todos os metadados do tráfego automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreta: a construção combina hipóteses para chaves de cifra, mas isso não equivale a autenticação universal pós-quântica ou anonimato.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incorreta apenas porque o Triple Ratchet não usa saída alguma do Double Ratchet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, desde que o servidor retenha as chaves privadas para auditar cada sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A segurança híbrida combina saídas clássica e pós-quântica para proteção da chave de mensagem. A especificação de PQXDH ressalta limites de autenticação pós-quântica; metadados e identidade são problemas distintos.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que ameaça descreve o cenário harvest now, decrypt later mencionado em discussões de resistência quântica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um atacante apaga a mailbox antes que o dispositivo busque qualquer mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um atacante grava ciphertext hoje e espera capacidade futura para tentar decifrá-lo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um usuário compara fingerprints e publica a chave privada no perfil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma KDF cria uma chave nova para cada mensagem já autenticada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O destinatário alterna sessões ativas depois de receber mensagem atrasada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nome descreve a coleta de comunicações cifradas no presente para tentar quebrá-las no futuro, por exemplo diante de avanços em computação quântica contra mecanismos clássicos.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida atende melhor a um cenário em que a equipe precisa distinguir uma assinatura válida de prekey da autenticação da pessoa no mundo real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar em qualquer chave de identidade entregue pelo servidor sem comparação externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar o contador do ratchet como certificado de identidade emitido pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o sucesso da decifragem como prova de que o contato é quem afirma ser.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar fingerprint ou QR por canal autenticado e verificar a assinatura da prekey.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desligar AEAD para que a assinatura da chave cubra o texto em claro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura valida que a prekey foi assinada pela chave de identidade apresentada; a comparação por canal confiável valida a associação dessa identidade ao contato esperado.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Sesame, uma única mailbox reúne mensagens de todos os dispositivos do usuário sem identificar o destinatário individual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Certo. Sesame modela mailboxes por dispositivo e considera mensagens sujeitas a atraso, perda, duplicação, corrupção e reordenação antes da chegada.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sesame exige relógios perfeitamente sincronizados para determinar qual sessão deve cifrar cada mensagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O algoritmo considera explicitamente que os relógios não são sincronizados; a gestão de sessões e mensagens não depende de sincronização perfeita de tempo.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A perda ou restauração de estado de um dispositivo pode deixar sessões que não correspondem ao estado mantido pelo outro participante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Sesame considera que estado pode ser apagado ou restaurado, criando sessões órfãs ou concorrentes que precisam ser gerenciadas.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Triple Ratchet, basta que uma das duas hipóteses criptográficas seja quebrada para que a chave híbrida permaneça sempre confidencial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A intenção da composição híbrida é que o atacante precise quebrar ambas as hipóteses para comprometer a proteção combinada; não se afirma segurança se ambas forem quebradas.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor pode afetar disponibilidade e ordenação da entrega mesmo sem possuir as chaves privadas necessárias para ler o conteúdo cifrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O encaminhador pode bloquear, atrasar, duplicar ou reordenar mensagens. Esses ataques de disponibilidade e transporte não implicam por si só que o conteúdo possa ser decifrado.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a mensagem está cifrada ponta a ponta, nenhum metadado de roteamento, horário ou existência de tráfego pode ser observado por qualquer intermediário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Cifrar o conteúdo não implica ocultar automaticamente metadados necessários à entrega, como roteamento, tempo ou ocorrência de tráfego.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A verificação de fingerprint por canal autenticado pode associar a chave pública exibida à pessoa pretendida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Errado. O protocolo usa chaves e assinaturas, mas a associação da chave à pessoa pode exigir verificação por fingerprint ou QR em canal autenticado. O acordo não prova contato presencial.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma assinatura de prekey pode demonstrar que a chave foi assinada pela identidade correspondente, mas a confiança nessa identidade depende de como sua chave pública foi autenticada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Verificar a assinatura prova vínculo criptográfico com a chave pública usada na verificação; confirmar que essa chave pertence ao contato requer uma associação confiável.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o computador de um usuário está comprometido e lê o texto antes de ser cifrado, a chave nova por mensagem impede necessariamente essa captura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O ratchet protege chaves de comunicação em trânsito e o estado evolutivo, mas não impede malware no endpoint de ler o texto claro antes da cifra ou após a decifragem.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ratchet clássica rejeita mensagens fora de ordem e apaga toda chave pulada, sem armazenamento temporário nem limite de processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Certo. A especificação indexa chaves puladas e define um limite máximo de saltos, de modo que o protocolo comporte atrasos sem permitir armazenamento ou cálculo ilimitado.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A especificação de PQXDH distingue o segredo PQKEM da autenticação, que ainda depende de hipótese clássica nesta revisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Errado. A documentação separa o segredo pós-quântico da autenticação: nesta revisão, autenticação não é pós-quântica e exige hipóteses clássicas. A presença de PQKEM não torna toda propriedade resistente a qualquer adversário.",
+      "section": "4. Garantias, ameaças e leitura crítica da segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chave de mensagem já usada pode ser apagada sem que a cadeia dependa dela para derivar as chaves posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A KDF produz separadamente a próxima chain key e a MK atual; a MK não é usada para calcular outras chaves, o que permite apagá-la depois do uso.",
+      "section": "2. Double Ratchet: chave nova a cada mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mailbox descrita por Sesame é armazenada em cada dispositivo destinatário e não participa do serviço de encaminhamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. No modelo, o servidor mantém uma mailbox por dispositivo e armazena temporariamente as mensagens destinadas a ela até que sejam buscadas.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma extensão pós-quântica de ratchet pode complementar o Double Ratchet, mas não deve ser confundida com o acordo inicial PQXDH.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. PQXDH estabelece a chave inicial; SPQR e Triple Ratchet tratam de renovação contínua e composição de chaves após o acordo inicial.",
+      "section": "3. Sessões, dispositivos e extensões pós-quânticas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Signal Documentation — Technical information",
+      "publisher": "Signal",
+      "reference": "Visão geral das especificações X3DH, PQXDH, Double Ratchet, Sesame e ML-KEM Braid.",
+      "url": "https://signal.org/docs/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The PQXDH Key Agreement Protocol",
+      "publisher": "Signal",
+      "reference": "Papéis, publicação e obtenção de prekey bundles, envio e recepção da mensagem inicial e considerações de segurança.",
+      "url": "https://signal.org/docs/specifications/pqxdh/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Double Ratchet Algorithm",
+      "publisher": "Signal",
+      "reference": "Cadeias simétricas e DH, cabeçalhos, mensagens fora de ordem, Triple Ratchet e integração com PQXDH.",
+      "url": "https://signal.org/docs/specifications/doubleratchet/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Sesame Algorithm: Session Management for Asynchronous Message Encryption",
+      "publisher": "Signal",
+      "reference": "Gerenciamento de sessões em ambiente assíncrono e multi-dispositivo; mailboxes e estados de sessão.",
+      "url": "https://signal.org/docs/specifications/sesame/",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The ML-KEM Braid Protocol",
+      "publisher": "Signal",
+      "reference": "Acordo contínuo de chaves esparso baseado em ML-KEM e segredos pós-quânticos ordenados.",
+      "url": "https://signal.org/docs/specifications/mlkembraid/",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}
