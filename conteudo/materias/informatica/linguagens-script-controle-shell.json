@@ -1,0 +1,3818 @@
+{
+  "id": "informatica.linguagens-script-controle-shell",
+  "subject": "Informática",
+  "title": "Linguagens de script e de controle de shell",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Linguagens script e de controle: conceitos, estruturas, utilitários, comandos, configuração e implementação.",
+    "Linguagens de script e de controle de shell",
+    "Shell script em Bash e sh",
+    "Programação de scripts no Linux",
+    "Comandos e estruturas do Bash",
+    "Utilitários de linha de comando Unix",
+    "Variáveis e parâmetros de shell",
+    "Redirecionamento e pipeline de comandos",
+    "Automação com scripts de shell",
+    "Controle de fluxo em scripts",
+    "Configuração e execução de shell scripts"
+  ],
+  "scope": {
+    "covers": "Conceitos e implementação de scripts de shell; interpretador, shebang, execução, permissões, argumentos e códigos de saída; sintaxe, variáveis, ambiente, expansões, aspas, substituição de comandos e parâmetros; condições, seleção, laços e funções; listas, pipelines, redirecionamentos e sinais; utilitários usuais de linha de comando para arquivos, texto e processos; configuração do ambiente, opções, depuração e portabilidade entre sh/POSIX, Bash e PowerShell; práticas de segurança e tratamento de erros.",
+    "excludes": "Programação detalhada em linguagens de propósito geral, administração completa de sistemas operacionais, expressões regulares avançadas, configuração de serviços específicos e sintaxe exclusiva de shells além dos exemplos comparativos indicados."
+  },
+  "theoryTitle": "Como escrever, controlar e configurar scripts de shell",
+  "chapters": [
+    {
+      "title": "1. O shell como linguagem e interpretador",
+      "markdown": "### O problema que este assunto resolve\n\nUm comando digitado no terminal pode ser repetido por um script. O shell lê esse texto, interpreta sua sintaxe, expande variáveis e padrões, prepara entradas e saídas e executa comandos internos ou programas externos. Assim, tarefas administrativas repetitivas podem ser descritas em uma sequência reproduzível, com decisões e tratamento de resultados. Um script de shell é um arquivo de texto com comandos para um interpretador; não é, por si, um programa binário compilado.\n\n> **Siglas e termos deste capítulo**\n> - **Shell**: interface de comandos e, em shells como Bash, linguagem para automação.\n> - **Script**: arquivo de texto interpretado como sequência de comandos.\n> - **Shebang**: primeira linha iniciada por `#!`, que indica o interpretador usado ao executar o arquivo diretamente.\n> - **POSIX**: família de padrões que especifica uma linguagem de shell e utilitários comuns.\n> - **Bash**: Bourne Again Shell, shell com recursos adicionais além da base POSIX.\n> - **Código de saída**: número devolvido ao processo chamador; em convenção Unix, zero indica sucesso e valor não zero indica alguma falha.\n\n### Arquivo, interpretador e argumentos\n\nUm exemplo para Bash começa com `#!/usr/bin/env bash`, seguido por comandos. O kernel reconhece a linha `#!` quando o arquivo é executado diretamente e encaminha a execução ao interpretador indicado. O caminho `/usr/bin/env` procura `bash` no `PATH` do ambiente; escrever `#!/bin/sh` pede o shell localizado nesse caminho, que pode não oferecer recursos exclusivos do Bash. Se o arquivo for chamado explicitamente como `bash tarefa.sh`, é o Bash invocado que interpreta o conteúdo; a linha shebang não troca esse interpretador.\n\nEm sistemas Unix, a execução direta também exige permissão de execução, que pode ser concedida com `chmod +x tarefa.sh`. Sem essa permissão, ainda é possível chamar `bash tarefa.sh` se houver permissão de leitura. O shell recebe os argumentos posicionais: `$0` identifica o nome usado para chamar o script, `$1` é o primeiro argumento, `$2` o segundo, `$#` conta os argumentos e `\"$@\"` preserva cada argumento como uma palavra separada. Use aspas em `\"$@\"` ao repassar argumentos, sobretudo quando eles podem conter espaços.\n\n### Comandos internos e externos\n\n`cd`, `read`, `export`, `return` e `break` são exemplos de operações implementadas pelo próprio shell (builtins ou palavras-chave). `grep`, `sort`, `find` e `date` costumam ser executáveis externos, embora nomes disponíveis variem por sistema. A diferença importa: `cd` precisa mudar o diretório do processo shell atual; um programa externo separado não conseguiria alterar o diretório do processo pai. O shell também combina comandos com operadores como `;`, `&&`, `||`, `|` e redirecionamentos.\n\n| Forma de execução | Quem escolhe o interpretador | Efeito prático |\n| --- | --- | --- |\n| `bash tarefa.sh` | O usuário escolhe Bash | Lê o arquivo mesmo sem permissão de execução, desde que possa lê-lo |\n| `./tarefa.sh` | Shebang e sistema operacional | Requer caminho executável e interpretador indicado disponível |\n| `sh tarefa.sh` | O comando `sh` | O script deve respeitar a sintaxe e os recursos do shell chamado |\n\n### Como cai na prova\n\nA banca pode trocar o papel do interpretador e do executável, afirmar que todo comando é um programa externo ou confundir permissão de leitura com a permissão necessária para execução direta. Também pode cobrar a passagem de argumentos: `\"$@\"` conserva os elementos; `$*` sem aspas e expansões sem aspas podem separar e expandir palavras de modo inesperado. Bash aceita extensões como arrays e `[[ ... ]]`; um script que as use não se torna automaticamente compatível com qualquer `sh`."
+    },
+    {
+      "title": "2. Dados, expansões e estruturas de controle",
+      "markdown": "### O problema que este assunto resolve\n\nUm script precisa transportar valores, testar situações e repetir operações. Em shell, a sintaxe de aspas e expansões define como esses valores viram palavras e argumentos. Erros nessa etapa podem fazer um nome com espaços virar vários argumentos ou permitir que caracteres especiais sejam interpretados como padrões.\n\n> **Siglas e termos deste capítulo**\n> - **Variável de shell**: nome que guarda um valor no processo do shell.\n> - **Variável de ambiente**: variável exportada para o ambiente de comandos filhos.\n> - **Expansão**: substituição de uma expressão como `$nome` pelo valor correspondente.\n> - **Status**: resultado numérico de um comando; o shell o disponibiliza em `$?` no Bash.\n> - **Função**: bloco de comandos nomeado que pode receber argumentos e ser chamado mais de uma vez.\n\n### Aspas, atribuições e expansão\n\nEm Bash, `arquivo=relatorio.txt` atribui um valor; espaços em volta do `=` não são permitidos nessa forma. `export ARQUIVO` marca a variável para que apareça no ambiente dos programas filhos. Uma atribuição simples não exportada continua disponível ao shell atual, mas não é automaticamente herdada por um processo externo.\n\nAspas simples preservam literalmente os caracteres internos, inclusive `$`. Aspas duplas permitem expansões como `\"$arquivo\"`, mas impedem a divisão por espaços e a expansão de nomes de arquivos nesse resultado. Sem aspas, o valor de uma variável pode sofrer divisão em palavras e expansão de padrões (`*`, `?`, `[...]`). Por isso, `rm -- \"$arquivo\"` protege a palavra contra espaços e usa `--` para encerrar opções em utilitários que o suportam; a validação do caminho continua sendo responsabilidade do programa.\n\n`$(comando)` executa um comando e substitui a expressão por sua saída padrão, removendo quebras de linha finais. Crases também fazem substituição, mas são mais difíceis de aninhar e escapar; a forma moderna `$(...)` é preferível. Em Bash, `$((2 + 3))` faz expansão aritmética. A forma `[[ ... ]]` é uma construção condicional do Bash; `[ ... ]` é também conhecido como `test` e requer atenção a espaços e aspas, por exemplo `[ -f \"$arquivo\" ]`.\n\n### Condições e seleções\n\nEm Bash/POSIX, a forma usual é `if comando; then ...; elif outro_comando; then ...; else ...; fi`. A condição é determinada pelo status do comando ou teste: status zero significa verdadeiro para o `if`; não zero significa falso. `[ -d \"$pasta\" ]` testa se o caminho é um diretório, e `[ -r \"$arquivo\" ]` testa se é legível. `case \"$resposta\" in s|S) ... ;; n|N) ... ;; *) ... ;; esac` seleciona pelo padrão correspondente.\n\n### Laços e funções\n\n`for item in \"$@\"; do ...; done` percorre os argumentos preservando cada um quando a expansão está citada. `while comando; do ...; done` repete enquanto o comando terminar com status zero; `until comando; do ...; done` repete enquanto ele falhar. `break` encerra o laço atual e `continue` passa à próxima iteração. Bash também oferece `for ((i=0; i<3; i++))`, mas essa forma aritmética não pertence à sintaxe POSIX básica.\n\nUma função Bash pode ser declarada como `processar() { ...; }`; os argumentos da chamada aparecem dentro dela como `$1`, `$2` e `\"$@\"`. `return` define o status da função, não uma lista de valores; dados podem ser enviados pela saída padrão ou armazenados em variáveis. `exit` encerra o script (ou o shell corrente), portanto deve ser usado com cuidado em arquivos carregados com `.` ou `source`.\n\n### Como cai na prova\n\nEm Bash, `if` não exige que a condição seja uma expressão booleana escrita entre parênteses: executa-se um comando de teste e avalia-se seu status. Confundir `=` de comparação no teste com atribuição, omitir aspas em variáveis, esperar que `return` encerre o processo ou assumir que variável local é herdada por um programa externo são erros frequentes. Em PowerShell, a sintaxe é distinta: `if ($condicao) { ... }`, `$true`/`$false`, `foreach ($item in $lista)` e `try/catch/finally`; ela não é uma variante da gramática Bash."
+    },
+    {
+      "title": "3. Utilitários, listas, pipelines e arquivos",
+      "markdown": "### O problema que este assunto resolve\n\nA força de um shell está em combinar programas pequenos: um localiza linhas, outro seleciona campos, outro ordena, e o resultado alimenta uma etapa seguinte. Esse encadeamento funciona porque a saída padrão de um processo pode ser ligada à entrada padrão de outro. Arquivos e mensagens de erro também podem ser encaminhados separadamente.\n\n> **Siglas e termos deste capítulo**\n> - **stdin**: entrada padrão, descritor de arquivo 0.\n> - **stdout**: saída padrão, descritor 1.\n> - **stderr**: saída de erro padrão, descritor 2.\n> - **Pipeline**: conexão da saída padrão de um comando à entrada padrão de outro, escrita com `|`.\n> - **Globbing**: expansão de padrões de nomes de arquivo feita pelo shell, como `*.log`.\n> - **Utilitário**: programa ou comando que realiza uma tarefa delimitada, como filtrar, contar ou ordenar.\n\n### Encadeamento e redirecionamento\n\n`comando1 | comando2` conecta stdout de `comando1` ao stdin de `comando2`; stderr continua separado, salvo redirecionamento explícito. `>` cria ou trunca um arquivo para stdout, enquanto `>>` acrescenta ao fim. `<` fornece um arquivo como stdin. `2> erros.txt` redireciona stderr. Em Bash, `comando > tudo.txt 2>&1` envia stdout ao arquivo e, em seguida, duplica stderr para o destino atual de stdout; a ordem importa. `&>` é uma conveniência do Bash para encaminhar ambas as saídas.\n\n`; separa comandos sem condicionar a execução. `&&` executa o próximo comando somente se o anterior tiver status zero; `||` executa o próximo se o anterior tiver status diferente de zero. Esses operadores testam status, não o texto impresso pelo comando. Uma pipeline comum tem o status do último comando; Bash pode habilitar `set -o pipefail` para que a pipeline sinalize falha de algum componente conforme a regra de status definida pelo Bash.\n\n### Utilitários de uso recorrente\n\n| Utilitário | Uso típico | Atenção |\n| --- | --- | --- |\n| `grep` | Localiza linhas que correspondem a texto ou expressão regular | Opções como `-i` ignoram diferença entre maiúsculas e minúsculas; não altera o arquivo por si |\n| `sed` | Faz transformações de fluxo, como substituição de texto | `sed 's/velho/novo/g' arquivo` imprime resultado; edição no local varia por implementação/opção |\n| `cut` | Seleciona caracteres ou campos delimitados | O delimitador e a numeração de campos precisam corresponder ao formato |\n| `sort` e `uniq` | Ordena linhas e remove repetições adjacentes | Para agrupar duplicatas, em geral ordene antes de `uniq` |\n| `find` | Percorre árvores de diretórios e filtra caminhos | Use `-exec ... {} +` ou saída NUL quando nomes puderem conter caracteres especiais |\n| `wc` | Conta linhas, palavras ou bytes/caracteres conforme opção | `wc -l` conta caracteres de nova linha, não necessariamente registros lógicos |\n| `head` e `tail` | Mostram começo ou fim de um fluxo/arquivo | `tail -f` acompanha acréscimos ao arquivo |\n\nA expansão `*.txt` é feita pelo shell antes de o programa receber os argumentos. Se nenhum nome corresponder, o comportamento depende do shell e de suas opções. Para nomes arbitrários, não use `for f in $(find ...)`: a substituição de comandos e a divisão de palavras corrompem nomes com espaços, quebras de linha ou curingas. Em Bash, `find . -type f -print0 | while IFS= read -r -d '' f; do ...; done` usa delimitador NUL, que não pode ocorrer em nome de arquivo.\n\n### Diretório atual, caminho e utilitários de arquivo\n\n`pwd` mostra o diretório atual; `cd` muda o diretório do shell atual. `mkdir -p` cria diretórios intermediários e não falha se o destino já existir como diretório. `cp` copia, `mv` move ou renomeia e `rm` remove entradas; a remoção não é desfeita por um comando shell comum. `test -e caminho` verifica existência, enquanto em Bash `[[ -f caminho ]]` verifica arquivo regular. `PATH` é uma lista de diretórios separados por `:` em Unix, pesquisados ao localizar comandos. Evite incluir `.` no `PATH` de contextos privilegiados, pois um executável malicioso no diretório corrente pode ser escolhido por engano.\n\n### Como cai na prova\n\nA prova pode dizer que `|` encaminha stderr automaticamente, que `>` sempre acrescenta ou que `&&` examina a saída textual. O sentido real é: pipeline conecta stdout a stdin, `>` trunca/substitui o destino regular e operadores condicionais observam status. Também é comum cobrar que `uniq` elimina duplicatas adjacentes, e não todas as linhas repetidas em qualquer posição."
+    },
+    {
+      "title": "4. Configuração, implementação, confiabilidade e segurança",
+      "markdown": "### O problema que este assunto resolve\n\nUm script confiável precisa funcionar no ambiente esperado, indicar falhas e evitar que entradas inesperadas virem comandos ou opções. Configuração do interpretador, opções, permissões e tratamento de erros alteram o comportamento; por isso, não basta conhecer a lista de comandos.\n\n> **Siglas e termos deste capítulo**\n> - **PATH**: variável de ambiente com diretórios pesquisados para localizar comandos.\n> - **Modo interativo**: shell voltado à interação humana, normalmente com prompt e arquivos próprios de inicialização.\n> - **Modo não interativo**: execução de script ou comando sem prompt interativo.\n> - **Portabilidade**: capacidade de rodar sob shells/ambientes distintos usando recursos comuns.\n> - **Quoting**: uso de aspas e escapes para controlar a interpretação de caracteres e a formação de argumentos.\n> - **Injeção de comando**: execução não intencional de texto de entrada como parte de uma instrução.\n\n### Configuração e inicialização\n\nVariáveis exportadas como `PATH`, `HOME` e `LANG` compõem o ambiente de processos filhos. A configuração de inicialização depende do shell e do modo de execução: Bash lê arquivos diferentes conforme seja login, interativo ou não interativo, e não se deve presumir que um script terá as mesmas variáveis definidas em um terminal. O shell atual pode ser configurado com opções como `set -u` (tratar expansão de variável não definida como erro em situações cobertas pela opção), `set -o pipefail` (considerar falhas internas da pipeline) e `set -x` (mostrar comandos após expansão para depuração). Em arquivos de configuração, um alias criado para uso interativo geralmente não é ferramenta adequada para scripts; funções e executáveis com nomes claros são mais previsíveis.\n\nUm script POSIX deve escolher `#!/bin/sh` e evitar extensões Bash, por exemplo arrays Bash, `[[ ... ]]`, `source`, `select` e `for ((...))`. A forma POSIX de carregar outro arquivo é `. ./comum.sh`; Bash também aceita `source`. Quando se deseja especificamente Bash, declare-o no shebang e use recursos Bash conscientemente. Não execute código de configuração de origem desconhecida com `source`: esse arquivo roda no mesmo processo shell e pode alterar variáveis, funções e diretório.\n\n### Erros, sinais e depuração\n\n`$?` no Bash registra o status do comando mais recente, portanto deve ser consultado imediatamente se um comando intermediário puder sobrescrevê-lo. `trap 'limpar' EXIT` pode executar limpeza ao sair, e traps para sinais permitem reagir a interrupções; o comportamento exato depende do sinal e do shell. `set -e` pode encerrar o script diante de falha, mas suas exceções em testes condicionais, listas e pipelines tornam arriscado tratá-lo como substituto de decisões explícitas. Para operações críticas, teste o status diretamente, por exemplo `if cp -- \"$origem\" \"$destino\"; then ...; else ...; fi`. `bash -n tarefa.sh` verifica sintaxe sem executar comandos; `bash -x tarefa.sh` mostra rastreamento de execução.\n\n### Práticas seguras e manutenção\n\nUse `\"$variavel\"` ao passar dados como argumento, `read -r` para ler linhas sem interpretar barras invertidas, e `--` antes de caminhos quando o utilitário aceita esse terminador de opções. Evite `eval`: ele reinterpreta uma string como código e pode converter dados em comandos. Não monte comandos em strings para executá-los; passe argumentos em variáveis/arrays do shell apropriado. Valide parâmetros, limite permissões e prefira caminhos explícitos em tarefas sensíveis. Em Bash, `mktemp` cria nomes temporários com menor risco de colisão; arquivos temporários devem ser removidos também em saídas antecipadas.\n\nCom PowerShell, os conceitos de automação são semelhantes, mas os comandos recebem e emitem objetos e as estruturas têm sintaxe própria. `Get-ChildItem | Where-Object ...` transporta objetos no pipeline; `if (...) {}`, `foreach (...) {}` e `try { } catch { } finally { }` são palavras-chave da linguagem. `$?` representa o sucesso do comando anterior e `$LASTEXITCODE` guarda o código da última aplicação nativa. Não se deve transpor sem adaptação exemplos de Bash para PowerShell ou vice-versa.\n\n### Como cai na prova\n\nDistinguir `set -x` (rastreamento), `set -u` (variáveis não definidas) e `pipefail` (status de pipeline) é recorrente. A banca também pode confundir arquivo de inicialização interativa com ambiente garantido de script, interpretar `source` como processo isolado, ou afirmar que `set -e` trata todos os erros sem exceção. Em segurança, a omissão de aspas e o uso de `eval` são fontes concretas de divisão indevida de argumentos e injeção."
+    }
+  ],
+  "summary": "Shells como Bash interpretam comandos e também oferecem estruturas para automação. Scripts usam shebang, argumentos posicionais, variáveis, expansões, testes, laços, funções, status de saída, redirecionamentos e pipelines para combinar utilitários. Aspas preservam argumentos, variáveis exportadas chegam a processos filhos e operadores condicionais se baseiam no status. Sintaxes e recursos variam entre POSIX sh, Bash e PowerShell; scripts portáveis devem limitar-se à linguagem e ao ambiente declarados. Configuração, validação de entradas, tratamento explícito de falhas e cuidado com eval e caminhos reduzem erros e riscos.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um shell script?",
+      "back": "É um arquivo de texto com comandos lidos e executados por um interpretador de shell."
+    },
+    {
+      "front": "Para que serve a linha shebang?",
+      "back": "Quando o arquivo é executado diretamente, indica ao sistema o interpretador a ser usado."
+    },
+    {
+      "front": "Como se executa um script Bash sem permissão de execução?",
+      "back": "Chamando o interpretador, por exemplo `bash tarefa.sh`, desde que o arquivo seja legível."
+    },
+    {
+      "front": "O que `$#` informa em Bash?",
+      "back": "A quantidade de parâmetros posicionais passados ao script ou à função."
+    },
+    {
+      "front": "Por que `\"$@\"` costuma ser usado ao repassar argumentos?",
+      "back": "Expande cada argumento posicional como uma palavra separada, preservando espaços internos."
+    },
+    {
+      "front": "Qual diferença existe entre aspas simples e duplas no Bash?",
+      "back": "Aspas simples mantêm o conteúdo literal; duplas permitem expansões como `$nome` e `$(comando)`, protegendo a divisão e o globbing."
+    },
+    {
+      "front": "O que faz `export NOME`?",
+      "back": "Marca a variável para inclusão no ambiente dos processos filhos."
+    },
+    {
+      "front": "Como o status de saída costuma indicar sucesso no Unix?",
+      "back": "Zero indica sucesso; valores diferentes de zero indicam falha ou outra condição definida pelo comando."
+    },
+    {
+      "front": "Como o `if` de shell decide qual ramo executar?",
+      "back": "Avalia o status do comando de teste: status zero é sucesso/verdadeiro para o fluxo do shell."
+    },
+    {
+      "front": "O que `&&` faz entre dois comandos?",
+      "back": "Executa o segundo somente se o primeiro terminar com status zero."
+    },
+    {
+      "front": "O que `||` faz entre dois comandos?",
+      "back": "Executa o segundo se o primeiro terminar com status diferente de zero."
+    },
+    {
+      "front": "O que conecta o operador `|`?",
+      "back": "A saída padrão do comando à esquerda à entrada padrão do comando à direita."
+    },
+    {
+      "front": "Qual a diferença entre `>` e `>>`?",
+      "back": "`>` cria ou trunca o arquivo de destino; `>>` acrescenta dados ao final."
+    },
+    {
+      "front": "Qual descritor representa stderr?",
+      "back": "O descritor de arquivo 2, redirecionado em Bash com formas como `2> erros.txt`."
+    },
+    {
+      "front": "O que `grep` normalmente faz?",
+      "back": "Seleciona ou localiza linhas que correspondem a texto ou padrão."
+    },
+    {
+      "front": "Por que `sort | uniq` é uma combinação comum?",
+      "back": "`sort` agrupa linhas iguais; `uniq` remove repetições adjacentes."
+    },
+    {
+      "front": "O que `$?` contém no Bash?",
+      "back": "O status de saída do comando mais recente."
+    },
+    {
+      "front": "Para que serve `set -x`?",
+      "back": "Ativa rastreamento que mostra comandos à medida que o shell os executa, ajudando na depuração."
+    },
+    {
+      "front": "Por que `eval` exige cautela?",
+      "back": "Ele interpreta novamente uma string como código, podendo executar entrada não confiável."
+    },
+    {
+      "front": "Que distinção básica existe entre Bash e PowerShell?",
+      "back": "São linguagens de shell distintas: Bash usa sintaxe Unix e fluxo de texto tradicional; PowerShell tem gramática própria e pipeline orientado a objetos."
+    }
+  ],
+  "tips": [
+    "Identifique primeiro o shell do shebang: `#!/bin/sh` não autoriza presumir extensões Bash.",
+    "Em questões de fluxo, traduza status zero como sucesso do comando e acompanhe `&&` e `||` nessa base.",
+    "Ao ler uma expansão, pergunte se ela está entre aspas; isso muda divisão de palavras e globbing.",
+    "Memorize os descritores: entrada 0, saída normal 1 e erro 2.",
+    "Em pipelines, stderr não passa pelo `|` por padrão; procure redirecionamento adicional.",
+    "Separe portabilidade POSIX, extensões Bash e sintaxe PowerShell antes de julgar um trecho."
+  ],
+  "traps": [
+    "Afirmar que `bash script.sh` exige bit de execução: o interpretador precisa ler o arquivo, mas a execução direta é que exige o bit.",
+    "Tratar `\"$@\"` e `$*` sem aspas como equivalentes: a divisão de palavras pode alterar quantos argumentos chegam ao comando.",
+    "Dizer que `>` acrescenta ao arquivo: quem acrescenta é `>>`; `>` normalmente trunca o destino.",
+    "Supor que uma pipeline encaminha também stderr: por padrão, `|` conecta somente stdout a stdin.",
+    "Dizer que `uniq` elimina ocorrências repetidas em posições quaisquer: ele trata linhas iguais adjacentes.",
+    "Considerar `set -e` tratamento infalível de erros: contextos condicionais e outros detalhes alteram seu efeito."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho percorrido quando um script com shebang é executado diretamente.",
+      "answer": "O sistema reconhece a linha `#!`, localiza o interpretador indicado e o inicia para ler o arquivo; a execução direta também requer permissão de execução."
+    },
+    {
+      "question": "Explique por que aspas duplas em `\"$arquivo\"` são relevantes.",
+      "answer": "Elas permitem que a variável seja expandida e mantêm o resultado como um argumento, evitando divisão por espaços e expansão de padrões nesse valor."
+    },
+    {
+      "question": "Compare a função de `;`, `&&` e `||`.",
+      "answer": "Ponto e vírgula separa comandos sem condicionar o próximo; `&&` condiciona ao sucesso anterior e `||` à falha anterior."
+    },
+    {
+      "question": "Descreva o fluxo de dados em `grep erro log.txt | wc -l`.",
+      "answer": "`grep` escreve em stdout as linhas correspondentes; a pipeline encaminha esse fluxo para stdin de `wc -l`, que conta linhas."
+    },
+    {
+      "question": "Por que `for f in $(find ...)` pode falhar com nomes de arquivo válidos?",
+      "answer": "A saída da substituição sofre divisão em palavras e expansão de padrões; espaços, quebras de linha e curingas no nome podem ser interpretados como separadores ou padrões."
+    },
+    {
+      "question": "Diferencie uma variável shell comum de uma variável exportada.",
+      "answer": "Ambas estão disponíveis no shell atual, mas só a exportada é incluída no ambiente herdado por processos filhos."
+    },
+    {
+      "question": "Como tornar explícita a resposta a uma falha de cópia em Bash?",
+      "answer": "Testar o comando diretamente, por exemplo com `if cp ...; then` e um ramo `else`, tratando sucesso e falha de modo separado."
+    },
+    {
+      "question": "Quais diferenças de modelo de linguagem separam Bash e PowerShell?",
+      "answer": "Ambos permitem automação e controle de fluxo, mas têm sintaxe diferente; o pipeline tradicional Bash transmite texto, enquanto cmdlets PowerShell normalmente recebem e emitem objetos."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre interpretação e execução direta",
+      "summary": "Shebang escolhe interpretador na execução direta; chamar `bash arquivo` escolhe Bash explicitamente e não depende do bit de execução."
+    },
+    {
+      "key": "e2",
+      "title": "Expansão sem aspas altera argumentos",
+      "summary": "Expansões não citadas podem sofrer divisão em palavras e globbing; citar variáveis e `\"$@\"` preserva os argumentos pretendidos."
+    },
+    {
+      "key": "e3",
+      "title": "Status e fluxo de dados misturados",
+      "summary": "Operadores `&&`/`||` avaliam status; pipeline liga stdout a stdin; stderr permanece separado sem redirecionamento."
+    },
+    {
+      "key": "e4",
+      "title": "Recursos incompatíveis tratados como universais",
+      "summary": "Arrays, `[[ ]]` e `for ((...))` são extensões Bash; scripts `sh` portáveis e PowerShell usam outras regras e sintaxes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer que um arquivo seja interpretado por Bash quando executado diretamente, mas precisa poder chamá-lo também como `bash tarefa.sh`. Qual implementação atende às duas formas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Iniciar com `#!/usr/bin/env bash` e manter comandos válidos para Bash no arquivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Iniciar com `#!/bin/sh` e presumir que todo `sh` implementa arrays Bash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Omitir o interpretador, pois `chmod +x` compila automaticamente o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `#!/usr/bin/env python`, já que `env` converte qualquer script para Bash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar a shebang no fim do arquivo, onde o shell a consulta após ler os comandos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A primeira linha orienta a execução direta e `env` procura Bash no PATH. Ao invocar `bash tarefa.sh`, o próprio comando seleciona o interpretador. A shebang não compila o arquivo e precisa estar na primeira linha.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script recebe o argumento `relatório mensal.txt` e deve repassá-lo a outro comando como um só argumento. Qual forma Bash preserva esse limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `$@` sem aspas, pois o shell sempre preserva espaços de valores posicionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repassar `\"$@\"`, para expandir cada argumento posicional como uma palavra distinta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `$*` sem aspas, pois essa forma retém os limites originais dos argumentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Passar somente `$#`, que contém o texto completo de todos os argumentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `\"$1 $2\"`, mesmo quando a quantidade de argumentos não é fixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dentro de aspas duplas, `\"$@\"` produz um argumento por parâmetro posicional, preservando espaços internos. `$#` é a contagem, enquanto expansões sem aspas podem dividir palavras e expandir padrões.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Unix, qual afirmação descreve corretamente a permissão necessária para iniciar um script?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando `bash tarefa.sh` sempre requer bit de execução, mesmo que Bash leia o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A shebang, sozinha, concede ao usuário a permissão de execução que faltava.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executá-lo diretamente requer permissão de execução; chamá-lo por Bash requer leitura do arquivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A permissão de escrita é suficiente para iniciar diretamente qualquer arquivo de script.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Scripts não podem ser executados diretamente, pois o sistema só inicia arquivos binários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na chamada direta, o sistema precisa permitir executar o arquivo e localizar seu interpretador pela shebang. Na chamada explícita ao Bash, Bash abre e lê o arquivo, sem exigir o bit de execução do próprio script.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comando externo precisa receber a variável `DESTINO`, definida antes dele no script. Qual ação faz essa variável integrar o ambiente do processo filho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escrever `DESTINO=arquivo` sem exportar; toda variável do shell é sempre herdada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `local DESTINO`, que publica automaticamente o valor a todos os processos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `DESTINO` depois do comando filho, para atualizar retroativamente seu ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `export DESTINO` antes de iniciar o comando que deve recebê-la.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renomear a variável para `$DESTINO`, pois o cifrão exporta seu valor por convenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição cria a variável no shell, mas `export` a inclui no ambiente que será herdado por comandos filhos. O cifrão serve para expansão e não marca a variável como exportada.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `if grep -q erro aplicativo.log; then ...; else ...; fi` escolhe o ramo com base em qual propriedade do comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No número de linhas impressas, convertido pelo shell em valor booleano.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Na existência do arquivo de log, sem considerar se o padrão aparece.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No tamanho do texto enviado a stdout pelo `grep`, mesmo quando se usa `-q`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No último caractere encontrado dentro do arquivo, interpretado como condição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No status de saída: zero significa que a busca teve sucesso para o teste.",
+          "correct": true
+        }
+      ],
+      "explanation": "O shell interpreta o status do comando usado como condição. Com `grep -q`, a saída textual é suprimida; o status continua informando se uma correspondência foi encontrada ou se ocorreu uma falha.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laço deve processar, uma vez cada, todos os argumentos de um script, inclusive argumentos que contenham espaços. Qual forma é apropriada em Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`for item in \"$@\"; do processar \"$item\"; done`, preservando cada argumento recebido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`for item in $@; do ...; done`, pois expansão sem aspas mantém palavras compostas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`while item in \"$@\"; do ...; done`, que percorre automaticamente parâmetros posicionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`case \"$@\"`, que repete o corpo uma vez por argumento posicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`for item = \"$@\"; do ...; done`, usando atribuição como cabeçalho do `for`.",
+          "correct": false
+        }
+      ],
+      "explanation": "O `for ... in` percorre a lista expandida. Aspas em `\"$@\"` mantêm cada parâmetro como elemento individual; sem elas, divisão de palavras e globbing podem alterar a lista.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Bash chamada `validar` deve devolver sucesso ou falha ao comando que a chamou, sem encerrar todo o script. Qual mecanismo corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `exit` dentro da função, pois ele retorna somente ao ponto de chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `return` com status apropriado, deixando o fluxo do script continuar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `break`, que transmite um código de saída e sai de qualquer função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `continue`, que encerra a função e envia seu resultado ao processo pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Imprimir `0` ou `1`, pois qualquer texto na stdout define o status da função.",
+          "correct": false
+        }
+      ],
+      "explanation": "`return` encerra a execução da função com um status de retorno. `exit` encerra o shell/script corrente; texto impresso na saída padrão não determina por si só o status do processo.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, que diferença existe entre `$(pwd)` e escrever literalmente o texto `pwd` em um comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$(pwd)` executa pwd e insere sua saída; a palavra literal apenas passa o texto `pwd` como argumento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As formas são idênticas, porque todo texto entre cifrões é tratado como comentário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$(pwd)` cria uma variável permanente chamada `pwd` no ambiente dos processos filhos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A substituição só funciona com crases; `$()` é uma atribuição aritmética em Bash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$(pwd)` muda o diretório atual do shell para o caminho que foi impresso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A substituição de comandos executa o conteúdo entre parênteses e troca a expressão por sua saída padrão, retirando quebras de linha finais. Ela não equivale a executar `cd` nem cria variável por si só.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script POSIX precisa testar se `relatorio final.txt` é um arquivo regular. Qual expressão evita que o espaço quebre o argumento do teste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`[ -f $arquivo ]`, porque colchetes unem automaticamente os fragmentos separados por espaço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`[[ -f \"$arquivo\" ]]`, que é sintaxe obrigatória e padronizada para qualquer `sh`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`[ -f \"$arquivo\" ]`, com espaços em volta dos colchetes e expansão protegida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`test -f $arquivo`, pois o comando test trata espaços como parte do mesmo argumento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`if -f \"$arquivo\"`, já que `if` recebe diretamente operadores de arquivo sem comando de teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma `[ ... ]` é um comando de teste e exige os espaços sintáticos. As aspas mantêm o caminho como um argumento. `[[ ... ]]` é uma construção Bash e não deve ser presumida em um script POSIX `sh`.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script, `comando_a && comando_b` é equivalente a qual regra de fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `comando_b` primeiro e só então verificar se `comando_a` foi bem-sucedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar sempre ambos e usar o texto de saída de `comando_a` como entrada do segundo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar `comando_b` somente se `comando_a` terminar com status diferente de zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `comando_b` somente se `comando_a` terminar com status zero.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conectar stdout de `comando_a` a stdin de `comando_b`, como ocorre com `|`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`&&` é uma lista condicional: o comando à direita só é executado quando o comando à esquerda indica sucesso pelo status zero. A ligação de dados entre comandos é feita pela pipeline `|`.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja criar `execucao.log` do zero ou acrescentar a nova saída ao seu final. Qual operador deve escolher para acrescentar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`>`, pois esse operador preserva o conteúdo anterior e grava depois dele.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`>>`, que encaminha stdout ao fim do arquivo em vez de truncá-lo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`<`, que abre o arquivo como destino de escrita no modo de acréscimo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`2>`, que acrescenta stdout sem tocar no fluxo de erro padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`|`, que conecta stdout ao fim de um arquivo sem comando intermediário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`>>` acrescenta ao fim do arquivo. A forma `>` normalmente cria ou trunca o destino, `<` fornece entrada e `2>` redireciona stderr.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa `grep falha app.log | wc -l`. O que a pipeline faz nesse trecho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Envia stderr de `grep` para stdin de `wc` e descarta as linhas encontradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordena o arquivo com `wc` antes de procurar as ocorrências por meio do `grep`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Faz `grep` contar as linhas e `wc` selecionar aquelas que contêm o padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cria um arquivo intermediário com todas as linhas e não encaminha dados entre processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Encaminha stdout de `grep` para stdin de `wc -l`, que conta as linhas filtradas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O operador `|` conecta a saída padrão do comando à esquerda à entrada padrão do comando à direita. `grep` seleciona linhas; `wc -l` conta as linhas recebidas.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo deve receber mensagens de erro, mantendo a saída normal no terminal. Qual redirecionamento Bash realiza isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`comando > erros.txt`, porque o operador simples `>` escolhe stderr por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`comando < erros.txt`, que grava o fluxo de erro no arquivo indicado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`comando 2> erros.txt`, que redireciona o descritor 2 e deixa stdout sem esse destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`comando | erros.txt`, que usa o nome do arquivo como descritor de erro da pipeline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`comando >>& erros.txt`, forma POSIX de enviar somente stdout ao arquivo de erros.",
+          "correct": false
+        }
+      ],
+      "explanation": "stderr é o descritor 2, por isso `2>` encaminha mensagens de erro. `>` sem número redireciona stdout, e `<` associa um arquivo à entrada padrão.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista contém muitas linhas repetidas separadas por outras linhas. Por que `sort lista.txt | uniq` costuma removê-las corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sort` agrupa linhas iguais adjacentes e `uniq` então elimina repetições consecutivas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`uniq` ordena todo o conteúdo internamente e `sort` remove as repetições restantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`sort` exclui linhas duplicadas por padrão e `uniq` restaura a primeira ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A pipeline une stderr dos dois comandos para comparar todas as linhas do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`uniq` elimina repetições em qualquer posição, mas só depois que `sort` conta os bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "`uniq` atua sobre linhas repetidas adjacentes; ordenar antes agrupa ocorrências idênticas. `sort` não remove duplicatas automaticamente e `uniq` não substitui uma ordenação geral.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script compara o status do comando anterior em Bash. Que valor está disponível em `$?`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de argumentos posicionais definidos quando o script foi iniciado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O status de saída do comando executado mais recentemente pelo shell.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O caminho absoluto do processo que produziu a última mensagem no terminal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conteúdo de stderr acumulado desde o início da sessão atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O código de sinal do processo filho, sempre igual a zero em caso de falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "No Bash, `$?` guarda o status do comando mais recente. Como outro comando altera esse valor, ele deve ser consultado sem executar antes uma operação que substitua o status de interesse.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para investigar a sequência expandida de comandos executada por um script Bash, qual opção de depuração é diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`set -u`, que imprime todas as instruções antes de avaliá-las e continua a execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`set -o pipefail`, que mostra valores de variáveis em cada linha da execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`set -e`, que registra automaticamente um relatório completo no stderr.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`set -x`, que ativa o rastreamento de comandos durante a execução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`export -x`, que executa uma verificação de sintaxe e não roda comandos.",
+          "correct": false
+        }
+      ],
+      "explanation": "`set -x` mostra comandos após as expansões enquanto o shell os executa. `set -u` trata referências a variáveis não definidas em situações abrangidas pela opção; `pipefail` afeta status de pipelines.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando Bash permite verificar erros de sintaxe de `tarefa.sh` sem executar as instruções do arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`bash -n tarefa.sh`, que lê e analisa comandos sem executá-los.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`bash -x tarefa.sh`, que valida sintaxe sem iniciar os comandos do script.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`chmod -n tarefa.sh`, que executa a gramática do shell em modo de leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grep -n tarefa.sh`, que interpreta estruturas de controle e informa erros gramaticais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`bash -c tarefa.sh`, que apenas compila o arquivo e salva um binário temporário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `-n` faz Bash ler comandos sem executá-los, sendo útil para encontrar erros de sintaxe. `-x` executa o script com rastreamento; `chmod` altera permissões, não analisa a linguagem.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável `entrada` vem de fonte não confiável e será usada como nome de arquivo em um comando. Qual prática reduz a divisão acidental de argumentos e a expansão de curingas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir o valor em `eval`, para que o shell converta curingas em nomes de modo previsível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Expandir `$entrada` sem aspas e remover espaços antes de chamar o utilitário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Citar `\"$entrada\"` como argumento e validar que o caminho é permitido para a operação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Exportar a variável, pois `export` desativa expansão de padrões em todos os comandos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o valor por `$*`, que escapa automaticamente qualquer conteúdo externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aspas impedem que a expansão da variável seja dividida em várias palavras ou submetida a globbing. Isso não substitui a validação do caminho. `eval` reinterpreta dados como código e amplia o risco de injeção.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha `#!/bin/sh` deve funcionar em diferentes implementações POSIX. Qual recurso deve ser evitado por ser extensão Bash, e não sintaxe básica portável de `sh`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando `printf`, que é definido na interface POSIX de shell e utilitários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O operador de lista `&&`, que encadeia comandos pelo status de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A atribuição de variável simples, como `modo=rapido`, antes de exportá-la.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O redirecionamento de entrada `<`, que fornece um arquivo como stdin.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arrays Bash e a forma `[[ ... ]]`, que não fazem parte da sintaxe básica POSIX.",
+          "correct": true
+        }
+      ],
+      "explanation": "Arrays e `[[ ... ]]` são recursos do Bash, não garantidos por um `sh` POSIX. Scripts que precisam dessas extensões devem indicar Bash; scripts portáveis devem usar construções padronizadas.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar `find . -type f -print0`, que propriedade da saída se destina a facilitar o processamento seguro de nomes de arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os caminhos são separados pelo caractere NUL, que não pode fazer parte de um nome de arquivo Unix.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os nomes são convertidos para Base64 e podem ser divididos com segurança em qualquer espaço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A opção garante que todos os arquivos serão ordenados alfabeticamente antes da saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O utilitário remove espaços, quebras de linha e curingas dos nomes encontrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O NUL indica ao shell que deve interpretar cada nome encontrado como código executável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nomes Unix podem conter espaços, tabulações e quebras de linha, mas não NUL. Separação NUL combinada com um leitor compatível, como `read -d ''` no Bash, evita confundir esses caracteres com limites de registros.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline Bash contém `gerar | filtrar | gravar`; o primeiro comando falha, mas o último retorna zero. Qual configuração pode fazer o status da pipeline refletir também falhas internas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`set -u`, pois ele sempre combina os status de todos os processos da pipeline.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`set -o pipefail`, que altera a regra de status de uma pipeline no Bash.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`set -x`, que muda o código de saída do primeiro processo para não zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`export PIPESTATUS`, que é a opção POSIX de propagação automática de erros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`set -e`, que faz qualquer falha interna sempre encerrar o shell em todo contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Por padrão, o status de uma pipeline Bash é o do último comando; `pipefail` faz a pipeline sinalizar falha de componentes anteriores conforme a regra do Bash. `set -e` tem contextos em que seu efeito não é simples nem universal.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Bash será carregada com `. ./biblioteca.sh` no shell atual. Qual consequência torna importante confiar na origem desse arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O conteúdo roda em processo isolado e não pode alterar variáveis nem diretório do chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ponto cria um executável compilado e apenas importa seus símbolos públicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo é tratado como entrada de `grep`, que seleciona apenas funções válidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os comandos rodam no shell atual e podem alterar seu estado ou executar ações arbitrárias.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O shell só carrega comentários e atribuições, mas ignora comandos externos no arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`.` (e o sinônimo Bash `source`) lê e executa o arquivo no contexto do shell atual. Ele pode definir funções, alterar variáveis, mudar diretório ou executar comandos; não constitui uma barreira de segurança.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para testar uma operação crítica sem confiar em exceções implícitas de `set -e`, qual padrão Bash explicita o tratamento dos dois resultados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a operação sem condição e presumir que `set -x` converta qualquer falha em exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Imprimir o nome do comando e deduzir sucesso pela quantidade de texto produzida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Colocar a operação em `if comando; then ...; else ...; fi` e definir ações para cada ramo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Chamar `return` antes da operação, para que o shell preserve o status futuro do processo filho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redirecionar stdout para `/dev/null`, o que transforma uma falha em status de sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição testa diretamente o status do comando e separa sucesso de falha. `set -x` só rastreia execução, redirecionar stdout não altera o status e `set -e` tem exceções dependentes do contexto.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash usa `cd /dados && processar`; qual vantagem de fluxo esse encadeamento oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Faz `processar` iniciar em qualquer diretório, pois `&&` ignora o resultado de `cd`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executa `processar` somente se a mudança de diretório terminar com status de sucesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converte o stdout de `cd` em argumento de `processar`, como uma pipeline faria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executa `processar` primeiro e depois usa `cd` para restaurar seu diretório original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa ambos sem relação de status e preserva stderr de `cd` em arquivo temporário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`&&` permite continuar apenas se o comando anterior tiver sucesso. Se `cd` falhar, `processar` não será iniciado no diretório incorreto; o operador não conecta fluxos de dados.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, por que `comando > saida.txt 2>&1` pode ter resultado diferente de `comando 2>&1 > saida.txt`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redirecionamentos são processados em ordem; a duplicação de descritor usa o destino atual de stdout.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bash ignora sempre a ordem e encaminha stdout e stderr ao mesmo arquivo nas duas formas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`2>&1` significa ler o arquivo chamado `1` e anexá-lo ao descritor de erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A primeira forma redireciona stderr apenas, enquanto a segunda redireciona somente stdin.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`>` é sempre uma operação posterior à execução, sem interação com descritores duplicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na primeira forma, stdout passa a apontar para o arquivo e `2>&1` faz stderr apontar para o destino que stdout tem naquele momento. Na segunda, stderr é duplicado para o destino inicial de stdout antes de stdout ser redirecionado.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de limpeza deve rodar quando o script Bash termina normalmente ou por falha. Qual mecanismo é apropriado para registrar essa ação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um `case` sobre `$0`, pois essa variável sempre indica se o processo terminou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A expansão `$(limpar)`, que agenda a função para o instante de encerramento do script.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A opção `set -u`, que executa automaticamente comandos de limpeza ao sair.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um `trap 'limpar' EXIT`, associado ao evento de saída do shell/script.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um `continue`, que registra uma função de encerramento para qualquer contexto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bash permite associar uma ação ao evento `EXIT` por `trap`. Isso é útil para remover recursos temporários, considerando que sinais e encerramentos forçados podem limitar quais limpezas ainda são executadas.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, um script executa uma aplicação nativa e precisa verificar o código numérico devolvido por ela. Qual variável automática é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$args`, que sempre guarda o código de saída do último executável nativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$PWD`, que contém o status numérico produzido pelo processo filho mais recente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$LASTEXITCODE`, que contém o código de saída da última aplicação nativa executada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`$PSScriptRoot`, que recebe o status e substitui o diretório do script.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$ErrorActionPreference`, que é preenchida com qualquer código inteiro de processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell distingue a variável booleana `$?`, que indica sucesso do comando anterior, de `$LASTEXITCODE`, que guarda o código numérico da última aplicação nativa. As demais variáveis têm outros papéis.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma linha Bash `for ((i=0; i<3; i++)); do ...; done`, qual é a relação correta com a portabilidade POSIX?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a forma básica exigida por POSIX e aceita por todo interpretador chamado `sh`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma extensão Bash; para portabilidade POSIX, convém usar um laço e operações aritméticas compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É sintaxe exclusiva do PowerShell, mesmo quando o shebang seleciona Bash.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma substituição de comandos que executa `i` como aplicativo externo em cada ciclo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma forma de redirecionamento que envia stderr para o descritor de arquivo `3`.",
+          "correct": false
+        }
+      ],
+      "explanation": "O `for ((...))` é um laço aritmético oferecido por Bash, mas não integra a sintaxe POSIX básica. Se a portabilidade para diferentes `sh` é requisito, deve-se escolher construções padronizadas.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, qual efeito `read -r linha` busca ao receber uma linha de entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lê a entrada padrão e impede que barras invertidas sejam tratadas como escapes por `read`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Lê todos os arquivos listados em PATH e exporta cada linha para processos filhos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remove automaticamente aspas e executa o conteúdo da linha como comando Bash.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordena as linhas recebidas e retorna a contagem de registros por stdout.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativa a opção `pipefail` e converte o conteúdo lido em status de sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `-r` de `read` evita o tratamento de barras invertidas como caracteres de escape, o que ajuda a preservar o texto lido. Ela não executa a entrada nem altera opções globais do shell.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash usa `set -e` e contém testes, listas condicionais e pipelines. Qual afirmação é tecnicamente mais cuidadosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`set -e` garante encerramento em todo status não zero, sem depender da posição do comando.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`set -e` substitui a validação de entrada e transforma erros externos em exceções detalhadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A opção existe apenas no PowerShell e não altera o comportamento de shells Unix.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A opção serve para exibir cada comando após expansão, como faz `set -x`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Seu efeito tem exceções e depende do contexto; falhas críticas devem ter tratamento explícito.",
+          "correct": true
+        }
+      ],
+      "explanation": "O comportamento de `errexit` não equivale a uma exceção universal para qualquer comando que falhe; testes e listas condicionais alteram sua aplicação. A opção `-x` é que rastreia comandos. Condições explícitas tornam a resposta a falhas mais clara.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa localizar arquivos por tipo em uma árvore de diretórios antes de agir sobre cada caminho. Qual comando é próprio para percorrer a árvore e filtrar caminhos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`uniq`, que percorre recursivamente diretórios e seleciona extensões de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`cut`, que pesquisa a hierarquia de diretórios e executa filtros de tipo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`find`, que percorre caminhos e permite aplicar critérios como `-type f`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`wc`, que seleciona arquivos regulares e remove diretórios sem conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sort`, que navega pela árvore e executa ações em cada arquivo localizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`find` percorre diretórios e permite filtrar caminhos por propriedades, como tipo. `uniq`, `cut`, `wc` e `sort` tratam linhas ou dados e não substituem a busca de árvore de arquivos.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando mostra o diretório de trabalho atual do shell sem mudar o diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`pwd`, que imprime o caminho do diretório corrente do processo shell.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`cd`, que sempre imprime o caminho e deixa o processo no local original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`PATH`, que é um executável interno para consultar o diretório de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`mkdir`, que exibe a pasta atual sem criar nem alterar diretórios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`export`, que imprime o diretório corrente e encerra a sessão de shell.",
+          "correct": false
+        }
+      ],
+      "explanation": "`pwd` informa o diretório de trabalho. `cd` é o builtin que altera o diretório corrente do shell; `PATH` é uma variável usada na busca de executáveis.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, qual forma representa uma condição com ramos verdadeiro e falso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`if comando; then ...; fi`, que é a sintaxe de controle comum do Bash.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`if ($condicao) { ... } else { ... }`, usando a gramática PowerShell.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`IF /C ...`, que é a forma universal compartilhada por PowerShell e POSIX sh.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`when $condicao do ... done`, palavra-chave obrigatória da linguagem PowerShell.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`test ($condicao) ? ...`, sintaxe PowerShell que não usa blocos entre chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell usa parênteses para a condição e blocos entre chaves para os comandos. A construção Bash com `then` e `fi` pertence a outra linguagem de shell.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável `PATH` em Unix lista diretórios onde o shell procura comandos. Qual separador é empregado entre diretórios nessa variável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Vírgula, porque PATH contém uma lista CSV que o shell analisa antes de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ponto e vírgula, o mesmo delimitador usado obrigatoriamente em sistemas Unix e Windows.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Barra vertical, que também conecta os comandos encontrados em uma pipeline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dois-pontos, que separa os diretórios pesquisados em ambientes Unix usuais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tabulação, para que espaços em nomes de diretórios possam ser desambiguados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em Unix, os elementos da variável PATH são separados por dois-pontos. Cada diretório pode ser pesquisado para localizar o comando, o que torna a composição de PATH relevante para segurança e resolução de nomes.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, qual descrição do pipeline `Get-ChildItem | Where-Object ...` reflete seu modelo geral de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele transmite somente texto delimitado por quebras de linha, como todo pipeline Bash.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele converte cada objeto em comando executável antes de passá-lo ao filtro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele redireciona stderr do primeiro comando para stdin do segundo sem objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele compartilha apenas nomes de arquivo, pois cmdlets não podem emitir valores estruturados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cmdlets normalmente passam objetos pelo pipeline, que podem ser filtrados por propriedades.",
+          "correct": true
+        }
+      ],
+      "explanation": "O pipeline do PowerShell normalmente transporta objetos .NET entre cmdlets, permitindo seleção por propriedades. No shell Unix tradicional, pipelines conectam fluxos de bytes/texto, então os modelos não devem ser confundidos.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script deve acrescentar texto ao fim de um arquivo de log sem apagar as entradas anteriores. Qual combinação é adequada em shell Unix?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`printf '%s\\n' texto < log.txt`, pois `<` acrescenta conteúdo ao final do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`printf '%s\\n' texto >> log.txt`, que envia stdout para acréscimo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`printf '%s\\n' texto > log.txt`, que preserva as linhas antigas por padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`printf '%s\\n' texto | log.txt`, que usa um arquivo como operador de pipeline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`printf '%s\\n' texto 2> log.txt`, que grava stdout e stderr em modo de acréscimo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`>>` redireciona stdout para o final de um arquivo. `>` trunca o destino, `<` lê dele como entrada e `2>` redireciona stderr.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, um script precisa executar um bloco enquanto um comando de teste continua indicando sucesso. Qual estrutura expressa essa repetição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`case teste; do ...; esac`, que repete o bloco enquanto o padrão combinar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`if teste; until ...; fi`, que cria um laço condicionado pelo status.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`while teste; do ...; done`, que continua enquanto o status do teste for zero.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`select teste; then ...; done`, que é o laço POSIX obrigatório para qualquer shell.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`return teste; do ...; done`, que reinicia uma função enquanto ela não termina.",
+          "correct": false
+        }
+      ],
+      "explanation": "`while` executa o corpo enquanto o comando de teste terminar com sucesso. `until` é a forma complementar, repetindo enquanto o teste falhar; `case` faz seleção por padrões, não repetição por si só.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável pode conter um padrão como `*.csv`. Em Bash, o que ocorre quando `$padrao` é expandida sem aspas em contexto comum de palavras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O shell pode fazer globbing do valor expandido e substituí-lo pelos nomes correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O valor sempre permanece uma palavra literal, porque globbing só se aplica a comandos externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A variável se torna um padrão de expressão regular interpretado por qualquer programa chamado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O shell exporta a variável e desativa a expansão de nomes de arquivo no processo atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O caractere `*` encerra o script antes que a expansão de parâmetro seja concluída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois da expansão de parâmetro não citada, Bash pode realizar divisão em palavras e expansão de nomes de arquivo. Aspas duplas impedem esse globbing sobre o resultado da variável.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação nativa executada no PowerShell devolveu código diferente de zero. Qual afirmação distingue corretamente as variáveis `$?` e `$LASTEXITCODE`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas sempre guardam strings idênticas contendo o nome do executável invocado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$?` armazena sempre o inteiro exato, enquanto `$LASTEXITCODE` é o diretório atual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$LASTEXITCODE` registra erros de cmdlets e `$?` registra somente saída padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$?` indica sucesso booleano recente; `$LASTEXITCODE` guarda o código da aplicação nativa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`$?` contém os argumentos restantes e `$LASTEXITCODE` contém a versão do PowerShell.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em PowerShell, `$?` expressa se o comando mais recente teve sucesso, enquanto `$LASTEXITCODE` recebe o código de saída da última aplicação nativa. Essa distinção importa ao testar processos externos.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Unix, qual efeito o comando `cd /dados` tem quando executado como builtin no script atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Altera o diretório de trabalho do shell atual se a mudança for bem-sucedida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cria `/dados` caso não exista e mantém o shell no diretório anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Imprime o caminho atual e muda apenas o diretório de um processo filho externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Define `/dados` como novo PATH e atualiza a localização de todos os executáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Move fisicamente todos os arquivos do diretório atual para `/dados`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`cd` é builtin justamente para mudar o diretório de trabalho do processo shell atual, algo que um processo filho separado não conseguiria impor ao processo pai. Criar diretório seria tarefa de `mkdir`.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe armazena caminhos fornecidos pelo usuário no script e quer evitar que um caminho iniciado por hífen seja interpretado como opção pelo utilitário. Qual técnica pode ajudar quando o comando a suporta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover todas as aspas do valor, para que o programa detecte o caminho pelo espaço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar `--` antes do operando, encerrando o processamento de opções do utilitário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `eval` antes do nome, para que o hífen seja convertido em caminho absoluto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exportar o caminho, pois a exportação desativa interpretação de opções em executáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redirecionar stderr para o caminho, o que faz o utilitário tratá-lo como argumento posicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Muitos utilitários aceitam `--` como fim das opções, de modo que operandos seguintes iniciados por hífen sejam tratados como dados. Isso deve ser combinado com quoting e validação, e depende de o comando oferecer essa convenção.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash precisa escolher uma ação para respostas `s`, `n` ou qualquer outro texto. Qual estrutura representa diretamente essa seleção por padrões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`while`, porque ele compara uma expressão a vários padrões e seleciona um bloco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`export`, que encaminha cada resposta para um ramo de execução separado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`case ... in ... esac`, com padrões para cada alternativa e um padrão padrão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`read`, que escolhe automaticamente uma cláusula conforme o valor lido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`pwd`, que trata respostas diferentes como diretórios de controle.",
+          "correct": false
+        }
+      ],
+      "explanation": "`case` seleciona uma lista de comandos conforme o valor corresponda a um padrão. Um padrão `*` pode capturar os demais valores; laços como `while` tratam repetição condicionada, não seleção múltipla por padrão.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um shell Unix, qual resultado se espera de `comando_a ; comando_b` em comparação com `comando_a && comando_b`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ponto e vírgula só executa o segundo após sucesso; `&&` executa sempre ambos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos conectam stdout do primeiro comando ao stdin do segundo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`&&` executa o primeiro depois do segundo, enquanto `;` inverte sua ordem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`;` separa comandos sem condicionar o próximo ao status; `&&` exige sucesso anterior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`;` envia stderr para arquivo, e `&&` encerra o shell após qualquer comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "O separador `;` permite que o comando seguinte seja executado independentemente do status anterior. `&&` condiciona a execução do comando seguinte ao status zero do anterior.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que um comando seja encontrado pelo shell sem informar seu caminho absoluto. Qual variável costuma participar dessa busca em Unix?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`HOME`, que contém a lista ordenada de todos os diretórios executáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`PATH`, cujos diretórios são pesquisados para localizar comandos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`$?`, que indica o caminho a ser pesquisado após uma falha de comando.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`IFS`, que guarda os diretórios onde o kernel armazena seus utilitários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`PWD`, que lista os diretórios adicionais consultados pelo interpretador.",
+          "correct": false
+        }
+      ],
+      "explanation": "PATH lista diretórios que o shell pesquisa quando resolve um nome de comando. HOME, PWD, IFS e `$?` têm outras funções e não substituem essa variável.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, um bloco deve capturar uma exceção terminante, executar limpeza e depois seguir o tratamento definido. Qual estrutura oferece essas cláusulas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`if/elseif/else`, que substitui blocos de exceção e sempre executa limpeza ao terminar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`foreach/catch/continue`, palavras-chave que formam a cláusula padrão de exceções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`try { ... } catch { ... } finally { ... }`, para tratamento e código de finalização.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`trap exit`, sintaxe Bash que todos os scripts PowerShell precisam usar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`switch/default`, que intercepta qualquer falha terminante sem configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell oferece `try`, `catch` e `finally`; o bloco `finally` é destinado a código de finalização. São palavras-chave PowerShell, distintas dos mecanismos e da sintaxe Bash.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, qual construção interrompe imediatamente o laço mais interno em execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`continue`, que sai do laço atual sem iniciar outra iteração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`return`, que termina qualquer laço e encerra o processo do script.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`export`, que remove o laço da tabela de execução do shell.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`break`, que abandona a execução do laço corrente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`shift`, que sempre encerra laços quando remove o primeiro argumento.",
+          "correct": false
+        }
+      ],
+      "explanation": "`break` encerra o laço; `continue` pula o restante do corpo e inicia a próxima iteração. `return` afeta uma função ou script carregado, e `exit` encerraria o shell/script.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script procura gravar stdout e stderr no mesmo arquivo, substituindo seu conteúdo anterior. Qual forma Bash atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`comando >> saida.txt 2>&1`, que acrescenta ambos os fluxos ao arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`comando < saida.txt 2>&1`, que usa o arquivo como entrada e apaga seu conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`comando | saida.txt`, que envia stdout e stderr ao caminho à direita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`comando 2> saida.txt`, que envia ambos os descritores ao mesmo destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`comando > saida.txt 2>&1`, que trunca stdout no arquivo e encaminha stderr ao destino atual de stdout.",
+          "correct": true
+        }
+      ],
+      "explanation": "A ordem faz stdout apontar primeiro para o arquivo; depois stderr é duplicado para onde stdout aponta. O operador `>` trunca o arquivo regular ao abri-lo, enquanto `>>` acrescentaria.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve tratar caracteres `*` e `?` de um valor do usuário como dados literais, não como padrões de arquivo. Qual abordagem é apropriada ao passar esse valor como argumento Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expandir a variável sem aspas e confiar que o programa externo desfaça o globbing do shell.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `\"$valor\"` para impedir que o resultado da expansão sofra globbing pelo shell.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Prefixar o valor com `eval`, para que os padrões sejam escapados antes da chamada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exportar o valor, porque variáveis exportadas não podem conter caracteres curinga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar apenas o nome do utilitário entre aspas, preservando globbing nos argumentos seguintes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aspas duplas em torno de uma expansão impedem que curingas resultantes sejam expandidos pelo shell e evitam divisão em palavras. Isso passa o texto como argumento; validações adicionais dependem da operação desejada.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script deve criar a hierarquia `relatorios/2026/mensal` mesmo que alguns diretórios-pai ainda não existam. Qual comando GNU/Linux é feito para esse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`mkdir -p relatorios/2026/mensal`, que cria pais ausentes e tolera destino já existente como diretório.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`rmdir -p relatorios/2026/mensal`, que cria a árvore antes de remover arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`touch -p relatorios/2026/mensal`, que cria todos os diretórios e seus arquivos-pai.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`cp -r relatorios/2026/mensal`, que cria os diretórios sem precisar de uma origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`find -p relatorios/2026/mensal`, que cria os caminhos indicados quando não existem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `-p` de `mkdir` cria diretórios-pai ausentes e evita falha se o diretório já existir. Os outros comandos citados não implementam essa criação de hierarquia.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, qual afirmação sobre a expansão aritmética `$((2 + 3))` está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela inicia uma subshell e imprime a saída padrão de um utilitário chamado `2`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela redireciona stderr para o descritor 3 e lê cinco bytes da entrada padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela avalia uma expressão aritmética no shell e expande o resultado numérico.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela declara uma função recursiva Bash com três argumentos posicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela compara duas strings e retorna verdadeiro sempre que ambas não estiverem vazias.",
+          "correct": false
+        }
+      ],
+      "explanation": "`$(( ... ))` é a forma Bash de expansão aritmética, substituída pelo resultado da expressão numérica. Substituição de comando usa `$(comando)` com conteúdo de comando.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de inicialização foi projetado para configurar aliases da sessão interativa. Qual cuidado é necessário ao presumir que um script não interativo terá esses aliases?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aliases são sempre exportados pelo kernel e ficam disponíveis em qualquer processo filho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todo shell não interativo lê necessariamente os mesmos arquivos de um shell de login interativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O shebang carrega aliases do usuário independentemente do modo de inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Scripts podem ter modo e arquivos de inicialização distintos; não se deve presumir aliases interativos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aliases são comandos externos localizados pelo PATH, portanto são sempre carregados antes do script.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bash lê arquivos de inicialização conforme o modo (login, interativo ou não interativo). Scripts não devem depender implicitamente de aliases definidos apenas para interação humana; funções ou comandos explícitos são mais previsíveis.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável posicional `$1` é consultada dentro de uma função Bash chamada com dois argumentos. A que dado `$1` normalmente se refere durante essa chamada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ao caminho do script chamador, que permanece em `$0` durante a chamada da função.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ao primeiro argumento passado à função enquanto ela está em execução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "À quantidade de argumentos fornecidos ao script inteiro, igual a `$#`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ao status de saída do último comando filho, igual a `$?`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ao diretório da função, que o Bash salva automaticamente como parâmetro posicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao executar uma função, seus argumentos tornam-se os parâmetros posicionais durante sua execução. `$1` é o primeiro argumento; `$0` continua identificando o script/shell conforme a invocação.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa substituir todas as ocorrências de `antigo` por `novo` em um fluxo de texto exibido no terminal. Qual comando `sed` ilustra essa transformação sem exigir edição in-place?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sed 's/antigo/novo/g' arquivo.txt`, que escreve o fluxo transformado na saída padrão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`uniq 's/antigo/novo/g' arquivo.txt`, que reescreve todas as palavras diretamente no lugar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`wc 's/antigo/novo/g' arquivo.txt`, que substitui texto antes de contar caracteres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`sort 's/antigo/novo/g' arquivo.txt`, que troca padrões enquanto preserva a ordem original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep -r 'antigo/novo' arquivo.txt`, que substitui cada correspondência no arquivo original.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expressão `s/antigo/novo/g` de `sed` substitui ocorrências globalmente em cada linha processada e imprime o resultado. O comando não altera necessariamente o arquivo original; opções de edição no local variam entre implementações.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script PowerShell, qual palavra-chave percorre os elementos de uma coleção um por vez?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`case`, usada como palavra-chave PowerShell para selecionar cada elemento de uma coleção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`until`, que percorre objetos em lote até esvaziar a pipeline.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`foreach`, que executa um bloco para cada elemento enumerado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`fi`, que fecha a estrutura de repetição na linguagem PowerShell.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep`, que é uma palavra reservada para laços dentro de arquivos `.ps1`.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell possui a palavra-chave `foreach` para iterar sobre coleções. `fi` pertence ao fechamento de uma estrutura Bash, e `grep` é um utilitário tradicional Unix, não palavra-chave PowerShell.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script precisa distinguir stdout de stderr para registrar mensagens operacionais separadas de falhas. Qual associação de descritores está correta em Unix?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0 é stdout, 1 é stderr e 2 é stdin, segundo a convenção de descritores Unix.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0 é stdin, 1 é stdout e 2 é stderr, podendo cada fluxo ser redirecionado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "0 é stderr, 1 é stdin e 2 é stdout, com stdin sempre ligado a arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1 é stdout e stderr não tem descritor numérico em shells Unix.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descritores 0, 1 e 2 são apenas códigos de status e não representam fluxos de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A convenção é stdin 0, stdout 1 e stderr 2. Redirecionamentos podem encaminhar cada descritor para arquivos ou outros destinos sem mudar essa associação básica.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, qual descrição de `shift` corresponde ao seu uso com parâmetros posicionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Altera o diretório corrente e remove o diretório antigo da variável PWD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Move todos os argumentos para o ambiente exportado e redefine `$0`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desloca parâmetros posicionais, de modo que `$2` passe a ocupar a posição de `$1`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converte argumentos em saída padrão e encerra a função com status zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reordena comandos da pipeline e faz stderr ocupar o lugar de stdout.",
+          "correct": false
+        }
+      ],
+      "explanation": "`shift` remove parâmetros posicionais iniciais da lista e desloca os restantes para índices menores. É útil para percorrer argumentos manualmente, mas não muda o diretório nem define o status por imprimir dados.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, um script usa `if [ -d \"$pasta\" ]; then ...; fi`. O que o teste `-d` verifica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o caminho designa um diretório, sujeito às permissões e condições do sistema de arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se o conteúdo do caminho é texto com uma linha duplicada adjacente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se a variável foi exportada para todos os processos filhos do script.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o arquivo possui permissão de execução concedida ao usuário atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o comando armazenado na variável terminou com status zero anteriormente.",
+          "correct": false
+        }
+      ],
+      "explanation": "No teste de arquivo, `-d` verifica se o caminho existe como diretório. Outras propriedades têm testes distintos; em qualquer caso, a expansão citada mantém um caminho com espaços como argumento único.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline de comandos é usada para compor utilitários menores. Qual afirmação descreve uma pipeline Unix comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela executa cada comando em sequência no mesmo processo e compartilha variáveis locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela conecta a saída padrão de um comando à entrada padrão do seguinte.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela transforma automaticamente todo texto em objetos com propriedades nomeadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela redireciona sempre os três descritores para o próximo processo da cadeia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela compartilha o código-fonte do primeiro comando com o interpretador do último.",
+          "correct": false
+        }
+      ],
+      "explanation": "A pipeline tradicional conecta stdout de um processo a stdin do seguinte. Ela não transporta stderr por padrão nem converte texto em objetos estruturados como ocorre tipicamente no pipeline PowerShell.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programador deseja definir `ARQUIVO` apenas para a execução de um comando específico, sem exportá-la permanentemente no shell. Qual forma Unix usual faz essa atribuição de ambiente local ao comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`export ARQUIVO=valor; unset ARQUIVO`, que mantém a variável disponível durante a execução do processo filho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ARQUIVO=valor comando`, que fornece a atribuição no ambiente daquele comando.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`comando ARQUIVO=valor`, que sempre define variável no shell antes de analisar o comando.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`local ARQUIVO=valor comando`, sintaxe POSIX para exportar variável a um processo filho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$ARQUIVO=valor`, que invoca o conteúdo atual da variável como comando de atribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma atribuição simples imediatamente antes de um comando externo é incluída no ambiente daquele comando. A forma não equivale a deixar permanentemente exportada uma variável do shell atual.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre saída de erro e pipeline em shell Unix é correta sem redirecionamentos adicionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O operador `|` conecta stdout à stdin seguinte; stderr permanece separado por padrão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O operador `|` conecta stderr e stdout ao processo seguinte, mas não stdin.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O operador `|` encaminha somente o código de saída e não transmite dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda pipeline converte stderr em argumentos de linha de comando do processo seguinte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma pipeline redireciona stderr para `/dev/null` automaticamente em qualquer shell POSIX.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pipe conecta stdout de um comando a stdin do seguinte. stderr continua sendo o fluxo de erro padrão, a menos que o script o redirecione de modo explícito.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar um script para execução direta em Unix, qual comando altera o modo do arquivo para conceder ao proprietário permissão de execução sem remover as demais permissões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`chmod u+x tarefa.sh`, que adiciona execução para o proprietário mantendo os outros bits existentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`chown +x tarefa.sh`, que atribui permissão de execução sem mudar proprietário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`mkdir u+x tarefa.sh`, que cria a permissão junto com um diretório de scripts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`export u+x tarefa.sh`, que marca o arquivo como variável de ambiente executável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep u+x tarefa.sh`, que modifica o modo quando encontra a linha shebang.",
+          "correct": false
+        }
+      ],
+      "explanation": "`chmod u+x` adiciona o bit de execução para o proprietário. `chown` trata de propriedade; a shebang seleciona interpretador, mas não concede permissões ao arquivo.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, qual afirmação sobre a palavra-chave `try` está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É palavra-chave Bash que inicia a seção de comandos de uma função POSIX.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um utilitário externo Unix que percorre diretórios e captura erros de grep.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Integra a estrutura de tratamento de exceções PowerShell, normalmente junto a `catch` e `finally`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É sinônimo de `while` e repete o bloco enquanto `$?` for verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma variável automática que contém o último código de saída de aplicação nativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell usa `try`, `catch` e `finally` como palavras-chave para tratamento e finalização. A variável do código nativo é `$LASTEXITCODE`; `try` não é um laço nem um executável Unix.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, o que `set -u` procura sinalizar durante a execução do script?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uso de variáveis não definidas em contextos cobertos pela opção, em vez de expandi-las silenciosamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda ocorrência de stderr, mesmo que o comando tenha terminado com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda falha em qualquer elemento de pipeline, independentemente da opção pipefail.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada comando executado com suas expansões, como faz a opção `set -x`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A declaração de qualquer variável que não tenha sido exportada ao ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "`set -u` faz expansões de variáveis não definidas gerarem erro em situações previstas pelo Bash, ajudando a detectar erros de digitação e pressupostos. `set -x` rastreia comandos e `pipefail` trata status de pipelines.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe executa `head -n 5 registros.txt` para inspecionar um arquivo. Qual é o efeito esperado desse utilitário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibe as cinco primeiras linhas do arquivo na saída padrão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remove as cinco primeiras linhas do arquivo e grava as demais no lugar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conta cinco palavras em cada linha e envia o total para stderr.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Localiza cinco ocorrências de `head` dentro do texto e as substitui.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordena as cinco últimas linhas e descarta todas as outras do diretório.",
+          "correct": false
+        }
+      ],
+      "explanation": "`head` mostra o início de um fluxo ou arquivo; a opção `-n 5` solicita cinco linhas. A operação de exibição não edita o arquivo original.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script recebe um arquivo de configuração por argumento e quer contar quantos argumentos adicionais foram informados depois do nome do script. Qual parâmetro especial Bash fornece essa contagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$0`, que conta as palavras digitadas depois do nome do interpretador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$?`, que contém a quantidade de argumentos antes da execução do primeiro comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$@`, que devolve somente a contagem sem expandir o conteúdo dos argumentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$#`, que contém a quantidade de parâmetros posicionais disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`$$`, que contém a quantidade de argumentos em processos filhos do script.",
+          "correct": false
+        }
+      ],
+      "explanation": "`$#` informa a quantidade de parâmetros posicionais. `$0` identifica o nome de invocação, `$@` representa a lista de argumentos e `$?` guarda status do comando mais recente.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, qual é o efeito da instrução `continue` dentro de um laço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Termina o script inteiro e transmite o status atual ao sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pula o restante da iteração atual e segue para a próxima iteração do laço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sai da função atual, retornando sempre o valor numérico da variável `$1`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reinicia o interpretador e relê a shebang antes de prosseguir com o bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repete indefinidamente o comando de teste sem voltar a executar o corpo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`continue` interrompe apenas o restante da iteração corrente e passa à próxima. `break` deixa o laço; `return` e `exit` têm efeitos sobre função e shell/script, respectivamente.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual utilitário é usado tipicamente para selecionar campos ou posições de caracteres de cada linha, como em arquivos delimitados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`cut`, com opções para escolher intervalos de caracteres ou campos delimitados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`chmod`, que extrai colunas do texto e grava um arquivo de permissões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`cd`, que seleciona campos de um registro e muda para uma pasta equivalente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`trap`, que filtra campos de cada linha quando o sinal chega ao processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`export`, que separa colunas pelo delimitador e as transmite ao ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "`cut` seleciona caracteres ou campos de linhas, com sintaxe e delimitadores definidos por opções. Os outros comandos citados servem para permissões, diretórios, sinais ou ambiente.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell possui `$lista = @(1, 2, 3)` e quer executar o bloco para cada elemento. Qual sintaxe combina com a linguagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`for item in \"$lista\"; do ...; done`, que é forma obrigatória do pipeline PowerShell.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`foreach ($item in $lista) { ... }`, usando variável e bloco PowerShell.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`for item of $lista: ...`, sintaxe Python que PowerShell interpreta como palavra reservada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`while ($item in $lista) then ... fi`, que combina blocos Bash e comparação PowerShell.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep $lista`, que é estrutura interna de iteração para arrays `.ps1`.",
+          "correct": false
+        }
+      ],
+      "explanation": "PowerShell usa `foreach ($variavel in $colecao) { bloco }` para iterar uma coleção. A forma `for ... in ...; do ...; done` pertence à gramática de shell Unix e não deve ser transplantada.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar `grep`, `sed` e `sort`, qual associação de utilitário e tarefa está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sort` percorre a árvore de diretórios; `grep` muda o diretório corrente e `sed` exporta variáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`grep` ordena linhas, `sed` conta argumentos posicionais e `sort` testa status de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`grep` localiza linhas por padrão, `sed` transforma fluxos e `sort` ordena linhas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`sed` redireciona stderr, `sort` executa scripts e `grep` muda permissões de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os três são palavras-chave Bash para seleção, laços e declarações de função.",
+          "correct": false
+        }
+      ],
+      "explanation": "Esses utilitários têm finalidades distintas: `grep` filtra por correspondência, `sed` transforma fluxos e `sort` ordena linhas. Podem ser encadeados, mas não substituem palavras-chave ou builtins do shell.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script com `#!/usr/bin/env bash`, que papel o programa `env` desempenha na linha do interpretador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Procura `bash` nos diretórios do PATH e o inicia para interpretar o arquivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compila o texto em executável nativo e grava o resultado junto ao script.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Define automaticamente permissões de execução para qualquer usuário local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte qualquer sintaxe de PowerShell em comandos POSIX antes da execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fornece entrada padrão ao script e ignora o nome do interpretador após a barra.",
+          "correct": false
+        }
+      ],
+      "explanation": "`env` pode localizar o executável `bash` pelo PATH e iniciá-lo com o arquivo. Isso evita fixar uma localização absoluta de Bash, mas depende de o ambiente ter um PATH adequado e confiável.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma razão concreta para evitar incluir o diretório corrente `.` no PATH de uma sessão privilegiada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ponto impede que o shell interprete a shebang de qualquer script executável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um executável malicioso no diretório atual pode ser escolhido ao resolver um nome de comando.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O diretório atual deixa de existir quando é incluído na lista de busca PATH.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PATH passa a transmitir stderr dos programas para o diretório de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O shell desativa permissões de arquivo e passa a executar somente comandos internos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o diretório corrente for pesquisado, um arquivo local com nome de comando pode ser executado antes de uma versão confiável em outro diretório, conforme a ordem do PATH. O risco cresce quando a sessão tem privilégios elevados.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Bash imprime um resultado em stdout e depois usa `return 0`. Como o chamador pode consumir o texto impresso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O texto é o valor de retorno numérico da função e fica automaticamente em `$?` como string.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O comando `return` recupera o texto impresso e o grava no parâmetro `$0`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Funções Bash não podem escrever stdout; toda saída vira argumento posicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O chamador pode capturar a saída com substituição de comandos, por exemplo `valor=$(funcao)`. ",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A saída só é recuperável por `export`, que converte stdout em variável global.",
+          "correct": false
+        }
+      ],
+      "explanation": "`return` comunica status, não um texto arbitrário. A saída padrão pode ser capturada por `$(...)`; alternativamente, a função pode alterar uma variável compartilhada, considerando o escopo e o contexto de execução.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, qual variável representa o objeto corrente ao processar elementos em comandos de pipeline que usam esse contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$PSItem` ou seu alias sintático `$_`, que representa o objeto corrente da pipeline.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`$LASTEXITCODE`, que representa o objeto selecionado pelo último cmdlet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$HOME`, que contém o objeto atual e o substitui no fim do pipeline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$?`, que contém a coleção inteira e suas propriedades em formato de tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$PSScriptRoot`, que armazena o último objeto e o caminho do executável nativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "No PowerShell, `$_` é equivalente a `$PSItem` e representa o objeto corrente em contextos de processamento da pipeline. `$LASTEXITCODE` trata de códigos de aplicações nativas e `$PSScriptRoot` informa o diretório do script.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo Bash é chamado por `bash tarefa.sh alfa beta`. Qual descrição dos parâmetros posicionais básicos está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$0` é `alfa`, `$1` é `beta` e `$#` vale zero porque Bash recebeu o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$0` identifica a invocação do script, `$1` é `alfa`, `$2` é `beta` e `$#` vale dois.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`$0` é o status anterior, `$1` conta argumentos e `$2` sempre contém o diretório atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$0` é o caminho de Bash, `$1` reúne ambos os argumentos como uma palavra e `$#` vale um.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$1` é o nome do shell e `$2` é o nome do arquivo que contém os comandos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao invocar Bash com um arquivo, `$0` é definido pelo nome do arquivo usado e os parâmetros restantes tornam-se posicionais: `$1=alfa`, `$2=beta`. `$#` conta esses parâmetros, portanto vale dois.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script precisa substituir texto em um fluxo e encaminhar a saída transformada para outro programa. Qual padrão expressa essa composição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sed 's/a/b/g' arquivo > filtro`, pois `>` transforma automaticamente o arquivo em processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`grep sed sort`, que executa as três ferramentas em ordem sem operador de fluxo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`sed 's/a/b/g' arquivo | proximo_comando`, que encaminha stdout transformado à stdin seguinte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`proximo_comando < sed`, que lê um executável como se fosse resultado de substituição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sort && sed`, que conecta o fluxo de dados sem observar status de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "`sed` escreve o fluxo transformado em stdout e `|` o conecta à entrada padrão do comando seguinte. `&&` condiciona execução por status e não transporta dados entre comandos.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, qual é o propósito usual de `local nome=valor` dentro de uma função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar uma variável de escopo local à função, reduzindo alterações acidentais no escopo externo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exportar a variável automaticamente para todo processo filho e removê-la após cada comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um diretório local no PATH, que desaparece quando o shell atualiza o prompt.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir o código de saída da função e encerrar o script sem executar o restante do corpo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma constante global POSIX que não pode ser alterada em funções aninhadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bash oferece `local` para variáveis locais a uma função. É uma extensão de Bash, não uma declaração POSIX universal, e não equivale a exportar a variável para processos filhos.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta é adequada para contar linhas que chegam pela entrada padrão em uma pipeline Unix?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`wc -l`, que conta caracteres de nova linha no fluxo recebido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`chmod -l`, que conta linhas e altera permissões de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`pwd -l`, que informa quantidade de diretórios na saída padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`export -l`, que conta linhas e as adiciona ao ambiente global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`cd -l`, que percorre linhas de stdin para selecionar a pasta de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "`wc -l` conta caracteres de nova linha e pode receber dados pela entrada padrão em uma pipeline. Por isso, arquivos sem quebra final podem exigir cuidado ao interpretar a contagem como número de registros.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash atribui `nome='Ana Maria'` e executa `printf '%s\\n' \"$nome\"`. Quantos argumentos correspondentes ao especificador `%s` são passados ao `printf`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dois, porque o espaço dentro da expansão sempre divide palavras mesmo entre aspas duplas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nenhum, porque aspas duplas impedem a expansão de variáveis em Bash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um argumento com o texto `Ana Maria`, porque a expansão citada preserva o espaço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Três, pois Bash expande `Ana`, `Maria` e a quebra de linha como argumentos separados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um argumento numérico igual a dois, pois printf conta palavras internamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expansão dentro de aspas duplas preserva o valor como um argumento, inclusive seu espaço. A quebra de linha do formato é texto de saída de `printf`, não um argumento adicional criado pelo shell.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização mantém scripts Bash e PowerShell para automação em seus respectivos ambientes. Qual orientação reduz erros ao revisar estruturas de controle dos dois arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar `if`, laços, funções e pipelines como sintaxe intercambiável nos dois interpretadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir sempre chaves PowerShell por `then` e `fi` sem mudar o interpretador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir que PowerShell aceita qualquer builtin Unix por ter uma interface de linha de comando.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificar o interpretador declarado e aplicar a gramática e as convenções próprias de cada shell.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter scripts para arquivos binários antes de qualquer leitura ou revisão de sintaxe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bash e PowerShell são shells programáveis, mas têm sintaxes, modelos de pipeline e variáveis automáticas diferentes. A shebang, extensão/ambiente e interpretador escolhido definem como ler estruturas e comandos.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, a substituição `$(comando)` remove as quebras de linha finais da saída capturada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A substituição de comandos insere a saída padrão e remove uma ou mais quebras de linha finais; novas linhas internas permanecem no valor capturado.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, caracteres `$` dentro de aspas simples são preservados literalmente, sem expansão de variável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Aspas simples mantêm literalmente os caracteres internos. Aspas duplas permitem expansões como `$nome`, embora impeçam a divisão de palavras e o globbing do resultado.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma função Bash é chamada, seus parâmetros posicionais durante a execução correspondem aos argumentos passados à função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na chamada, `$1`, `$2` e os demais parâmetros posicionais refletem os argumentos da função; `$#` passa a contar esses argumentos enquanto ela executa.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Unix, `cd` precisa operar como builtin do shell para mudar o diretório de trabalho do próprio shell chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um processo filho não pode alterar o diretório de trabalho do processo pai. Como builtin, `cd` muda o estado do shell atual, permitindo que os comandos seguintes usem o novo diretório.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `bash -n tarefa.sh` lê comandos para verificar sintaxe sem executar as instruções do arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A opção `-n` lê comandos sem executá-los e pode detectar erros de sintaxe. Ela não testa se os programas chamados pelo script terão sucesso em execução.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na ordem `comando > saida.txt 2>&1`, stderr é duplicado para o destino de stdout depois que stdout foi redirecionado ao arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Redirecionamentos são processados na ordem apresentada. Primeiro stdout passa a apontar para `saida.txt`; depois `2>&1` faz stderr apontar para o destino atual de stdout.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Bash é executada no contexto do shell que a chamou, sem iniciar necessariamente um processo separado só para interpretar o corpo da função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma função executa comandos no contexto do shell atual. Isso permite, por exemplo, que uma função altere variáveis visíveis ao chamador; subshells podem surgir em outros contextos, como certas pipelines ou agrupamentos.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atribuição `NOME=valor` sem `export` fica disponível como variável de ambiente para todo executável iniciado posteriormente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A atribuição cria uma variável do shell atual, mas ela não é herdada automaticamente pelo ambiente de processos filhos. `export NOME` a marca para transmissão ao ambiente.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo comando escrito em um script de shell é necessariamente um executável externo localizado em PATH.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A linguagem inclui palavras-chave e comandos internos, como `if`, `break`, `cd` e `export`, além de executar programas externos como `grep` ou `sort`.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, o comando `set -x` altera o status de uma pipeline para refletir a falha de qualquer elemento dela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `set -x` ativa o rastreamento de comandos. `set -o pipefail` modifica a regra de status de uma pipeline para que falhas de componentes anteriores possam ser refletidas.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador de pipeline Unix `|` encaminha stderr do comando à esquerda para stdin do comando à direita por padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A pipeline comum conecta stdout à stdin seguinte. stderr permanece separado, a menos que haja redirecionamento explícito para incluí-lo.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sem ordenar os dados, `uniq` remove todas as repetições de uma linha mesmo quando as ocorrências estão separadas por outras linhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `uniq` atua sobre linhas iguais adjacentes. Ordenar primeiro, por exemplo com `sort | uniq`, costuma agrupar repetições que antes estavam separadas.",
+      "section": "3. Utilitários, listas, pipelines e arquivos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, `$LASTEXITCODE` é o diretório corrente e `$PWD` guarda o código numérico da última aplicação nativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `$PWD` representa o diretório de trabalho. `$LASTEXITCODE` guarda o código de saída da última aplicação nativa; são variáveis automáticas com funções diferentes.",
+      "section": "4. Configuração, implementação, confiabilidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`chmod +x tarefa.sh` concede a permissão de execução, mas não compila o texto do script em código nativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `chmod` altera bits de permissão do arquivo. A linguagem continua sendo interpretada pelo shell indicado ao executá-la; não há compilação causada por `chmod`.",
+      "section": "1. O shell como linguagem e interpretador",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sintaxe `[[ -f arquivo ]]` é garantida por POSIX para qualquer programa indicado como `sh`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `[[ ... ]]` é uma construção Bash, não sintaxe POSIX básica de `sh`. Para portabilidade, pode-se usar o comando de teste `[ -f arquivo ]` com os argumentos devidamente citados.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A palavra-chave PowerShell `foreach` pode iterar elementos de uma coleção, enquanto o Bash usa uma sintaxe de laço diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PowerShell usa, por exemplo, `foreach ($item in $lista) { ... }`; Bash usa formas como `for item in ...; do ...; done`. Os blocos não são sintaticamente intercambiáveis.",
+      "section": "2. Dados, expansões e estruturas de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual — Shell Scripts",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Execução de scripts, shebang, argumentos posicionais, PATH e permissão de execução",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Shell-Scripts.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Sintaxe, citações, expansões, status, estruturas condicionais e de repetição, funções, redirecionamentos, builtins e opções do shell",
+      "url": "https://www.gnu.org/software/bash/manual/bash.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Open Group Base Specifications — Shell Command Language",
+      "publisher": "The Open Group",
+      "reference": "Base padronizada da linguagem de shell POSIX e dos utilitários associados",
+      "url": "https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Coreutils Manual",
+      "publisher": "GNU Project / Free Software Foundation",
+      "reference": "Utilitários comuns de arquivos e texto, incluindo comandos e códigos de saída",
+      "url": "https://www.gnu.org/software/coreutils/manual/coreutils.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell — about_Language_Keywords",
+      "publisher": "Microsoft Learn",
+      "reference": "Palavras-chave de linguagem como if, foreach, for, try, catch, finally, return e throw",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_language_keywords?view=powershell-7.6",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell — about_If",
+      "publisher": "Microsoft Learn",
+      "reference": "Sintaxe e seleção de blocos condicionais com if, elseif e else",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_if?view=powershell-7.6",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerShell — about_Automatic_Variables",
+      "publisher": "Microsoft Learn",
+      "reference": "Variáveis automáticas como `$?`, `$_`, `$LASTEXITCODE` e `$PSScriptRoot`",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables?view=powershell-7.6",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

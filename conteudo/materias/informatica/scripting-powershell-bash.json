@@ -1,0 +1,2748 @@
+{
+  "id": "informatica.scripting-powershell-bash",
+  "subject": "Informática",
+  "title": "Programação de scripts em PowerShell e Bash",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "PowerShell e Shell Script Bash",
+    "Programação em linguagens Power Shell",
+    "Programação em linguagens Shell Script Bash",
+    "Linguagens de script Powershell e Shell Script",
+    "Scripts de automação em PowerShell",
+    "Linguagem PowerShell para automação",
+    "Linguagem Bash para automação",
+    "Programação de scripts de shell",
+    "Comparação entre PowerShell e Bash"
+  ],
+  "scope": {
+    "covers": "Fundamentos de programação de scripts em PowerShell e Bash: execução e shebang; comandos e expressões; variáveis, tipos, expansões e aspas; parâmetros e argumentos; pipelines e diferenças entre objetos e texto; condicionais, laços e funções; entrada e saída, redirecionamentos e códigos de saída; erros e tratamento; arrays; segurança, portabilidade e automação em ambos os ambientes.",
+    "excludes": "Administração avançada de Windows ou Linux, cmdlets de gerenciamento de infraestrutura, administração de rede, módulos específicos de terceiros, programação de aplicações .NET, sintaxe detalhada de shells diferentes de Bash e PowerShell, e comandos interativos sem relação com scripts."
+  },
+  "theoryTitle": "Fundamentos de scripts em PowerShell e Bash",
+  "chapters": [
+    {
+      "title": "1. Scripts, execução e modelo de cada shell",
+      "markdown": "### O problema que este assunto resolve\n\nUm script registra uma sequência de comandos para que uma tarefa repetível seja executada com consistência. PowerShell e Bash são, ao mesmo tempo, shells de linha de comando e linguagens de automação. A sintaxe, os dados que circulam e os mecanismos de erro são diferentes; saber reconhecer o modelo evita transportar cegamente uma construção de uma linguagem para a outra.\n\n> **Siglas e termos deste capítulo**\n> - **Shell**: programa que interpreta comandos e pode executar scripts.\n> - **Script**: arquivo de texto com instruções executadas pela shell.\n> - **Shebang**: primeira linha iniciada por `#!`, que indica ao sistema qual interpretador usar ao executar o arquivo diretamente.\n> - **Cmdlet**: comando nativo do PowerShell, normalmente nomeado como Verbo-Substantivo.\n> - **Comando externo**: executável separado do processo da shell.\n\n### Arquivo e invocação\n\nArquivos PowerShell normalmente usam a extensão `.ps1`. Em uma sessão PowerShell, `./limpar.ps1` invoca um script no diretório atual; a política de execução do ambiente pode impedir a execução de arquivos, e não é a mesma coisa que permissões Unix. `& 'C:\\scripts\\limpar.ps1'` usa o operador de chamada para executar um caminho representado como texto. Dot-sourcing (`. ./config.ps1`) executa o arquivo no escopo atual, de modo que funções e variáveis definidas por ele permaneçam disponíveis nesse escopo.\n\nScripts Bash costumam terminar em `.sh`, embora a extensão não seja requisito do interpretador. Uma primeira linha `#!/usr/bin/env bash` solicita Bash pelo ambiente. No Linux, dar permissão de execução com `chmod +x tarefa.sh` permite `./tarefa.sh`; alternativamente, `bash tarefa.sh` chama o interpretador explicitamente e não depende da permissão de execução do próprio arquivo. Um script invocado como processo separado não altera as variáveis da shell chamadora; `source arquivo.sh` ou `. arquivo.sh` o lê na shell atual.\n\n| Aspecto | PowerShell | Bash |\n| --- | --- | --- |\n| Arquivo comum | `.ps1` | `.sh` (convenção) |\n| Interpretador direto | `pwsh` ou `powershell` | `bash` |\n| Forma de carregar no escopo atual | dot-sourcing com ponto e espaço | `source` ou ponto |\n| Separador usual de comandos | nova linha ou `;` | nova linha ou `;` |\n\n### Comandos, instruções e saída\n\nPowerShell usa cmdlets, funções, aliases e programas nativos. Cmdlets têm nomes descritivos como `Get-ChildItem`; `Get-Command` localiza comandos e `Get-Help` mostra a ajuda. Bash reconhece funções e builtins da shell e também procura executáveis pelo `PATH`; `type` ajuda a identificar como um nome será resolvido. O comando de uma linguagem não se torna automaticamente comando da outra.\n\nEm PowerShell, expressões e chamadas podem emitir objetos para o fluxo de sucesso, inclusive sem um `Write-Output` explícito; texto exibido com `Write-Host` destina-se à apresentação e não substitui a saída capturável de uma função. Em Bash, a saída comum de um comando é uma sequência de bytes/texto no descritor padrão de saída. Em ambos, separar apresentação, resultado e diagnóstico torna scripts mais reutilizáveis.\n\n### Como cai na prova\n\n- Dot-sourcing em PowerShell ou `source` em Bash executa o arquivo no contexto da shell atual; isso difere de iniciar um processo filho.\n- A barra vertical do PowerShell transmite objetos; a do Bash conecta fluxos de texto/bytes entre processos.\n- Shebang indica interpretador no modo de execução direta; chamar `bash arquivo.sh` já escolhe o interpretador na invocação."
+    },
+    {
+      "title": "2. Variáveis, tipos, argumentos e aspas",
+      "markdown": "### O que uma variável guarda\n\nVariáveis nomeiam valores para reutilização. No PowerShell, nomes começam com `$`, como `$nome = 'Ana'`; o mecanismo trata maiúsculas e minúsculas sem distinção na maioria dos identificadores. Os valores têm tipos .NET, e a linguagem faz conversões conforme o contexto. Uma anotação como `[int]$idade = 20` declara uma variável tipada. Variáveis criadas dentro de uma função pertencem normalmente ao escopo dessa função; modificadores como `$script:`, `$global:` e `$local:` qualificam o escopo.\n\nEm Bash, uma atribuição não tem espaços em torno do sinal de igual: `nome='Ana'`. Usa-se `$nome` para expansão e `${nome}` para delimitar explicitamente o nome, como em `${nome}_log`. Variáveis Bash são essencialmente strings, mas a shell oferece expansão aritmética para inteiros. `local nome` em função limita a variável à função. Uma atribuição precedendo um comando, como `MODO=teste comando`, é exportada para o ambiente daquele comando; `export MODO` marca variável para o ambiente de processos filhos.\n\n> **Siglas e termos deste capítulo**\n> - **Escopo**: região em que uma variável pode ser referenciada.\n> - **Argumento posicional**: valor recebido segundo a posição na chamada.\n> - **Ambiente**: conjunto de variáveis herdadas por processos filhos.\n> - **Expansão**: substituição de uma expressão da shell pelo valor correspondente antes da execução.\n\n### Parâmetros e argumentos\n\nUma função ou script PowerShell pode declarar parâmetros em `param(...)`, com nome, tipo, valor padrão e atributos. Uma chamada nomeada, como `-Caminho 'relatório final.csv'`, torna o vínculo do argumento legível; parâmetros posicionais também são possíveis conforme a definição. Em Bash, `$1`, `$2` e assim por diante representam os argumentos posicionais; `$#` conta os argumentos e `shift` descarta o primeiro, deslocando os demais. `\"$@\"` preserva cada argumento recebido como uma palavra distinta, inclusive quando contém espaços; `\"$*\"` junta os parâmetros numa palavra delimitada pelo primeiro caractere de `IFS`.\n\n### Aspas controlam interpretação\n\nNo PowerShell, aspas simples preservam o texto literal; aspas duplas expandem variáveis e subexpressões. Assim, `'$nome'` é literal, enquanto `\"$nome\"` insere o valor. A crase é o caractere de escape da linguagem em contextos como aspas duplas.\n\nNo Bash, aspas simples preservam quase todos os caracteres literalmente e não expandem variáveis. Aspas duplas preservam a maioria dos caracteres especiais, mas permitem expansão de parâmetros e substituição de comandos; `\"$variavel\"` também impede divisão em palavras e expansão de nomes de arquivo naquele resultado. Uma barra invertida não citada pode escapar o próximo caractere. A expansão não citada de variável pode sofrer divisão por palavras e expansão de padrões de arquivo, causa comum de bugs em caminhos com espaços.\n\n| Necessidade | PowerShell | Bash |\n| --- | --- | --- |\n| Variável | `$arquivo` | `$arquivo` ou `${arquivo}` |\n| Aspas literais | `'texto $x'` | `'texto $x'` |\n| Texto com interpolação | `\"texto $x\"` | `\"texto $x\"` |\n| Quantidade de argumentos | parâmetros declarados | `$#` |\n| Todos como argumentos separados | usar parâmetro de coleção/array | `\"$@\"` |\n\n### Como cai na prova\n\n- Em Bash, `nome = valor` tenta executar um comando chamado `nome`; a atribuição é `nome=valor`, sem espaços.\n- Aspas duplas não impedem a interpolação de variáveis em nenhuma das duas linguagens.\n- Aspas simples em ambos os shells mantêm `$nome` literal. Para passar caminhos e argumentos com espaços, cite o valor e, em Bash, prefira `\"$variavel\"` ou `\"$@\"`."
+    },
+    {
+      "title": "3. Fluxo de dados: pipelines, listas e arrays",
+      "markdown": "### Pipelines com significados diferentes\n\nO símbolo `|` liga comandos nos dois ambientes, mas o conteúdo transportado não tem o mesmo modelo. No PowerShell, o comando anterior normalmente emite objetos .NET e o próximo comando recebe esses objetos, processando suas propriedades e métodos. Por exemplo, `Get-Process | Where-Object CPU -gt 10 | Select-Object Name, CPU` seleciona processos pela propriedade `CPU` e produz objetos com as propriedades escolhidas. `Format-Table` deve ser usado para apresentação; depois de formatar, o fluxo deixa de conter os objetos originais para processamento normal.\n\nNo Bash, o pipe conecta a saída padrão de um processo à entrada padrão do próximo. `grep erro arquivo.log | sort` transmite linhas de texto; o segundo processo não recebe objetos com campos e tipos. Saída de erro padrão não entra no pipe por padrão. Redirecionamentos e os descritores determinam para onde cada fluxo vai.\n\n> **Siglas e termos deste capítulo**\n> - **Pipeline**: cadeia de comandos em que a saída de um estágio alimenta o próximo.\n> - **stdin, stdout, stderr**: entrada padrão, saída padrão e saída de erro padrão de processos.\n> - **Array**: coleção ordenada acessível por índices.\n> - **Hashtable/dicionário**: coleção que associa chaves a valores.\n\n### Coleções\n\nPowerShell cria arrays com vírgulas ou com o operador `@(...)`, por exemplo `$itens = @('azul','verde')`; os índices de arrays começam em zero. Um hashtable literal usa `@{ Nome = 'Lia'; Ativo = $true }`, e as chaves podem ser acessadas por índice ou propriedade. O pipeline pode enumerar elementos de uma coleção, então a forma de retorno de uma função pode variar quando há zero, um ou vários resultados.\n\nBash oferece arrays indexados, inicializados como `cores=('azul' 'verde')`, com índices a partir de zero, e arrays associativos declarados com `declare -A mapa`. `${cores[0]}` lê um elemento; `\"${cores[@]}\"` expande os elementos mantendo cada um como palavra separada. Em Bash não se deve supor que imprimir um array sem aspas preserve os limites dos elementos.\n\n### Entrada e redirecionamento\n\nEm Bash, `>` redireciona a saída padrão e cria ou trunca o arquivo; `>>` acrescenta ao fim. `2>` direciona o descritor de erro, e `2>&1` duplica a saída de erro para o destino atual da saída padrão. A ordem das redireções pode mudar o resultado: `comando >saida.txt 2>&1` envia ambos ao arquivo. `<` fornece entrada de arquivo. `|` conecta stdout, enquanto `|&` também direciona stderr ao pipe em Bash.\n\nPowerShell usa operadores como `>` e `>>` para enviar saída textual a arquivos e oferece redirecionamento por fluxo, por exemplo `2>` para erros. `Out-File` e `Export-Csv` são cmdlets explícitos; `Export-Csv` serializa propriedades de objetos em colunas. `Tee-Object` permite salvar a saída e continuar a cadeia. A saída de um cmdlet não é necessariamente texto até ser formatada ou exportada.\n\n### Como cai na prova\n\n- Em Bash, pipe conecta fluxos; no PowerShell, a pipeline de cmdlets transmite objetos.\n- `2>` trata stderr nos dois ambientes, mas exportar dados de PowerShell como CSV preserva propriedades como colunas.\n- `\"${array[@]}\"` no Bash mantém um argumento por elemento; `${array[*]}` entre aspas os junta numa palavra.\n- Uma etapa de formatação PowerShell serve para exibir, não para continuar manipulando o objeto original."
+    },
+    {
+      "title": "4. Decisões, repetições e funções",
+      "markdown": "### Decidir e repetir\n\nPowerShell usa blocos entre chaves. `if (condição) { ... } elseif (...) { ... } else { ... }` escolhe um bloco; `foreach ($item in $lista) { ... }` percorre valores; `for`, `while` e `do/while` cobrem outras formas de repetição. Comparadores incluem `-eq`, `-ne`, `-gt`, `-lt`, `-like` e `-match`. Para comparar texto, esses operadores são normalmente insensíveis a maiúsculas; versões com `c` inicial, como `-ceq`, fazem comparação sensível.\n\nBash usa `if ...; then ...; elif ...; then ...; else ...; fi`. O teste tradicional `[ ... ]` é um comando e seus espaços são obrigatórios. `[[ ... ]]` é uma construção da linguagem com regras mais seguras para diversos testes e padrões. `case ... in ... esac` escolhe entre padrões. `for item in ...; do ...; done` percorre palavras; `while` repete enquanto o comando de condição termina com sucesso. O status zero é considerado sucesso/verdadeiro e status diferente de zero é falso.\n\n> **Siglas e termos deste capítulo**\n> - **Condição**: expressão ou status usado para decidir o caminho.\n> - **Iteração**: uma passagem do corpo de um laço.\n> - **Função**: bloco nomeado que pode receber dados e ser chamado várias vezes.\n> - **Retorno**: valor ou status que uma função comunica a quem a chamou.\n\n### Funções e argumentos\n\nUma função PowerShell é declarada com `function Nome { param(...) ... }`. Parâmetros tipados, obrigatórios ou validados documentam a interface; funções avançadas com `[CmdletBinding()]` podem participar do vínculo de parâmetros comuns e do pipeline. Valores escritos na saída de sucesso são retornados ao chamador; `return` encerra a função, mas objetos emitidos antes ainda podem fazer parte da saída. `Write-Host` apresenta texto ao usuário, enquanto `Write-Output` ou uma expressão sem atribuição emite resultado capturável.\n\nUma função Bash pode ser definida como `nome() { comandos; }`. Os argumentos da chamada são acessados como `$1`, `$2` etc. `local` limita variáveis ao corpo da função. A função retorna um status numérico por `return`; dados normalmente são enviados por stdout e capturados com substituição de comando, como `valor=$(calcular)`. A substituição de comando remove quebras de linha finais do resultado.\n\n### Escopo de laços e controle\n\n`break` interrompe um laço; `continue` passa à próxima iteração. Em Bash, `&&` só executa o segundo comando quando o primeiro tem status zero e `||` executa o próximo quando o status é diferente de zero. No PowerShell esses símbolos também podem encadear comandos em versões atuais, mas para controle claro dentro do script são comuns `if`, `try/catch` e os operadores de comparação próprios. Não confunda `-and` lógico PowerShell com o operador `&&` de Bash.\n\n### Como cai na prova\n\n- Bash interpreta o status zero como sucesso e, portanto, como condição verdadeira; PowerShell usa expressões booleanas como `$true`.\n- `[ ... ]` em Bash exige espaços entre colchetes e operandos.\n- `return` em Bash comunica status, enquanto stdout costuma transportar dados; no PowerShell a saída da função é o fluxo de objetos.\n- `-eq` é operador de comparação PowerShell, não uma opção de comando Bash."
+    },
+    {
+      "title": "5. Erros, status, segurança e portabilidade",
+      "markdown": "### Erro não é uma coisa só\n\nPowerShell mantém erros em seu próprio modelo. Muitos erros de cmdlets são não terminantes: são registrados e exibidos, mas o script pode continuar. `-ErrorAction Stop` eleva um erro não terminante para um erro capturável por `try/catch`. `try { ... } catch { ... } finally { ... }` organiza tratamento e limpeza; o bloco `finally` executa ao sair da estrutura. `$?` reflete o sucesso da operação anterior e `$LASTEXITCODE` guarda o código de saída do programa nativo mais recente.\n\nBash usa status de saída de comandos: zero representa sucesso por convenção e valores diferentes de zero indicam falha. `$?` contém o status do último comando executado, portanto deve ser copiado antes que outro comando o altere. `$!` identifica o processo em segundo plano mais recente. Uma lista `A && B` só roda B após sucesso de A. `set -o pipefail` faz o status do pipeline refletir falha de um componente, e não só do último; `set -e` altera a saída em várias situações de falha, mas possui exceções e não substitui tratamento explícito. `trap` associa ações a sinais ou eventos de shell.\n\n> **Siglas e termos deste capítulo**\n> - **Erro terminante**: erro que interrompe o fluxo corrente e pode ser capturado por `catch`.\n> - **Status de saída**: número que um comando devolve ao processo chamador.\n> - **Quoting**: uso de aspas e escapes para controlar interpretação e expansão.\n> - **Portabilidade**: possibilidade de executar com semântica equivalente em outros ambientes ou versões.\n\n### Segurança e execução confiável\n\nCite caminhos, valores e argumentos variáveis. Em Bash, use arrays para montar listas de argumentos e expanda cada elemento como `\"${args[@]}\"`; evite construir uma linha de comando numa string e passá-la a `eval`, pois isso reinterpreta conteúdo e pode transformar dados em código. Não use expansão não citada de entrada externa, pois espaços, curingas e caracteres especiais podem fragmentar ou alterar argumentos.\n\nEm PowerShell, passe valores como argumentos e use parâmetros tipados, valide entradas e prefira `-LiteralPath` quando curingas no caminho devam ser tratados literalmente. `Invoke-Expression` reinterpreta texto como código e não deve ser usado para executar entrada não confiável. Considere `-WhatIf` e `-Confirm` em funções avançadas que realizem alterações, quando aplicável. A política de execução PowerShell controla condições de carregamento de scripts; não é uma barreira de segurança que torne código malicioso seguro.\n\n### Portabilidade e diagnóstico\n\nBash não é sinônimo de qualquer shell Unix: construções como arrays associativos e `[[ ... ]]` são específicas do Bash ou variam entre shells. Para scripts portáveis, limite-se à sintaxe POSIX quando o interpretador for `sh`, e declare Bash no shebang quando depender de recursos Bash. PowerShell moderno (`pwsh`) é multiplataforma, mas scripts podem depender de cmdlets, módulos ou caminhos específicos do sistema; use `Join-Path` e cmdlets apropriados em vez de presumir separadores de caminho. `Set-StrictMode` ajuda a detectar alguns usos problemáticos, mas não substitui validação e testes.\n\n### Como cai na prova\n\n- `$LASTEXITCODE` informa o último executável nativo no PowerShell; `$?` não equivale a esse registro persistente.\n- O pipe Bash normalmente comunica o status do último comando; `pipefail` altera esse comportamento para considerar falhas anteriores.\n- `try/catch` PowerShell captura erros terminantes; `-ErrorAction Stop` é útil para transformar certos erros de cmdlets.\n- `eval` e `Invoke-Expression` avaliam código montado como texto e elevam o risco de injeção."
+    }
+  ],
+  "summary": "PowerShell e Bash automatizam tarefas por scripts, mas transportam dados de modo distinto: pipelines PowerShell passam objetos; pipes Bash conectam fluxos de bytes/texto entre processos. PowerShell usa variáveis com `$`, parâmetros nomeados declarados em `param`, arrays e hashtables, condicionais com `if (...) {}`, laços `foreach`, operadores como `-eq` e tratamento de erros `try/catch`; erros não terminantes podem exigir `-ErrorAction Stop` para entrar no catch. Bash usa atribuições sem espaços (`x=valor`), parâmetros posicionais (`$1`, `$#`, `\"$@\"`), aspas para controlar expansão, arrays indexados e associativos, `if ... then`, `for ... do` e funções que retornam status enquanto dados costumam sair por stdout. Em Bash, status zero significa sucesso; `$?` guarda o status anterior, `2>` redireciona stderr e `set -o pipefail` considera falha em qualquer etapa do pipe. Em ambos, cite expansões, valide entradas, evite avaliar strings como código e diferencie apresentar resultados de retorná-los. Shebang escolhe o interpretador na execução direta; dot-sourcing/source carrega o script no contexto atual.",
+  "flashcards": [
+    {
+      "front": "O que é shebang?",
+      "back": "A primeira linha iniciada por #! que indica o interpretador de um script executado diretamente, como #!/usr/bin/env bash."
+    },
+    {
+      "front": "Como carregar um script no escopo atual no PowerShell?",
+      "back": "Use dot-sourcing: ponto, espaço e caminho, por exemplo `. ./config.ps1`. Variáveis e funções passam a existir no escopo chamador."
+    },
+    {
+      "front": "Como carregar um arquivo Bash no shell corrente?",
+      "back": "Use `source arquivo.sh` ou `. arquivo.sh`; a execução ocorre na shell atual."
+    },
+    {
+      "front": "O que uma pipeline PowerShell transmite normalmente?",
+      "back": "Objetos .NET com propriedades e métodos, processados pelos próximos cmdlets."
+    },
+    {
+      "front": "O que um pipe Bash conecta?",
+      "back": "A saída padrão do processo à entrada padrão do próximo, em geral como bytes ou texto."
+    },
+    {
+      "front": "Como se escreve uma atribuição simples em Bash?",
+      "back": "Sem espaços em torno de =: `nome=valor`. Usa-se `$nome` para expandir o valor."
+    },
+    {
+      "front": "Qual diferença entre aspas simples e duplas no PowerShell?",
+      "back": "Simples preservam o conteúdo literal; duplas permitem interpolar variáveis e subexpressões."
+    },
+    {
+      "front": "Para que serve `\"$@\"` em Bash?",
+      "back": "Expande cada argumento posicional como uma palavra separada, preservando argumentos vazios ou com espaços."
+    },
+    {
+      "front": "O que `$#` representa em Bash?",
+      "back": "A quantidade de argumentos posicionais passados ao script ou à função."
+    },
+    {
+      "front": "Qual é o significado convencional do status zero em Bash?",
+      "back": "Sucesso. Um status diferente de zero indica falha ou uma condição não bem-sucedida."
+    },
+    {
+      "front": "O que `$LASTEXITCODE` guarda no PowerShell?",
+      "back": "O código de saída do último programa nativo executado, não o estado geral de cmdlets."
+    },
+    {
+      "front": "Como fazer um erro não terminante de cmdlet entrar em `catch`?",
+      "back": "Use `-ErrorAction Stop` no comando, que eleva esse erro para comportamento terminante."
+    },
+    {
+      "front": "O que faz `2>` em Bash?",
+      "back": "Redireciona o descritor de erro padrão para um arquivo ou destino especificado."
+    },
+    {
+      "front": "Como `pipefail` muda o status de um pipeline Bash?",
+      "back": "Faz o pipeline indicar falha se um comando anterior falhar, em vez de olhar somente o último."
+    },
+    {
+      "front": "Qual a diferença entre stdout e `return` numa função Bash?",
+      "back": "stdout transporta dados textuais; `return` define o status numérico da função."
+    },
+    {
+      "front": "Para que serve `-LiteralPath` no PowerShell?",
+      "back": "Interpreta o caminho literalmente, sem tratar caracteres de curinga como padrões."
+    },
+    {
+      "front": "Por que evitar `eval` e `Invoke-Expression` com entrada externa?",
+      "back": "Eles reavaliam texto como código, permitindo que conteúdo inesperado seja executado."
+    },
+    {
+      "front": "Qual índice corresponde ao primeiro elemento de um array Bash?",
+      "back": "O índice zero, assim como nos arrays comuns do PowerShell."
+    },
+    {
+      "front": "Qual estrutura Bash associa chaves textuais a valores?",
+      "back": "Array associativo, declarado com `declare -A nome` e disponível no Bash."
+    },
+    {
+      "front": "Qual cmdlet ajuda a descobrir propriedades de objetos PowerShell?",
+      "back": "`Get-Member`, frequentemente aplicado à saída por meio de uma pipeline."
+    }
+  ],
+  "tips": [
+    "Ao ler questão de pipe, identifique primeiro o tipo de dado: objeto PowerShell ou fluxo Bash.",
+    "Em Bash, cite expansões de variáveis e use `\"${array[@]}\"` para manter cada argumento separado.",
+    "Em PowerShell, declare parâmetros em `param(...)` e prefira argumentos nomeados para chamadas claras.",
+    "Confira `$?` imediatamente em Bash se precisar do status anterior, pois qualquer novo comando o substitui.",
+    "Em pipelines Bash, avalie `set -o pipefail` quando a falha de um estágio intermediário importa.",
+    "Separe dados retornados de mensagens exibidas: stdout no Bash e fluxo de sucesso no PowerShell são capturáveis."
+  ],
+  "traps": [
+    "Confundir a pipeline de objetos do PowerShell com um pipe de texto do Bash.",
+    "Escrever espaços em torno de `=` numa atribuição Bash e pensar que ainda será uma atribuição.",
+    "Supor que `$?` guarda o código do último executável nativo por tempo indeterminado no PowerShell.",
+    "Acreditar que `try/catch` PowerShell captura automaticamente qualquer erro não terminante.",
+    "Usar `$variavel` sem aspas no Bash e perder a separação correta de caminhos com espaços.",
+    "Achar que o `return` de função Bash transporta texto arbitrário em vez de um status."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare o dado que atravessa uma pipeline PowerShell com o que atravessa um pipe Bash.",
+      "answer": "PowerShell passa objetos com tipo, propriedades e métodos entre cmdlets; Bash conecta descritores de entrada e saída de processos, em geral transportando bytes ou linhas de texto."
+    },
+    {
+      "question": "Como os parâmetros posicionais Bash e os parâmetros nomeados PowerShell diferem?",
+      "answer": "Bash expõe posições por `$1`, `$2` e quantidade por `$#`; PowerShell declara uma interface em `param(...)` e permite chamada por nome como `-Path valor`."
+    },
+    {
+      "question": "Como prevenir quebra de argumentos com espaços em um script Bash?",
+      "answer": "Citar expansões como `\"$arquivo\"` e, ao repassar todos os argumentos, usar `\"$@\"`; arrays também devem ser expandidos como `\"${lista[@]}\"`."
+    },
+    {
+      "question": "Explique a diferença entre os status e os erros tratados pelos dois ambientes.",
+      "answer": "Bash comunica sucesso ou falha com status numérico, zero para sucesso; PowerShell mantém registros de erro e distingue erros terminantes de não terminantes, com parâmetros de ação para controlar a resposta."
+    },
+    {
+      "question": "Quando dot-sourcing ou `source` é apropriado?",
+      "answer": "Quando se quer carregar definições e variáveis do arquivo na shell atual, em vez de executar um processo de script isolado."
+    },
+    {
+      "question": "Qual cautela se aplica a `eval` no Bash e `Invoke-Expression` no PowerShell?",
+      "answer": "Ambos interpretam texto como código; não devem receber entrada não confiável. Prefira invocar comandos e argumentos como valores separados."
+    },
+    {
+      "question": "Como Bash direciona erros para o mesmo arquivo da saída padrão?",
+      "answer": "Uma forma é `comando >saida.txt 2>&1`: stdout é direcionado ao arquivo e stderr duplica o destino atual de stdout."
+    },
+    {
+      "question": "O que `-ErrorAction Stop` muda numa chamada de cmdlet?",
+      "answer": "Eleva erros não terminantes produzidos por aquela chamada para que interrompam o fluxo e possam ser tratados por `catch`."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Pipelines confundidas",
+      "summary": "No PowerShell, a pipeline move objetos; no Bash, o pipe conecta stdout e stdin de processos. A semelhança do caractere não implica mesmo formato de dado."
+    },
+    {
+      "key": "e2",
+      "title": "Expansão e aspas incorretas",
+      "summary": "Aspas duplas interpolam valores nos dois shells; no Bash, deixar expansões sem aspas ainda permite divisão em palavras e expansão de padrões."
+    },
+    {
+      "key": "e3",
+      "title": "Argumentos e atribuições trocados",
+      "summary": "Bash usa atribuição sem espaços e argumentos posicionais; PowerShell declara parâmetros e costuma aceitar ligação por nome."
+    },
+    {
+      "key": "e4",
+      "title": "Status e saída tratados como iguais",
+      "summary": "Status Bash é um número com zero para sucesso; stdout carrega dados. Funções Bash podem escrever dados e retornar separadamente um status."
+    },
+    {
+      "key": "e5",
+      "title": "Erros PowerShell não terminantes",
+      "summary": "Um erro de cmdlet pode ser exibido sem interromper execução nem entrar no catch; -ErrorAction Stop pode elevar o erro."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um script PowerShell precisa selecionar processos cuja propriedade CPU ultrapasse um limite e encaminhar os resultados para outro cmdlet. Qual construção usa o modelo de pipeline próprio da linguagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-Process | Where-Object CPU -gt 10 | Select-Object Name",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Process > Where-Object CPU -gt 10 > Select-Object Name",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Get-Process | grep CPU 10 | Select-Object Name",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Process | ForEach-Object 'CPU > 10' | Select-Object Name",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Get-Process | Sort-Object CPU -gt 10 | Select-Object Name",
+          "correct": false
+        }
+      ],
+      "explanation": "O pipe PowerShell encaminha objetos; `Where-Object` filtra cada processo pela propriedade e `Select-Object` projeta a propriedade desejada. `>` redireciona saída, `grep` não é o filtro de objetos, e ordenar não equivale a filtrar por condição.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script Bash, o nome de arquivo recebido no primeiro argumento pode conter espaços. Qual expansão entrega esse argumento sem dividi-lo em várias palavras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar $1 sem aspas, pois parâmetros posicionais já são protegidos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar '$1', que substitui o parâmetro dentro de aspas simples",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar \"$1\", preservando o valor como um único argumento",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar ${1} sem aspas, pois chaves desativam expansões de nomes",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar $#, que expande diretamente o texto do primeiro argumento",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma `\"$1\"` expande o primeiro argumento e impede a divisão em palavras causada por espaços. Sem aspas, o valor pode se dividir e sofrer expansão de nomes; aspas simples não expandem parâmetros e `$#` é a contagem de argumentos.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa quer que funções e variáveis declaradas em um arquivo PowerShell permaneçam disponíveis na sessão que já está aberta. Qual modo de execução deve usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Iniciar um novo processo pwsh com o arquivo como argumento",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o operador de chamada & sobre o caminho do arquivo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Redirecionar o arquivo para stdin da sessão corrente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar dot-sourcing com ponto, espaço e caminho do script",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar o arquivo como comando externo pelo PATH do sistema",
+          "correct": false
+        }
+      ],
+      "explanation": "Dot-sourcing (`. ./arquivo.ps1`) executa as instruções no escopo corrente, preservando as definições nele criadas. Uma chamada normal executa em escopo de script separado; criar outro processo também não injeta automaticamente suas variáveis na sessão existente.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, qual é a forma válida de criar uma variável chamada destino com o valor `/tmp/relatorio final` sem tentar executar um comando chamado destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "destino = '/tmp/relatorio final'",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "destino='/tmp/relatorio final'",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "$destino='/tmp/relatorio final'",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "set destino '/tmp/relatorio final'",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "export destino = '/tmp/relatorio final'",
+          "correct": false
+        }
+      ],
+      "explanation": "A atribuição Bash escreve o nome, o sinal de igual e o valor sem espaços: `destino='...'`. Com espaços, a shell interpreta palavras separadas como um comando e argumentos; o cifrão é usado para expansão, não antes do nome na atribuição.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell executará uma chamada de cmdlet que pode gerar erro não terminante, e a equipe quer tratar esse problema em um bloco catch. Qual ajuste é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir `$? = $false` antes do comando para forçar o bloco catch",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar a chamada após Write-Host, que converte erros em exceções",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `$LASTEXITCODE = 1` antes do cmdlet no bloco try",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `-ErrorAction Stop` na chamada dentro do bloco try",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir o bloco try por um pipeline com Format-List",
+          "correct": false
+        }
+      ],
+      "explanation": "Muitos erros de cmdlets são não terminantes e não acionam catch automaticamente. `-ErrorAction Stop` eleva o erro daquela chamada para um erro terminante, permitindo que o bloco `catch` correspondente o trate.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline Bash processa `cat registros.txt | grep falha | sort`. Qual descrição define corretamente o que passa pelo operador pipe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Objetos com propriedades do arquivo são enviados entre comandos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O status numérico substitui o conteúdo de cada linha transmitida",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A saída padrão de cada processo alimenta a entrada do seguinte",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A saída de erro de cada processo é sempre incluída automaticamente",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Bash combina os arquivos em memória antes de chamar os comandos",
+          "correct": false
+        }
+      ],
+      "explanation": "O pipe conecta stdout de um processo a stdin do próximo e transmite bytes, que com frequência representam linhas textuais. O Bash não converte linhas em objetos, status não substitui dados e stderr fica fora do pipe comum, salvo redirecionamento específico.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, uma variável contém `Ana`. Qual expressão interpola seu valor dentro de uma frase?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "'Olá, $nome'",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Olá, $nome`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "[Olá, $nome]",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "\"Olá, `$nome\"",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "\"Olá, $nome\"",
+          "correct": true
+        }
+      ],
+      "explanation": "Aspas duplas do PowerShell expandem variáveis, portanto a expressão substitui `$nome` por seu valor. Aspas simples mantêm o cifrão literal; a crase antes do cifrão escaparia a expansão, e colchetes não são delimitadores de string.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash recebe vários parâmetros e deve repassá-los a outro comando, mantendo cada argumento separado mesmo quando há espaços. Qual expansão é indicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `$*` sem aspas para preservar os limites originais",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `\"$@\"` para conservar cada argumento como uma palavra",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar `\"$*\"` para gerar uma palavra distinta por parâmetro",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `$#` para expandir a lista completa de valores recebidos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `${@}` sem aspas porque chaves agrupam todos os parâmetros",
+          "correct": false
+        }
+      ],
+      "explanation": "Dentro de aspas duplas, `\"$@\"` expande cada parâmetro como uma palavra distinta, preservando espaços e argumentos vazios. `$#` é somente a contagem; `\"$*\"` reúne os valores numa única palavra e expansões sem aspas podem dividir valores.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere um script Bash que executou `grep xyz arquivo.txt` e deseja salvar o resultado do comando em seguida. Qual recurso deve usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ler `$?` imediatamente, que contém o status de saída do grep",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ler `$#`, que armazena o código do último programa executado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler `$!`, que mantém a saída de texto do último comando",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler `$0`, que informa o status de sucesso do comando anterior",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `return`, que copia o código do último processo automaticamente",
+          "correct": false
+        }
+      ],
+      "explanation": "`$?` contém o status de saída do comando anterior e deve ser lido logo, pois outro comando muda esse valor. `$#` conta argumentos, `$!` identifica o processo em segundo plano mais recente e `$0` é o nome usado para chamar o script.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe exporta objetos processados no PowerShell para uma planilha que será aberta em outro programa. Qual cmdlet é adequado para gerar colunas CSV a partir das propriedades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Format-Table, que converte os objetos em colunas CSV duráveis",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Write-Host, que serializa cada propriedade no formato separado por vírgulas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Export-Csv, que escreve propriedades dos objetos em campos CSV",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Get-Member, que salva os valores de cada objeto num arquivo CSV",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Out-Null, que transforma a saída da pipeline em dados tabulares",
+          "correct": false
+        }
+      ],
+      "explanation": "`Export-Csv` serializa propriedades dos objetos em cabeçalhos e campos separados por vírgulas. `Format-Table` destina-se à exibição formatada, `Write-Host` escreve para apresentação e `Get-Member` inspeciona estrutura em vez de exportar valores.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash precisa preservar os argumentos recebidos e encaminhá-los a outro programa. Qual prática mantém cada argumento sem avaliação adicional de uma string montada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Juntar tudo numa variável e executar a variável com eval",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concatenar `$*` ao nome do executável sem citar a expansão",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir cada espaço por barra invertida e executar por sh",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Passar `\"$@\"` diretamente depois do nome do executável",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter os parâmetros em uma linha e avaliá-la com command substitution",
+          "correct": false
+        }
+      ],
+      "explanation": "`\"$@\"` mantém as fronteiras de cada argumento e deixa a shell invocar o comando com valores separados. Montar uma linha e chamar `eval` reinterpreta metacaracteres e conteúdo como código, podendo alterar argumentos ou criar vulnerabilidade.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell recebe nomes de computador. Qual declaração indica que a função aceita uma coleção de strings no parâmetro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`param([string]$ComputerName)` para permitir múltiplos valores",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`param([string[]]$ComputerName)` para aceitar um array de strings",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`param($ComputerName[])` para declarar valores posicionais repetidos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`param([array]$ComputerName)` como sintaxe obrigatória de coleção",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`param([object]$ComputerName)` para dividir automaticamente cada texto",
+          "correct": false
+        }
+      ],
+      "explanation": "O sufixo `[]` no tipo define um array, então `[string[]]$ComputerName` permite receber várias strings. `[string]` restringe o parâmetro a uma string, e colocar colchetes depois do nome não é a sintaxe de declaração de tipo em parâmetro.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma Bash testa se o arquivo `dados.csv` existe como arquivo regular e respeita a sintaxe do comando de teste tradicional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`if [-f dados.csv]; then ... fi`, sem espaços internos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`if test -regular dados.csv; then ... fi`, com opção de tipo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`if (dados.csv -f); then ... fi`, usando a ordem de objeto",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`if [[ dados.csv -eq file ]]; then ... fi`, comparando metadados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`if [ -f dados.csv ]; then ... fi`, com espaços ao redor dos colchetes",
+          "correct": true
+        }
+      ],
+      "explanation": "O teste `[ -f caminho ]` verifica se o caminho existe como arquivo regular; os espaços são necessários porque `[` é um comando que recebe argumentos, inclusive `]`. A forma sem espaços deixa de ser analisada corretamente como comando de teste.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer exibir uma mensagem informativa ao usuário no PowerShell sem tratá-la como objeto de resultado da função. Qual cmdlet expressa essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Write-Output, pois sempre envia texto só ao console e não ao chamador",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Write-Host, destinado a apresentar conteúdo ao usuário",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Return-Object, que exibe sem gerar resultado capturável",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Out-Null, que escreve a mensagem no console visível",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Format-List, que grava texto de interface fora da pipeline",
+          "correct": false
+        }
+      ],
+      "explanation": "`Write-Host` destina-se à apresentação interativa. `Write-Output` emite dados para o fluxo de sucesso e pode ser capturado ou enviado pela pipeline; `Out-Null` descarta dados e comandos de formatação não são a interface para mensagens.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, uma função precisa calcular um valor numérico e permitir que o chamador o capture como texto. Qual abordagem separa o dado do status de retorno?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escrever o dado em stdout e reservar `return` para o status",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `return '42'` para enviar texto arbitrário ao chamador",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `$?=42` dentro da função para produzir a saída textual",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `exit 42`, que retorna texto sem encerrar o script",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Imprimir o dado em stderr e retornar sucesso como saída padrão",
+          "correct": false
+        }
+      ],
+      "explanation": "O canal usual para dados é stdout, que o chamador pode capturar com `valor=$(funcao)`. `return` define o status numérico da função e não é uma saída textual geral; `exit` encerra o shell ou script atual.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash deve gravar mensagens de erro em `erros.log` e preservar a saída comum no terminal. Qual redirecionamento atende ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`comando >erros.log`, que grava apenas a saída de erro",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`comando 1>erros.log`, que separa stderr de stdout",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`comando 2>erros.log`, que redireciona stderr",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`comando <erros.log`, que envia erros para o arquivo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`comando | erros.log`, que encaminha stderr ao arquivo nomeado",
+          "correct": false
+        }
+      ],
+      "explanation": "O descritor 2 é stderr, portanto `2>erros.log` grava os diagnósticos e deixa stdout no destino que já possuía. `>` ou `1>` redireciona stdout, `<` redireciona entrada e pipe precisa ligar a outro processo.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escrever um script em Bash que será interpretado por `sh` em diferentes sistemas, qual decisão reduz dependência de recursos próprios do Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar arrays associativos, disponíveis em qualquer shell POSIX",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adotar `[[ ... ]]`, cuja sintaxe é obrigatória na especificação POSIX",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar `#!/usr/bin/env bash` e chamar o arquivo com `sh`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Limitar-se a construções POSIX ou declarar Bash como interpretador requerido",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar `source` e esperar que o builtin exista com o mesmo nome em `sh`",
+          "correct": false
+        }
+      ],
+      "explanation": "Portabilidade depende da linguagem realmente interpretada. Arrays associativos, `[[ ... ]]` e `source` são recursos de Bash ou não são universais; deve-se usar sintaxe POSIX para `sh` ou invocar Bash explicitamente se o script depende de seus recursos.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia de comandos Bash pode ter falha num estágio intermediário, embora o último comando termine com sucesso. Qual opção faz o status final refletir falhas anteriores do pipeline?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir `set -o pipefail` para considerar falha em componente do pipe",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir `set -o lastpipe` para substituir todos os status por zero",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `set -u`, que registra o retorno de cada processo no pipeline",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `set -x`, que transforma qualquer saída em erro de execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ler `$#`, que contém a falha do primeiro programa encadeado",
+          "correct": false
+        }
+      ],
+      "explanation": "Por padrão, o status de pipeline normalmente reflete o último comando. `set -o pipefail` faz o pipeline falhar quando um comando relevante falha, tornando visíveis erros intermediários. `-u` trata variáveis não definidas e `-x` imprime rastreamento.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell deve tratar `*.csv` como caminho literal, sem expandir o asterisco como padrão de arquivos. Qual parâmetro deve preferir quando disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`-Path`, pois desativa por padrão todos os curingas do provedor",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`-LiteralPath`, que evita interpretar curingas no valor",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`-Filter`, pois converte caracteres de padrão em texto literal",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`-Include`, porque força correspondência textual exata",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`-ErrorAction Stop`, que impede o provedor de expandir caminhos",
+          "correct": false
+        }
+      ],
+      "explanation": "Cmdlets com suporte a `-LiteralPath` interpretam os caracteres do valor literalmente, inclusive `*` e `?`. `-Path` pode aceitar curingas; `-Filter` e `-Include` selecionam elementos e `-ErrorAction` controla respostas a erros.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `comando >saida.txt 2>&1` é executado. Qual é o destino final esperado para os fluxos de saída padrão e de erro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "stdout vai ao terminal e stderr é lido de `saida.txt`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "stdout e stderr são encaminhados ao arquivo `saida.txt`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "stdout vai ao arquivo e stderr permanece sempre no terminal",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "stderr alimenta stdout, mas nenhum dos dois grava no arquivo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "stdout é descartado e stderr vira entrada do comando",
+          "correct": false
+        }
+      ],
+      "explanation": "Primeiro `>saida.txt` direciona stdout ao arquivo; depois `2>&1` duplica stderr para o destino atualmente associado a stdout. A ordem importa: o segundo redirecionamento copia o destino existente naquele momento.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell percorre cada arquivo retornado por `Get-ChildItem` e precisa executar um bloco uma vez por objeto. Qual forma de controle é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`foreach ($arquivo in $arquivos) { ... }` para percorrer a coleção",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`for ($arquivo in $arquivos) { ... }` como sintaxe de enumeração",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`while ($arquivo of $arquivos) { ... }` com operador de associação",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`if ($arquivo in $arquivos) { ... }` para repetir por elemento",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`switch ($arquivos) { foreach ... }` como laço sobre cada objeto",
+          "correct": false
+        }
+      ],
+      "explanation": "A instrução `foreach ($item in $colecao) { ... }` atribui cada elemento à variável de iteração e executa o bloco para cada um. `if` decide uma condição e as outras construções mostradas não usam a sintaxe de enumeração dessa linguagem.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Bash recebe um argumento e deve declarar uma variável temporária sem sobrescrever uma variável de mesmo nome do chamador. Qual construção é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar `global temporaria` para limitar o valor à função",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar `$temporaria local` antes de executar o corpo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `local temporaria=valor` dentro do corpo da função",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `export temporaria=valor` para criar escopo privado",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `readonly temporaria` para criar escopo de bloco",
+          "correct": false
+        }
+      ],
+      "explanation": "O builtin `local`, usado dentro de uma função Bash, limita a variável ao escopo da função. `export` a disponibiliza a processos filhos, `readonly` impede alteração posterior e `global` não é uma declaração Bash de escopo local.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell emite objetos para consumo de outros comandos, mas também precisa imprimir um aviso na tela. Qual distinção é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Write-Host emite objetos de sucesso e Write-Output só imprime",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Write-Output emite dados capturáveis; Write-Host é para apresentação",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Return grava o aviso na tela e Write-Host retorna o objeto",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Format-Table retorna propriedades originais para outra função",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Write-Error envia aviso comum e objetos ao fluxo de sucesso",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo de sucesso do PowerShell carrega objetos que podem ser capturados por atribuição ou enviados a outro cmdlet. `Write-Host` apresenta texto; separar saída funcional e apresentação evita que mensagens contaminem o resultado consumido.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash precisa enumerar os elementos de um array `arquivos`, incluindo nomes que possam conter espaços, chamando um programa para cada elemento. Qual expansão preserva os limites?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`for x in ${arquivos[*]}; do programa $x; done`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`for x in \"$arquivos\"; do programa $x; done`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`for x in \"$*\"; do programa \"$x\"; done`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`for x in \"${arquivos[@]}\"; do programa \"$x\"; done`",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`for x in ${arquivos[@]}; do programa ${x}; done`",
+          "correct": false
+        }
+      ],
+      "explanation": "A expansão citada `\"${arquivos[@]}\"` gera uma palavra por elemento do array. Citar também `\"$x\"` mantém o nome com espaços como um único argumento à chamada externa; formas sem aspas podem fragmentar ou expandir curingas.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num script Bash, `if comando; then A; else B; fi` escolhe o bloco conforme o término da chamada. Qual condição executa o bloco A?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando o comando termina com status zero, indicando sucesso",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quando o comando emite ao menos uma linha em stdout",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando o comando imprime qualquer mensagem em stderr",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando o comando termina com qualquer status diferente de zero",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando a shell encontra o comando no diretório corrente",
+          "correct": false
+        }
+      ],
+      "explanation": "O Bash decide o resultado do teste pelo status de saída: zero significa sucesso e torna a condição verdadeira; valor diferente de zero representa falha ou condição negativa. O volume de texto emitido não define esse resultado.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um comando nativo executado pelo PowerShell retornou código de saída diferente de zero. Qual variável automática contém esse código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$Error`, que guarda somente o último código do executável",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$?`, que armazena permanentemente o código numérico completo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$LASTEXITCODE`, que registra a saída do programa nativo",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`$PID`, que contém o resultado de sucesso da execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$PSVersionTable`, que recebe cada retorno externo",
+          "correct": false
+        }
+      ],
+      "explanation": "`$LASTEXITCODE` mantém o código de saída do programa nativo mais recente. `$?` indica se a operação anterior teve sucesso em termos booleanos; `$Error` guarda registros de erro e `$PID` identifica o processo PowerShell.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O script Bash `#!/usr/bin/env bash` recebeu permissão de execução. Que comando pode iniciá-lo diretamente usando o interpretador indicado pelo shebang?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`./rotina.sh`, a partir do diretório do arquivo",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`source ./rotina.sh`, que sempre cria processo separado",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`chmod ./rotina.sh`, que executa o conteúdo do script",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`env ./rotina.sh bash`, que seleciona o shell ao final",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`./bash rotina.sh`, que localiza o shebang no arquivo",
+          "correct": false
+        }
+      ],
+      "explanation": "A execução direta por `./rotina.sh` usa o caminho do interpretador descrito na linha shebang, desde que o arquivo tenha permissão adequada. `source` carrega no shell atual; `chmod` altera permissões mas não executa.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, o padrão `if (...) { ... } elseif (...) { ... } else { ... }` é usado para qual finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma função com parâmetros tipados e saída de objetos",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Redirecionar erros e sucesso para diferentes arquivos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Percorrer uma coleção e definir o índice do elemento",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar um bloco conforme testes condicionais",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Capturar exceções e executar limpeza depois do bloco",
+          "correct": false
+        }
+      ],
+      "explanation": "`if`, `elseif` e `else` escolhem blocos segundo condições booleanas, executando o primeiro ramo verdadeiro ou o bloco alternativo. Laços fazem repetição; `try/catch/finally` é a estrutura para tratamento de erros e limpeza.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha Bash usa `nome=$(comando)` para armazenar o resultado de um comando. O que faz essa sintaxe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa o comando em substituição de comando e atribui sua saída",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazena o status do comando sem executar seu corpo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Redireciona stderr do comando para a variável nome",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declara uma função Bash chamada comando dentro de nome",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exporta nome para processos filhos sem alterar seu valor",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma `$(...)` executa o conteúdo e substitui a expressão pela saída padrão produzida, removendo quebras de linha finais. O status precisa ser consultado separadamente; a construção não declara função nem redireciona stderr por si.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell precisa exigir que o usuário forneça o parâmetro Caminho e validar a entrada como texto. Qual declaração oferece esse contrato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`param($Caminho)` sem metadados, pois todo parâmetro é obrigatório",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`param([Parameter(Mandatory)][string]$Caminho)`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`param([Mandatory]string Caminho)` sem variável de parâmetro",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`param([string]$Caminho = Mandatory)` como valor padrão textual",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`function Caminho([Parameter])` como assinatura obrigatória de cmdlet",
+          "correct": false
+        }
+      ],
+      "explanation": "O atributo `Parameter(Mandatory)` marca o parâmetro como obrigatório e `[string]` declara seu tipo; juntos, fazem parte da sintaxe de declaração em `param(...)`. Um parâmetro simples pode ser opcional e a palavra Mandatory não é um valor padrão.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script Bash, qual construção percorre uma sequência de palavras explicitamente listada, atribuindo uma palavra por vez à variável item?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`foreach item in a b; then ... done`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`for item in a b; do ... done`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`while item in a b; do ... fi`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`for (item = a; b); then ... end`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`if item in a b; do ... done`",
+          "correct": false
+        }
+      ],
+      "explanation": "O laço Bash `for item in a b; do lista; done` percorre os elementos produzidos pela lista de palavras e executa o corpo para cada valor. Bash usa `do` e `done` para delimitar o corpo desse laço.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador de comparação PowerShell `-eq` aparece numa condição entre duas strings. Qual interpretação é adequada para a forma usual desse operador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compara os valores sem diferenciar maiúsculas por padrão",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compara somente a identidade de referência de objetos",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Interpreta o segundo operando como expressão regular",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Faz comparação necessariamente sensível a maiúsculas",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retorna o código de saída do comando anterior",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `-eq` realiza igualdade PowerShell e, para texto, normalmente não diferencia maiúsculas e minúsculas. A forma `-ceq` especifica comparação sensível a caixa; `-match` é o operador associado a correspondência por expressão regular.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa `source variaveis.sh` no Bash. Qual efeito essa operação tem em relação a executar `bash variaveis.sh`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria processo separado e descarta todas as definições ao terminar",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compila o arquivo e registra suas funções no PATH global",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lê o arquivo no shell atual, mantendo efeitos no ambiente atual",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executa o arquivo apenas se o bit executável estiver ativo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Passa o caminho como primeiro argumento sem ler o conteúdo",
+          "correct": false
+        }
+      ],
+      "explanation": "`source` interpreta os comandos no contexto do shell que chamou, então atribuições e funções podem permanecer nele. Executar `bash arquivo` inicia outra instância do interpretador e as alterações em variáveis não exportadas não retornam ao pai.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell gera uma exceção ao processar um item, mas precisa liberar um recurso independentemente de haver erro. Qual estrutura possui um bloco apropriado para essa limpeza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`if/elseif/else`, cujo ramo else sempre funciona como limpeza",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`foreach`, que executa o cleanup depois de cada erro",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`switch`, que fecha recursos ao deixar qualquer correspondência",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`try/finally`, com a liberação no bloco finally",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`return`, que sempre executa comandos escritos depois da função",
+          "correct": false
+        }
+      ],
+      "explanation": "O bloco `finally` é executado ao sair da estrutura `try`, seja após sucesso, erro tratado ou propagação do erro, e é adequado para liberar recursos. Condicionais escolhem caminhos e `return` encerra a função sem garantir execução de código posterior.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor quer definir em Bash um dicionário com chaves `host` e `porta`. Qual declaração cria um array associativo Bash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`declare -a config; config[0]=servidor`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`declare -A config; config[host]=servidor`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`config = {host: servidor}` em sintaxe de atribuição Bash",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`local -D config` como builtin de mapa textual",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`export -A config` para declarar chaves associativas",
+          "correct": false
+        }
+      ],
+      "explanation": "`declare -A` declara um array associativo Bash, que permite índices de texto como `host`. `declare -a` indica array indexado por inteiros; sintaxe com chaves de linguagens como JSON ou Python não é a forma de atribuição da shell.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função avançada PowerShell declara suporte a processamento de objetos recebidos pela pipeline. Qual combinação de blocos é usada para lidar com elementos um a um?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`begin`, `process` e `end`, dentro de uma função avançada",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`try`, `catch` e `finally`, como estágios de entrada do pipe",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`param`, `return` e `exit`, como etapas de vinculação automática",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`stdin`, `stdout` e `stderr`, como nomes de blocos da linguagem",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`if`, `elseif` e `else`, como processadores de cada objeto recebido",
+          "correct": false
+        }
+      ],
+      "explanation": "Funções avançadas podem organizar processamento por pipeline em blocos `begin` (preparação), `process` (cada entrada) e `end` (finalização). `try/catch/finally` trata erros e não define os estágios de processamento de pipeline.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash precisa acrescentar novas linhas de log ao fim de um arquivo existente, preservando o conteúdo que já estava gravado. Qual operador atende a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`>` para substituir o conteúdo anterior do arquivo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`<` para inserir dados depois das linhas atuais",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`2>` para acrescentar stdout ao fim do arquivo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`>>` para acrescentar stdout ao arquivo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`|` para anexar diretamente texto sem processo leitor",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `>>` abre o destino em modo de acréscimo e preserva o conteúdo já existente. `>` normalmente cria ou trunca o arquivo; `<` fornece entrada e `2>` direciona o descritor de erro, não stdout.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell executa `Get-Item` e em seguida consulta `$?`. Qual tipo de informação essa variável automática representa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O último objeto retornado pelo cmdlet, sem estado de sucesso",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um booleano sobre o sucesso da operação anterior",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade total de erros armazenados na sessão",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código numérico do último programa nativo em execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O caminho completo do item consultado pela pipeline",
+          "correct": false
+        }
+      ],
+      "explanation": "`$?` indica `$true` quando a operação anterior teve sucesso e `$false` quando produziu erro. Ele não é o objeto retornado, nem um contador de registros; para o código numérico de um executável nativo usa-se `$LASTEXITCODE`.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash define `for arquivo in *.csv; do ...; done`. Em condições usuais, o que a expressão `*.csv` fornece ao laço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A palavra literal `*.csv` sem considerar arquivos no diretório",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma expressão regular processada por grep antes do laço",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma expansão de nomes de arquivo que correspondem ao padrão",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A lista de argumentos passados ao script no parâmetro `$@`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma matriz de objetos FileInfo gerada pelo sistema operacional",
+          "correct": false
+        }
+      ],
+      "explanation": "Bash realiza expansão de nomes de arquivo (globbing) para padrões não citados como `*.csv`, produzindo palavras correspondentes antes de executar o laço. Não é uma expressão regular nem uma lista de objetos de arquivo, e aspas impediriam essa expansão.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash é executado com `bash tarefa.sh`, embora não tenha permissão de execução. Qual afirmação explica por que a invocação pode funcionar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O interpretador lê o arquivo como entrada; não se executa diretamente o arquivo",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Bash ignora qualquer verificação de leitura e permissões do sistema",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A extensão `.sh` concede permissão de execução automaticamente",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A invocação aplica chmod antes de iniciar o interpretador",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A linha shebang ativa permissões Unix ao ser encontrada",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao chamar `bash tarefa.sh`, o arquivo é argumento de entrada para o executável Bash, que precisa conseguir lê-lo; o bit executável do próprio arquivo é necessário para invocação direta como `./tarefa.sh`. A extensão e o shebang não alteram permissões.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função PowerShell define `param([int]$Id)` e é chamada com `-Id 27`. Qual benefício principal decorre de declarar explicitamente o tipo do parâmetro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor passa a ser ocultado de qualquer pipeline da sessão",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A função deixa de aceitar argumentos nomeados",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O PowerShell pode validar e converter o argumento para inteiro",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O parâmetro se torna automaticamente uma variável global",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tipagem converte o argumento em código a ser avaliado",
+          "correct": false
+        }
+      ],
+      "explanation": "O tipo `[int]` documenta que o parâmetro espera valor inteiro e permite ao mecanismo fazer conversão ou rejeitar valores incompatíveis. A declaração não altera o escopo para global, não desativa nomes nem avalia o conteúdo como código.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao chamar uma função Bash que usa `shift`, qual efeito se espera sobre seus parâmetros posicionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O primeiro argumento é removido e os demais avançam uma posição",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O status de saída atual é copiado para o parâmetro `$1`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função termina imediatamente com código zero",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os argumentos são ordenados alfabeticamente antes da execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os parâmetros são exportados para processos filhos como ambiente",
+          "correct": false
+        }
+      ],
+      "explanation": "`shift` descarta os primeiros parâmetros posicionais (um por padrão), deslocando os demais: o antigo `$2` passa a ser `$1`, e `$#` diminui. O comando não ordena, não exporta variáveis nem encerra por si a função.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer aplicar uma rotina somente quando um comando Bash anterior tiver falhado. Qual operador de lista expressa essa condição diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`&&`, pois executa o comando seguinte após qualquer status",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`||`, pois executa o próximo comando quando o status é não zero",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`|`, pois executa o próximo somente se o primeiro falhar",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`;`, pois condiciona o comando seguinte ao sucesso anterior",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`&`, pois aguarda o status e inverte seu valor",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `||` executa o comando à direita quando o da esquerda termina com status diferente de zero. `&&` exige sucesso, `;` separa comandos sem condicionar a execução e `|` conecta fluxos de processos.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell pretende juntar o diretório-base a um nome de arquivo e evitar presumir a barra de separação do sistema operacional. Qual cmdlet auxilia nessa composição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Join-Path`, que compõe caminho segundo o provedor",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`Split-Path`, que concatena o diretório ao nome fornecido",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Format-Path`, que normaliza toda variável como caminho",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Resolve-Command`, que monta segmentos de diretório",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Add-Content`, que une valores de caminho sem gravar arquivo",
+          "correct": false
+        }
+      ],
+      "explanation": "`Join-Path` combina um caminho-base e um caminho filho usando as regras do provedor de navegação. Isso evita concatenar separadores manualmente; `Split-Path` extrai segmentos, e cmdlets de conteúdo não são operações de composição de caminho.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de `Write-Error` dentro de um bloco `try` PowerShell não especifica `-ErrorAction Stop`. Qual comportamento comum deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O erro sempre encerra o script e aciona todo bloco catch",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O erro não terminante pode ser mostrado sem executar catch",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Write-Error transforma o erro em código nativo `$LASTEXITCODE`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O erro é convertido em objeto de sucesso e enviado ao stdout",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloco finally é ignorado quando a mensagem é exibida",
+          "correct": false
+        }
+      ],
+      "explanation": "`Write-Error` normalmente produz erro não terminante; o fluxo pode continuar e o `catch` pode não ser executado. Para capturá-lo com `try/catch`, pode-se elevar a chamada com `-ErrorAction Stop`; o bloco finally tem finalidade própria de limpeza.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, status de saída zero é convencionalmente interpretado como sucesso, inclusive quando o comando é usado diretamente como condição de um `if`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Bash avalia o status de saída do comando: zero significa sucesso e torna a condição verdadeira; valores não zero são condições falsas ou falhas, conforme o comando.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, a pipeline comum transmite objetos entre cmdlets, permitindo que o próximo estágio examine propriedades sem primeiro analisar uma linha textual formatada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fluxo de objetos permite que cmdlets filtrem e selecionem propriedades estruturadas. A aparência textual mostrada no console é uma etapa de apresentação e não define o formato interno da pipeline.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, a atribuição `usuario = 'ana'` define a variável usuario, pois a shell ignora espaços ao redor do sinal de igual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Bash exige que o nome, o sinal de igual e o valor formem uma palavra de atribuição sem espaços em torno do sinal. Com espaços, a shell interpreta `usuario` como nome de comando.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aspas duplas no Bash permitem expansão de parâmetros, mas protegem o resultado contra divisão em palavras e expansão de nomes de arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Aspas duplas mantêm expansões como `$arquivo` e impedem que espaços no resultado gerem vários argumentos ou que curingas sejam expandidos como nomes de arquivo. Aspas simples, por sua vez, não expandem a variável.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `source` do Bash é sinônimo de iniciar outro processo Bash, cujas alterações em variáveis sempre retornam para o shell chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `source` interpreta o arquivo no shell atual, sem criar um novo processo de shell para executar seu conteúdo. É justamente por isso que variáveis e funções criadas podem permanecer no ambiente chamador.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `-ErrorAction Stop` pode elevar um erro não terminante de uma chamada de cmdlet para que ele seja tratado por `catch`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O parâmetro comum `-ErrorAction` controla a resposta a erros não terminantes; `Stop` faz a chamada interromper o fluxo corrente e permite o tratamento no bloco catch associado.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, a expansão `\"$@\"` dentro de aspas duplas combina todos os parâmetros em uma única palavra separada por espaços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `\"$@\"` expande cada parâmetro posicional como uma palavra separada, preservando fronteiras e argumentos vazios. É `\"$*\"` que produz uma única palavra com separação baseada em `IFS`.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador Bash `2>` direciona o descritor de erro padrão, enquanto `>` sem número direciona a saída padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os descritores convencionais são 0 para entrada, 1 para saída e 2 para erro. A ausência de número em `>` equivale a redirecionar o descritor 1.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PowerShell, aspas simples delimitam uma string expansível e substituem `$variavel` pelo seu conteúdo antes da execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aspas simples são literais: `$variavel` permanece texto. Aspas duplas são expansíveis e permitem inserir o valor da variável, assim como subexpressões delimitadas pela sintaxe correspondente.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, o status de uma pipeline sem `pipefail` normalmente corresponde ao status do último comando executado na cadeia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O comportamento usual usa o status do último comando da pipeline. A opção `pipefail` altera a avaliação para que falha em um comando anterior também torne a pipeline malsucedida.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `Format-Table` deve ser usado como etapa de apresentação; sua saída formatada não preserva o fluxo original de objetos para processamento posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cmdlets de formatação convertem objetos em dados de apresentação para o sistema de formatação e console. Para filtrar ou exportar valores estruturados, faça isso antes da etapa final de formatação.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `local` dentro de uma função restringe a variável declarada ao escopo local daquela função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O builtin `local` cria uma variável local à função, evitando alterar diretamente variável homônima do escopo global durante a execução da função.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando Bash `return 'texto'` é a forma comum de enviar uma string arbitrária como resultado capturável de uma função.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `return` comunica status numérico de função. Dados textuais são normalmente escritos em stdout e podem ser capturados com substituição de comando, como `resultado=$(funcao)`.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dot-sourcing de arquivo `.ps1` executa as instruções no escopo atual do PowerShell, permitindo que definições criadas sejam usadas depois na sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A forma `. ./arquivo.ps1` executa o script no escopo atual, ao contrário de uma invocação normal no escopo de script. Isso é útil para importar definições, mas exige atenção aos efeitos que o arquivo causa na sessão.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar `eval` para executar uma linha Bash montada a partir de conteúdo fornecido por usuário evita que metacaracteres sejam interpretados como código.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `eval` interpreta novamente o texto como comandos da shell, dando significado a metacaracteres e expansões. Entrada não confiável pode virar código executável; prefira arrays e argumentos separados sem reavaliação.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, `export CHAVE=valor` marca a variável para integrar o ambiente herdado por processos filhos iniciados pela shell.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `export` coloca a variável no ambiente de execução transmitido a processos filhos. Uma atribuição comum continua acessível no shell corrente, mas não é automaticamente exportada para subprocessos.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `set -e` garante encerramento em toda e qualquer falha de comando, sem exceções relacionadas à posição do comando ou à estrutura de controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `set -e` altera o comportamento diante de algumas falhas, mas há exceções em condições, listas e outras construções. Scripts robustos verificam status e tratam falhas explicitamente, sem presumir cobertura universal.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, arrays indexados usam índices começando em zero, e arrays associativos permitem chaves textuais quando declarados como associativos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Arrays indexados Bash são numerados a partir de zero; `declare -A` cria arrays associativos que aceitam chaves de texto. Os dois tipos têm regras de acesso e expansão próprias.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `$LASTEXITCODE` é atualizado pelos erros de cmdlets e substitui a necessidade de consultar o estado `$?` após qualquer operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `$LASTEXITCODE` guarda código de saída de programas nativos e não é alterado por erros comuns de cmdlets. `$?` indica sucesso booleano da operação anterior, com finalidade diferente.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha shebang influencia a escolha do interpretador na execução direta do arquivo, mas chamar explicitamente `bash arquivo.sh` já seleciona Bash na linha de comando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A execução direta depende da linha shebang para identificar o interpretador; quando se inicia `bash` e se passa o arquivo como argumento, o interpretador já foi escolhido pela invocação.",
+      "section": "1. Scripts, execução e modelo de cada shell",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador Bash `&&` executa o comando seguinte quando o comando anterior termina com status zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `&&` condiciona a execução do comando seguinte ao sucesso do anterior, indicado por status zero. `||` faz o encadeamento alternativo quando o status anterior é diferente de zero.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `Get-Member` ajuda a descobrir propriedades e métodos dos objetos recebidos, o que auxilia a construir filtros e seleções da pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `Get-Member` inspeciona os membros disponíveis nos objetos, como propriedades e métodos, ajudando a entender o que comandos seguintes podem consultar ou selecionar.",
+      "section": "3. Fluxo de dados: pipelines, listas e arrays",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, aspas simples ao redor de `$HOME` permitem que a variável seja expandida enquanto os demais caracteres permanecem literais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aspas simples preservam `$HOME` literalmente e não expandem a variável. Aspas duplas permitem expansão do parâmetro e protegem o resultado contra divisão em palavras e globbing.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, uma função pode emitir objetos para a pipeline e usar parâmetros declarados para receber entradas nomeadas ou posicionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Funções PowerShell podem declarar sua interface em `param(...)` e emitir objetos pelo fluxo de sucesso. O mecanismo de parâmetros associa valores fornecidos por nome ou posição, conforme a definição.",
+      "section": "4. Decisões, repetições e funções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, expansão não citada de variável pode dividir o valor em várias palavras e expandir curingas presentes no resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Após expansão de parâmetro não citada, Bash pode realizar divisão por palavras e expansão de nomes de arquivo. Citar a expansão geralmente preserva o dado como argumento único e evita interpretações inesperadas.",
+      "section": "2. Variáveis, tipos, argumentos e aspas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, `-LiteralPath` é útil quando caracteres como `*` no caminho devem ser interpretados literalmente, sem expansão de curingas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cmdlets que oferecem `-LiteralPath` usam o valor sem interpretação de caracteres curinga, ao contrário do parâmetro de caminho que pode aceitar padrões. Isso é relevante para nomes contendo metacaracteres.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, `trap` pode associar comandos a sinais ou eventos da shell para executar ações de tratamento ou limpeza.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O builtin `trap` registra uma ação para sinais ou condições como saída da shell. É comum usá-lo para limpeza de arquivos temporários, observando as particularidades de cada sinal e contexto.",
+      "section": "5. Erros, status, segurança e portabilidade",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "about_Pipelines — PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Pipelines PowerShell e transmissão de objetos entre comandos.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipelines",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Objects — PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Objetos, propriedades e uso de objetos em pipelines.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_objects",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Quoting_Rules — PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Aspas simples literais e aspas duplas expansíveis no PowerShell.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Functions — PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Definição de funções, parâmetros e saída.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_functions",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Error_Handling — PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Erros, variáveis automáticas e parâmetros de ação de erro.",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_error_handling",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual — Shell Expansions",
+      "publisher": "GNU Project",
+      "reference": "Ordem das expansões, divisão em palavras, globbing e remoção de aspas.",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual — Arrays",
+      "publisher": "GNU Project",
+      "reference": "Arrays indexados e associativos e expansões de elementos.",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Arrays.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual",
+      "publisher": "GNU Project",
+      "reference": "Sintaxe de shell, redirecionamentos, funções, status de saída e builtins.",
+      "url": "https://www.gnu.org/software/bash/manual/bash.html",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

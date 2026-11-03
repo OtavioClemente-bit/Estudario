@@ -1,0 +1,1537 @@
+{
+  "id": "informatica.automacao-indicadores-bibliometria-computacional",
+  "subject": "Informática",
+  "title": "Automação de indicadores e bibliometria computacional",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação de indicadores bibliométricos",
+    "Bibliometria computacional aplicada",
+    "Indicadores bibliométricos automatizados",
+    "Processamento computacional de metadados científicos",
+    "Análise bibliométrica com software",
+    "Automação de métricas científicas",
+    "Pipeline computacional de bibliometria",
+    "Bibliometria com R e bibliometrix",
+    "Bibliometria com Python e APIs",
+    "Extração automatizada de dados bibliográficos",
+    "Indicadores de produção e citação por software",
+    "Mapeamento científico computacional"
+  ],
+  "scope": {
+    "covers": "Automação de coleta, tratamento, integração e análise de dados bibliográficos; APIs e exportações de bases; identificadores e desambiguação; deduplicação, normalização, recorte e proveniência; indicadores computacionais de fontes, autores e documentos; matrizes documentais e bibliográficas; redes, estruturas conceitual, intelectual e social; ferramentas bibliometrix e Biblioshiny; reprodutibilidade, validação e interpretação responsável de resultados.",
+    "excludes": "Fundamentos gerais, leis clássicas, fórmulas e história da bibliometria já cobertos em Bibliometria, cientometria e altmetria; avaliação institucional por ranking; programação avançada em R ou Python; detalhes de versões e licenças comerciais de bases; mineração integral de texto e inferência causal sobre qualidade científica."
+  },
+  "theoryTitle": "Do registro bibliográfico ao indicador reproduzível",
+  "chapters": [
+    {
+      "title": "1. O fluxo computacional de uma análise bibliométrica",
+      "markdown": "### O problema que este assunto resolve\n\nUma planilha com milhares de referências não vira evidência apenas por ser carregada em um programa. Para calcular produção por ano, citações ou colaboração, é preciso transformar registros de fontes diferentes em dados comparáveis e guardar as decisões feitas no caminho. Bibliometria computacional é o uso de procedimentos programáveis para coletar, limpar, combinar e analisar metadados de publicações e suas relações.\n\n> **Siglas e termos deste capítulo**\n> - **Registro bibliográfico**: metadados de uma publicação, como título, autores, ano, fonte e referências.\n> - **Pipeline**: sequência rastreável de etapas de processamento, da entrada ao resultado.\n> - **Corpus**: conjunto de documentos incluídos conforme critérios definidos.\n> - **API**: interface que permite consultar dados de um serviço por requisições estruturadas.\n> - **Proveniência**: informação sobre origem, data, filtros e transformações aplicados aos dados.\n\n### Etapas que precisam ser explicitadas\n\nUm fluxo robusto começa com uma pergunta e um protocolo: tema, período, tipos documentais, idiomas, campos e fontes. A busca é executada e preservada com data, consulta e parâmetros. Os arquivos ou respostas de API são armazenados como dados brutos imutáveis. Em seguida, o processo converte formatos, seleciona campos, normaliza valores, identifica duplicatas, reconcilia entidades e calcula indicadores. Ao final, tabelas, gráficos e logs são exportados junto da documentação que permite refazer o percurso.\n\n| Etapa | Ação concreta | Registro útil para auditoria |\n| --- | --- | --- |\n| Busca | Consultar base ou API com critérios definidos | Consulta, filtros, data e fonte |\n| Ingestão | Salvar arquivos originais ou respostas paginadas | Nome, hash, parâmetros e status |\n| Harmonização | Unificar nomes de campos, datas e identificadores | Regras e vocabulários utilizados |\n| Limpeza | Corrigir duplicatas e variantes documentadas | Decisões e casos não resolvidos |\n| Análise | Agregar e construir matrizes ou redes | Fórmulas, unidades e parâmetros |\n| Publicação | Exportar resultados e método | Código, versões, logs e limitações |\n\nO registro bruto e o dado tratado têm finalidades diferentes: conservar a entrada original permite revisar uma regra de limpeza sem refazer a busca; o dado tratado serve ao cálculo. Uma mudança no corpus ou nos filtros pode alterar os resultados mesmo que o código seja idêntico. Por isso, um relatório deve identificar tanto a rotina quanto a fotografia dos dados utilizada.\n\n### Como cai na prova\n\n- Automação não elimina a necessidade de definir a pergunta, o corpus e as regras.\n- Armazenar a resposta original e documentar filtros permite rastrear as transformações.\n- Reexecutar o código sobre dados atualizados pode produzir outro resultado; versão de dados também importa."
+    },
+    {
+      "title": "2. Coleta, integração e qualidade dos metadados",
+      "markdown": "### O problema que este assunto resolve\n\nA mesma publicação pode aparecer em mais de uma base, com título abreviado em uma, lista de autores incompleta em outra e DOI ausente em uma terceira. A automação precisa combinar registros sem apagar diferenças relevantes nem atribuir artigos à pessoa errada.\n\n> **Siglas e termos deste capítulo**\n> - **DOI**: identificador persistente de objeto digital, frequentemente usado para reconciliar artigos.\n> - **ORCID**: identificador persistente de pesquisador, útil para distinguir pessoas com nomes semelhantes.\n> - **ISSN**: identificador de publicação seriada, como periódico.\n> - **Deduplicação**: identificação e tratamento de registros que representam o mesmo documento.\n> - **Desambiguação**: decisão de distinguir ou reunir entidades que aparecem sob nomes variantes.\n\n### Fontes, APIs e ingestão\n\nBases como Web of Science, Scopus, OpenAlex, Crossref e repositórios têm coberturas, políticas e campos diferentes. Crossref expõe registros de obras por endpoints REST e aceita consultas e filtros; OpenAlex organiza entidades relacionadas, incluindo works, authors, sources e institutions. Uma API pode limitar o tamanho de cada resposta, exigir paginação ou informar limites de uso. Um processo de coleta deve percorrer todas as páginas necessárias, salvar parâmetros e tratar erros de rede, respostas incompletas e códigos HTTP sem assumir que a primeira página representa o conjunto inteiro.\n\nExportar de múltiplas fontes amplia a cobertura, mas não cria um conjunto automaticamente consistente. Primeiro mapeiam-se campos equivalentes, preservando campos de origem e valores originais; depois se resolvem duplicatas. DOI normalizado é uma chave forte quando válido, mas há registros sem DOI e erros de depósito. Uma reconciliação secundária pode comparar título normalizado, ano, primeiro autor e tipo documental, encaminhando pares ambíguos para revisão em vez de fundi-los às cegas.\n\n### Normalização sem perda de proveniência\n\nVariantes como “Univ. Federal...” e o nome completo de uma universidade podem representar a mesma instituição, mas a regra precisa ser explícita. Uma tabela de equivalências guarda o valor recebido, o valor canônico e a justificativa. Para autores, ORCID ajuda quando está disponível e corretamente associado; nomes iguais não bastam para fundir perfis, e mudanças de sobrenome ou transliteração podem separar uma pessoa em vários registros.\n\nA normalização de palavras-chave pode padronizar caixa, acentos, singular/plural ou sinônimos, mas não deve transformar conceitos distintos em um só. Guarde a forma original e o vocabulário adotado. Datas ausentes, referências truncadas e afiliações incompletas devem ser contadas e relatadas: omissão silenciosa pode afetar a comparação entre grupos ou períodos.\n\n### Como cai na prova\n\n- DOI e ORCID reduzem ambiguidades, mas não corrigem automaticamente todo registro.\n- Uma resposta paginada exige percorrer páginas e guardar os parâmetros de coleta.\n- Deduplicar por título isolado pode fundir documentos diferentes; casos duvidosos pedem regra composta ou revisão."
+    },
+    {
+      "title": "3. Indicadores automatizados e matrizes de análise",
+      "markdown": "### O problema que este assunto resolve\n\nCom os registros harmonizados, o programa pode calcular estatísticas descritivas e relações entre documentos. O resultado depende da unidade: contar documentos, autores, citações recebidas ou fontes responde a perguntas diferentes. Um painel que exibe um número sem definir essa unidade induz interpretações erradas.\n\n> **Siglas e termos deste capítulo**\n> - **Matriz documento × atributo**: tabela que relaciona cada documento a campos como autor, fonte, ano ou palavra-chave.\n> - **Matriz bibliográfica**: representação de relações entre entidades, como documentos que citam referências em comum.\n> - **Contagem integral**: credita um documento completo a cada entidade participante.\n> - **Contagem fracionária**: reparte a contribuição de um documento entre participantes segundo regra declarada.\n> - **Campo normalizado**: indicador comparado com referência definida por área, ano e tipo de publicação.\n\n### Níveis de análise e resultados\n\nO bibliometrix organiza indicadores em três níveis: fontes, autores e documentos. Para fontes, podem ser descritas produtividade de periódicos, concentração de artigos e métricas de citação; para autores, produção, citações, h-index e colaboração; para documentos, citações recebidas, referências, palavras e evolução temática. O h-index computado sobre um perfil depende do conjunto atribuído àquele autor e da fonte de citações; um erro de desambiguação afeta o indicador.\n\nUma matriz documento × atributo permite resumir publicações por ano, fonte, autor ou termo. Matrizes de relações sustentam análises como cocitação, acoplamento bibliográfico, coautoria e coocorrência de palavras. O software transforma a entrada em estruturas calculáveis; não decide por si só se duas afiliações são equivalentes nem se um agrupamento tem significado substantivo.\n\nA contagem integral de uma publicação com quatro instituições atribui uma unidade a cada instituição e pode fazer a soma institucional superar o total de documentos únicos. Na fracionária, pode-se dividir o crédito entre as quatro instituições, desde que essa regra seja declarada. Nenhuma opção é universalmente correta: o relatório deve dizer qual foi usada e por quê.\n\nContagens de citações variam conforme cobertura de base, idade do documento, tipo e campo. Comparar áreas diretamente por totais brutos pode confundir diferenças de oportunidade de citação com desempenho. Normalização por campo, ano e tipo documental melhora a comparabilidade quando a referência é adequada, mas a classificação de campo e a janela também precisam ser documentadas. Indicador de periódico descreve o periódico; não mede automaticamente a qualidade de cada artigo nele publicado.\n\n### Como cai na prova\n\n- Identifique sempre unidade, fonte, período e regra de contagem antes de interpretar o valor.\n- O processamento calcula conforme os dados e parâmetros recebidos; não resolve automaticamente a validade conceitual.\n- Uma soma maior que o número de documentos pode decorrer da contagem integral de coautorias ou múltiplas afiliações."
+    },
+    {
+      "title": "4. Mapeamento científico e ferramentas computacionais",
+      "markdown": "### O problema que este assunto resolve\n\nIndicadores agregados mostram totais; mapas de ciência procuram representar como temas, documentos e pessoas se relacionam. Um mapa só é interpretável se a relação codificada e os parâmetros forem conhecidos. A proximidade visual produzida por um algoritmo não representa, por si, causalidade ou qualidade.\n\n> **Siglas e termos deste capítulo**\n> - **Coocorrência**: ocorrência conjunta de dois termos no mesmo documento ou unidade textual.\n> - **Cocitação**: dois documentos citados conjuntamente por uma terceira publicação.\n> - **Acoplamento bibliográfico**: dois documentos que compartilham referências em suas listas.\n> - **Coautoria**: relação de autoria compartilhada em uma publicação.\n> - **Cluster**: grupo de nós reunidos por um método de agrupamento.\n\n### Estruturas conceitual, intelectual e social\n\nA estrutura conceitual pode ser explorada por coocorrência de palavras-chave, redes de termos e mapas temáticos. Variantes ortográficas, sinônimos e termos genéricos alteram os agrupamentos, por isso um dicionário de equivalências e um limiar mínimo de frequência devem ser descritos. A estrutura intelectual pode ser examinada por cocitação, acoplamento e historiografia de referências. A estrutura social pode ser representada por redes de coautoria entre autores, instituições ou países.\n\nNa cocitação, a conexão nasce quando uma obra posterior cita duas referências. No acoplamento, a conexão decorre de duas obras citarem referências comuns. Na coautoria, a conexão representa publicação conjunta registrada. São arestas com significados diferentes. Peso de aresta pode indicar frequência, mas não mede confiança, igualdade de contribuição ou qualidade da parceria.\n\n### Bibliometrix e Biblioshiny\n\nBibliometrix é um pacote de código aberto para análises e visualizações bibliométricas no ambiente R. Seu fluxo importa, converte, edita e combina registros em uma estrutura de dados bibliográficos; a partir dela, constrói uma matriz documento × atributo e matrizes bibliográficas para análises estatísticas e mapeamento científico. Biblioshiny é a interface web do bibliometrix para uso sem escrever comandos R. A interface reduz a barreira de operação, mas as escolhas de consulta, filtros, limpeza, indicadores e parâmetros continuam precisando de justificativa.\n\nO fluxo descrito pelo projeto bibliometrix abrange fontes, autores e documentos e as estruturas conceitual, intelectual e social. A ferramenta não transforma uma análise em experimento causal, nem valida automaticamente a qualidade dos metadados. Ao exportar, guarde também o formato de entrada, as opções selecionadas, os filtros, as versões e os produtos gerados.\n\n### Como cai na prova\n\n- Cocitação olha citações recebidas em conjunto; acoplamento olha referências compartilhadas.\n- Biblioshiny oferece uma interface web ao bibliometrix; ela não substitui o protocolo metodológico.\n- Um cluster é resultado de método e parâmetros; nomeá-lo exige interpretar os documentos que o compõem."
+    },
+    {
+      "title": "5. Reprodutibilidade, auditoria e uso responsável",
+      "markdown": "### O problema que este assunto resolve\n\nUm relatório pode ser tecnicamente repetível e ainda assim induzir uma conclusão indevida. Reprodutibilidade exige preservar dados, critérios e código; interpretação responsável exige explicar limites e não tratar um indicador parcial como medida completa de mérito.\n\n> **Siglas e termos deste capítulo**\n> - **Snapshot**: cópia dos dados em uma data específica, usada para fixar a entrada da análise.\n> - **Log**: registro de operações, parâmetros, avisos e erros ocorridos na execução.\n> - **DORA**: declaração e iniciativa sobre avaliação responsável da pesquisa.\n> - **Altmetria**: indicadores de rastros e atenção online associados a produtos de pesquisa.\n> - **Validação**: verificações de consistência, cobertura e plausibilidade antes de interpretar resultados.\n\n### Tornar o resultado auditável\n\nUm pacote de análise reproduzível identifica pergunta, estratégia de busca, data de coleta, fontes, filtros, tipos documentais, exclusões, dados brutos, versão do esquema de campos, regras de deduplicação, dicionários de nomes, software e versões, parâmetros, código, sementes aleatórias quando aplicável e arquivos resultantes. Logs devem indicar páginas consultadas, falhas e número de registros em cada etapa. Antes de publicar, confira totais, duplicatas residuais, campos ausentes, valores fora do período e se uma amostra foi atribuída corretamente.\n\nAutomação pode falhar silenciosamente: uma API pode retornar apenas parte das páginas, uma coluna pode mudar de nome ou uma atualização pode alterar o conjunto indexado. Testes de consistência simples — contagens por etapa, campos obrigatórios, intervalos de datas, DOI repetido e amostra revisada manualmente — ajudam a detectar esses problemas. Não sobrescreva a coleta original ao limpar os dados.\n\n### Interpretação responsável\n\nA orientação da DORA para uso de indicadores enfatiza clareza, transparência, especificidade, contexto e justiça. A avaliação qualitativa deve continuar central, com indicadores quantitativos como apoio. O fator de impacto é uma métrica de periódico e não prova a qualidade de um artigo individual. Citações refletem circulação acadêmica observada, mas variam por campo, idade, idioma, cobertura e práticas de citação. Altmetria registra eventos disponíveis em plataformas e não equivale automaticamente a qualidade ou impacto social.\n\nUma comparação deve nomear o que mede, a fonte e o recorte, justificar o indicador, situá-lo em contexto comparável e considerar vieses de cobertura. Relatar limitações não invalida o cálculo; evita que a precisão numérica aparente exceda a evidência.\n\n### Como cai na prova\n\n- Um gráfico sem fonte, período, regra e parâmetros não é reprodutível.\n- Atualização de base pode alterar indicadores ainda que a rotina de cálculo não mude.\n- Métricas quantitativas apoiam julgamento contextual; não substituem leitura qualitativa do trabalho."
+    }
+  ],
+  "summary": "A bibliometria computacional automatiza coleta, harmonização e análise de registros, mas depende de corpus e regras explícitos. APIs e exportações devem ser coletadas integralmente, com parâmetros, páginas e respostas preservados. DOI, ORCID e ISSN apoiam reconciliação, sem resolver sozinhos duplicatas ou identidades. Depois da limpeza documentada, matrizes documento × atributo e bibliográficas permitem calcular indicadores por fontes, autores e documentos e mapear estruturas conceitual, intelectual e social. Bibliometrix oferece funções no R e Biblioshiny uma interface web. A interpretação requer fonte, período, unidade, regra de contagem, normalização e limites; diretrizes DORA recomendam clareza, transparência, especificidade, contexto e justiça, mantendo avaliação qualitativa no centro.",
+  "flashcards": [
+    {
+      "front": "O que é bibliometria computacional?",
+      "back": "Uso de procedimentos programáveis para coletar, tratar, integrar e analisar registros e relações bibliográficas."
+    },
+    {
+      "front": "O que deve acompanhar uma coleta por API?",
+      "back": "Consulta, filtros, data, parâmetros, páginas percorridas, respostas e falhas."
+    },
+    {
+      "front": "Por que guardar a resposta bruta?",
+      "back": "Para preservar a entrada original e permitir revisar transformações sem depender de nova coleta."
+    },
+    {
+      "front": "O DOI elimina toda duplicata?",
+      "back": "Não. Pode faltar, estar incorreto ou não reconciliar registros com metadados divergentes."
+    },
+    {
+      "front": "Qual a utilidade do ORCID?",
+      "back": "Apoiar a identificação de pesquisadores, sem garantir que todo registro esteja corretamente vinculado."
+    },
+    {
+      "front": "O que é deduplicação?",
+      "back": "Identificar registros que representam o mesmo documento e decidir como tratá-los."
+    },
+    {
+      "front": "O que é proveniência dos dados?",
+      "back": "Registro da origem, data, consulta, filtros e transformações aplicadas."
+    },
+    {
+      "front": "Quais são os três níveis de indicadores do bibliometrix?",
+      "back": "Fontes, autores e documentos."
+    },
+    {
+      "front": "O que representa a matriz documento × atributo?",
+      "back": "A relação de cada documento com atributos como autor, ano, fonte ou palavra-chave."
+    },
+    {
+      "front": "O que é contagem integral?",
+      "back": "Atribuir um documento completo a cada participante ou entidade associada."
+    },
+    {
+      "front": "O que é contagem fracionária?",
+      "back": "Repartir o crédito de um documento segundo uma regra declarada."
+    },
+    {
+      "front": "O que é cocitação?",
+      "back": "Dois documentos ligados porque uma terceira obra citou ambos."
+    },
+    {
+      "front": "O que é acoplamento bibliográfico?",
+      "back": "Dois documentos ligados porque suas listas de referências têm itens em comum."
+    },
+    {
+      "front": "O que uma rede de coautoria representa?",
+      "back": "Publicações conjuntas registradas entre autores, instituições ou países."
+    },
+    {
+      "front": "O que é estrutura conceitual?",
+      "back": "Relações entre conceitos, frequentemente analisadas por coocorrência de termos."
+    },
+    {
+      "front": "O que é estrutura intelectual?",
+      "back": "Relações entre obras e referências, como cocitação e acoplamento."
+    },
+    {
+      "front": "O que é estrutura social?",
+      "back": "Relações de colaboração entre autores, instituições ou países."
+    },
+    {
+      "front": "O que é Biblioshiny?",
+      "back": "Interface web do bibliometrix que permite operar análises sem escrever comandos R."
+    },
+    {
+      "front": "O que DORA recomenda ao usar indicadores?",
+      "back": "Clareza, transparência, especificidade, contextualização e justiça."
+    },
+    {
+      "front": "O fator de impacto mede a qualidade de cada artigo?",
+      "back": "Não. É uma métrica do periódico, não uma avaliação automática de cada artigo nele publicado."
+    }
+  ],
+  "tips": [
+    "Descreva consulta, filtros, data e fonte antes de apresentar resultados.",
+    "Conserve dados brutos e registre cada regra de limpeza em tabela de correspondência.",
+    "Confira paginação e total de resultados para evitar análise de uma resposta parcial.",
+    "Declare unidade de análise e contagem integral ou fracionária.",
+    "Para uma rede, explique o significado das arestas, o limiar e o método de agrupamento.",
+    "Interprete métricas junto de seus recortes e limitações, seguindo os princípios da DORA."
+  ],
+  "traps": [
+    "Usar DOI como se todos os registros tivessem identificador válido e único.",
+    "Confundir paginação de API com um conjunto já completo na primeira resposta.",
+    "Tratar coocorrência, cocitação e acoplamento bibliográfico como a mesma relação.",
+    "Supor que interface automática decide equivalências de autores e instituições corretamente.",
+    "Comparar citações brutas entre campos sem considerar idade e práticas disciplinares.",
+    "Usar fator de impacto de periódico como nota direta de um artigo individual."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais etapas tornam um pipeline bibliométrico rastreável?",
+      "answer": "Protocolo, busca documentada, preservação dos dados brutos, harmonização, limpeza, análise, exportação de resultados e logs."
+    },
+    {
+      "question": "Como evitar fundir dois autores homônimos?",
+      "answer": "Usar identificadores quando disponíveis, examinar afiliações e histórico e manter revisão de casos ambíguos, sem fundir apenas pelo nome."
+    },
+    {
+      "question": "Por que duas bases podem produzir totais diferentes?",
+      "answer": "Cobertura, critérios de indexação, datas de extração, tipos documentais, metadados e regras de deduplicação podem divergir."
+    },
+    {
+      "question": "Como a contagem integral difere da fracionária?",
+      "answer": "A integral atribui uma unidade completa a cada participante; a fracionária reparte o crédito segundo regra declarada."
+    },
+    {
+      "question": "Qual a diferença operacional entre cocitação e acoplamento?",
+      "answer": "Cocitação usa documentos citados juntos por uma terceira obra; acoplamento usa referências compartilhadas por dois documentos."
+    },
+    {
+      "question": "O que precisa acompanhar um mapa de palavras?",
+      "answer": "Campos usados, vocabulário de equivalências, frequência mínima, método, período e interpretação dos grupos."
+    },
+    {
+      "question": "O que precisa acompanhar um indicador de citação?",
+      "answer": "Fonte, data, janela, tipo documental, unidade, tratamento de autocitações e referência usada para comparação."
+    },
+    {
+      "question": "Como os princípios DORA mudam a apresentação de resultados?",
+      "answer": "Exigem definir e explicar a métrica, abrir método, justificar adequação, contextualizar comparações e considerar justiça e vieses."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "A coleta automatizada é parcial",
+      "summary": "Paginação, erros de requisição ou filtros mal aplicados podem deixar registros de fora; conferir respostas e totais."
+    },
+    {
+      "key": "e2",
+      "title": "A reconciliação funde ou divide entidades incorretamente",
+      "summary": "Identificadores ajudam, mas a desambiguação exige regras e revisão de casos duvidosos."
+    },
+    {
+      "key": "e3",
+      "title": "Unidade ou crédito não declarado",
+      "summary": "Documento, autor, instituição e citação são unidades distintas; contagem integral e fracionária também alteram totais."
+    },
+    {
+      "key": "e4",
+      "title": "Relações bibliográficas confundidas",
+      "summary": "Coautoria, cocitação, acoplamento e coocorrência codificam ligações diferentes e não permitem a mesma interpretação."
+    },
+    {
+      "key": "e5",
+      "title": "Indicador tratado como julgamento completo",
+      "summary": "Métricas dependem de cobertura e contexto; devem apoiar, não substituir, avaliação qualitativa e leitura do objeto."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um grupo deseja calcular a evolução anual de artigos sobre um tópico e permitir que outra equipe refaça o levantamento. Qual procedimento inicial é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir período, consulta, fontes e tipos documentais, salvando data e filtros da busca.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Selecionar os artigos mais citados e inferir deles quais anos devem integrar o levantamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contar linhas de qualquer exportação disponível sem verificar como os registros foram obtidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o número total informado pela interface como protocolo completo da pesquisa bibliográfica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher uma consulta diferente em cada base para maximizar resultados sem documentar as variações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O protocolo torna explícitos o recorte e a coleta que geraram o corpus. Sem fonte, consulta, filtros e período, outra equipe não consegue reproduzir nem interpretar a contagem. Selecionar apenas artigos citados ou confiar no total da interface não documenta o processo.",
+      "section": "1. O fluxo computacional de uma análise bibliométrica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta de API informa que há mais registros do que os itens retornados na primeira requisição. O que o coletor deve fazer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a primeira requisição até os registros retornados aparecerem em outra ordem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Percorrer as páginas ou cursores seguintes e registrar parâmetros e respostas obtidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de colunas solicitadas para que os registros restantes sejam anexados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Calcular indicadores com a primeira página e tratar o total anunciado como margem de erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o limite de itens do relatório sem consultar novamente o serviço de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a API pagina resultados, a primeira resposta não é o conjunto integral. O processo precisa seguir páginas ou cursores, armazenar os parâmetros e verificar a conclusão. Mudar campos ou rótulos do relatório não recupera os registros ausentes.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe mantém os arquivos originais e cria uma segunda tabela com nomes de campos harmonizados. Por que essa separação é útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela permite preservar a entrada e revisar transformações sem depender da memória do analista.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela garante que todos os metadados ausentes sejam recuperados automaticamente da base consultada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela torna desnecessário informar qual fonte forneceu cada campo bibliográfico utilizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela assegura que qualquer alteração posterior nos dados não mude os indicadores publicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela converte diferenças entre bases em equivalência sem necessidade de validar os campos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conservar a entrada bruta preserva a proveniência e permite refazer a harmonização. A cópia tratada serve à análise, mas não restaura campos que nunca vieram, não elimina diferenças entre fontes e não fixa por si só os resultados se a entrada mudar.",
+      "section": "1. O fluxo computacional de uma análise bibliométrica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição quer consolidar variantes de seu nome que aparecem nas afiliações. Qual estratégia oferece melhor rastreabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o texto original após substituir cada ocorrência pela forma mais frequente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar correspondência aproximada e aceitar sempre a instituição de maior produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter valor original, forma canônica e regra de equivalência em uma tabela documentada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas o país da afiliação, pois ele distingue de modo suficiente todas as instituições.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar os nomes por semelhança visual sem preservar os registros que foram combinados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tabela de equivalências registra a entrada, o nome normalizado e a regra, permitindo auditar e corrigir a decisão. A forma mais frequente ou a proximidade de texto podem confundir unidades diferentes, e o país não identifica sozinho uma instituição.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao importar duas bases, um mesmo DOI aparece com título ligeiramente diferente e uma das entradas tem erro de grafia. Qual conduta é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter ambos como trabalhos distintos porque os títulos não coincidem caractere por caractere.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir o registro com menos campos para que a base mais completa defina todo o corpus.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unir qualquer par com um DOI parecido, mesmo que o identificador não seja validado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Normalizar e validar o DOI, comparar outros campos e registrar a decisão de deduplicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar os títulos pelos DOIs e eliminar os demais metadados antes da análise.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um DOI válido pode apoiar fortemente a reconciliação, mas deve ser normalizado e comparado com outros campos para identificar depósito incorreto ou conflito. O processo também registra qual entrada foi consolidada e evita tanto duplicação quanto fusão indevida.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bibliometrix organiza seus indicadores computacionais em quais níveis principais de análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Editores, avaliadores e leitores, classificados conforme sua função no processo editorial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fontes, autores e documentos, com métricas e gráficos associados a cada nível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Países, idiomas e disciplinas, dispensando a identificação de autores e publicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consultas, downloads e vendas, limitando a análise a dados comerciais de plataformas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Projetos, departamentos e financiadores, sem métricas no nível de documentos individuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição oficial do bibliometrix destaca métricas em três níveis: fontes, autores e documentos. Países, instituições e outros recortes podem compor análises, mas não substituem essa organização básica nem excluem documentos e autores.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel atribuiu um artigo completo a cada uma das quatro instituições afiliadas. Qual regra de contagem foi aplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contagem fracionária, pois distribui uma fração igual entre todas as entidades participantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contagem por citação, pois transforma cada referência bibliográfica em unidade institucional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contagem integral, que pode fazer a soma institucional exceder o número de documentos únicos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Contagem normalizada, que reduz automaticamente o total segundo a idade dos artigos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contagem deduplicada, que sempre conserva somente a instituição do autor correspondente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na contagem integral, cada instituição participante recebe crédito de uma publicação completa, de modo que a soma agregada pode ultrapassar os documentos únicos. A fracionária repartiria o crédito; as demais opções descrevem operações diferentes.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede de palavras-chave reúne termos que aparecem juntos no mesmo conjunto de registros. Que estrutura está sendo examinada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estrutura social, que representa relações de colaboração entre pessoas e instituições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estrutura intelectual, que relaciona obras pelas referências citadas em comum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estrutura de proveniência, que registra a sequência de consultas feitas às bases.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estrutura conceitual, que pode ser mapeada pela coocorrência de termos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Estrutura editorial, que agrupa revistas pela ordem em que foram indexadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura conceitual trata de conceitos e temas, frequentemente por coocorrência de palavras-chave. Estruturas sociais mapeiam colaboração; estruturas intelectuais relacionam documentos e referências; proveniência e ordem editorial não descrevem esse mapa temático.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa quer comparar quantas vezes artigos de diferentes campos foram citados. Qual apresentação reduz uma comparação enganosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar os totais brutos e interpretar a maior contagem como evidência de maior qualidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar os totais sem considerar idade, tipo documental ou cobertura da base.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar um indicador normalizado adequado e declarar campo, período, tipo e referência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dividir toda citação por número de autores, mesmo que a pergunta não trate de autoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir citações por fator de impacto e atribuir o valor do periódico a cada artigo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Citações se acumulam em ritmos diferentes entre campos, períodos e tipos de documento. Normalizar pode melhorar a comparação quando o grupo de referência é pertinente, mas sua definição precisa ser descrita. Totais brutos e métricas de periódico não medem diretamente qualidade individual.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise precisa calcular coocorrência de palavras-chave com uma interface gráfica, sem escrever comandos diretamente em R. Qual ferramenta do ecossistema bibliometrix atende a esse modo de uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Crossref REST, que fornece uma interface gráfica de análise temática sem usar metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Biblioshiny, a interface web do bibliometrix para operar análises sem escrever comandos R.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ORCID, que cria mapas de palavras e clusters a partir dos perfis públicos de autores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OpenAlex, que substitui a análise bibliográfica com gráficos temáticos prontos e fixos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ISSN Portal, que converte identificadores de periódicos em redes de palavras-chave.",
+          "correct": false
+        }
+      ],
+      "explanation": "Biblioshiny é a interface web do bibliometrix, concebida para uso sem programação em R. Ela facilita a operação da análise, mas não é API de metadados nem elimina a definição de corpus e parâmetros.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois documentos foram ligados porque citam várias das mesmas obras em suas listas de referências. Qual relação foi codificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coautoria, pois os autores desses documentos assinaram necessariamente as mesmas publicações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cocitação, pois uma publicação posterior citou os dois documentos como um par.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Coocorrência, pois palavras-chave iguais aparecem no título dos documentos conectados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acoplamento bibliográfico, definido pelo compartilhamento de referências entre documentos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Normalização de fontes, pois os periódicos dos documentos adotaram uma abreviação comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Acoplamento bibliográfico conecta documentos que compartilham referências. Cocitação ocorre quando uma terceira obra cita os dois documentos. Coautoria e coocorrência representam, respectivamente, colaboração autoral e presença conjunta de termos.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gráfico de clusters foi gerado automaticamente após alterar o limite mínimo de ocorrência das palavras. Como interpretar a diferença entre as versões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como prova de que os temas excluídos pelo novo limite deixaram de existir no campo científico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como mudança possível do mapa decorrente de um parâmetro que deve ser declarado e interpretado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como confirmação de que o agrupamento anterior estava causalmente incorreto e deve ser descartado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como indicação de que todo cluster representa uma comunidade acadêmica formalmente organizada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como demonstração de que as palavras remanescentes medem diretamente a qualidade dos artigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O limiar altera quais nós entram na rede e, consequentemente, pode mudar os agrupamentos. A diferença precisa ser documentada e interpretada frente ao corpus; clusters são construções dependentes de dados e parâmetros, não provas de inexistência, causalidade ou qualidade.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe executa o mesmo código de análise em meses diferentes e observa totais distintos, embora os filtros não tenham mudado. Qual explicação é compatível com o método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os resultados são necessariamente erro, porque código igual fixa também o conteúdo de qualquer base externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A atualização da base pode ter alterado os registros, devendo a data e o snapshot serem considerados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O código deve ter mudado sem registro, pois a cobertura das bases não pode se alterar ao longo do tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença prova que os indicadores automatizados não podem ser reproduzidos em nenhum ambiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe deve substituir a coleta nova pela antiga sem indicar que usou dados de outra data.",
+          "correct": false
+        }
+      ],
+      "explanation": "A reexecução sobre dados atualizados pode produzir outros valores. Para reproduzir uma análise, é necessário identificar também a versão ou a data da entrada, e não apenas o código e os filtros. Mudança não prova falha, mas requer rastreamento.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação usa o fator de impacto do periódico como nota da qualidade de cada artigo nele publicado. Qual crítica é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O fator de impacto é uma métrica do periódico e não determina automaticamente a qualidade de cada artigo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O fator de impacto é calculado exclusivamente por downloads individuais e mede acesso aberto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A métrica é válida para artigos individuais quando todos estão no mesmo idioma de publicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O indicador corresponde ao número de autores por artigo e, por isso, mede colaboração científica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O fator de impacto mede somente a reputação dos revisores que avaliaram cada manuscrito.",
+          "correct": false
+        }
+      ],
+      "explanation": "A DORA enfatiza que o fator de impacto caracteriza o periódico e não a qualidade do conteúdo científico de um artigo ou contribuição individual. A métrica tampouco é medida de downloads, autoria ou avaliação dos revisores.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de bibliometria será usado para comparar duas instituições. Que conjunto de informações favorece a auditoria do resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente os gráficos finais, pois o método pode ser inferido pela aparência das visualizações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os nomes das instituições, dispensando a indicação da base e do período pesquisados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o código de cálculo, ainda que os filtros e os dados de entrada não sejam preservados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fonte, data, consulta, filtros, regra de contagem, versão dos dados e parâmetros da análise.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O indicador mais alto de cada grupo, sem critérios de inclusão ou tratamento de registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A auditoria requer reconstruir tanto a entrada quanto as escolhas metodológicas: fonte, consulta, filtros, data, unidade, regra de contagem, dados e parâmetros. Gráficos ou código isolados não identificam integralmente o corpus nem as transformações aplicadas.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise que consulta apenas a primeira página de resultados de uma API, embora existam páginas seguintes, pode subestimar a produção do corpus definido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se a resposta é paginada, a primeira página contém apenas parte dos registros. Sem percorrer as páginas ou cursores restantes, as contagens descrevem uma amostra incompleta e podem distorcer tendências e indicadores.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ORCID presente em um registro garante que todos os trabalhos associados àquele nome foram atribuídos ao pesquisador correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ORCID é um identificador útil, mas registros podem não trazê-lo, vinculá-lo incorretamente ou conter dados incompletos. A atribuição precisa ser validada e as limitações de cobertura devem ser consideradas.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline pode preservar os arquivos brutos e gerar dados tratados separados para análise, mantendo registrada a transformação aplicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Separar a entrada original dos dados harmonizados preserva proveniência e permite revisar as regras de processamento. O registro da transformação ajuda a explicar como os resultados foram obtidos.",
+      "section": "1. O fluxo computacional de uma análise bibliométrica",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se duas instituições aparecem na mesma publicação, contagem fracionária atribui automaticamente uma publicação completa a cada uma delas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Atribuir uma unidade completa a cada instituição é contagem integral. Na fracionária, o crédito é repartido conforme a regra definida; a forma exata de rateio precisa ser declarada.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas bases bibliográficas podem informar totais de citação distintos para o mesmo artigo por apresentarem cobertura e atualização diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cobertura de documentos, rede de referências indexadas e data de atualização influenciam a contagem. Comparações devem identificar a fonte e a data de extração, em vez de presumir equivalência entre bases.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cocitação conecta documentos porque os dois compartilham listas de referências, enquanto acoplamento conecta os dois porque uma terceira obra os citou juntos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As definições foram invertidas. Cocitação ocorre quando uma terceira publicação cita os dois documentos; acoplamento bibliográfico decorre das referências compartilhadas nas listas dos próprios documentos.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aresta de coautoria comprova que os pesquisadores tiveram contribuição intelectual equivalente e relação profissional duradoura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A aresta indica publicação conjunta registrada conforme os metadados. Ela não descreve por si só divisão de tarefas, intensidade, duração ou igualdade da contribuição; essas interpretações exigem evidências adicionais.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Biblioshiny oferece uma interface web para as análises do bibliometrix e pode ser usado sem escrever comandos R.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Biblioshiny é apresentada como interface web do bibliometrix, voltada a usuários que não programam em R. O uso da interface ainda exige escolher dados, filtros e operações de modo consistente com a pergunta.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapa de termos com nós próximos demonstra que os conceitos mantêm relação causal direta no mundo científico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A proximidade é produzida por uma representação matemática das relações e parâmetros escolhidos. Coocorrência pode indicar associação no corpus, mas não estabelece causalidade nem significado substantivo sem análise contextual.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Guardar consulta, filtros, data de coleta, versões de software e parâmetros contribui para que outra equipe examine e repita a análise.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses elementos descrevem a entrada e as decisões da execução. Junto de dados preservados e código ou sequência de operações, permitem auditar diferenças e reconstruir o processamento.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mesma rotina de cálculo garante resultados idênticos mesmo quando a base externa foi atualizada entre as execuções.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma base pode adicionar, corrigir ou remover registros. A rotina pode permanecer igual enquanto os valores mudam; uma análise reproduzível precisa identificar e preservar o snapshot ou a data da entrada utilizada.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A orientação da DORA propõe clareza, transparência, especificidade, contextualização e justiça no uso de indicadores quantitativos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses cinco princípios orientam a aplicação responsável de métricas, que devem complementar avaliação qualitativa com método explícito e atenção ao contexto, não substituir o julgamento sobre o trabalho.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A altmetria mede automaticamente a qualidade científica porque reúne menções em redes sociais, notícias e plataformas digitais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Altmetria observa rastros de atenção e interação disponíveis em plataformas, sujeitos a cobertura e regras de coleta. Menção ou compartilhamento não prova qualidade, leitura aprofundada ou impacto social efetivo.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A automação deve tratar valores ausentes como se fossem zero para que todos os documentos tenham os mesmos campos preenchidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ausência de metadado não significa valor zero. Substituições desse tipo inventam informação e podem distorcer indicadores; a falta deve ser caracterizada e tratada conforme regra explícita para cada campo.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A contagem integral de artigos por instituição pode resultar em soma superior ao total de documentos únicos quando há coautoria institucional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada instituição recebe crédito completo pelo documento compartilhado na contagem integral. Ao somar instituições, o mesmo artigo pode aparecer mais de uma vez; por isso a regra deve ser informada.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A quantidade de citações de um autor pode ser comparada entre áreas sem considerar idade das publicações ou cobertura bibliográfica, pois a automação remove essas diferenças.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A automação calcula conforme os registros e parâmetros, mas não neutraliza diferenças de campo, idade ou cobertura. Comparações demandam contextualização e, quando cabível, normalização cuja referência também seja descrita.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise pode divulgar o número de artigos por ano sem informar o tipo documental, a fonte e o período de busca, pois o gráfico torna esses critérios evidentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O gráfico não revela necessariamente critérios de inclusão ou cobertura. Fonte, data, filtros, período e tipos documentais precisam ser documentados para que a contagem possa ser interpretada e auditada.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Bibliometrix pode construir matrizes de documentos e atributos e matrizes de relações que apoiam estatísticas descritivas e mapeamento científico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fluxo descrito pelo projeto transforma registros em estrutura de dados bibliográficos, cria relações documento × atributo e matrizes bibliográficas para análises como redes, mapas e agrupamentos.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um algoritmo atribui dois documentos ao mesmo cluster, a equipe pode dispensar a leitura das obras porque o agrupamento já prova que tratam do mesmo conceito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um cluster depende da representação, dos dados e dos parâmetros. A interpretação substantiva requer examinar termos e documentos que formam o agrupamento; o algoritmo não prova identidade conceitual nem substitui leitura crítica.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma auditoria de indicadores deve registrar como foram tratados duplicatas, variantes de nomes e registros com campos ausentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essas decisões alteram atribuição e agregações. Registrar regras e casos não resolvidos torna possível avaliar o efeito da limpeza e refazer a análise com critérios diferentes.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina que combina registros por nome de autor semelhante pode ser aceita sem revisão porque erros de desambiguação tendem a se cancelar no total agregado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Falsas fusões e falsas separações podem alterar produção, citações, afiliações e redes de maneira desigual; não há garantia de cancelamento. Regras compostas, identificadores e revisão de ambiguidades reduzem o risco e devem ser documentados.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa comparar duas execuções de um levantamento obtidas em meses diferentes. Qual prática ajuda a explicar uma mudança nos resultados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir os dados antigos pelos novos, pois o código igual garante que o corpus permaneceu estável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar respostas brutas, datas, consultas e filtros de cada coleta para comparar entradas e decisões.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Comparar somente imagens dos gráficos, pois elas registram a cobertura das bases consultadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter apenas a planilha final, pois os metadados originais não influenciam indicadores após a limpeza.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reexecutar a consulta atual e atribuir toda diferença ao algoritmo, sem conferir alterações na fonte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bases podem corrigir ou ampliar seus registros entre coletas, mesmo que a rotina de análise permaneça igual. Preservar respostas brutas, datas, consultas e filtros permite identificar mudanças no corpus e distingui-las de alterações no tratamento, tornando a comparação auditável e explicando de onde veio cada resultado.",
+      "section": "5. Reprodutibilidade, auditoria e uso responsável",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao construir uma rede de coautoria, qual unidade e relação devem estar representadas para que os vértices sejam pesquisadores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Periódicos como vértices e citações recebidas como arestas entre todos os seus artigos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Palavras-chave como vértices e sua presença conjunta como ligação temática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pesquisadores como vértices e participação conjunta em documentos como ligação de colaboração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Documentos como vértices e referências compartilhadas como ligação de acoplamento bibliográfico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instituições como vértices e ano de publicação como ligação de proveniência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na rede de coautoria, os nós são autores e cada aresta indica que eles participaram juntos de uma publicação. Palavras-chave ligadas por coocorrência e documentos unidos por referências compartilhadas descrevem outras relações; não representam colaboração entre pesquisadores.",
+      "section": "4. Mapeamento científico e ferramentas computacionais",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca por API devolve respostas em páginas e termina com falha temporária depois de algumas requisições. Qual comportamento evita tratar uma coleta incompleta como corpus final?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar a última resposta recebida como completa, pois a falha indica que não há mais resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover as páginas anteriores e reiniciar com consulta ampla, sem salvar os parâmetros usados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Preencher a quantidade esperada com cópias dos registros já coletados antes de calcular indicadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar status e página alcançada, retomar as requisições necessárias e verificar a conclusão da paginação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Excluir o filtro temporal e somar as respostas parciais para compensar registros que talvez faltem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha de rede não indica que a paginação terminou, pois ainda podem faltar registros. Guardar o estado da coleta, repetir as requisições pendentes e confirmar o encerramento da sequência evita apresentar a contagem de um corpus parcial como se estivesse completa.",
+      "section": "2. Coleta, integração e qualidade dos metadados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma comparação de produção entre instituições, a equipe deseja repartir igualmente o crédito de cada artigo entre as afiliações identificadas. Qual opção descreve essa regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contagem integral, que credita uma fração a cada instituição para manter a soma igual a um.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contagem de citações, que divide as referências citadas entre os autores do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Normalização por campo, que reparte cada publicação conforme a média de citações da área.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desambiguação institucional, que atribui o artigo somente à afiliação mais frequente no corpus.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contagem fracionária, que reparte o crédito do artigo entre as instituições participantes conforme a regra definida.",
+          "correct": true
+        }
+      ],
+      "explanation": "A contagem fracionária divide o crédito de uma publicação entre as entidades participantes segundo uma regra explícita, como parcelas iguais. Na contagem integral, cada participante recebe crédito completo pelo artigo; por isso, a soma institucional pode superar o total de documentos únicos.",
+      "section": "3. Indicadores automatizados e matrizes de análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Software — bibliometrix",
+      "publisher": "bibliometrix / K-Synth",
+      "reference": "Fluxo de importação e conversão de registros, matriz documento × atributo, matrizes bibliográficas, indicadores por fonte/autor/documento e estruturas de conhecimento.",
+      "url": "https://www.bibliometrix.org/software/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Biblioshiny",
+      "publisher": "bibliometrix / K-Synth",
+      "reference": "Interface web, importação, conversão e integração de registros, indicadores, redes e etapas Search, Appraisal, Analysis e Synthesis.",
+      "url": "https://www.bibliometrix.org/biblioshiny/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Crossref REST API — Swagger UI",
+      "publisher": "Crossref",
+      "reference": "Endpoints de obras, consultas, filtros, respostas em JSON, paginação e códigos de resposta HTTP.",
+      "url": "https://api.crossref.org/swagger-ui/index.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guidance on the responsible use of quantitative indicators in research assessment",
+      "publisher": "DORA",
+      "reference": "Princípios de clareza, transparência, especificidade, contexto e justiça para uso de indicadores, incluindo citações, h-index e métricas normalizadas.",
+      "url": "https://sfdora.org/resource/guidance-on-the-responsible-use-of-quantitative-indicators-in-research-assessment/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Frequently Asked Questions",
+      "publisher": "DORA",
+      "reference": "Avaliação responsável, uso contextual de métricas, diversidade de produtos de pesquisa e distinção entre fator de impacto de periódico e qualidade de artigo individual.",
+      "url": "https://sfdora.org/faq/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

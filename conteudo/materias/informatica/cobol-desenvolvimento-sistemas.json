@@ -1,0 +1,2094 @@
+{
+  "id": "informatica.cobol-desenvolvimento-sistemas",
+  "subject": "Informática",
+  "title": "Desenvolvimento de sistemas com COBOL",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento de sistemas com COBOL",
+    "Programação de sistemas em COBOL",
+    "Linguagem COBOL e seus programas",
+    "Estrutura de programas COBOL",
+    "Divisões da linguagem COBOL",
+    "Dados e arquivos em COBOL",
+    "Processamento de arquivos com COBOL",
+    "Comandos e procedimentos COBOL",
+    "Subprogramas e parâmetros COBOL",
+    "Manutenção de sistemas legados COBOL"
+  ],
+  "scope": {
+    "covers": "Fundamentos do desenvolvimento de sistemas com COBOL: estrutura de um programa e divisões; formato do código-fonte; identificação, ambiente, dados e procedimentos; níveis e cláusulas de dados; arquivos sequenciais e indexados, abertura, leitura, gravação e status; comandos de movimentação, decisão, repetição e aritmética; parágrafos, seções, PERFORM, CALL, parâmetros e LINKAGE SECTION; compilação, teste, manutenção e organização de aplicações empresariais.",
+    "excludes": "Detalhes de uma versão ou compilador específico, administração de mainframe, JCL, CICS, DB2, SQL embarcado, transações distribuídas, sintaxe proprietária e história institucional da linguagem."
+  },
+  "theoryTitle": "Construção e manutenção de sistemas com COBOL",
+  "chapters": [
+    {
+      "title": "1. Estrutura do programa e organização do código",
+      "markdown": "### O problema que este assunto resolve\n\nCOBOL foi desenhado para expressar processamento de dados de negócio de modo legível. Um programa costuma declarar primeiro sua identidade e seus recursos, descrever os dados que manipula e só então apresentar os procedimentos executáveis. Essa organização permite localizar rapidamente a entrada, os registros, os cálculos e as regras que transformam os dados.\n\n> **Siglas e termos deste capítulo**\n> - **Fonte**: texto COBOL escrito pelo programador e submetido ao compilador.\n> - **Compilador**: ferramenta que verifica a sintaxe e traduz o fonte para um programa executável.\n> - **Divisão (DIVISION)**: grande parte estrutural do programa, com finalidade definida.\n> - **Parágrafo (paragraph)**: procedimento nomeado, normalmente terminado por ponto.\n> - **Sentença**: sequência de instruções COBOL terminada por ponto.\n\n### As quatro divisões\n\nUm programa convencional pode conter quatro divisões, nesta ordem: **IDENTIFICATION DIVISION**, que identifica o programa; **ENVIRONMENT DIVISION**, que descreve aspectos do ambiente e associa nomes lógicos de arquivos a recursos externos; **DATA DIVISION**, que define registros, campos e dados de trabalho; e **PROCEDURE DIVISION**, que contém as instruções executáveis. Nem toda divisão é obrigatória em todo programa, mas a função de cada uma permanece distinta.\n\nNo cabeçalho, `PROGRAM-ID` nomeia o programa. Na divisão de ambiente, a `INPUT-OUTPUT SECTION` e o parágrafo `FILE-CONTROL` podem relacionar um nome COBOL a um arquivo externo por meio de `SELECT` e `ASSIGN`. A `DATA DIVISION` pode conter `FILE SECTION`, `WORKING-STORAGE SECTION`, `LOCAL-STORAGE SECTION` e `LINKAGE SECTION`, conforme a necessidade.\n\n### Formato do fonte\n\nEm formato fixo tradicional, as posições da linha têm significado: as primeiras seis colunas podem conter sequência, a sétima é a área indicadora, e o texto de programa fica nas áreas A e B. Nessa convenção, divisões, seções e parágrafos normalmente começam na área A; comandos e cláusulas ficam usualmente na área B. Compiladores e opções modernas também podem aceitar formato livre ou estendido. Portanto, não se deve confundir uma regra do formato fixo com uma exigência universal de toda configuração COBOL.\n\nPalavras reservadas como `MOVE`, `IF`, `READ` e `PERFORM` expressam operações. Identificadores definidos pelo programador nomeiam campos e procedimentos. O ponto final encerra sentenças e pode encerrar parágrafos; sua colocação descuidada pode alterar o alcance de construções condicionais.\n\n### Exemplo de leitura estrutural\n\nEm `DATA DIVISION`, `01 CLIENTE-REGISTRO.` inicia um grupo de dados. Campos subordinados, como `05 CLIENTE-NOME PIC X(30).`, descrevem partes desse registro. Já `PROCEDURE DIVISION.` inicia a lógica: um parágrafo `PROCESSAR-CLIENTE.` pode validar campos e chamar outros procedimentos. Os números de nível organizam a descrição dos dados; não são valores armazenados.\n\n### Como cai na prova\n\n- `DATA DIVISION` descreve os dados; não é onde se colocam as instruções de negócio executáveis.\n- `ENVIRONMENT DIVISION` trata do ambiente e das associações de arquivos, não da definição dos campos do registro.\n- A divisão de procedimentos é o lugar das instruções executadas.\n- Em formato fixo, colunas e áreas importam; em formato livre, a disposição tradicional não deve ser presumida."
+    },
+    {
+      "title": "2. Dados, registros e representação",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa de negócio recebe registros e precisa representar nomes, datas, quantias, contadores e indicadores sem perder significado. COBOL descreve esses itens por níveis e cláusulas, distinguindo grupo de campos e elemento elementar. A cláusula `PICTURE` (ou `PIC`) informa a forma e a categoria do dado; `USAGE` indica como certos dados numéricos são representados e processados.\n\n> **Siglas e termos deste capítulo**\n> - **PIC/PICTURE**: cláusula que define caracteres e posições de um campo.\n> - **Grupo**: item formado por campos subordinados, sem PIC própria na entrada de grupo.\n> - **Elemento elementar**: campo indivisível na descrição, com representação própria.\n> - **WORKING-STORAGE**: dados de trabalho que persistem durante a execução da unidade de programa.\n> - **LINKAGE**: descrição de dados fornecidos pelo chamador ou associados externamente.\n\n### Níveis e estrutura hierárquica\n\nOs níveis `01` a `49` organizam itens em relações de grupo e subcampo: `01 PEDIDO.` pode conter `05 PEDIDO-NUMERO PIC 9(8).` e `05 PEDIDO-VALOR PIC 9(7)V99.`. O nível `01` introduz um registro ou grupo de topo. Níveis `77` descrevem itens independentes; níveis `88` nomeiam condições associadas a valores de um campo, facilitando expressar estados como `PEDIDO-VALIDO`. Níveis `66` servem a renomeações com `RENAMES`, um recurso menos comum. Os níveis são marcadores estruturais, não valores numéricos do dado.\n\n### Categorias e cláusulas\n\nEm PIC, `X` representa posições alfanuméricas, `A` posições alfabéticas em implementações que oferecem essa categoria, e `9` posições numéricas. Símbolos como `V` indicam uma posição decimal implícita: em `PIC 9(5)V99`, os dois dígitos à direita são casas decimais, mas o `V` não ocupa um caractere físico no campo. `S` indica sinal numérico. Cláusulas de edição, como ponto, vírgula, símbolo monetário e sinal flutuante, formatam a apresentação de valores; não devem ser confundidas com armazenamento numérico bruto.\n\nA cláusula `VALUE` pode estabelecer valor inicial. `REDEFINES` permite descrever a mesma área de armazenamento por outra estrutura, com requisitos de compatibilidade definidos pelo compilador. `OCCURS` descreve ocorrências repetidas, semelhantes a uma tabela; um índice ou subscrito identifica a ocorrência usada. `REDEFINES` não cria automaticamente uma cópia adicional dos dados.\n\n### Onde ficam os dados\n\n`WORKING-STORAGE SECTION` abriga dados de duração estática para a unidade de execução. `LOCAL-STORAGE SECTION` aloca dados locais em cada entrada da unidade, liberados quando ela retorna, distinção relevante em chamadas repetidas ou recursão. `FILE SECTION` contém descrições dos registros de arquivo. `LINKAGE SECTION` descreve itens associados aos argumentos recebidos ou a dados ligados externamente; esses itens não são inicializados como dados próprios comuns.\n\n### Escolha cuidadosa de representação\n\nCampos de texto e números têm finalidades diferentes. Um número de conta com zeros à esquerda pode ser identificador alfanumérico, mesmo contendo apenas algarismos; tratá-lo como quantidade pode eliminar zeros ou permitir operações sem sentido. Para valores financeiros, uma PIC decimal explícita evita depender de arredondamentos binários de ponto flutuante. O tamanho do registro precisa acomodar entradas válidas e deve ser compatível com o contrato de arquivo ou de chamada.\n\n### Como cai na prova\n\n- `PIC X(20)` descreve vinte posições de texto; `PIC 9(5)V99` descreve sete dígitos com escala decimal implícita.\n- `OCCURS` repete uma estrutura; `88` dá nome a uma condição, não reserva um novo campo comum.\n- `WORKING-STORAGE`, `LOCAL-STORAGE` e `LINKAGE` têm papéis de duração e associação diferentes.\n- Um identificador numérico não é necessariamente uma quantidade que deva ser somada."
+    },
+    {
+      "title": "3. Arquivos e processamento de registros",
+      "markdown": "### O problema que este assunto resolve\n\nSistemas administrativos frequentemente leem arquivos de entrada, validam registros e escrevem resultados ou relatórios. No COBOL, a descrição do arquivo é dividida entre a associação ambiental e o formato do registro: `SELECT` e `ASSIGN` relacionam o nome lógico ao recurso externo; `FD` e os itens da `FILE SECTION` descrevem o registro que será processado.\n\n> **Siglas e termos deste capítulo**\n> - **SELECT**: entrada de controle que nomeia o arquivo lógico e define atributos de acesso.\n> - **ASSIGN**: associação do nome lógico a um arquivo ou recurso do ambiente.\n> - **FD**: descrição de arquivo na `FILE SECTION`.\n> - **FILE STATUS**: campo opcional que recebe um código sobre o resultado de operações de arquivo.\n> - **EOF**: condição de fim de arquivo, reconhecida pelo programa ao não haver próximo registro.\n\n### Descrição e ciclo de vida\n\nUma descrição típica usa `SELECT ARQ-ENTRADA ASSIGN TO ...` em `FILE-CONTROL` e `FD ARQ-ENTRADA` na `FILE SECTION`, seguida de `01 REG-ENTRADA` e seus campos. A organização lógica pode ser sequencial, relativa ou indexada, conforme declaração, meio e suporte do compilador. Arquivo sequencial é percorrido na ordem dos registros; arquivo indexado permite localizar registros por chave e pode ter chave primária e chaves alternativas. A escolha afeta como registros são localizados, inseridos e atualizados.\n\nO ciclo normal é `OPEN`, operações de leitura ou escrita e `CLOSE`. `OPEN INPUT` prepara leitura; `OPEN OUTPUT` normalmente cria ou substitui a saída conforme o ambiente e a organização; `OPEN EXTEND` acrescenta ao fim em modalidades compatíveis; `OPEN I-O` permite leitura e atualização quando suportado. O modo permitido depende da organização e da operação pretendida. Não se deve supor que abrir em `OUTPUT` preserve o conteúdo anterior.\n\n### Leitura segura até o fim\n\nEm processamento sequencial, o padrão clássico é abrir entrada, ler um registro, tratar `AT END` e continuar até a condição de fim; por fim fechar o arquivo. A condição `AT END` evita tentar processar um registro inexistente. Em programas mais estruturados, pode-se usar `FILE STATUS` para verificar o resultado de cada operação e distinguir fim normal de falhas de acesso. Os códigos exatos dependem das convenções da implementação; a lógica deve tratar erros explicitamente, em vez de ignorá-los.\n\nOperações como `WRITE` gravam um registro; em arquivo indexado, a chave deve respeitar as regras da organização. `REWRITE` atualiza um registro existente em condições próprias, geralmente após leitura que o posiciona; `DELETE` remove registro em organização compatível. Em arquivo sequencial comum, não se deve pressupor atualização aleatória por chave.\n\n### Robustez do processamento\n\nO programa deve validar dados externos antes de usá-los: formato, campos obrigatórios, faixa numérica e consistência entre campos. Para rejeições, é útil produzir um relatório ou arquivo de erros que identifique o registro e o motivo. A gravação de saída deve ser fechada corretamente e monitorada. Um `CLOSE` não substitui tratamento de falha da gravação, nem a leitura completa garante que os dados de entrada sejam válidos.\n\n### Como cai na prova\n\n- `SELECT`/`ASSIGN` configuram o vínculo do arquivo; `FD` descreve os registros na `FILE SECTION`.\n- `OPEN`, `READ`/`WRITE` e `CLOSE` formam o ciclo básico de acesso.\n- `AT END` permite encerrar a leitura sequencial sem processar registro inexistente.\n- A organização indexada oferece acesso por chave; isso não significa que todo arquivo seja automaticamente indexado."
+    },
+    {
+      "title": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de descrever entradas e campos, o programa precisa validar, decidir, calcular e encaminhar o processamento. A `PROCEDURE DIVISION` organiza essas ações em parágrafos e seções. `PERFORM` executa procedimentos ou blocos controlados; `CALL` transfere controle para outro programa. Modularizar reduz duplicação e permite testar cada regra com entradas conhecidas.\n\n> **Siglas e termos deste capítulo**\n> - **PERFORM**: executa um parágrafo, seção ou bloco de instruções.\n> - **CALL**: invoca outro programa, podendo passar argumentos.\n> - **LINKAGE SECTION**: descreve os dados recebidos por um subprograma.\n> - **BY REFERENCE**: passa referência à área de dados, forma padrão comum no COBOL.\n> - **BY CONTENT/BY VALUE**: modos de passagem com semântica própria, conforme a chamada e implementação.\n\n### Decisão, repetição e cálculos\n\n`IF ... ELSE ... END-IF` expressa decisão; `EVALUATE` compara condições ou valores em vários casos, funcionando como seleção múltipla estruturada. Encerrar explicitamente construções com `END-IF` e `END-PERFORM` torna o alcance legível. `PERFORM ... UNTIL` repete até que a condição seja verdadeira; é importante atualizar dentro do ciclo o dado que fará a condição avançar. `PERFORM ... TIMES` executa um número determinado de vezes. `PERFORM` também pode chamar um parágrafo nomeado.\n\n`MOVE` transfere ou converte dados conforme regras de categoria e tamanho; truncamento ou conversão inadequada pode causar perda. `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE` e `COMPUTE` fazem operações aritméticas. Nas formas `... GIVING`, o resultado vai para o destino indicado, preservando os operandos conforme a forma usada; cláusulas como `ROUNDED` podem controlar arredondamento. É essencial escolher PIC que suporte a precisão e tratar divisão por zero segundo as regras do programa e do compilador.\n\n### Parágrafos, seções e modularização\n\nUm parágrafo tem nome e instruções associadas. Uma seção agrupa procedimentos; ao executar uma seção inteira, pode-se alcançar mais de um parágrafo até o próximo limite de seção. Por isso, `PERFORM` direcionado a parágrafos tende a expressar melhor uma unidade pequena, enquanto a execução acidental de uma seção ampla pode percorrer procedimentos não pretendidos. `GO TO` altera o fluxo diretamente e torna o percurso mais difícil de acompanhar; estruturas de decisão e `PERFORM` costumam facilitar manutenção.\n\n### Programas chamados e interface\n\n`CALL` transfere o controle ao programa chamado e pode passar argumentos com `USING`. A lista e a ordem dos argumentos devem corresponder ao que o subprograma espera; o compilador não faz correspondência por nomes. O subprograma descreve os dados recebidos na `LINKAGE SECTION` e declara os parâmetros em `PROCEDURE DIVISION USING`. Como `BY REFERENCE` permite ao chamado acessar a área original, alterações podem ser vistas pelo chamador. `BY CONTENT` fornece uma cópia sem permitir que o chamado altere o argumento original por essa via; `BY VALUE` passa valor de acordo com convenções suportadas. O contrato deve definir tamanhos, formatos, ordem e quais parâmetros podem ser alterados.\n\n### Compilar, testar e manter\n\nUm ciclo disciplinado começa com requisitos e contratos de dados, segue com desenho dos registros e procedimentos, implementação, compilação e correção de diagnósticos. Testes devem cobrir o caminho normal, limites de campo, dado inválido, arquivo vazio, fim de arquivo, falha de abertura e cálculos em fronteiras. A comparação de saídas esperadas com saídas obtidas detecta regressões. Em manutenção, primeiro se rastreia de onde vêm os dados, qual caminho os modifica e quais programas chamados compartilham o contrato; depois se altera e testa o menor componente possível.\n\n### Como cai na prova\n\n- `IF` e `EVALUATE` controlam decisões; `PERFORM` executa procedimentos e repetições; `CALL` invoca outro programa.\n- Argumentos de `CALL ... USING` correspondem por posição e precisam de descrições compatíveis no chamado.\n- `BY REFERENCE` pode expor alterações na área do chamador; o modo de passagem faz parte do contrato.\n- Testes de arquivo vazio, dado inválido e limite numérico revelam falhas que um caso médio não mostra."
+    }
+  ],
+  "summary": "COBOL organiza programas em divisões com responsabilidades distintas: IDENTIFICATION identifica, ENVIRONMENT associa recursos externos, DATA descreve dados e PROCEDURE contém as instruções executáveis. Níveis estruturam registros e PIC descreve categorias e posições, com V decimal implícito; WORKING-STORAGE, LOCAL-STORAGE e LINKAGE têm durações e usos diferentes. Arquivos são associados por SELECT/ASSIGN, descritos com FD e processados em ciclo OPEN, leitura ou gravação e CLOSE, com AT END ou FILE STATUS tratados. IF, EVALUATE, PERFORM e comandos aritméticos implementam regras; CALL modulariza a aplicação, com parâmetros USING alinhados por posição e descritos no LINKAGE do chamado. Compilação e testes precisam cobrir limites, entradas inválidas e erros de arquivo.",
+  "flashcards": [
+    {
+      "front": "Quais são as quatro divisões convencionais de um programa COBOL?",
+      "back": "IDENTIFICATION DIVISION, ENVIRONMENT DIVISION, DATA DIVISION e PROCEDURE DIVISION, cada uma com papel próprio."
+    },
+    {
+      "front": "Qual divisão contém as instruções executáveis?",
+      "back": "PROCEDURE DIVISION; nela ficam procedimentos, parágrafos, sentenças e comandos que processam os dados."
+    },
+    {
+      "front": "Para que serve a ENVIRONMENT DIVISION em um programa com arquivos?",
+      "back": "Descreve aspectos do ambiente e associa nomes lógicos de arquivos a recursos externos, por exemplo em FILE-CONTROL."
+    },
+    {
+      "front": "O que a cláusula PIC descreve?",
+      "back": "A categoria, o formato e o número de posições do item de dados, como texto X(20) ou dígitos 9(5)V99."
+    },
+    {
+      "front": "O que representa V em PIC 9(5)V99?",
+      "back": "Uma posição decimal implícita entre as partes numéricas; não ocupa uma posição física armazenada como caractere."
+    },
+    {
+      "front": "Qual é o papel de um nível 01?",
+      "back": "Iniciar uma descrição de registro ou grupo de dados de nível superior, que pode conter itens subordinados."
+    },
+    {
+      "front": "O que fazem itens de nível 88?",
+      "back": "Nomeiam condições associadas a valores de outro campo, facilitando testar estados sem criar um campo comum separado."
+    },
+    {
+      "front": "Como WORKING-STORAGE difere de LOCAL-STORAGE?",
+      "back": "WORKING-STORAGE persiste pela vida da unidade de execução; LOCAL-STORAGE recebe armazenamento local a cada entrada e é liberada no retorno."
+    },
+    {
+      "front": "Para que serve a LINKAGE SECTION?",
+      "back": "Descreve dados associados a argumentos recebidos ou a dados ligados externamente, como parâmetros de um subprograma."
+    },
+    {
+      "front": "Onde se associa um nome lógico de arquivo a um recurso externo?",
+      "back": "Em FILE-CONTROL, com entradas SELECT e cláusulas como ASSIGN, dentro da ENVIRONMENT DIVISION."
+    },
+    {
+      "front": "O que uma FD descreve?",
+      "back": "A descrição do arquivo na FILE SECTION, incluindo o registro e seus campos subordinados."
+    },
+    {
+      "front": "Qual sequência resume o ciclo de acesso a arquivo?",
+      "back": "Abrir com OPEN, executar leituras ou gravações adequadas e fechar com CLOSE, tratando falhas e fim de arquivo."
+    },
+    {
+      "front": "Como um programa sequencial pode detectar que não há próximo registro?",
+      "back": "Com a condição AT END da leitura ou verificando um FILE STATUS adequado à implementação."
+    },
+    {
+      "front": "Para que serve EVALUATE?",
+      "back": "Seleciona entre casos ou condições de forma estruturada, sendo útil quando há várias alternativas de decisão."
+    },
+    {
+      "front": "O que executa PERFORM?",
+      "back": "Um parágrafo, uma seção ou um bloco controlado, incluindo repetições TIMES ou UNTIL."
+    },
+    {
+      "front": "O que CALL faz em COBOL?",
+      "back": "Invoca outro programa e pode transferir argumentos na frase USING, seguindo o contrato do programa chamado."
+    },
+    {
+      "front": "Como os parâmetros de um CALL se alinham no programa chamado?",
+      "back": "Por posição: o primeiro argumento corresponde ao primeiro item declarado no USING do chamado, e assim por diante."
+    },
+    {
+      "front": "O que pode ocorrer quando um argumento é passado BY REFERENCE?",
+      "back": "O chamado acessa a área do argumento original e alterações feitas no dado podem ser observadas pelo chamador."
+    },
+    {
+      "front": "Qual é uma distinção prática entre BY REFERENCE e BY CONTENT?",
+      "back": "BY REFERENCE compartilha a área original; BY CONTENT fornece uma cópia para uso do chamado, sem alterar o original por essa via."
+    },
+    {
+      "front": "Que testes básicos ajudam a validar um programa de arquivo?",
+      "back": "Arquivo vazio, registro válido, dado inválido, fim do arquivo, falha de abertura e valores próximos aos limites numéricos."
+    }
+  ],
+  "tips": [
+    "Associe cada divisão à sua pergunta: quem sou, que recurso externo uso, que dados tenho e que operações executo.",
+    "Leia primeiro os níveis 01 e 05 para enxergar o formato completo do registro antes de analisar um campo isolado.",
+    "Em PIC numérica, conte as posições 9 e identifique se há S ou V; V indica escala decimal sem caractere físico.",
+    "Ao percorrer arquivo, localize OPEN, a condição de fim, a operação dentro do ciclo e o CLOSE.",
+    "Em CALL, confira a ordem dos itens USING dos dois programas e se algum argumento pode ser alterado.",
+    "Ao ler um PERFORM UNTIL, confirme que alguma instrução muda a condição de parada para evitar repetição sem fim."
+  ],
+  "traps": [
+    "Confundir DATA DIVISION, que descreve dados, com PROCEDURE DIVISION, que contém comandos executáveis.",
+    "Tratar V em PIC como uma posição física ou contar o separador decimal como caractere armazenado.",
+    "Supor que um campo formado por algarismos sempre representa quantidade; códigos podem precisar preservar zeros à esquerda.",
+    "Afirmar que OPEN OUTPUT preserva necessariamente o conteúdo anterior do arquivo.",
+    "Confundir PERFORM, que executa procedimentos, com CALL, que invoca outro programa.",
+    "Supor que o compilador associa argumentos de um subprograma pelo nome; a correspondência da lista é posicional."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o papel das quatro divisões convencionais do COBOL.",
+      "answer": "IDENTIFICATION nomeia o programa; ENVIRONMENT descreve ambiente e associações externas; DATA define registros e dados; PROCEDURE contém a lógica executável."
+    },
+    {
+      "question": "Explique como se lê PIC 9(5)V99.",
+      "answer": "É um item numérico com cinco posições inteiras e duas decimais implícitas; V marca a posição decimal sem ocupar caractere físico."
+    },
+    {
+      "question": "Compare WORKING-STORAGE, LOCAL-STORAGE e LINKAGE.",
+      "answer": "WORKING-STORAGE persiste durante a execução da unidade; LOCAL-STORAGE é alocada por entrada; LINKAGE descreve dados associados a argumentos ou dados externos."
+    },
+    {
+      "question": "Trace o ciclo de leitura sequencial de um arquivo.",
+      "answer": "Declarar a associação e o registro, abrir para entrada, ler e tratar cada registro até AT END ou condição equivalente, então fechar e verificar falhas."
+    },
+    {
+      "question": "Explique como os parâmetros de CALL são descritos no programa chamado.",
+      "answer": "A chamada lista argumentos em USING; o chamado lista itens correspondentes por posição, descreve-os na LINKAGE SECTION e os referencia na PROCEDURE DIVISION USING."
+    },
+    {
+      "question": "Diferencie IF, EVALUATE, PERFORM e CALL.",
+      "answer": "IF decide entre caminhos; EVALUATE seleciona entre casos; PERFORM executa procedimento ou repetição; CALL transfere controle a outro programa."
+    },
+    {
+      "question": "Por que um código numérico de cliente pode ser armazenado como texto?",
+      "answer": "Ele pode ser identificador, não quantidade; a forma textual preserva zeros iniciais e evita operações aritméticas sem sentido."
+    },
+    {
+      "question": "Que cenário deve ser tratado ao ler arquivo além do registro válido?",
+      "answer": "Fim de arquivo, arquivo vazio, erro de abertura ou leitura, registro malformado e dados fora dos limites esperados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca de finalidade das divisões",
+      "summary": "IDENTIFICATION nomeia, ENVIRONMENT associa o ambiente e arquivos, DATA descreve itens, e PROCEDURE contém o processamento executável. A posição e a responsabilidade dessas partes são cobradas em questões de leitura de fonte."
+    },
+    {
+      "key": "e2",
+      "title": "Interpretação equivocada de PIC e níveis",
+      "summary": "PIC define categoria e posições; V é decimal implícito, níveis expressam hierarquia, e 88 nomeia condição. Um item só com algarismos pode ser identificador textual, não uma quantidade."
+    },
+    {
+      "key": "e3",
+      "title": "Ciclo de arquivo incompleto",
+      "summary": "SELECT/ASSIGN estabelecem a associação ambiental e FD descreve o registro. OPEN prepara o modo de acesso, READ ou WRITE processa registros, AT END identifica fim e CLOSE encerra o uso."
+    },
+    {
+      "key": "e4",
+      "title": "Confusão entre controle local e chamada",
+      "summary": "PERFORM executa procedimentos da unidade; CALL invoca programa separado. Parâmetros USING devem corresponder por posição e serem descritos no LINKAGE SECTION do chamado."
+    },
+    {
+      "key": "e5",
+      "title": "Ignorar modo de passagem e contrato",
+      "summary": "BY REFERENCE permite acesso à área original; BY CONTENT e BY VALUE têm semânticas distintas conforme o contrato e a implementação. Ordem, tamanho, representação e possibilidade de alteração precisam coincidir."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual divisão contém as instruções que validam os campos e calculam o resultado de um processamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A IDENTIFICATION DIVISION, junto ao nome e à descrição do programa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ENVIRONMENT DIVISION, depois da associação dos recursos externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A DATA DIVISION, ao lado das descrições dos registros de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A FILE SECTION, que descreve os registros ligados ao arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A PROCEDURE DIVISION, com comandos e procedimentos executáveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "A lógica de validação e cálculo é executada na PROCEDURE DIVISION. DATA DIVISION descreve os itens que serão processados; FILE SECTION descreve registros de arquivos e integra a parte de dados.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fonte COBOL convencional, qual responsabilidade pertence à ENVIRONMENT DIVISION?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nomear o programa e declarar seu identificador principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Associar nomes lógicos de arquivos a recursos do ambiente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir campos de registro e suas cláusulas PICTURE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar decisões de negócio e operações aritméticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar a sequência de argumentos de um subprograma chamado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ENVIRONMENT DIVISION descreve aspectos do ambiente de execução, inclusive associação de arquivos em FILE-CONTROL. Nomes, campos e lógica executável pertencem a outras partes estruturais.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No formato fixo tradicional, para que serve a área indicadora da linha-fonte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar obrigatoriamente o nome do parágrafo em execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar o número de versão do compilador usado no programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificar o arquivo de entrada que será aberto pelo programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Informar ao sistema a quantidade de campos do registro declarado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indicar propriedades especiais da linha, como continuação ou comentário.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na organização de fonte fixa, a coluna indicadora permite atribuir tratamento especial à linha, por exemplo continuação ou documentação. Ela não substitui declarações de dados nem controles de arquivo.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe moveu comandos de cálculo para a DATA DIVISION e deixou apenas as declarações de campos na PROCEDURE DIVISION. A organização está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DATA DIVISION define os dados usados pelo programa. Comandos executáveis de cálculo e validação pertencem à PROCEDURE DIVISION.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No formato fixo tradicional, as colunas iniciais não têm função estrutural e qualquer texto pode ser deslocado sem alterar a interpretação do fonte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. No formato fixo, posições podem conter sequência, a coluna indicadora sinaliza tratamento e as áreas seguintes recebem construções do programa. Deslocar texto pode, portanto, mudar sua interpretação pelo compilador.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PROGRAM-ID é a declaração usada para definir todos os campos do registro que será lido pelo programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. PROGRAM-ID identifica o programa. Os campos de dados são descritos na DATA DIVISION, e os registros de arquivo aparecem na FILE SECTION.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde melhor a um item de grupo iniciado no nível 01?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma condição de teste que aceita uma lista de valores nomeados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um comando que transfere dados entre programas executáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um registro ou grupo de topo que pode conter campos subordinados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma posição decimal física que separa parte inteira e fracionária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma associação de nome lógico de arquivo ao recurso externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nível 01 inicia uma descrição de registro ou grupo de topo; itens como 05 podem aparecer subordinados a ele. Condições, representação decimal e arquivos são tratados por outros elementos da linguagem.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PIC 9(5)V99, o que representa a letra V?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma posição de texto reservada para a letra V no valor armazenado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um sinal obrigatório que indica valor numérico negativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um contador de ocorrências usado para indexar uma tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um separador decimal implícito entre posições numéricas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um campo adicional de duas posições para centavos textuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "V marca a posição decimal implícita entre os dígitos previstos na PIC; não consome posição física como um caractere decimal impresso. Neste exemplo há cinco dígitos antes e dois depois da escala.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que distingue principalmente um item de nível 88 dos campos comuns do registro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele declara obrigatoriamente um arquivo indexado com chave primária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele cria uma área de armazenamento independente para cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele define o tamanho físico do registro recebido do ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele transfere um valor para um programa chamado por referência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele dá nome a uma condição associada a valores de outro campo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um item de nível 88 define um nome de condição associado aos valores de um item de dados existente. Ele facilita expressar testes como estado válido, sem ser um campo comum que armazena novo valor.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um identificador de cliente contém apenas algarismos, mas zeros à esquerda fazem parte do código. Qual decisão de modelagem é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Defini-lo como texto quando for rótulo e não quantidade aritmética.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazená-lo como número assinado para permitir soma de códigos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar cada algarismo como nível de condição 88 independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar V para indicar que os zeros iniciais são casas decimais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Defini-lo em LINKAGE mesmo quando o dado é interno e local.",
+          "correct": false
+        }
+      ],
+      "explanation": "O identificador é uma etiqueta, não uma grandeza. Representá-lo como texto pode preservar zeros iniciais e impede que cálculos numéricos sem significado sejam aplicados ao código.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nível 88 cria sempre um novo campo numérico independente, com armazenamento separado do item ao qual está associado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O nível 88 nomeia uma condição associada a valores de outro item; não é um campo comum independente com armazenamento separado.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre WORKING-STORAGE e LOCAL-STORAGE descreve corretamente a duração dos dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas são seções exclusivas para descrever parâmetros recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "WORKING-STORAGE persiste na execução; LOCAL-STORAGE é alocada por entrada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LOCAL-STORAGE descreve apenas arquivos indexados e suas chaves.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WORKING-STORAGE é liberada após cada instrução executada pelo programa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas seções armazenam somente valores constantes sem alteração.",
+          "correct": false
+        }
+      ],
+      "explanation": "WORKING-STORAGE tem duração estática durante a vida da unidade de execução, ao passo que LOCAL-STORAGE é alocada quando a unidade é chamada e liberada no retorno. LINKAGE é a seção voltada aos dados associados externamente.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "OCCURS é a cláusula que impede a repetição de um item e força cada campo a aparecer uma única vez no registro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. OCCURS descreve precisamente repetições de um item ou grupo, como as ocorrências de uma tabela dentro do registro; índice ou subscrito permite referenciar cada ocorrência.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual seção descreve dados associados a argumentos recebidos por um subprograma?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FILE SECTION, que guarda todos os parâmetros em registros de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A WORKING-STORAGE, que substitui a lista USING da chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A LINKAGE SECTION, referenciada pelo cabeçalho PROCEDURE DIVISION USING.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A ENVIRONMENT SECTION, definida dentro da divisão de identificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A REPORT SECTION, que recebe argumentos em ordem alfabética.",
+          "correct": false
+        }
+      ],
+      "explanation": "A LINKAGE SECTION descreve dados fornecidos pelo chamador ou ligados externamente. O cabeçalho PROCEDURE DIVISION USING associa os itens formais aos argumentos da chamada.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A letra X em uma cláusula PIC representa somente posições numéricas destinadas a cálculo aritmético.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. X representa posições alfanuméricas. Para posições numéricas usa-se 9; a categoria escolhida deve combinar com a finalidade do dado e as operações previstas.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre as cláusulas de descrição e seus efeitos está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VALUE associa o item a um valor inicial previsto na declaração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "OCCURS converte automaticamente campos textuais em números editados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "REDEFINES cria sempre uma cópia adicional e independente dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PIC identifica o arquivo externo que receberá o registro descrito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LINKAGE informa quantas vezes o item deve se repetir em uma tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "VALUE estabelece valor inicial conforme as regras da declaração. OCCURS descreve repetições, REDEFINES fornece outra descrição da mesma área, PIC define características do item e LINKAGE trata de dados associados externamente.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em formato fixo tradicional, um registro que ultrapassa as posições aceitas pelo compilador sempre continua automaticamente em qualquer formato sem indicação ou configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O limite e a continuação dependem do formato-fonte e da configuração do compilador. A linha pode exigir indicação de continuação ou formato estendido/livre; não se deve presumir aceitação automática em qualquer modo.",
+      "section": "1. Estrutura do programa e organização do código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um arquivo declarado para processamento, qual elemento descreve o registro na DATA DIVISION?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cláusula PROGRAM-ID, usada como nome físico do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O parágrafo FILE-CONTROL, que contém os comandos executáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A frase CALL, que abre e fecha o registro a cada acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A entrada FD, seguida pela estrutura de registro na FILE SECTION.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A seção LINKAGE, que substitui as descrições dos campos do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "FD introduz a descrição do arquivo na FILE SECTION, onde se define o registro e seus campos. FILE-CONTROL associa o nome lógico ao recurso, mas não contém a estrutura executável do registro.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre SELECT e ASSIGN é adequada ao declarar um arquivo COBOL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definem exclusivamente a hierarquia de campos subordinados no registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relacionam o nome lógico ao recurso ou arquivo do ambiente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executam a leitura sequencial até que não existam novos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Convertem um arquivo sequencial em tabela de memória local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estabelecem o valor inicial de cada campo numérico da descrição.",
+          "correct": false
+        }
+      ],
+      "explanation": "SELECT e cláusulas como ASSIGN aparecem no controle de arquivos e fazem a associação entre o nome usado no programa e o recurso externo. FD descreve o formato do registro em separado.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual roteiro é compatível com uma leitura sequencial normal até o fim do arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir em saída, gravar um registro e presumir que a entrada terminou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar CALL para cada campo e dispensar a declaração FD.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Abrir para entrada, ler e tratar AT END, depois fechar o arquivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Fechar antes da leitura e usar REWRITE para buscar o primeiro registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar MOVE sobre o nome físico sem executar operação de arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura sequencial exige abrir o arquivo para entrada, processar cada registro e reconhecer a condição AT END para encerrar sem consumir registro inexistente. O fechamento conclui o ciclo de acesso.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa de relatório precisa acrescentar registros ao fim de um arquivo já existente. Qual abertura pode atender a essa intenção quando suportada pela organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OPEN INPUT, pois leitura sempre preserva e acrescenta novos registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "OPEN OUTPUT, porque essa modalidade mantém o conteúdo e posiciona no fim.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OPEN I-O, que é obrigatoriamente sinônimo de acrescentar ao final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OPEN EXTEND, apropriado para acrescentar ao arquivo em modo compatível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "OPEN CLOSE, que combina abertura e gravação sem operação posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "OPEN EXTEND é a modalidade destinada a acrescentar ao fim em organizações compatíveis. OPEN OUTPUT costuma criar ou substituir a saída, enquanto INPUT é leitura; I-O permite operações de entrada e atualização quando suportado.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma condição AT END em uma leitura sequencial permite que o programa reconheça que não há outro registro para processar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. AT END fornece um caminho de controle para o fim normal da sequência. O programa pode encerrar o laço sem tratar como registro válido uma área sem novo dado.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Abrir um arquivo com OPEN OUTPUT garante que os registros anteriores serão preservados e que a gravação ocorrerá depois do último registro existente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. OPEN OUTPUT normalmente prepara um arquivo de saída novo ou substituído conforme o ambiente; não se deve presumir preservação e acréscimo. Para acrescentar, OPEN EXTEND pode ser apropriado quando compatível.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica diferencia tipicamente acesso indexado de percurso sequencial simples?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo indexado armazena apenas texto e não admite campos numéricos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O arquivo indexado pode localizar registros por chave declarada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O arquivo indexado elimina a necessidade de declarar seus registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo indexado sempre precisa ser lido até o fim para cada busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O arquivo indexado é uma variável da WORKING-STORAGE sem persistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Organização indexada permite localizar registros por chave e pode definir chaves primárias ou alternativas, conforme a implementação. O registro continua descrito e as regras de acesso dependem da organização declarada.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em arquivo indexado, REWRITE pode ser usado em condições apropriadas para atualizar um registro existente que foi localizado e posicionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. REWRITE atualiza um registro existente segundo as regras de acesso e posicionamento da organização. Não é uma gravação genérica que insere qualquer registro em toda modalidade de arquivo.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve um campo FILE STATUS declarado para uma operação de arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber um código que informa o resultado da operação de arquivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar permanentemente a chave de cada registro em duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o OPEN e executar a associação do recurso externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar automaticamente qualquer falha em fim de arquivo normal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir os tamanhos de todos os campos descritos na FD.",
+          "correct": false
+        }
+      ],
+      "explanation": "FILE STATUS recebe um código que ajuda a verificar o resultado de operações como abertura, leitura ou gravação. A interpretação dos códigos segue as convenções do compilador e do ambiente; o programa deve tratar situações distintas.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina que usa READ em arquivo sequencial pode ignorar AT END e continuar processando a área de registro indefinidamente sem risco de usar dado antigo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sem tratar fim de arquivo, a lógica pode repetir ou interpretar conteúdo inválido ou antigo como registro novo. A condição de fim ou o status correspondente precisa conduzir a saída do processamento.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que comando estruturado atende melhor à seleção entre vários valores ou condições de um mesmo processamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CLOSE, que seleciona o caso e encerra o arquivo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MOVE, que escolhe a condição conforme o tamanho dos campos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "EVALUATE, que organiza a seleção entre casos e condições.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FD, que executa cada alternativa em sequência no registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ASSIGN, que direciona o fluxo a parágrafos pelo nome físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "EVALUATE expressa seleção estruturada entre casos, útil quando há múltiplas alternativas. MOVE transfere dados, CLOSE encerra arquivo, e FD e ASSIGN pertencem às declarações de arquivo.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal de PERFORM em um programa COBOL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Invocar outro programa compilado e transferir argumentos de chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Associar um nome de arquivo ao recurso do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descrever os campos armazenados em um registro de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar um parágrafo, seção ou bloco de instruções controlado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter um dado alfanumérico em chave de arquivo indexado.",
+          "correct": false
+        }
+      ],
+      "explanation": "PERFORM executa procedimentos nomeados ou blocos, inclusive repetições controladas. CALL é que transfere controle a outro programa; descrições e associações de arquivo são feitas em outras partes.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laço PERFORM UNTIL só terminará conforme esperado se a condição puder tornar-se verdadeira durante sua execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O corpo do laço deve atualizar dados ou estado que conduzam à condição de parada. Se nada alterar uma condição inicialmente falsa, a repetição pode não terminar.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença entre PERFORM e CALL descreve corretamente o fluxo de controle?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "PERFORM abre arquivos e CALL encerra sentenças com ponto final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PERFORM executa procedimento; CALL invoca outro programa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PERFORM define armazenamento local e CALL declara níveis hierárquicos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PERFORM transfere parâmetros e CALL repete um parágrafo TIMES.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PERFORM cria o registro de entrada e CALL define sua PIC.",
+          "correct": false
+        }
+      ],
+      "explanation": "PERFORM direciona a execução a um parágrafo, seção ou bloco do programa; CALL invoca outra unidade de programa. A chamada pode incluir parâmetros, enquanto PERFORM não é uma interface de subprograma.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um subprograma declarou dois itens no PROCEDURE DIVISION USING. O chamador passou dois argumentos em ordem diferente da interface acordada, esperando que o compilador os associasse pelo nome. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A expectativa está correta, pois COBOL casa argumentos pelo nome declarado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O compilador converte a ordem usando o tamanho de cada campo recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ordem precisa coincidir; os argumentos são associados posicionalmente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O chamado ignora USING e lê os dados diretamente da FILE SECTION.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os dados serão automaticamente classificados em ordem alfabética.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface de chamada é posicional: o primeiro argumento corresponde ao primeiro item do chamado, e assim por diante. A linguagem não tenta inferir equivalência por nomes, de modo que uma ordem incorreta pode associar dados incompatíveis.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao passar um argumento BY REFERENCE, o programa chamado pode acessar a área do dado original e alterações podem ser observadas pelo chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. BY REFERENCE dá acesso à área do argumento original segundo o contrato da chamada; por isso o chamado pode alterar o dado e o chamador observar a alteração. Essa possibilidade deve ser explícita no desenho da interface.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a evitar que um PERFORM UNTIL se torne uma repetição sem término?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover do corpo toda alteração do dado testado pela condição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir que o corpo avance o estado que controla a parada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar sempre a condição por OPEN OUTPUT do arquivo de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar o contador como item de nível 88 sem valores associados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar a seção inteira sem verificar como ela termina.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição de parada precisa evoluir. O corpo deve atualizar contador, indicador ou dado comparado para que, ao longo das iterações, a condição UNTIL possa ser satisfeita.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A cláusula ROUNDED pode ser relevante em uma operação aritmética quando se deseja controlar o arredondamento do resultado armazenado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ROUNDED permite especificar tratamento de arredondamento em operações compatíveis. A escala do destino e as regras de precisão devem ser consideradas para que o valor armazenado corresponda à regra de negócio.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança local altera a escala decimal de um campo enviado a vários subprogramas. O que deve ser verificado antes de publicar a versão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a indentação do fonte, pois PIC não afeta os programas chamados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ordem e a compatibilidade do contrato de dados em cada chamada afetada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A cor do relatório, pois o campo sempre é convertido sem impacto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A existência de OPEN EXTEND em todos os subprogramas da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de divisões, pois interfaces não dependem do formato dos campos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A PIC determina representação e escala do dado. Um contrato compartilhado pode tornar-se incompatível se tamanho, categoria ou ordem mudar; chamadas e subprogramas afetados devem ser analisados e testados juntos.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BY CONTENT fornece ao programa chamado uma cópia do argumento para uso, em vez de permitir que ele altere diretamente o item original por essa passagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. BY CONTENT passa conteúdo para uso pelo chamado em cópia sem permitir alteração do argumento original por essa via. O detalhe de representação e suporte depende do compilador e do contrato da chamada.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que testes de arquivo devem incluir casos como arquivo vazio, falha de abertura e registro fora do formato esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque esses casos revelam caminhos de erro que um registro médio não percorre.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque o compilador só aceita programas que não processam registros válidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque OPEN INPUT transforma qualquer registro inválido em arquivo vazio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque FILE STATUS impede que o programa execute a lógica principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque dados incorretos devem ser tratados como fim normal sem registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Casos de fronteira exercitam falhas de abertura, término e validação que não aparecem no caminho comum. Testá-los permite verificar mensagens, status, encerramento e rejeição controlada de dados inválidos.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa pode transferir controle a outro programa usando CALL e fornecer argumentos pela frase USING.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CALL invoca outra unidade de programa; USING lista os argumentos conforme o modo de passagem e a interface esperada pelo chamado.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma rotina básica de compilação e manutenção responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar diversos contratos ao mesmo tempo e testar somente o caso mais comum.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar diagnósticos do compilador quando o fonte tem comentários claros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rastrear dados e chamadas, compilar e testar casos normais e de fronteira.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover condições de erro para reduzir a quantidade de caminhos do programa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar um programa chamado sem conferir os demais chamadores existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manutenção confiável começa por entender origem e destino dos dados e os contratos dos programas relacionados, seguida de compilação e testes que cubram caminhos normais, inválidos e de fronteira. Isso reduz regressões na aplicação integrada.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de uma seção inteira por PERFORM pode alcançar vários parágrafos agrupados nela, conforme os limites estruturais da seção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma seção agrupa procedimentos, e executá-la pode percorrer os parágrafos até o limite seguinte. Se a intenção é executar somente uma unidade pequena, convém chamar o parágrafo específico e evitar fluxo amplo acidental.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome do parâmetro no programa chamador precisa ser idêntico ao nome declarado no LINKAGE SECTION do chamado para que a passagem funcione.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A correspondência dos argumentos é posicional, não uma busca por nome idêntico entre programas. O que precisa ser compatível é o contrato: posição, representação, tamanho e modo de passagem.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito é associado a MOVE em COBOL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa repetidamente um parágrafo até o fim de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Abre um arquivo para leitura e posiciona o primeiro registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chama um programa independente e aguarda seus parâmetros de retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declara a chave primária de arquivo indexado no ambiente externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transfere ou converte dado ao item de destino segundo regras da linguagem.",
+          "correct": true
+        }
+      ],
+      "explanation": "MOVE transfere conteúdo de um item ou literal para outro, aplicando regras de categoria e tamanho. Ele não abre arquivos, não invoca programas nem controla laços; conversões e truncamentos precisam ser considerados.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em fonte COBOL, comandos como ADD, SUBTRACT, MULTIPLY, DIVIDE e COMPUTE podem ser usados para expressar operações aritméticas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses verbos realizam operações aritméticas em formatos próprios. O programador precisa selecionar destinos, precisão e tratamento de arredondamento de acordo com a regra de negócio.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um chamado recebeu BY REFERENCE um registro de saldo e o alterou. O chamador não deve presumir que o seu próprio registro permaneceu inalterado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. BY REFERENCE dá ao chamado acesso à área original e possibilita que mudanças no item sejam vistas pelo chamador. Se a interface deve preservar o valor original, o modo de passagem ou o desenho do contrato precisa refletir isso.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa distinguir registro lido, registro rejeitado e total processado em uma rotina de lote. Qual abordagem é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir READ por CALL e usar o nome do arquivo como contador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar indicadores ou contadores de trabalho e atualizar cada um no caminho correspondente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazenar todos os resultados na cláusula ASSIGN do arquivo de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o nível 88 como área de memória independente para os totais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fechar o arquivo após cada campo e inferir o total pelo número de parágrafos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contadores de trabalho declarados para o processamento permitem registrar quantidades conforme cada registro percorre validação e gravação. ASSIGN associa arquivo, nível 88 nomeia condição e o fechamento não fornece totais do lote.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina precisa somar os valores de um grupo de registros e mostrar resultado monetário. Qual cuidado de implementação é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir precisão e escala suficientes no acumulador e no resultado exibido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar toda quantia como PIC X para permitir qualquer operação aritmética.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar nível 88 como acumulador, pois condições aceitam somas sucessivas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir o total em LINKAGE sem parâmetro e deixar o compilador criá-lo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar MOVE em cada registro e presumir que ele acumula os valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma soma exige item numérico com capacidade e escala compatíveis com os valores e o resultado. MOVE transfere em vez de acumular; texto e nível 88 não são acumuladores numéricos apropriados.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo PIC numérico pode ter quantidade de posições insuficiente para o resultado de uma soma, por isso a capacidade do acumulador precisa ser dimensionada para o total possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A capacidade do acumulador deve considerar não apenas cada entrada, mas também o maior total que pode ser alcançado. Um destino estreito pode causar perda, estouro ou resultado incompatível com a regra de negócio.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao iniciar a análise de um defeito em manutenção, que sequência de investigação tende a reduzir risco de regressão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reescrever o sistema inteiro sem examinar entradas ou chamadas existentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retirar validações de dados para localizar mais rápido a falha em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rastrear a origem do dado, seu caminho de alteração e os contratos afetados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Examinar dados, caminhos e interfaces, modificar o componente e testar os casos ligados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alterar todos os programas chamados ao mesmo tempo sem recompilar a aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A investigação deve seguir a origem e o fluxo dos dados e identificar interfaces dependentes. Uma mudança menor, compilada e testada nos cenários afetados, torna a causa e os efeitos mais verificáveis do que alterações amplas sem validação.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processamento recebe uma data como texto com dia, mês e ano. Qual procedimento reduz o risco de aceitar valores impossíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar o campo para saída e presumir que texto bem formado é data válida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar o nome do arquivo como verificação do calendário recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar formato e consistência do calendário antes de usar a data em cálculos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Declarar o campo como condição 88 e dispensar validação de conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Abrir novamente o arquivo para que o compilador corrija os valores inválidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Texto com aparência de data ainda pode conter dia ou mês fora da faixa ou combinação inexistente. Validar formato e calendário antes de calcular evita resultados incorretos; a abertura do arquivo e uma condição nomeada não validam seu conteúdo.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório precisa apresentar valor numérico com símbolo monetário e separadores de edição. Como separar cálculo e apresentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar diretamente o texto editado como variável de cálculo em todas as operações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar o total em FILE STATUS e exibi-lo ao fechar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar um campo numérico para o cálculo e um campo editado para a saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter valor numérico para calcular e mover o resultado para campo editado de apresentação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Declarar o valor como nome de parágrafo para aplicar os separadores automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos numéricos são apropriados às operações; campos editados podem controlar como o resultado será apresentado, com símbolos e separadores. Separar cálculo e formatação torna a representação explícita e evita operar sobre texto de saída.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um laço de leitura, a condição de fim deve impedir que o programa trate uma área de registro sem nova leitura como registro processado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando a leitura informa fim, o corpo destinado a registros válidos não deve processar novamente a área anterior. Separar o caminho AT END do tratamento normal evita duplicações e dados obsoletos.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito é esperado de uma validação de campo implementada antes de incluir o registro em um arquivo de saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformar qualquer entrada em registro válido sem alterar seu conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a necessidade de verificar o resultado de WRITE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir que o arquivo de saída sempre abra em modo INPUT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar a gravação de dado que não atende às regras definidas para o registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Separar entradas aceitas das rejeitadas conforme critérios explícitos do programa.",
+          "correct": true
+        }
+      ],
+      "explanation": "A validação compara os campos com regras explícitas e permite encaminhar registros aceitos e rejeitados por caminhos diferentes. Ela não garante sucesso de gravação nem determina o modo de abertura do arquivo.",
+      "section": "3. Arquivos e processamento de registros",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de lote pode usar um contador em WORKING-STORAGE, mas esse item é liberado automaticamente após cada registro lido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WORKING-STORAGE persiste durante a vida da unidade de execução, podendo acumular contagens ao longo do lote. LOCAL-STORAGE é que recebe armazenamento por entrada da unidade e é liberada no retorno.",
+      "section": "2. Dados, registros e representação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface entre programas COBOL pode ser alterada sem revisar os chamadores, desde que o nome dos itens no LINKAGE SECTION continue igual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Chamador e chamado precisam manter compatibilidade de ordem, quantidade, formato, tamanho e modo de passagem dos argumentos. Nomes iguais não corrigem uma mudança incompatível na interface.",
+      "section": "4. Lógica, modularização e ciclo de desenvolvimento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Structuring your program",
+      "publisher": "IBM Documentation",
+      "reference": "Divisões do programa COBOL e responsabilidade estrutural de cada uma.",
+      "url": "https://www.ibm.com/docs/en/cobol-zos/6.4?topic=program-structuring-your",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Describing the data",
+      "publisher": "IBM Documentation",
+      "reference": "Seções de dados e funções de FILE, WORKING-STORAGE, LOCAL-STORAGE e LINKAGE.",
+      "url": "https://www.ibm.com/docs/en/cobol-zos/6.4.0?topic=program-describing-data",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Processing the data",
+      "publisher": "IBM Documentation",
+      "reference": "PROCEDURE DIVISION, parâmetros USING, BY REFERENCE, BY CONTENT, BY VALUE e LINKAGE.",
+      "url": "https://www.ibm.com/docs/en/cobol-zos/6.4.0?topic=program-processing-data",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Reference format",
+      "publisher": "IBM Documentation",
+      "reference": "Formato fixo e estendido, áreas de sequência, indicador, A e B.",
+      "url": "https://www.ibm.com/docs/en/cobol-aix/5.1.0?topic=SS6SGM_5.1.0%2Fcom.ibm.cobol51.aix.doc%2FPGandLR%2Fref%2Frlfmt.htm",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Coding the LINKAGE SECTION",
+      "publisher": "IBM Documentation",
+      "reference": "Correspondência posicional entre argumentos do chamador e itens do programa chamado.",
+      "url": "https://www.ibm.com/docs/en/cobol-zos/6.3?topic=data-coding-linkage-section",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PROCEDURE DIVISION statements",
+      "publisher": "IBM Documentation",
+      "reference": "Execução sequencial de instruções e desvios de fluxo como PERFORM e GO TO.",
+      "url": "https://www.ibm.com/docs/en/cobol-zos/6.4.0?topic=division-procedure-statements",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

@@ -1,0 +1,1816 @@
+{
+  "id": "ciencia-dados.associacao-sistemas-recomendacao",
+  "subject": "Ciência de Dados",
+  "title": "Técnicas de associação e sistemas de recomendação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Técnicas de associação e sistemas de recomendação",
+    "Mineração de regras de associação",
+    "Regras de associação em dados transacionais",
+    "Suporte e confiança de regras associativas",
+    "Lift e medidas de associação",
+    "Algoritmo Apriori para itemsets frequentes",
+    "Padrões frequentes em cestas de compras",
+    "Sistemas de recomendação personalizados",
+    "Filtragem colaborativa por usuários e itens",
+    "Filtragem baseada em conteúdo de itens",
+    "Fatoração de matrizes para recomendação",
+    "Geração de candidatos e ranking de recomendações"
+  ],
+  "scope": {
+    "covers": "Descoberta de itemsets frequentes e regras de associação em transações; suporte, confiança, lift e suas limitações; Apriori e geração de candidatos; distinção entre coocorrência e causalidade; sistemas de recomendação baseados em conteúdo, colaborativos, híbridos e por popularidade; filtragem baseada em usuários e itens, feedback explícito e implícito, fatoração de matrizes, cold start, esparsidade, etapas de geração de candidatos, pontuação e reordenação; métricas offline e avaliação online, diversidade, novidade, viés e privacidade.",
+    "excludes": "Implementação de algoritmos distribuídos específicos, prova matemática de convergência, recomendação clínica ou financeira, detalhes de ferramentas comerciais e treinamento aprofundado de redes neurais."
+  },
+  "theoryTitle": "Associação entre eventos e personalização de recomendações",
+  "chapters": [
+    {
+      "title": "1. Regras de associação: transações e medidas",
+      "markdown": "### O problema que este assunto resolve\n\nUma base de transações registra conjuntos de itens que ocorreram juntos: produtos comprados numa mesma cesta, páginas vistas numa sessão ou sintomas assinalados num registro. A mineração de associação procura combinações recorrentes e regras do tipo **X → Y**: quando X aparece numa transação, Y também aparece com certa frequência. A regra descreve coocorrência observada; não demonstra que X provoque Y.\n\n> **Siglas e termos deste capítulo**\n> - **Transação**: conjunto de itens observados numa unidade, como uma compra.\n> - **Itemset**: conjunto de um ou mais itens; `{pão, leite}` é um 2-itemset.\n> - **Antecedente (X)**: lado esquerdo da regra.\n> - **Consequente (Y)**: lado direito, normalmente sem itens em comum com X.\n> - **Suporte**: fração de transações que contêm todos os itens de X ∪ Y.\n> - **Confiança**: entre transações com X, fração que também contém Y.\n> - **Lift**: confiança dividida pelo suporte de Y; compara a associação observada com a esperada sob independência.\n\n### Cálculo em uma base pequena\n\nConsidere 100 compras: 20 contêm café, 30 contêm açúcar e 12 contêm ambos. Para `café → açúcar`, o suporte conjunto é 12/100 = 12%; a confiança é 12/20 = 60%; o lift é 0,60/0,30 = 2. O lift 2 indica que açúcar aparece duas vezes mais entre compras com café do que na base inteira. Não significa que café cause a compra de açúcar.\n\n| Medida | Cálculo para X → Y | Pergunta respondida |\n| --- | --- | --- |\n| Suporte da regra | suporte(X ∪ Y) | Que parcela de todas as transações contém os dois lados? |\n| Confiança | suporte(X ∪ Y) / suporte(X) | Entre as transações com X, quantas também têm Y? |\n| Lift | confiança(X → Y) / suporte(Y) | A ocorrência conjunta supera a esperada pela frequência de Y? |\n\nLift maior que 1 indica associação positiva em relação à independência; igual a 1 indica ausência de associação segundo essa medida; menor que 1 indica associação negativa. Confiança alta, isoladamente, pode ser enganosa quando Y é muito comum. Regras com suporte muito baixo podem ser instáveis, mesmo se a confiança for alta.\n\n### Apriori e poda de candidatos\n\nApriori explora a propriedade de antimonotonicidade do suporte: se um itemset é frequente, todos os seus subconjuntos também precisam ser frequentes. Portanto, se `{A,B}` não alcança o suporte mínimo, nenhum conjunto maior que o contenha (`{A,B,C}`) poderá alcançar. O algoritmo conta itens frequentes, combina conjuntos de tamanho k para propor conjuntos de tamanho k+1 e poda os candidatos que têm algum subconjunto infrequente; então conta os candidatos restantes na base.\n\nA escolha do suporte mínimo controla o volume: limiar muito baixo pode produzir muitos padrões triviais e custosos; limiar alto pode eliminar associações raras que seriam úteis. Depois de descobrir itemsets frequentes, regras são formadas e filtradas por confiança, lift ou critérios de negócio.\n\n### Como cai na prova\n\n- Suporte usa o total de transações como denominador; confiança usa as transações que contêm o antecedente.\n- Lift compara a confiança com a frequência do consequente; não é sinônimo de confiança.\n- A regra é associativa, não causal: sazonalidade, promoções e fatores externos podem explicar coocorrência.\n- Apriori descarta um conjunto candidato quando algum subconjunto seu já é infrequente."
+    },
+    {
+      "title": "2. Sistemas de recomendação e fontes de evidência",
+      "markdown": "### O problema que este assunto resolve\n\nCatálogos com milhares ou milhões de produtos, vídeos, documentos ou músicas tornam difícil escolher manualmente o próximo item. Um sistema de recomendação estima quais itens podem ser relevantes para uma pessoa, num contexto, e apresenta uma lista ordenada. A saída é uma previsão ou ordenação, não uma garantia de gosto futuro.\n\n> **Siglas e termos deste capítulo**\n> - **Usuário**: pessoa, conta ou sessão para a qual se personaliza a lista.\n> - **Item**: produto, conteúdo, serviço ou entidade recomendável.\n> - **Feedback explícito**: avaliação deliberada, como nota ou gostei/não gostei.\n> - **Feedback implícito**: comportamento observado, como clique, compra, reprodução ou tempo de consumo.\n> - **Cold start**: falta de histórico suficiente para recomendar a um usuário ou item novo.\n> - **Matriz usuário-item**: tabela conceitual cujas células registram interação ou avaliação.\n\n### Famílias de recomendação\n\n| Abordagem | Evidência principal | Exemplo | Limitação típica |\n| --- | --- | --- | --- |\n| Baseada em conteúdo | Atributos dos itens e perfil de interesse da pessoa | Recomendar outro livro de ficção científica após leituras semelhantes | Pode estreitar a lista a itens muito parecidos |\n| Colaborativa | Padrões de interação de muitas pessoas com muitos itens | Pessoas com histórico parecido também gostaram deste filme | Item novo não tem interações; matriz costuma ser esparsa |\n| Popularidade | Frequência global, tendência ou contexto geral | Mostrar os mais vendidos da semana | Pouca personalização e reforço de itens já populares |\n| Híbrida | Combinação de conteúdo, colaboração e outras fontes | Usar atributos para item novo e interações para item conhecido | Mais componentes e critérios para calibrar |\n\nNa filtragem colaborativa **baseada em usuários**, busca-se pessoas com interações semelhantes e usam-se itens dessas vizinhas ainda não vistos pelo usuário-alvo. Na baseada em **itens**, busca-se semelhança entre itens que receberam avaliações ou interações parecidas; um item relacionado a algo consumido pode ser recomendado. A semelhança pode ser estimada, por exemplo, com cosseno ou correlação, respeitando que escalas de avaliação e dados ausentes influenciam o resultado.\n\nNa filtragem baseada em conteúdo, atributos como gênero, autor, palavras-chave ou características do produto representam os itens. O perfil de usuário pode ser agregado a partir dos atributos dos itens com que interagiu. Ela consegue sugerir itens novos se seus atributos estiverem disponíveis, mas depende da qualidade dos metadados e pode gerar pouca descoberta.\n\n### Feedback não equivale a preferência perfeita\n\nUma nota alta é evidência explícita de avaliação positiva. Um clique, por outro lado, pode indicar interesse, posição de destaque, curiosidade ou engano; ausência de clique não prova rejeição. Compra, reprodução completa e impressão têm custos e significados diferentes. Um sistema precisa definir como ponderar cada evento e considerar a exposição: só se observa interação com itens que foram mostrados.\n\n### Como cai na prova\n\n- Conteúdo usa características de itens; colaborativa usa padrões coletivos de interação.\n- Colaborativa baseada em usuários e baseada em itens diferem pela vizinhança comparada.\n- Popularidade é útil como linha de base, mas não é plenamente personalizada.\n- Interação observada não deve ser tratada automaticamente como preferência ou rejeição explícita."
+    },
+    {
+      "title": "3. Modelos, arquitetura e problemas práticos",
+      "markdown": "### O problema que este assunto resolve\n\nUm recomendador precisa lidar com um catálogo grande sem pontuar cada item para cada solicitação. Uma arquitetura comum separa a busca de alternativas plausíveis da ordenação precisa dos poucos candidatos restantes e dos ajustes finais da lista.\n\n> **Siglas e termos deste capítulo**\n> - **Geração de candidatos**: recuperação rápida de um subconjunto de itens possíveis.\n> - **Pontuação (scoring)**: cálculo de relevância para ordenar os candidatos.\n> - **Reordenação (re-ranking)**: ajustes finais por restrições ou objetivos adicionais.\n> - **Fator latente**: dimensão aprendida que representa uma característica não observada diretamente.\n> - **Fatoração de matrizes**: aproximação da matriz usuário-item por vetores de fatores de usuários e itens.\n> - **Esparsidade**: grande maioria das combinações usuário-item sem interação registrada.\n\n### Geração, pontuação e reordenação\n\nA geração de candidatos pode combinar itens populares, conteúdo semelhante, vizinhos colaborativos, busca vetorial ou regras de negócio. Ela prioriza cobertura e velocidade. A etapa de pontuação aplica um modelo mais rico aos candidatos, com contexto como idioma, horário, dispositivo e histórico, e produz uma ordem. Scores de geradores diferentes podem não ser comparáveis; por isso, é comum reuni-los e pontuá-los numa escala comum.\n\nA reordenação pode remover itens já consumidos ou indisponíveis, limitar repetição de um mesmo tema, considerar diversidade, atualidade, segurança ou cotas. Maximizar exclusivamente cliques pode favorecer títulos caça-cliques; maximizar tempo pode favorecer conteúdos longos. A função de objetivo molda o resultado.\n\n### Fatoração de matrizes\n\nNa fatoração, cada usuário e cada item recebe um vetor de fatores latentes. O produto interno entre os vetores estima a afinidade ou a nota. Em vez de aprender um parâmetro independente para cada célula ausente, o modelo compartilha fatores e consegue generalizar padrões. Em feedback implícito, interações observadas podem receber pesos de confiança, mas a ausência de evento é ambígua: pode significar que o item nunca foi exibido.\n\n### Cold start e esparsidade\n\nUsuário novo não tem histórico; item novo não tem interações. Soluções incluem popularidade contextual, perguntas iniciais, atributos de conteúdo, metadados, informação de sessão e combinação de métodos. A esparsidade limita métodos colaborativos porque poucos pares usuário-item foram observados. Matrizes grandes também tornam custosa a comparação exaustiva; índices, vizinhança aproximada e geração em etapas ajudam a escalar.\n\n### Como cai na prova\n\n- Geração reduz o catálogo; pontuação ordena candidatos; reordenação incorpora restrições e objetivos finais.\n- Em vetores fatorados, afinidade estimada costuma vir do produto interno; fator latente não é necessariamente uma categoria interpretável.\n- Cold start e esparsidade são problemas relacionados, mas não idênticos.\n- Diversidade, atualidade e segurança podem ser tratadas na reordenação, sem confundir esses critérios com a previsão bruta de relevância."
+    },
+    {
+      "title": "4. Avaliação, qualidade e relação com associação",
+      "markdown": "### O problema que este assunto resolve\n\nUma lista pode ter previsões estatisticamente corretas e ainda ser repetitiva, enviesada ou pouco útil. Avaliar exige separar qualidade preditiva de utilidade da lista e medir o que acontece quando pessoas realmente recebem as recomendações.\n\n> **Siglas e termos deste capítulo**\n> - **Precisão@k**: proporção de itens relevantes entre os k primeiros recomendados.\n> - **Recall@k**: fração dos itens relevantes recuperada nos k primeiros.\n> - **NDCG**: medida de ranking que recompensa relevância e posições mais altas.\n> - **A/B test**: comparação controlada de variantes expostas a grupos distintos.\n> - **Exposição**: oportunidade de um item aparecer diante de uma pessoa.\n> - **Serendipidade**: recomendação relevante e inesperada, além do óbvio.\n\n### Métricas e protocolo\n\nPara uma lista de k posições, precisão@k divide os itens relevantes encontrados no topo por k; recall@k divide esses acertos pelo total de itens relevantes conhecido para aquele usuário. NDCG considera a posição: um item relevante no início vale mais que o mesmo item no fim, com descontos progressivos e normalização. Em previsão de nota, podem-se usar erro absoluto ou quadrático, mas bons erros de nota não garantem uma lista útil.\n\nAvaliação offline costuma separar interações de treino e teste por tempo, evitando treinar com eventos futuros em relação ao teste. Divisão aleatória pode vazar informação temporal. Métricas online, como conversão ou satisfação, requerem experimentos controlados e guardrails para efeitos adversos. Cliques são observações enviesadas pela exposição e pela posição; comparar logs sem corrigir esse viés pode favorecer o sistema antigo.\n\n### Associação como sinal de recomendação\n\nUma regra `X → Y` pode apoiar recomendação de cesta: diante de itens X numa compra parcial, Y pode ser sugerido se a regra tiver cobertura e força adequadas. Isso é uma fonte baseada em coocorrência, útil inclusive sem perfil individual detalhado. Não substitui necessariamente um recomendador personalizado: regras não ordenam sozinhas todas as alternativas, podem refletir promoções ou sazonalidade e requerem atualização quando os padrões mudam.\n\n### Diversidade, viés e privacidade\n\nUma lista composta apenas pelos itens mais populares tende a reduzir visibilidade de itens de cauda longa. Métricas de catálogo e cobertura complementam precisão: cobertura mede quantos itens diferentes o sistema consegue recomendar. Diversidade pode ser medida pela dessemelhança entre itens da lista; novidade, pela raridade ou desconhecimento prévio. Segmentação de métricas por grupos pode revelar disparidades que uma média global oculta.\n\nHistóricos de navegação, compra e avaliação podem identificar hábitos pessoais. Minimização de dados, controle de acesso, retenção limitada e transparência sobre personalização reduzem riscos. O sistema também deve considerar itens indisponíveis, conteúdo prejudicial, feedback manipulável e ciclos de retroalimentação: recomendar muito um item gera mais exposição e, portanto, mais dados que parecem confirmar sua popularidade.\n\n### Como cai na prova\n\n- Precisão@k e recall@k têm denominadores diferentes; NDCG considera a posição no ranking.\n- Divisão temporal protege contra usar futuro no treino para prever passado.\n- Métricas de clique refletem posição e exposição, não só preferência.\n- Regras de associação podem gerar sugestões, mas coocorrência não demonstra causalidade."
+    }
+  ],
+  "summary": "Regras de associação descrevem coocorrência em transações. Para X → Y, suporte = suporte(X ∪ Y), confiança = suporte(X ∪ Y)/suporte(X) e lift = confiança/suporte(Y); lift maior que 1 indica associação positiva em relação à independência, sem provar causalidade. Apriori usa o fato de que subconjunto de itemset frequente também precisa ser frequente para podar candidatos. Sistemas de recomendação podem usar conteúdo dos itens, padrões colaborativos entre usuários ou itens, popularidade e combinações híbridas. Feedback explícito são notas e avaliações; feedback implícito são ações observadas e não expressam preferência sem ambiguidade. Uma arquitetura comum gera candidatos, pontua e reordena. Fatoração de matrizes aprende vetores latentes de usuários e itens e estima afinidade; esparsidade e cold start dificultam recomendação. Avalie ordenação com precisão@k, recall@k e NDCG, complemente com diversidade, cobertura, atualidade e experimentos online. Dados de exposição, posição, popularidade, privacidade e ciclos de retroalimentação afetam resultados.",
+  "flashcards": [
+    {
+      "front": "O que representa uma regra de associação X → Y?",
+      "back": "Uma coocorrência condicional observada: transações com X também contêm Y com determinada frequência; não prova causalidade."
+    },
+    {
+      "front": "Qual é o denominador do suporte de X ∪ Y?",
+      "back": "O total de transações da base."
+    },
+    {
+      "front": "Como se calcula a confiança de X → Y?",
+      "back": "Suporte(X ∪ Y) dividido pelo suporte(X), isto é, entre transações com X, a proporção que também contém Y."
+    },
+    {
+      "front": "Como interpretar lift maior que 1?",
+      "back": "Y aparece com X mais que o esperado pela frequência global de Y, sob a comparação de independência usada pelo lift."
+    },
+    {
+      "front": "O que indica lift igual a 1?",
+      "back": "A confiança da regra coincide com o suporte de Y; o lift não indica associação em relação à independência."
+    },
+    {
+      "front": "Que poda fundamenta Apriori?",
+      "back": "Se um conjunto é frequente, todos os seus subconjuntos também devem ser frequentes; subconjunto infrequente elimina superconjunto candidato."
+    },
+    {
+      "front": "O que faz o suporte mínimo?",
+      "back": "Descarta itemsets com frequência global abaixo do limiar escolhido."
+    },
+    {
+      "front": "O que caracteriza filtragem baseada em conteúdo?",
+      "back": "Usa atributos dos itens e um perfil de interesses para localizar itens semelhantes ao que a pessoa apreciou."
+    },
+    {
+      "front": "O que caracteriza filtragem colaborativa?",
+      "back": "Usa padrões de interação de vários usuários com itens para estimar interesses relacionados."
+    },
+    {
+      "front": "Como difere colaboração por usuário da colaboração por item?",
+      "back": "A primeira compara pessoas; a segunda compara itens com padrões de avaliação ou interação semelhantes."
+    },
+    {
+      "front": "O que é feedback explícito?",
+      "back": "Avaliação deliberada, como nota, gostei ou avaliação textual estruturada."
+    },
+    {
+      "front": "O que é feedback implícito?",
+      "back": "Ação observada, como clique, compra, reprodução ou tempo de consumo, cuja interpretação como preferência é incerta."
+    },
+    {
+      "front": "O que é cold start?",
+      "back": "Dificuldade de recomendar quando usuário ou item novo ainda tem pouco ou nenhum histórico de interação."
+    },
+    {
+      "front": "O que expressa esparsidade na matriz usuário-item?",
+      "back": "A maioria das combinações possíveis não possui interação registrada."
+    },
+    {
+      "front": "Qual o papel da geração de candidatos?",
+      "back": "Reduzir um catálogo amplo a um conjunto menor de itens plausíveis para análise posterior."
+    },
+    {
+      "front": "Qual o papel da pontuação?",
+      "back": "Estimar relevância dos candidatos e ordená-los com atributos e contexto mais ricos."
+    },
+    {
+      "front": "Qual o papel da reordenação?",
+      "back": "Aplicar critérios finais como diversidade, frescor, disponibilidade e filtros."
+    },
+    {
+      "front": "O que a fatoração de matrizes aprende?",
+      "back": "Vetores de fatores latentes para usuários e itens, cuja compatibilidade estima interação ou afinidade."
+    },
+    {
+      "front": "O que mede precisão@k?",
+      "back": "A fração dos k itens no topo que é relevante."
+    },
+    {
+      "front": "O que mede recall@k?",
+      "back": "A fração dos itens relevantes conhecidos que aparece entre os k primeiros."
+    },
+    {
+      "front": "Por que NDCG considera posição?",
+      "back": "Porque recompensa mais os itens relevantes encontrados nas posições iniciais e normaliza pelo ranking ideal."
+    },
+    {
+      "front": "Como uma regra associativa pode apoiar recomendação?",
+      "back": "Itens do antecedente vistos numa cesta parcial podem levar a sugerir o consequente, se a regra for útil e atual."
+    }
+  ],
+  "tips": [
+    "Para não inverter suporte e confiança, escreva o denominador ao lado de cada fórmula: base inteira para suporte, antecedente para confiança.",
+    "Interprete lift comparando confiança e frequência do consequente; confiança elevada pode vir apenas de consequente muito popular.",
+    "Na colaborativa, identifique quem está sendo comparado: usuários vizinhos ou itens vizinhos.",
+    "Memorize a ordem do fluxo: candidatos primeiro, scoring depois, re-ranking por último.",
+    "Leia com cuidado o denominador das métricas: precisão@k divide por k; recall@k divide pelo total relevante conhecido.",
+    "Ao avaliar logs, pergunte se cada item teve chance de ser exibido; ausência de clique sem exposição não é rejeição."
+  ],
+  "traps": [
+    "A prova troca confiança pela probabilidade inversa: confiança de X → Y condiciona em X, não em Y.",
+    "Lift acima de 1 não quer dizer que X cause Y; só compara coocorrência com uma referência de independência.",
+    "Apriori não afirma que todo conjunto grande é frequente porque um item isolado é frequente; todos os subconjuntos precisam passar o limiar.",
+    "Clique e não clique não equivalem automaticamente a gostei e não gostei; exposição e posição alteram observação.",
+    "Conteúdo e colaboração não são sinônimos: um usa características dos itens, a outra padrões coletivos de interação.",
+    "Precisão alta no topo não garante diversidade, novidade, cobertura ou justiça entre grupos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Com 100 transações, 20 contêm X, 30 contêm Y e 12 contêm ambos. Calcule suporte, confiança de X → Y e lift.",
+      "answer": "Suporte conjunto = 12%; confiança = 12/20 = 60%; lift = 0,60/0,30 = 2."
+    },
+    {
+      "question": "Por que Apriori pode eliminar {A,B,C} quando {A,B} é infrequente?",
+      "answer": "Todo subconjunto de um conjunto frequente também seria frequente; logo, um superconjunto de um subconjunto infrequente não pode passar o suporte mínimo."
+    },
+    {
+      "question": "Como distinguir recomendação por conteúdo e colaborativa num exemplo de filmes?",
+      "answer": "Conteúdo sugere filmes com atributos semelhantes aos apreciados; colaborativa sugere filmes apreciados por pessoas com padrões de interação semelhantes."
+    },
+    {
+      "question": "Por que um clique não é uma nota positiva explícita?",
+      "answer": "Pode decorrer de posição, curiosidade ou erro; representa comportamento observado, não avaliação declarada."
+    },
+    {
+      "question": "Descreva as três etapas comuns de um recomendador em produção.",
+      "answer": "Geração reduz o universo a candidatos; pontuação estima relevância e ordena; reordenação aplica critérios finais e restrições."
+    },
+    {
+      "question": "Que diferença há entre cold start e esparsidade?",
+      "answer": "Cold start é ausência de histórico para usuário ou item novo; esparsidade é baixa densidade geral de interações na matriz."
+    },
+    {
+      "question": "Por que medir apenas erro de previsão de notas pode ser insuficiente?",
+      "answer": "O sistema pode prever notas com baixo erro e ainda ordenar mal, repetir itens ou oferecer lista sem diversidade ou utilidade."
+    },
+    {
+      "question": "Como exposição e posição enviesam logs de cliques?",
+      "answer": "Itens não exibidos não podem ser clicados, e posições superiores recebem mais atenção; o log reflete oportunidade além de preferência."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir suporte, confiança e lift",
+      "summary": "Suporte usa todas as transações; confiança condiciona no antecedente; lift compara confiança com a frequência do consequente."
+    },
+    {
+      "key": "e2",
+      "title": "Interpretar associação como causalidade",
+      "summary": "Coocorrência não revela mecanismo causal; promoções, sazonalidade e exposição podem gerar o padrão observado."
+    },
+    {
+      "key": "e3",
+      "title": "Trocar as famílias de recomendação",
+      "summary": "Conteúdo usa atributos de itens; colaboração usa padrões compartilhados de interação; popularidade usa frequência global."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir etapas e avaliação",
+      "summary": "Geração encontra candidatos, scoring pontua e re-ranking ajusta a lista; precisão, recall e NDCG têm definições e objetivos distintos."
+    },
+    {
+      "key": "e5",
+      "title": "Tratar interação observada como preferência certa",
+      "summary": "Cliques e não cliques dependem de exposição, posição e contexto; dados implícitos são sinais ruidosos e enviesados."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em 200 transações, 40 contêm X e 10 contêm X e Y. Qual é a confiança de X → Y?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "5%, pois 10 transações conjuntas são divididas por todas as 200 compras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "25%, pois as 10 compras conjuntas são divididas pelas 40 que contêm X.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "20%, pois as 40 compras com X são divididas por todas as 200 transações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "50%, pois se comparam as dez compras conjuntas com as vinte sem Y.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "40%, pois o total de ocorrências de X determina diretamente a confiança da regra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Confiança de X → Y condiciona nas transações com X: 10/40 = 25%. O valor 5% é o suporte conjunto sobre toda a base; os demais cálculos não representam a probabilidade condicional definida pela regra.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra X → Y tem confiança de 0,8 e Y aparece em 0,4 das transações. Qual é seu lift?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,32, obtido multiplicando confiança pela frequência de Y.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,4, pois o lift sempre corresponde ao suporte do consequente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2, pois a confiança dividida pela frequência de Y é 0,8/0,4.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "2,5, pois se divide a frequência de Y pela confiança observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,8, pois lift e confiança coincidem quando ambos estão entre zero e um.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lift = confiança(X → Y)/suporte(Y) = 0,8/0,4 = 2. Multiplicar ou inverter a divisão troca a medida; lift não coincide em geral com confiança.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um itemset {A,B} não alcança o suporte mínimo. O que Apriori conclui sobre {A,B,C}?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deve contá-lo integralmente, pois adicionar C pode aumentar o suporte de A e B.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Deve mantê-lo se C for frequente, pois um item frequente compensa pares raros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deve aceitar o trio quando sua confiança condicional superar o suporte mínimo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pode podá-lo sem contagem, pois um superconjunto não supera o suporte do subconjunto infrequente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Deve calcular somente o lift do trio, que substitui o teste de suporte no Apriori.",
+          "correct": false
+        }
+      ],
+      "explanation": "Todo superconjunto ocorre em no máximo tantas transações quanto qualquer subconjunto seu. Portanto, se {A,B} falha o suporte, {A,B,C} também falha e pode ser podado.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise encontra lift 1,7 para a regra café → açúcar. Qual interpretação é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença de café causa aumento de 70% na compra de açúcar em cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Açúcar ocorre com café 1,7 vezes mais do que sua frequência global sugere, sem prova causal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Setenta por cento de todas as transações contêm café e açúcar simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A confiança da regra é necessariamente 1,7, mesmo que sua faixa válida termine em 1.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O café aparece em 1,7% da base, independentemente da frequência de açúcar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lift compara a confiança da regra com a frequência de Y. Lift 1,7 indica associação positiva nessa comparação, mas não estabelece causalidade nem fornece o suporte ou a confiança isoladamente.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma loja quer reduzir padrões triviais e custo de mineração ao descobrir itemsets frequentes. Qual parâmetro controla diretamente a frequência mínima exigida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O suporte mínimo, que elimina conjuntos presentes em parcela menor que o limiar escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A confiança mínima, que define quantas vezes cada item deve aparecer na base total.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O lift mínimo, que limita quantos itens podem compor cada transação analisada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tamanho do antecedente, que substitui qualquer contagem de ocorrências na base.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A correlação de Pearson, que determina o número total de compras processadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Suporte mínimo é o limiar de frequência global dos itemsets. Confiança avalia regras condicionais, lift compara associação relativa e tamanho do antecedente não substitui a contagem.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao recomendar um filme, o sistema compara gênero, diretor e palavras-chave dos filmes avaliados positivamente pelo usuário. Que abordagem descreve melhor esse método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Filtragem colaborativa por usuários, pois compara diretamente históricos de pessoas vizinhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recomendação por popularidade, pois atributos textuais são contagens agregadas da audiência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtragem baseada em conteúdo, pois usa atributos dos itens e um perfil de interesse.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Associação causal, pois atributos semelhantes determinam que o usuário verá o filme.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fatoração sem interações, pois palavras-chave correspondem necessariamente a fatores latentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O método descrito representa filmes por características e compara essas características com o perfil derivado dos itens apreciados: filtragem baseada em conteúdo.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pessoas com padrões de compras semelhantes adquiriram um produto que uma delas ainda não comprou. Qual técnica pode recomendar o produto à outra pessoa sem depender de seus atributos descritivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Filtragem baseada em conteúdo, usando somente metadados do produto e ignorando interações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtragem colaborativa, aproveitando padrões de interação compartilhados entre usuários.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Recomendação por catálogo, apresentando todos os itens em ordem alfabética fixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apriori supervisionado, inferindo que toda compra semelhante é uma causa da outra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Normalização de matriz, removendo usuários com preferências parecidas para evitar viés.",
+          "correct": false
+        }
+      ],
+      "explanation": "A colaboração usa padrões coletivos de interação para transferir possíveis interesses entre pessoas semelhantes. A abordagem não exige atributos do produto, embora metadados possam ser usados num modelo híbrido.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma compara livros que receberam avaliações semelhantes dos mesmos leitores para encontrar títulos relacionados. Qual variante colaborativa está sendo usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colaborativa baseada em itens, porque compara os padrões de interação dos próprios livros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colaborativa baseada em usuários, porque compara leitores sem relacionar os livros entre si.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Baseada em conteúdo, porque avaliações equivalem a atributos textuais do livro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Popularidade contextual, pois qualquer similaridade entre itens é frequência global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regra causal, pois livros avaliados juntos determinam a preferência de cada leitor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A semelhança é calculada entre itens com base nos padrões de avaliação dos usuários. Na variante baseada em usuários, a vizinhança seria entre leitores.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço usa o evento de reprodução completa como sinal de interesse, embora o usuário não tenha dado nota. Como classificar esse sinal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Feedback explícito, pois toda ação voluntária expressa uma avaliação direta em escala.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Feedback implícito, pois é comportamento observado cuja interpretação não é inequívoca.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Rejeição explícita, pois não há uma nota registrada no perfil do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dado demográfico, pois duração de reprodução identifica uma característica estática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rótulo causal, pois assistir até o fim prova que a recomendação causou satisfação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reprodução completa é uma ação observada e, portanto, sinal implícito. Pode sugerir interesse, mas não é avaliação explícita nem prova causal de satisfação.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma lança um curso sem qualquer interação histórica. Que estratégia lida diretamente com o cold start desse item?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Esperar que a matriz colaborativa produza vizinhos antes de registrar qualquer metadado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir recomendações personalizadas por notas aleatórias até acumular compras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar atributos do curso ou popularidade contextual enquanto as interações são escassas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover o curso do catálogo até todos os usuários terem avaliações completas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar toda ausência de compra como avaliação negativa explícita e treinar com ela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados permitem uma estratégia baseada em conteúdo, e popularidade contextual ou exploração inicial também pode apoiar itens novos. Esperar apenas por colaboração deixa o curso sem sinal; ausência de compra não é necessariamente rejeição.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um recomendador combina atributos do conteúdo novo com interações de usuários para itens conhecidos. Como classificar a estratégia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Popularidade pura, porque os dois sinais são reduzidos obrigatoriamente a contagens globais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtragem baseada só em conteúdo, pois interações não podem participar de modelos combinados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtragem colaborativa pura, porque metadados não têm função em itens novos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abordagem híbrida, que combina fontes e pode aproveitar cada uma em cenários distintos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Regra de associação exclusivamente, pois qualquer modelo que combina sinais usa Apriori.",
+          "correct": false
+        }
+      ],
+      "explanation": "Combinar atributos de conteúdo e padrões colaborativos caracteriza um sistema híbrido. A combinação ajuda, por exemplo, a lidar com item novo e aproveitar dados coletivos para itens conhecidos.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo contém milhões de vídeos. Qual etapa normalmente reduz o universo a centenas ou milhares de opções antes do cálculo mais detalhado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A geração de candidatos, que busca um subconjunto plausível com baixo custo por solicitação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A reordenação final, que primeiro examina todo o catálogo com restrições de diversidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A calibração da métrica, que remove usuários sem histórico antes de qualquer busca.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A explicação do ranking, que atribui uma justificativa a cada vídeo não observado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cálculo de recall, que seleciona os candidatos antes de conhecer os itens relevantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Geração de candidatos reduz um universo enorme a um conjunto manejável. Scoring e re-ranking operam depois sobre a seleção, com mais detalhes e critérios.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após reunir candidatos de várias fontes, uma equipe aplica um modelo com contexto de horário, idioma e histórico para ordená-los. Qual é o papel desse modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Construir a matriz de transações que será usada exclusivamente pelo algoritmo Apriori.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pontuar candidatos e ordená-los segundo relevância prevista para a solicitação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Reordenar somente depois de exibir a lista e medir cliques dos usuários reais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gerar atributos de conteúdo sem estimar a pertinência de qualquer alternativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a necessidade de candidatos porque avalia todos os itens possíveis em tempo real.",
+          "correct": false
+        }
+      ],
+      "explanation": "A pontuação aplica um modelo mais rico ao conjunto reduzido e ordena as alternativas conforme relevância prevista. Reordenação é ajuste final; geração busca candidatos; a descrição inclui explicitamente scoring.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A lista pontuada contém muitos itens do mesmo gênero e alguns já foram consumidos. Em que etapa podem ser aplicados filtros e diversidade final?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na geração de candidatos, antes de existir qualquer lista pontuada ou ordenada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No treinamento da matriz, convertendo gênero em rótulo explícito de satisfação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Na reordenação, ajustando o resultado por diversidade e itens já vistos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "No cálculo de suporte, que determina a posição individual de cada recomendação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Na validação temporal, removendo de toda a base qualquer conteúdo repetido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A reordenação considera critérios e restrições após o ranking inicial, como diversidade e exclusão de itens já consumidos.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Numa fatoração de matriz usuário-item, cada pessoa e cada produto recebe um vetor de fatores aprendidos. Como se estima normalmente a afinidade entre ambos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo produto interno entre os vetores latentes de usuário e item.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pela contagem de linhas vazias na matriz, independentemente dos vetores aprendidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pela distância entre nomes textuais, mesmo sem representação vetorial dos objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pelo suporte global do item, que substitui o vetor individual de cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pela soma das posições anteriores do item, sem usar informação de interação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Modelos de fatoração representam usuário e item em espaço latente e podem estimar a afinidade pelo produto interno dos vetores. Popularidade é um sinal distinto, não substitui essa operação.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na matriz usuário-item de um grande serviço, quase todas as células não têm avaliação ou interação. Qual propriedade dos dados esse cenário exemplifica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cold start universal, pois todos os usuários e todos os itens necessariamente são novos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Esparsidade, pois há poucas interações registradas em relação às combinações possíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Viés de posição, pois toda célula vazia corresponde a um item mostrado no fim da lista.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Densidade máxima, pois cada usuário tem uma avaliação implícita para todo item possível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cobertura completa, pois uma matriz vazia registra todos os itens com igual evidência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Esparsidade é a baixa densidade de observações numa matriz de interações. Cold start refere-se especificamente à falta de histórico de usuário ou item novo.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um novo usuário chega sem histórico, enquanto o catálogo e os demais usuários já possuem dados. Qual situação caracteriza o desafio principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cold start do usuário, que pode ser mitigado com contexto, perguntas iniciais ou popularidade segmentada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Esparsidade do catálogo, que só ocorre quando todos os itens carecem de atributos descritivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cold start de todos os itens, mesmo que eles tenham interações históricas suficientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Falha de Apriori, porque o algoritmo não consegue identificar novos usuários por regras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Viés de exposição, que significa ausência de atributos em todos os produtos listados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O usuário novo não tem interações próprias para personalizar a colaboração, caracterizando cold start de usuário. Contexto, perguntas ou tendências segmentadas podem oferecer sinais iniciais.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe otimiza apenas a taxa de cliques e passa a mostrar títulos sensacionalistas. Que conclusão é mais adequada sobre o objetivo do ranking?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cliques são uma medida completa de satisfação, logo o resultado prova que a experiência melhorou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O objetivo pode induzir comportamento indesejado; convém avaliar qualidade e guardrails adicionais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A solução é usar suporte mínimo como objetivo, pois ele mede a satisfação individual do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ranking deve ignorar pontuação e reordenar por tamanho crescente do título exibido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O fenômeno demonstra que feedback explícito e clique são a mesma variável observável.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função otimizada molda o ranking: maximizar cliques pode favorecer clickbait sem melhorar a experiência. Métricas adicionais, diversidade e avaliação de satisfação ajudam a controlar esse efeito.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa não clicou num item que nunca apareceu em sua tela. Como interpretar essa ausência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como rejeição explícita, pois toda ausência de clique revela desinteresse pelo item.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como preferência negativa confirmada, que deve ter o mesmo peso de uma nota mínima.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como observação censurada pela falta de exposição; não prova preferência ou rejeição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Como avaliação positiva implícita, pois o usuário teve oportunidade de consumir o item.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como clique perdido, que pode ser contado como evento positivo sem registrar impressão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem exposição não há oportunidade de clicar. Ausência de evento não pode ser interpretada diretamente como rejeição; logs dependem de quais itens foram mostrados.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um experimento observa dez itens recomendados e quatro são considerados relevantes. Qual é a precisão@10?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "40%, pois quatro dos dez itens recomendados no topo foram relevantes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "4%, pois o número de acertos deve ser dividido por cem posições possíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "60%, pois itens irrelevantes formam o numerador da precisão do ranking.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "10%, pois o tamanho k da lista determina diretamente o valor percentual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "250%, pois o total recomendado é dividido pelo número de itens relevantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Precisão@k é o número de relevantes nos k primeiros dividido por k: 4/10 = 40%. A métrica não usa o total de relevantes existentes como denominador.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Há oito itens relevantes conhecidos para uma pessoa; cinco aparecem entre os primeiros dez recomendados. Qual é o recall@10?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "50%, pois se divide o número de acertos pelo tamanho de dez posições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "62,5%, pois cinco dos oito itens relevantes conhecidos foram recuperados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "80%, pois o total relevante determina o denominador da precisão@10.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "13%, pois se divide o tamanho do ranking pelos itens relevantes encontrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "160%, pois o total conhecido é maior que o número recuperado no topo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Recall@10 = relevantes recuperados no topo / total de relevantes conhecidos = 5/8 = 62,5%. Usar 10 no denominador seria precisão@10.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois rankings contêm os mesmos itens relevantes, mas um os coloca nas primeiras posições. Qual métrica entre as listadas considera explicitamente a posição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suporte, que mede a proporção global de transações com um itemset.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confiança, que condiciona a ocorrência de um consequente ao antecedente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NDCG, que atribui ganho maior a relevância posicionada mais acima no ranking.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Recall sem corte, que só informa quantos eventos implícitos foram registrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lift, que ordena diretamente cada item conforme sua posição na lista exibida.",
+          "correct": false
+        }
+      ],
+      "explanation": "NDCG incorpora a ordem dos resultados e recompensa mais itens relevantes no início. Suporte, confiança e lift são medidas de associação, não métricas de posição de ranking.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para avaliar recomendações de eventos futuros, o conjunto de teste é formado por interações posteriores às usadas no treino. Qual benefício essa divisão oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evita que o treino use eventos futuros em relação ao período que se pretende prever.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante que cada usuário tenha exatamente a mesma quantidade de cliques em ambos os grupos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Elimina todo viés de exposição, posição e popularidade dos dados históricos observados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transforma cada ausência de evento no teste em avaliação negativa explicitamente confirmada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui qualquer experimento online, pois uma divisão temporal prova efeito causal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar treino e teste pelo tempo respeita a direção da previsão e reduz vazamento de futuro para passado. Não remove automaticamente vieses de exposição nem substitui experimento controlado.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema recomenda repetidamente o mesmo gênero, embora acerte a preferência imediata do usuário. Que objetivo adicional pode melhorar a variedade da lista?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elevar exclusivamente a confiança das regras até que todo item popular seja repetido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incluir diversidade na reordenação, considerando semelhança entre itens recomendados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover pontuações e ordenar os itens pelo identificador interno do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar precisão por suporte, que já mede diretamente a variedade individual da lista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Treinar com menos itens e interpretar baixa cobertura como diversidade garantida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reordenação pode incorporar diversidade e reduzir repetição entre os itens da lista. Precisão mede relevância no topo, enquanto suporte é frequência de itemsets e não variedade individual.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de cesta sugere molho para uma compra parcial que já contém massa. Qual afirmação explica adequadamente o papel da associação nessa recomendação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A regra usa coocorrência observada para sugerir um item, sem provar que a massa cause a compra do molho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A regra identifica uma preferência individual declarada por todos os compradores da base.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A regra estima necessariamente o preço ótimo do molho para aquela pessoa específica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra demonstra que retirar a massa impedirá a compra do molho em qualquer contexto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra substitui toda avaliação de disponibilidade, relevância e ordem da lista final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma regra associativa pode gerar uma sugestão a partir de itens coocorrentes na base. A evidência é observacional e não estabelece preferência declarada, efeito causal ou preço individual.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel mostra sempre os produtos mais vendidos, sem usar histórico ou atributos de cada pessoa. Qual abordagem melhor descreve essa lista?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colaborativa por usuário, pois compara cada comprador com sua vizinhança personalizada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Baseada em conteúdo, pois popularidade é um atributo textual individual dos produtos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fatoração latente, pois todo ranking global exige vetores aprendidos para cada pessoa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Popularidade, que ordena por frequência ou tendência global e oferece personalização limitada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cold start, que é uma técnica completa de ordenação por avaliações futuras.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma lista global de mais vendidos usa popularidade. Ela pode servir como linha de base ou fallback, mas não considera necessariamente o perfil individual.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe verifica que itens exibidos no topo recebem mais cliques mesmo após controlar parcialmente o interesse previsto. Qual fonte de viés deve investigar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Viés de posição e exposição, pois a oportunidade de interação varia segundo a colocação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Suporte mínimo, pois o limiar de frequência altera a posição visual no histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cold start, pois usuários experientes não podem ser expostos a itens no topo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fator latente, pois vetores de qualquer tamanho impedem cliques espontâneos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recall@k, pois a métrica converte diretamente posição em preferência explícita.",
+          "correct": false
+        }
+      ],
+      "explanation": "Itens em posições superiores têm maior probabilidade de serem vistos e clicados. Logs de interação refletem exposição e posição além da relevância ou preferência.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um recomendador sugere apenas os itens mais populares, que já recebem a maior parte das impressões. Que risco sistêmico pode surgir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumento automático de cobertura, porque os itens populares são necessariamente todos os itens do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ciclo de retroalimentação, no qual exposição gera interações que reforçam a popularidade observada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Eliminação do viés de posição, pois popularidade torna a ordem de exibição irrelevante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prova de causalidade, pois o aumento de cliques demonstra efeito puro da recomendação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redução garantida da esparsidade, pois usuários passam a avaliar cada item igualmente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Recomendar um item aumenta sua exposição e potencialmente suas interações registradas, que podem reforçar sua posição futura. Esse ciclo não prova preferência independente nem aumenta necessariamente cobertura.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório agrega desempenho e esconde que recomendações têm baixa cobertura para um grupo de usuários. Qual prática de avaliação pode revelar essa diferença?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Calcular métricas apenas sobre a média global, removendo a segmentação por população.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar exclusivamente o lift das compras e tratá-lo como métrica de equidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Analisar cobertura e qualidade por segmentos relevantes, além das médias agregadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir toda métrica por contagem de impressões, sem observar resultados por usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir os usuários afetados do teste para que o resultado global fique estável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Médias agregadas podem ocultar disparidades. Medir cobertura e qualidade por grupos ajuda a identificar quem recebe menos opções úteis.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Apriori, se {A,B,C} tem suporte acima do mínimo, então cada subconjunto próprio de {A,B,C} também precisa ter suporte acima do mesmo mínimo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Todo subconjunto de um itemset aparece em pelo menos as transações que contêm o itemset completo; seu suporte não pode ser menor que o do superconjunto.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O suporte de uma regra X → Y é calculado apenas entre transações que contêm X, sem considerar as demais transações da base.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa descrição corresponde ao denominador da confiança. O suporte da regra é o suporte conjunto de X e Y dividido por todas as transações.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Confiança de 100% significa necessariamente que X causa Y nas transações em que X ocorre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Confiança 100% informa que, na amostra, todas as transações com X também contêm Y. Coocorrência pode decorrer de outras variáveis e não demonstra causalidade.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O lift de X → Y compara a confiança dessa regra com a frequência global de Y.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Lift é confiança dividida pelo suporte do consequente; por isso compara a ocorrência condicional de Y com sua frequência na base.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o suporte mínimo for reduzido, a mineração pode encontrar itemsets adicionais, inclusive padrões raros que antes eram descartados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um limiar menor admite conjuntos com menor frequência. Isso pode revelar padrões raros, mas também ampliar o número de candidatos e padrões pouco estáveis.",
+      "section": "1. Regras de associação: transações e medidas",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema baseado em conteúdo pode usar características de itens novos mesmo que esses itens ainda não tenham histórico colaborativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se os atributos do item estiverem disponíveis, o recomendador pode compará-los ao perfil de interesses sem esperar por interações de muitos usuários.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na filtragem colaborativa baseada em usuários, a vizinhança é formada comparando itens segundo seus atributos de conteúdo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Na variante baseada em usuários, comparam-se pessoas segundo padrões de interação. Comparar itens por atributos caracteriza conteúdo; comparar padrões de interação entre itens é colaboração baseada em itens.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação numérica dada deliberadamente pelo usuário é feedback explícito; um clique registrado pelo sistema é feedback implícito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Nota ou gostei declarado é feedback explícito. Clique é comportamento observado, um sinal implícito que pode ter diversas interpretações.",
+      "section": "2. Sistemas de recomendação e fontes de evidência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cold start e a esparsidade nomeiam o mesmo fenômeno: uma matriz sem avaliações porque todos os usuários são novos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cold start é falta de histórico de um usuário ou item novo; esparsidade é baixa proporção de interações em relação às combinações possíveis da matriz. Um sistema pode ser esparso mesmo com usuários antigos.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A etapa de geração de candidatos reduz o conjunto de itens antes da pontuação mais detalhada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Geração encontra um subconjunto plausível num universo grande; a pontuação posterior pode usar mais recursos para ordená-lo.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A reordenação pode incorporar diversidade, atualidade e filtros de itens indisponíveis depois do ranking inicial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A etapa final pode alterar a ordem ou remover candidatos segundo restrições e objetivos complementares à relevância prevista.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em fatoração de matrizes, fatores latentes são necessariamente rótulos conhecidos e diretamente interpretáveis, como gênero e faixa de preço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Fatores latentes são dimensões aprendidas a partir de padrões de interação e não precisam corresponder a categorias nomeadas ou interpretáveis diretamente.",
+      "section": "3. Modelos, arquitetura e problemas práticos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Precisão@k divide relevantes encontrados nos k primeiros pelo total de itens relevantes conhecidos para a pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa razão define recall@k. Precisão@k divide os relevantes encontrados nos k primeiros por k, o tamanho da lista considerada.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NDCG pode diferenciar duas listas com os mesmos itens relevantes quando eles aparecem em posições diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. NDCG desconta relevância em posições inferiores e normaliza em relação a um ranking ideal, valorizando acertos no topo.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Divisão aleatória de dados é sempre temporalmente válida, mesmo quando eventos futuros acabam no conjunto de treino e eventos passados no teste.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se a tarefa prevê o futuro, treinar com eventos posteriores ao teste causa vazamento temporal. Separar treino e teste no tempo respeita a direção da previsão.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um item sem clique pode ser tratado como rejeitado mesmo quando não foi exibido ao usuário, pois o registro de impressão é dispensável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sem impressão não houve oportunidade de clicar. A ausência de interação não prova rejeição e precisa ser interpretada à luz da exposição e da posição.",
+      "section": "4. Avaliação, qualidade e relação com associação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Recommendation systems overview",
+      "publisher": "Google for Developers",
+      "reference": "Arquitetura de geração de candidatos, scoring e re-ranking; filtragem baseada em conteúdo e colaborativa",
+      "url": "https://developers.google.com/machine-learning/recommendation/overview/types",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Candidate generation overview",
+      "publisher": "Google for Developers",
+      "reference": "Geração de candidatos, embeddings, similaridade por cosseno, produto interno e distância euclidiana",
+      "url": "https://developers.google.com/machine-learning/recommendation/overview/candidate-generation",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Scoring",
+      "publisher": "Google for Developers",
+      "reference": "Pontuação, combinação de candidatos e escolha de objetivos do recomendador",
+      "url": "https://developers.google.com/machine-learning/recommendation/dnn/scoring",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Re-ranking",
+      "publisher": "Google for Developers",
+      "reference": "Filtros, diversidade, atualidade e justiça na reordenação",
+      "url": "https://developers.google.com/machine-learning/recommendation/dnn/re-ranking",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Multi-Label Active Learning Algorithms for Image Classification",
+      "publisher": "ACM Computing Surveys",
+      "reference": "Definições de suporte e confiança em regras de associação",
+      "url": "https://dl.acm.org/doi/10.1145/3379504",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

@@ -1,0 +1,2106 @@
+{
+  "id": "engenharia-eletrica.logica-fuzzy-controle-nebuloso",
+  "subject": "Engenharia Elétrica",
+  "title": "Lógica Fuzzy (Lógica Nebulosa) e controle nebuloso",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Lógica Fuzzy (Lógica Nebulosa)",
+    "Lógica nebulosa e conjuntos fuzzy",
+    "Conjuntos fuzzy e pertinência gradual",
+    "Funções de pertinência fuzzy",
+    "Inferência fuzzy e regras linguísticas",
+    "Fuzzificação de entradas numéricas",
+    "Defuzzificação de saídas fuzzy",
+    "Controle nebuloso em sistemas elétricos",
+    "Controlador baseado em lógica fuzzy",
+    "Sistemas de inferência fuzzy Mamdani",
+    "Sistemas de inferência Sugeno e TSK",
+    "Regras Se Então em lógica nebulosa"
+  ],
+  "scope": {
+    "covers": "Fundamentos da lógica fuzzy; conjuntos fuzzy, universo de discurso, graus e funções de pertinência; variáveis linguísticas; operações e conectivos; base de regras e inferência; fuzzificação, implicação, agregação e defuzzificação; modelos Mamdani e Sugeno; estrutura, projeto, aplicações e limitações de controladores nebulosos.",
+    "excludes": "Prova formal de teoremas de lógica fuzzy, identificação avançada de sistemas, treinamento neuro-fuzzy, controle adaptativo avançado, projeto detalhado de hardware e sintonia de controladores PID convencionais."
+  },
+  "theoryTitle": "Da imprecisão linguística à ação de controle",
+  "chapters": [
+    {
+      "title": "1. Conjuntos fuzzy e pertinência gradual",
+      "markdown": "### O problema que este assunto resolve\n\nNa lógica clássica, um elemento pertence ou não pertence a um conjunto: o valor é 0 ou 1. Essa fronteira abrupta nem sempre representa bem expressões úteis em engenharia, como ‘temperatura alta’, ‘erro pequeno’ ou ‘velocidade próxima do limite’. Um valor de 29 °C pode ser parcialmente ‘morno’ e parcialmente ‘quente’. A lógica fuzzy representa essa transição com graus de pertinência.\n\n> **Siglas e termos deste capítulo**\n> - **Conjunto crisp**: conjunto clássico, com pertinência binária 0 ou 1.\n> - **Conjunto fuzzy**: conjunto cuja pertinência pode variar continuamente entre 0 e 1.\n> - **μ (mi)**: função que associa a cada valor o grau de pertinência ao conjunto.\n> - **Universo de discurso**: domínio numérico considerado para uma variável.\n> - **Variável linguística**: variável descrita por rótulos como baixo, médio e alto.\n\n### O que significa o grau de pertinência\n\nUm conjunto fuzzy A sobre um universo X é descrito por μA(x), com valores no intervalo [0,1]. O valor 0 indica ausência de pertinência; 1 indica pertinência plena; valores intermediários representam compatibilidade parcial com o rótulo. Se μquente(29 °C)=0,6, isso significa que 29 °C pertence ao conjunto ‘quente’ com grau 0,6 segundo a função escolhida. Não significa probabilidade de 60%, nem que 60% dos termômetros marcarão quente.\n\nA mesma medição pode pertencer a mais de um conjunto. Uma temperatura pode ter pertinência 0,4 em ‘morno’ e 0,6 em ‘quente’. Isso permite que regras de ambas as regiões contribuam sem comutação brusca.\n\n| Conceito | Significado | Exemplo\n| --- | --- | ---\n| Universo | Faixa admissível da variável | Temperatura de 0 a 50 °C\n| Rótulo linguístico | Categoria usada nas regras | Fria, amena, quente\n| Grau de pertinência | Intensidade de pertencimento | μquente(29)=0,6\n| Valor crisp | Medida numérica precisa | Sensor informa 29 °C\n\n### Funções de pertinência comuns\n\nA função triangular é definida por três pontos: cresce linearmente até o pico e depois decresce. A trapezoidal tem uma região de pertinência máxima entre dois pontos e rampas nas laterais. A gaussiana tem transição suave e forma de sino. Funções S e Z modelam crescimento ou decrescimento gradual. A escolha depende do fenômeno, da experiência e dos dados; não há uma forma universalmente correta.\n\nOs parâmetros precisam respeitar o universo e produzir cobertura útil. Lacunas podem deixar uma entrada sem pertinência em qualquer rótulo; sobreposições excessivas podem ativar muitas regras. Em sistemas de controle, rótulos vizinhos normalmente se sobrepõem para que uma mudança pequena na entrada não cause uma troca abrupta de ação.\n\n### Operações fuzzy\n\nNa interpretação mais comum, NOT A tem pertinência 1−μA(x); AND pode ser modelado pelo mínimo ou pelo produto; OR pode ser modelado pelo máximo ou por uma soma probabilística. São escolhas de operadores (normas triangulares e conormas) e afetam a inferência. Não se deve supor que toda implementação use sempre o mesmo operador.\n\n### Como cai na prova\n\n- Pertinência 0,7 é grau de compatibilidade com um conjunto, não probabilidade.\n- Um mesmo elemento pode pertencer parcialmente a diversos conjuntos fuzzy.\n- A função triangular tem um pico; a trapezoidal pode ter um platô; ambas são funções de pertinência.\n- O conjunto fuzzy não elimina a medição numérica: transforma a medição em graus para raciocinar com rótulos."
+    },
+    {
+      "title": "2. Fuzzificação e inferência por regras",
+      "markdown": "### O problema que este assunto resolve\n\nUma regra de controle escrita por um especialista costuma ter a forma ‘SE erro é positivo grande E variação do erro é pequena, ENTÃO aumente bastante a ação’. Para que essa regra opere sobre sensores numéricos, o sistema precisa converter os valores medidos em graus fuzzy, calcular a ativação das condições e combinar as conclusões.\n\n> **Siglas e termos deste capítulo**\n> - **Fuzzificação**: conversão de uma entrada crisp em graus de pertinência.\n> - **Antecedente**: condições da parte SE de uma regra.\n> - **Consequente**: conclusão da parte ENTÃO.\n> - **Força de disparo**: grau com que o antecedente de uma regra é satisfeito.\n> - **Implicação**: aplicação da força da regra ao consequente.\n> - **Agregação**: combinação das saídas de várias regras.\n\n### Etapas da inferência\n\nConsidere um controlador que recebe erro de temperatura e variação do erro e produz potência de aquecimento. A fuzzificação avalia cada entrada em cada conjunto relevante, por exemplo erro ‘negativo’, ‘próximo de zero’ ou ‘positivo’. Uma leitura pode ativar parcialmente dois rótulos vizinhos.\n\nEm seguida, cada antecedente é avaliado. Se AND for mínimo e as pertinências de duas condições forem 0,7 e 0,4, a força da regra será min(0,7;0,4)=0,4. Se OR for máximo, valores 0,7 e 0,4 produzem 0,7. Outras escolhas, como produto para AND, mudam o cálculo.\n\nNa implicação, a força de disparo modifica o conjunto de saída da regra. Em Mamdani, é comum truncar a função consequente pelo mínimo ou escalá-la pelo produto. A agregação reúne os consequentes de todas as regras, frequentemente pelo máximo. Esses operadores são configuráveis: não confundir uma convenção comum com uma definição única de toda lógica fuzzy.\n\n| Etapa | Pergunta respondida | Produto\n| --- | --- | ---\n| Fuzzificação | Quanto a entrada pertence a cada rótulo? | Graus μ entre 0 e 1\n| Avaliação do antecedente | Quanto a regra se aplica? | Força de disparo\n| Implicação | Qual saída fuzzy cada regra propõe? | Consequente ativado\n| Agregação | Como combinar as regras ativadas? | Saída fuzzy conjunta\n| Defuzzificação | Qual valor numérico aplicar? | Saída crisp\n\n### Base de regras e cobertura\n\nA base de regras traduz conhecimento em combinações de condições e ações. Regras contraditórias podem propor ações distintas para regiões parecidas; isso não torna automaticamente o sistema inválido, mas exige examinar ativação, agregação e resultado. A cobertura deve ser suficiente para a faixa normal de operação. Uma região sem regra ativada pode resultar em saída indefinida ou em comportamento de contingência específico da implementação.\n\nRegras podem ser avaliadas em paralelo. A saída final decorre da contribuição conjunta, não necessariamente da ‘regra vencedora’. Isso distingue a inferência fuzzy de um seletor rígido que escolhe apenas um intervalo.\n\n### Como cai na prova\n\n- Fuzzificação acontece antes da inferência das regras.\n- Força de disparo mede satisfação do antecedente e não é a saída de controle final.\n- Implicação atua nos consequentes; agregação combina resultados das diferentes regras.\n- O operador AND/OR adotado precisa ser conhecido para calcular numericamente uma força de disparo."
+    },
+    {
+      "title": "3. Defuzzificação e modelos de inferência",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de agregar regras Mamdani, o resultado costuma ser uma região fuzzy sobre a variável de saída, por exemplo graus de pertinência a ‘potência baixa’, ‘média’ e ‘alta’. Um atuador, entretanto, normalmente recebe um número: 42% de abertura ou 3,2 kW. A defuzzificação resume a saída fuzzy em um valor crisp.\n\n> **Siglas e termos deste capítulo**\n> - **Defuzzificação**: conversão da saída fuzzy agregada em valor numérico.\n> - **Centroide**: centro de área do conjunto de saída.\n> - **Mamdani**: modelo em que o consequente de cada regra é um conjunto fuzzy.\n> - **Sugeno/TSK**: modelo cujo consequente é constante ou função das entradas.\n> - **Singleton**: saída concentrada em um valor específico.\n\n### Métodos de defuzzificação\n\nO centroide calcula o centro de gravidade da área agregada; é popular e considera toda a forma da saída. O bissetor procura o ponto que divide a área em duas partes iguais. Métodos de máximo usam os pontos em que a pertinência alcança o máximo: média dos máximos (MOM), menor máximo (SOM) ou maior máximo (LOM). Quando há uma faixa plana no máximo, MOM fica no meio dessa faixa; SOM e LOM escolhem suas extremidades.\n\nA escolha pode alterar a resposta do controlador. O centroide tende a refletir a distribuição completa; os métodos de máximo focam a região de maior pertinência. Se a saída agregada tiver área nula ou nenhuma regra for ativada, o sistema precisa de tratamento explícito, pois não há resultado útil garantido pelo método.\n\n### Mamdani e Sugeno\n\nEm Mamdani, cada regra produz um conjunto fuzzy de saída. As saídas são implicadas e agregadas; uma etapa de defuzzificação, frequentemente centroide, gera o valor final. A forma linguística dos consequentes favorece interpretação por especialistas.\n\nEm Sugeno (Takagi-Sugeno-Kang), o consequente é singleton, constante ou função linear das entradas. A saída costuma ser uma média ponderada dos consequentes, com pesos ligados às forças de disparo. Isso pode ser computacionalmente eficiente e conveniente para otimização e análise matemática. Dizer que todo sistema fuzzy exige centroide é incorreto: em Sugeno a combinação ponderada é característica, e não a defuzzificação geométrica de uma área Mamdani.\n\n### Como cai na prova\n\n- Defuzzificar é produzir uma saída numérica a partir de um resultado fuzzy.\n- Centroide usa o centro de área; bissetor divide a área; SOM/MOM/LOM tratam dos máximos.\n- Mamdani tem consequentes fuzzy; Sugeno tem constantes ou funções das entradas.\n- A média ponderada de Sugeno não deve ser confundida com truncar e agregar conjuntos de saída Mamdani."
+    },
+    {
+      "title": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "markdown": "### O problema que este assunto resolve\n\nUm controlador nebuloso transforma medições e conhecimento operacional em um comando para a planta. Em vez de exigir um modelo matemático exato em todas as condições, pode representar decisões heurísticas, como ‘se a temperatura está muito abaixo do alvo e continua caindo, aplique aquecimento forte’. Isso é útil quando operadores conhecem boas ações, embora o processo seja difícil de modelar com precisão.\n\n> **Siglas e termos deste capítulo**\n> - **Planta**: processo físico controlado.\n> - **Referência (setpoint)**: valor desejado da variável controlada.\n> - **Erro**: diferença entre referência e medição, conforme a convenção adotada.\n> - **Controlador fuzzy**: sistema que calcula comando por inferência fuzzy.\n> - **Saturação**: limite físico do atuador, como potência máxima.\n\n### Blocos do controlador\n\nO sensor mede a variável da planta; o pré-processamento calcula entradas úteis, como erro e variação do erro; o controlador fuzzifica, aplica regras e defuzzifica; o comando é limitado e enviado ao atuador; a planta responde e fecha o ciclo de realimentação. O sinal de erro pode ser definido como referência menos saída, mas deve-se declarar a convenção para que o sinal da ação faça sentido.\n\nExemplo: em um forno, as entradas podem ser erro de temperatura e sua variação, e a saída pode ser potência de aquecimento. Se o forno está abaixo da referência e o erro negativo está diminuindo rapidamente, uma regra pode pedir potência moderada; se está muito abaixo e continua esfriando, pode pedir potência alta. A base deve considerar também a proximidade do alvo e os limites de potência, para evitar excesso e oscilações.\n\n### Como projetar e avaliar\n\n1. Defina variáveis, unidades, escalas e faixas de operação.\n2. Escolha rótulos e funções de pertinência que cubram as faixas, com sobreposição coerente.\n3. Escreva regras verificáveis com especialistas e inclua combinações relevantes de entradas.\n4. Selecione operadores de AND/OR, implicação, agregação e método de saída.\n5. Simule casos típicos, extremos, ruído e transições; inspecione a superfície de controle.\n6. Teste em condições seguras, imponha limites de atuador e mantenha intertravamentos independentes.\n\nLógica fuzzy não garante por si só estabilidade, segurança ou desempenho ótimo. Esses atributos precisam ser analisados e validados para a planta. A escala das entradas também importa: valores fora do universo de discurso podem ser saturados, extrapolados ou rejeitados, conforme implementação.\n\n### Aplicações e limites\n\nControladores fuzzy aparecem em climatização, fornos, velocidade de motores, processos industriais e eletrodomésticos. São atraentes quando regras linguísticas são compreensíveis e o modelo é incerto. O custo é projetar e validar funções e regras: uma base grande pode ficar difícil de manter; regras incompletas ou mal ajustadas produzem respostas ruins. Em controle crítico, devem coexistir com limites, proteções e análise do sistema físico.\n\n### Como cai na prova\n\n- Um controlador fuzzy recebe medidas, executa inferência e envia uma ação ao atuador em malha fechada.\n- As funções de pertinência e as regras precisam refletir escalas e comportamento da planta.\n- Inferência suave não equivale a estabilidade garantida nem dispensa proteção física.\n- A saída pode ser potência, posição, velocidade ou outro comando contínuo, limitada pela capacidade do atuador."
+    }
+  ],
+  "summary": "Lógica fuzzy representa pertinência gradual de 0 a 1, permitindo que uma entrada pertença parcialmente a rótulos linguísticos sobrepostos. Funções triangular, trapezoidal e gaussiana modelam esses conjuntos. Na inferência, entradas crisp são fuzzificadas; antecedentes ativam regras; implicação gera consequentes e agregação combina resultados. A defuzzificação pode converter a saída fuzzy em número por centroide, bissetor ou métodos de máximo. Em Mamdani, consequentes são conjuntos fuzzy; em Sugeno/TSK, constantes ou funções das entradas, combinadas tipicamente por média ponderada. Um controle nebuloso fecha a malha entre sensores, controlador, atuador e planta, usando regras linguísticas. Deve ser dimensionado e testado para a faixa real; lógica fuzzy não garante estabilidade ou segurança sem análise, limites e proteções.",
+  "flashcards": [
+    {
+      "front": "Qual intervalo normalmente contém os graus de pertinência?",
+      "back": "De 0 a 1, inclusive."
+    },
+    {
+      "front": "O grau de pertinência 0,6 é uma probabilidade?",
+      "back": "Não. É o grau de compatibilidade do valor com um conjunto fuzzy definido pela função de pertinência."
+    },
+    {
+      "front": "O que é universo de discurso?",
+      "back": "O domínio de valores considerado para uma variável fuzzy."
+    },
+    {
+      "front": "Uma entrada pode pertencer a dois conjuntos fuzzy ao mesmo tempo?",
+      "back": "Sim, com graus diferentes, por exemplo parcialmente morna e parcialmente quente."
+    },
+    {
+      "front": "Como é a forma típica de uma função triangular?",
+      "back": "Sobe até um pico e desce, usando três pontos de definição."
+    },
+    {
+      "front": "O que diferencia a função trapezoidal da triangular?",
+      "back": "A trapezoidal pode ter uma faixa plana com pertinência máxima."
+    },
+    {
+      "front": "O que faz a fuzzificação?",
+      "back": "Converte uma entrada numérica crisp nos graus de pertinência aos rótulos fuzzy."
+    },
+    {
+      "front": "O que é antecedente de uma regra fuzzy?",
+      "back": "A condição da parte SE da regra."
+    },
+    {
+      "front": "O que é consequente?",
+      "back": "A conclusão ou ação indicada na parte ENTÃO da regra."
+    },
+    {
+      "front": "O que representa a força de disparo?",
+      "back": "O grau de satisfação do antecedente de uma regra."
+    },
+    {
+      "front": "Qual é a função da implicação?",
+      "back": "Aplicar a força de disparo ao conjunto ou valor consequente da regra."
+    },
+    {
+      "front": "O que é agregação na inferência fuzzy?",
+      "back": "Combinação das saídas produzidas pelas regras ativadas."
+    },
+    {
+      "front": "Qual o papel da defuzzificação?",
+      "back": "Produzir um valor crisp utilizável a partir do resultado fuzzy agregado."
+    },
+    {
+      "front": "O que calcula o método centroide?",
+      "back": "O centro de área do conjunto fuzzy de saída."
+    },
+    {
+      "front": "O que faz o bissetor?",
+      "back": "Encontra um ponto que divide a área agregada em duas partes iguais."
+    },
+    {
+      "front": "O que MOM, SOM e LOM selecionam?",
+      "back": "Média, menor e maior valor, respectivamente, entre os pontos de pertinência máxima."
+    },
+    {
+      "front": "Como são os consequentes Mamdani?",
+      "back": "Conjuntos fuzzy de saída."
+    },
+    {
+      "front": "Como são os consequentes Sugeno/TSK?",
+      "back": "Constantes ou funções das entradas, geralmente combinadas por média ponderada."
+    },
+    {
+      "front": "Quais blocos formam a malha de controle fuzzy?",
+      "back": "Medição, processamento/fuzzificação, inferência, defuzzificação, atuador e planta realimentada."
+    },
+    {
+      "front": "Lógica fuzzy, sozinha, prova estabilidade?",
+      "back": "Não; estabilidade e segurança precisam de análise e validação do sistema físico."
+    }
+  ],
+  "tips": [
+    "Memorize a sequência: fuzzificação, avaliação dos antecedentes, implicação, agregação e defuzzificação.",
+    "Associe Mamdani a consequentes fuzzy e Sugeno a saídas constantes ou funções das entradas.",
+    "Leia o método AND/OR fornecido antes de calcular força de disparo; mínimo e produto não são intercambiáveis.",
+    "Desenhe a curva de pertinência: o pico triangular e o platô trapezoidal ajudam a distinguir formas.",
+    "Centroide considera a área; bissetor separa áreas; MOM, SOM e LOM olham os pontos máximos.",
+    "Em questões de controle, acompanhe o caminho sensor → controlador → atuador → planta → sensor."
+  ],
+  "traps": [
+    "Tratar grau de pertinência como chance ou frequência estatística.",
+    "Supor que um valor crisp só pode pertencer a um único rótulo fuzzy.",
+    "Confundir a força de disparo de uma regra com o comando numérico final.",
+    "Afirmar que todo sistema fuzzy usa centroide, embora Sugeno costume usar média ponderada.",
+    "Confundir implicação de cada regra com agregação das saídas de todas as regras.",
+    "Concluir que regras linguísticas garantem estabilidade ou dispensam limites e proteções."
+  ],
+  "activeRecall": [
+    "Explique a diferença entre pertinência binária crisp e pertinência gradual fuzzy.",
+    "Para uma entrada com pertinência 0,7 em A e 0,4 em B, calcule AND por mínimo e OR por máximo.",
+    "Descreva com suas palavras as cinco etapas usuais do processo de inferência fuzzy.",
+    "Explique por que fuzzificação não altera o valor medido no sensor, mas muda sua representação para as regras.",
+    "Compare uma saída Mamdani com uma saída Sugeno.",
+    "Diferencie centroide, bissetor e os três métodos baseados em máximo.",
+    "Desenhe o caminho de sinais de um controlador nebuloso de temperatura em malha fechada.",
+    "Indique duas verificações que devem ser feitas antes de instalar um controlador fuzzy numa planta real."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Pertinência confundida com probabilidade",
+      "summary": "O grau μ expressa compatibilidade com um conjunto linguístico, não chance estatística; um valor pode pertencer parcialmente a vários conjuntos."
+    },
+    {
+      "key": "e2",
+      "title": "Etapas da inferência embaralhadas",
+      "summary": "Fuzzificação transforma entradas; antecedente determina ativação; implicação forma consequentes; agregação combina regras; defuzzificação gera a saída numérica."
+    },
+    {
+      "key": "e3",
+      "title": "Operadores tratados como únicos",
+      "summary": "AND pode usar mínimo ou produto; OR pode usar máximo ou outros operadores. O resultado numérico depende da definição adotada."
+    },
+    {
+      "key": "e4",
+      "title": "Mamdani e Sugeno trocados",
+      "summary": "Mamdani usa conjuntos fuzzy consequentes e normalmente defuzzifica a agregação; Sugeno usa consequentes constantes ou funções e combinação ponderada."
+    },
+    {
+      "key": "e5",
+      "title": "Controle fuzzy tomado como garantia de segurança",
+      "summary": "Regras linguísticas não demonstram estabilidade nem limitam fisicamente o atuador; projeto requer simulação, validação, saturação e proteções apropriadas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um conjunto fuzzy de temperatura ‘alta’, uma leitura tem pertinência 0,65. O que esse valor expressa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A probabilidade estatística de que a leitura verdadeira esteja acima do limite de temperatura alta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fração dos sensores que, em média, classificaria aquela leitura como temperatura alta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O grau de compatibilidade da leitura com o conjunto ‘alta’ definido pela função de pertinência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A porcentagem do intervalo de medição que foi ocupada pela leitura atual do sensor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chance de a regra de controle correspondente produzir uma falha durante a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A pertinência quantifica o quanto um valor se enquadra no rótulo fuzzy segundo uma função escolhida. Ela não é uma probabilidade sobre incerteza do sensor nem uma frequência de classificações.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mesmo com funções fuzzy de ‘morna’ e ‘quente’ sobrepostas, uma leitura deve ter pertinência um em exatamente um conjunto e zero em todos os demais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Conjuntos fuzzy podem se sobrepor, de modo que uma leitura tenha pertinência positiva em dois rótulos vizinhos. A exigência de uma única categoria com valor um e todas as outras em zero é própria de uma separação crisp, não da representação fuzzy geral.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente uma função triangular de uma trapezoidal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A triangular tem um pico de pertinência máxima, enquanto a trapezoidal pode manter o máximo em um intervalo plano.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A triangular só assume valores binários, enquanto a trapezoidal admite graus intermediários entre zero e um.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A trapezoidal depende de probabilidades observadas, enquanto a triangular é sempre definida por opinião especializada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A triangular é usada apenas em variáveis de saída, enquanto a trapezoidal serve somente para entradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A triangular possui uma curva em sino suave, enquanto a trapezoidal precisa crescer de forma exponencial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na forma triangular, a pertinência cresce até um vértice e depois cai. A trapezoidal acrescenta uma região de topo plano, definida por dois pontos com pertinência máxima.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um controlador, a função de pertinência de ‘velocidade baixa’ associa cada velocidade a uma probabilidade estatística de falha do motor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A função de pertinência mapeia os valores da variável para graus de pertencimento ao conjunto linguístico ‘velocidade baixa’. Ela não expressa, por si, a probabilidade estatística de falha do equipamento.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma questão, as pertinências de A e B são 0,7 e 0,4, e AND foi definido como mínimo. Qual é a força da condição A AND B?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,28, pois a conjunção fuzzy multiplica os graus de pertinência em todas as implementações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,40, pois o operador mínimo escolhe o maior dos graus informados para as condições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,55, pois a conjunção fuzzy usa a média aritmética das pertinências das duas condições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,70, pois a condição de maior pertinência representa o grau conjunto da regra ativada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,40, pois o operador mínimo escolhe o menor dos graus informados para as condições.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com AND definido como mínimo, toma-se min(0,7; 0,4), que é 0,4. O resultado seria diferente se a questão definisse outro operador, como produto.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fuzzificação altera a leitura física que veio do sensor e a substitui por uma nova medição numérica produzida pelas regras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fuzzificação preserva a medição crisp recebida e a avalia nas funções de pertinência, produzindo graus para as regras. A etapa não altera o sinal físico do sensor nem produz o comando final.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência apresenta as etapas usuais de um sistema de inferência Mamdani até a saída numérica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Defuzzificação, fuzzificação, agregação, avaliação do antecedente e implicação das regras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agregação dos antecedentes, escolha da regra única, medição do sensor e conversão para valor crisp.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Implicação dos dados brutos, defuzzificação de cada entrada, fuzzificação da saída e agregação final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fuzzificação, avaliação dos antecedentes, implicação dos consequentes, agregação e defuzzificação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Fuzzificação, defuzzificação das entradas, agregação das medições e avaliação posterior dos consequentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "As entradas são primeiro fuzzificadas; as regras são avaliadas; cada consequente é ativado por implicação; os resultados são agregados; por fim, a saída fuzzy é defuzzificada.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A força de disparo de uma regra já é, por definição, o comando numérico que deve ser enviado ao atuador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A força de disparo indica quanto o antecedente da regra se aplica. Ela ativa o consequente, mas a saída numérica final depende da inferência conjunta e, em Mamdani, da defuzzificação.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se OR for definido pelo máximo, que grau resulta de combinar pertinências 0,7 e 0,4?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,40, porque o operador OR sempre escolhe o menor grau para evitar ativação excessiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,28, porque o operador máximo multiplica os graus para formar uma pertinência conjunta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,55, porque o operador máximo calcula a média das pertinências que entram na condição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1,10, porque OR soma os graus, ainda que a soma ultrapasse o intervalo unitário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,70, porque o máximo entre os dois graus é 0,7.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com OR definido como máximo, toma-se max(0,7; 0,4)=0,7. Operadores alternativos existem, mas a questão especificou o máximo.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na inferência fuzzy, somente a regra de maior força de disparo pode contribuir para a saída; as demais são descartadas por definição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Várias regras podem ser ativadas em graus diferentes, e seus consequentes podem contribuir para a agregação. Selecionar apenas a regra de maior força seria uma estratégia distinta, não uma exigência da inferência fuzzy.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde à etapa de agregação em um sistema de inferência fuzzy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combinar os consequentes ativados pelas diferentes regras em um resultado de saída conjunto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter a leitura crisp do sensor em unidades físicas compatíveis com o atuador da planta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar o grau de satisfação de cada condição antes de aplicar operadores ao antecedente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher a função de pertinência que transforma uma entrada fuzzy em uma medição crisp.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir os limites de saturação do atuador depois que o comando físico já foi aplicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A agregação reúne os resultados consequentes das diversas regras ativadas. A transformação para um escalar crisp é a etapa posterior de defuzzificação.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A agregação modifica o consequente de uma regra isolada pela sua força de disparo, enquanto a implicação combina resultados de regras distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A implicação modifica o consequente de cada regra pela sua força de disparo. A agregação ocorre depois e combina as contribuições das diferentes regras em uma saída fuzzy conjunta; a afirmação inverteu as funções das etapas.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o método centroide retorna ao defuzzificar um conjunto fuzzy de saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O maior valor do universo em que a pertinência é diferente de zero, sem considerar a forma da área.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor de entrada que disparou a regra mais ativa, repetido como comando de saída do controlador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O centro de área do conjunto de saída agregado, usado como um valor numérico representativo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A média simples das forças de disparo, sem levar em conta as funções de saída ativadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ponto que divide a área agregada em duas regiões de área idêntica por construção.",
+          "correct": false
+        }
+      ],
+      "explanation": "O centroide é o centro de gravidade da área sob a função agregada. O ponto que divide a área igualmente é o método bissetor.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método bissetor procura um ponto de saída que separe a área fuzzy agregada em duas partes iguais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O bissetor encontra o ponto cuja posição separa a área sob a função agregada em duas partes de mesma área. Ele não precisa coincidir com o centroide nem com o ponto médio do intervalo de saída.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saída tem pertinência máxima constante entre 10 e 14. Qual resultado o método MOM seleciona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor 10, que é a menor extremidade da faixa onde a pertinência alcança o máximo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor 12, pois o bissetor sempre coincide com o ponto médio da faixa máxima.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor 14, que é a maior extremidade da faixa onde a pertinência alcança o máximo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O centroide de toda a área, mesmo que a forma fora da faixa máxima seja assimétrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor 12, ponto médio dos valores de saída que possuem pertinência máxima.",
+          "correct": true
+        }
+      ],
+      "explanation": "MOM significa média dos máximos. Na faixa plana de 10 a 14, a média dos pontos máximos é 12. SOM escolheria 10 e LOM escolheria 14.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema Mamdani típico, o consequente de cada regra é uma constante ou função linear das entradas, combinada por média ponderada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Constantes e funções lineares como consequentes são características de Sugeno/TSK. Em Mamdani, os consequentes são conjuntos fuzzy, que podem ser agregados e depois defuzzificados.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa caracteriza corretamente o consequente de uma regra Sugeno/TSK?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma função de pertinência obrigatoriamente trapezoidal, agregada por máximo antes do cálculo final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um rótulo linguístico de saída que sempre precisa ser convertido pelo método bissetor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um conjunto fuzzy necessariamente gaussiano, associado a cada regra e truncado pelo antecedente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um valor constante ou uma função das entradas, combinado com pesos das regras ativadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma medição externa produzida pelo atuador, usada como antecedente da própria regra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em Sugeno/TSK, o consequente costuma ser constante ou função linear das entradas. A saída resulta de uma combinação ponderada pelas ativações das regras.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo sistema fuzzy, inclusive Sugeno, precisa necessariamente calcular o centroide de uma área bidimensional para obter a saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Centroide é um método comum para saídas Mamdani agregadas. Sugeno usa consequentes numéricos constantes ou funções das entradas e tipicamente combina seus valores por média ponderada.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se nenhuma regra for ativada e a saída agregada tiver pertinência nula em todo o universo, o centroide ainda fornece necessariamente um comando físico útil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O centroide exige uma área de pertinência não nula para localizar seu centro. Se nenhuma regra contribui, não há resultado agregado que determine um comando; o projeto precisa cobrir a região ou definir uma ação de contingência.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência física descreve uma malha de controle nebuloso fechada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sensor mede a planta, controlador calcula o comando, atuador age e a planta é medida novamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atuador mede a planta, sensor aplica regras e controlador recebe a resposta depois da ação final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controlador atua diretamente sobre o sensor, que estima a saída sem observar a planta física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planta define o setpoint, atuador fuzzifica a medição e o sensor agrega as regras linguísticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sensor envia a medida ao atuador, e a planta calcula a defuzzificação sem controlador intermediário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em malha fechada, o sensor fornece a medida ao controlador; o comando calculado vai ao atuador e modifica a planta, cuja resposta volta a ser medida.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um forno, um controlador fuzzy pode usar erro de temperatura e variação do erro como entradas e potência de aquecimento como saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Erro e sua variação são variáveis úteis para descrever o desvio e sua tendência; a saída pode ser um comando de potência ao aquecedor.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar funções de pertinência para uma faixa normal de operação, qual prática ajuda a evitar regiões sem representação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar todos os conjuntos sem qualquer sobreposição, mesmo quando restarem lacunas entre os rótulos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir pertinência igual a um em todos os rótulos, para que cada entrada ative todas as regras por completo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cobrir a faixa com rótulos e sobreposições coerentes, verificando graus e regras ao longo do domínio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas uma função para o valor médio e deixar as extremidades fora do universo previsto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar funções somente depois da instalação, sem simular as combinações de entradas do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cobertura e sobreposição coerentes evitam que entradas normais fiquem sem pertinência útil ou sofram mudanças bruscas. A base de regras também precisa cobrir combinações relevantes.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de regras linguísticas fuzzy, por si só, demonstra a estabilidade do sistema físico controlado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A lógica fuzzy organiza a tomada de decisão, mas não prova estabilidade da planta. O comportamento precisa ser analisado e validado no sistema real ou em modelos adequados.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cuidado de engenharia é apropriado ao levar um controlador fuzzy de simulação para uma planta real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover os limites físicos do atuador, pois a defuzzificação já restringe qualquer comando inseguro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar transições e casos extremos, limitar a ação do atuador e manter proteções independentes adequadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir a medição por regras fixas, pois a realimentação interfere na interpretação dos rótulos linguísticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de regras sem analisar interações, pois uma base maior sempre melhora o controle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar intertravamentos durante a operação normal, para permitir que o controlador ajuste sua própria segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação deve contemplar extremos e transições, e o comando precisa respeitar limites físicos. Proteções e intertravamentos não são substituídos pelo controlador fuzzy.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um controlador fuzzy pode ser útil quando o conhecimento de operadores pode ser expresso como regras, ainda que um modelo matemático exato seja difícil de obter.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras linguísticas permitem incorporar conhecimento operacional em sistemas com dinâmica difícil de modelar, desde que as regras e respostas sejam validadas.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao definir erro como referência menos medição, uma temperatura abaixo do setpoint produz erro positivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se a referência supera a medição, referência menos medição é positivo. O controlador deve declarar a convenção de sinal usada para construir suas regras.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento representa o universo de discurso da variável ‘abertura da válvula’ em um controlador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista de regras que determina qual operador lógico será aplicado aos antecedentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conjunto de valores admissíveis para a abertura, por exemplo sua faixa percentual de operação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O grau de pertinência da regra mais ativada depois de realizada a defuzzificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sequência temporal das medições do sensor durante o período de controle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A expressão matemática da planta, sem incluir os valores possíveis da variável de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O universo de discurso é a faixa de valores considerada para a variável. Para abertura de válvula, pode ser a faixa percentual fisicamente admissível definida no sistema.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A soma de todas as funções de pertinência de uma partição fuzzy precisa ser exatamente um em cada ponto, em qualquer sistema fuzzy.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma partição fuzzy pode ser construída com propriedades específicas, mas a soma unitária não é requisito universal de todo sistema. O projeto deve verificar cobertura e comportamento para a aplicação.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em lógica fuzzy, a pertinência parcial torna desnecessário especificar o universo de discurso e as unidades físicas das variáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As funções de pertinência são definidas sobre domínios concretos. Unidades, escalas e limites das variáveis são necessários para interpretar medições e projetar o controlador.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma inferência com AND por mínimo, as condições têm graus 0,8 e 0,3. Qual é a ativação da regra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,24, pois a força de qualquer antecedente composto é o produto de suas pertinências.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,55, pois o operador mínimo calcula a média entre os graus das condições fuzzy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,80, pois a condição de maior pertinência domina a avaliação de um antecedente conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1,00, pois ambas as condições têm pertinência positiva e ativam integralmente a regra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,30, pois o mínimo seleciona o menor dos graus de pertinência do antecedente.",
+          "correct": true
+        }
+      ],
+      "explanation": "O operador definido é o mínimo: min(0,8; 0,3)=0,3. O valor não deve ser calculado por produto, já que essa não foi a convenção indicada.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a pertinência de uma entrada a A é 0,7 e AND usa produto, a contribuição conjunta com uma pertinência 0,4 é 0,28.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Neste caso o operador foi explicitamente definido como produto: 0,7 × 0,4 = 0,28. O resultado destaca por que é necessário conhecer o operador adotado.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No exemplo de produto probabilístico para OR, que valor resulta de combinar 0,7 e 0,4 usando a expressão a+b−ab?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,28, pois OR combina as condições multiplicando diretamente os graus de pertinência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,40, pois a operação probabilística reduz o resultado ao menor dos graus observados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,82, pois 0,7 + 0,4 − (0,7 × 0,4) resulta em 0,82.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "1,10, pois a soma dos graus é mantida mesmo quando ultrapassa o intervalo unitário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,55, pois o operador probabilístico é definido como a média aritmética dos dois valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aplicando a fórmula dada: 0,7+0,4−0,28=0,82. O resultado permanece no intervalo de pertinência e difere do máximo, que seria 0,7.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método LOM seleciona o menor valor entre aqueles em que a saída fuzzy atinge pertinência máxima.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. LOM é largest of maximum e seleciona o maior valor de saída com pertinência máxima. O menor é selecionado pelo método SOM.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema Sugeno tem duas regras ativadas com pesos 0,2 e 0,8 e consequentes constantes 10 e 20. Qual a média ponderada normalizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "18, pois (0,2×10 + 0,8×20) dividido pela soma dos pesos resulta em 18.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "15, pois a saída Sugeno é a média aritmética simples dos dois consequentes constantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "30, pois os consequentes são multiplicados pelas forças de disparo e depois somados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "10, pois o sistema escolhe o consequente associado à regra de menor ativação fuzzy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "20, pois o sistema escolhe somente o consequente da regra com maior força de disparo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A soma ponderada é 0,2×10 + 0,8×20 = 18 e a soma dos pesos é 1, portanto a média normalizada é 18. Sugeno combina contribuições, não escolhe necessariamente uma regra vencedora.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um conjunto de saída com pertinência máxima em vários pontos, SOM escolhe o menor e LOM escolhe o maior desses pontos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SOM (smallest of maximum) seleciona o menor valor entre os pontos de pertinência máxima, enquanto LOM (largest of maximum) seleciona o maior. MOM calcula a média desses pontos máximos.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário combina melhor com a vantagem de interpretabilidade do modelo Mamdani?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um problema cuja solução exige apenas uma regressão linear e nenhuma representação de regras linguísticas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma aplicação que precisa dispensar todas as funções de pertinência e usar somente sensores digitais binários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma planta em que os consequentes não podem ser expressos por rótulos como potência baixa, média ou alta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um sistema em que saídas linguísticas por regra são fáceis de revisar com especialistas do processo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um caso em que a única exigência é evitar qualquer agregação de consequentes fuzzy ou valores numéricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mamdani é intuitivo quando especialistas conseguem revisar regras com consequentes linguísticos. Isso não significa que seja sempre o mais eficiente ou adequado a qualquer aplicação.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Sugeno, um consequente de primeira ordem pode ser uma função linear das variáveis de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No modelo Sugeno/TSK, o consequente pode ser uma constante (ordem zero) ou uma função linear das variáveis de entrada (primeira ordem). As forças das regras ponderam esses valores para formar a saída.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um controlador de motor, a variação do erro pode ser uma entrada útil porque indica a tendência do desvio em relação à referência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A variação do erro informa se o desvio cresce ou diminui e pode ajudar as regras a ajustar a ação de controle, além do valor instantâneo do erro.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de forno diz: SE erro é muito positivo E erro está aumentando, ENTÃO potência é alta. Qual é o antecedente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A expressão ‘potência é alta’, pois descreve o valor que será comandado ao aquecedor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As duas condições sobre erro e sua tendência, combinadas pelo conectivo E.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A leitura do sensor de potência, pois antecedente sempre corresponde à saída medida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O universo numérico da temperatura, pois toda faixa de entrada constitui uma regra completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A defuzzificação da potência, porque antecedente é o resultado final produzido pelo controlador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O antecedente é a parte SE, formada pelas condições de erro e variação do erro. ‘Potência alta’ é o consequente da regra.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao limitar o comando fuzzy à faixa de potência nominal do aquecedor, aplica-se uma saturação coerente com a capacidade física do atuador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A saturação mantém o comando dentro dos limites do equipamento. Ela é uma medida de implementação e não substitui outras proteções da planta.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma entrada ultrapassar o universo de discurso definido, o controlador fuzzy sempre extrapola a função de pertinência de uma forma universal e padronizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O tratamento depende da implementação e do projeto; pode haver saturação, extrapolação ou rejeição. A faixa de operação e o comportamento fora dela precisam ser definidos e testados.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma vantagem prática da avaliação paralela de várias regras fuzzy sobre uma seleção rígida por faixa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela elimina a necessidade de escolher funções de pertinência e operadores para as variáveis do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela garante que toda combinação de entradas tenha saída estável sem precisar de ensaio ou análise.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela permite que regras vizinhas contribuam gradualmente, reduzindo mudanças abruptas nas transições.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela faz com que apenas a regra com maior pertinência seja considerada em qualquer instante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela torna irrelevante a definição de consequentes, pois todas as regras geram a mesma ação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com conjuntos sobrepostos, várias regras podem contribuir em graus diferentes e a saída variar suavemente. Isso não dispensa projeto nem demonstra estabilidade automaticamente.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O conhecimento de operadores pode ajudar a formular regras fuzzy, mas as regras ainda precisam ser avaliadas em cenários representativos da planta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A experiência fornece uma base útil para regras linguísticas, mas a resposta precisa ser simulada e testada para verificar cobertura, transições, extremos e efeitos físicos.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conjunto fuzzy é equivalente a vários conjuntos clássicos separados por fronteiras rígidas e mutuamente exclusivas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um conjunto fuzzy permite pertinência gradual e conjuntos diferentes podem se sobrepor. Fronteiras rígidas e exclusivas caracterizam uma classificação crisp típica.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção melhor resume o papel de uma variável linguística em um sistema fuzzy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descrever uma variável por termos como baixo, médio e alto, associados a conjuntos fuzzy no seu domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar somente palavras sem qualquer relação com valores ou funções numéricas de pertinência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir sensores e atuadores por texto livre interpretado manualmente durante cada ciclo de controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Representar apenas variáveis booleanas que assumem verdadeiro ou falso sem graus intermediários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Calcular a probabilidade de cada frase de regra ser verdadeira na população de equipamentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variáveis linguísticas usam rótulos qualitativos ligados a conjuntos fuzzy definidos sobre um universo numérico, permitindo que regras operem com termos interpretáveis.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A implicação em Mamdani pode truncar ou escalar a função de pertinência do consequente conforme a força de disparo, dependendo do operador escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Operadores usuais incluem mínimo, que recorta a função, e produto, que a escala. A escolha faz parte da configuração do sistema de inferência.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No controle de velocidade de motor, a saída fuzzy pode representar uma referência de torque ou um comando de acionamento, desde que o mapeamento seja definido para o equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A variável de saída pode ser qualquer comando adequado à arquitetura do processo. Unidades, limites e significado físico devem ser estabelecidos no projeto.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto fuzzy, aumentar indefinidamente a quantidade de regras sempre melhora a qualidade e facilita a manutenção do controlador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma base extensa pode ficar difícil de revisar e pode introduzir interações inconsistentes. O conjunto de regras deve cobrir os cenários necessários sem complexidade não justificada.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que se deve concluir se duas regras ativadas propõem consequentes diferentes para uma mesma entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sistema necessariamente falha, pois regras fuzzy não podem produzir consequentes distintos simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A regra escrita primeiro sempre prevalece, independentemente da força e do operador de agregação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entrada deve ser descartada, pois conjuntos de saída distintos não podem ser combinados por inferência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As contribuições podem ser agregadas; é necessário examinar operadores e a saída resultante do sistema.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A regra menos ativada deve substituir as demais, evitando a participação de conclusões concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras diferentes podem ser ativadas ao mesmo tempo e propor saídas distintas. A agregação e a defuzzificação determinam o resultado conjunto, que deve ser avaliado quanto à coerência do projeto.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema fuzzy tipo 1 usa funções de pertinência cujos graus são valores definidos, enquanto um sistema tipo 2 pode representar incerteza sobre esses graus.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No tipo 1, cada elemento tem um grau de pertinência definido. Sistemas tipo 2 permitem representar incerteza adicional sobre a própria pertinência; o escopo principal aqui é o tipo 1.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o comando de saída de um controlador fuzzy é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando sempre é adimensional e pode ser aplicado sem conversão ou limite no equipamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O comando deve ter interpretação física definida e respeitar a faixa permitida pelo atuador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A saída é sempre uma probabilidade entre zero e um, mesmo quando o atuador recebe potência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O comando pode ignorar a unidade de engenharia porque a função de pertinência já contém a calibração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A saída só pode ser uma palavra linguística e nunca pode ser convertida para grandeza numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A saída numérica deve corresponder a uma grandeza ou sinal de comando interpretável pela interface com o atuador e permanecer dentro dos limites físicos aplicáveis.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A seleção de funções de pertinência pode considerar experiência do processo e dados observados, e deve ser verificada na faixa operacional relevante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As funções podem ser desenhadas com conhecimento especialista ou ajustadas com dados; em ambos os casos, cobertura e resposta devem ser avaliadas na faixa de operação.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de controle nebuloso pode ser implementada sem um modelo matemático exato da planta, mas ainda precisa de medições e testes do comportamento resultante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Regras baseadas em experiência podem ser úteis quando um modelo preciso é difícil. Isso não elimina a necessidade de avaliar os dados, a planta e os efeitos das ações de controle.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No processo de inferência, defuzzificação costuma ocorrer antes da ativação dos antecedentes, pois é preciso transformar cada regra em comando crisp primeiro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A defuzzificação é a etapa final usual após a implicação e agregação dos consequentes fuzzy. Ela converte o resultado conjunto em valor crisp.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um controle de ventilação, temperatura e umidade podem ser entradas e a velocidade do ventilador pode ser a saída, com regras graduais entre níveis de operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essas variáveis podem ser representadas por rótulos fuzzy e regras; a saída numérica de ventilação pode ser limitada à faixa operacional do equipamento.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma diferença correta entre classificação crisp e classificação fuzzy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A crisp usa pertinência binária, enquanto a fuzzy admite graus intermediários definidos por funções.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A crisp usa regras linguísticas graduais, enquanto a fuzzy só aceita decisões de verdadeiro ou falso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A crisp representa incerteza estatística e a fuzzy representa exclusivamente erros aleatórios de medição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A crisp depende de centroide, enquanto a fuzzy não pode operar com valores numéricos de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A crisp permite conjuntos sobrepostos, mas a fuzzy exige que cada valor tenha uma categoria exclusiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na classificação crisp, um elemento pertence ou não pertence ao conjunto. Na fuzzy, a função de pertinência admite graus intermediários, inclusive sobreposição entre rótulos.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A saída de um sistema Mamdani depende da forma dos conjuntos consequentes, dos operadores de inferência e do método de defuzzificação escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A saída resulta da ativação dos consequentes, da agregação e da conversão crisp. Alterar operadores ou método de defuzzificação pode alterar o comando obtido.",
+      "section": "3. Defuzzificação e modelos de inferência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre uma função gaussiana de pertinência está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela atribui exclusivamente valores zero ou um, sem transição gradual em qualquer ponto do domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela é uma função de pertinência de transição suave, com formato característico de sino.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela representa a soma das forças de disparo das regras depois da agregação de consequentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela só pode modelar a variável de saída de Sugeno, nunca conjuntos de entrada fuzzy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela é necessariamente uma distribuição de probabilidade normalizada sobre todos os resultados possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função gaussiana oferece uma transição suave e forma de sino. Seu uso como pertinência fuzzy não a transforma automaticamente em uma distribuição probabilística normalizada.",
+      "section": "1. Conjuntos fuzzy e pertinência gradual",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema Mamdani, duas regras geram conjuntos consequentes ativados e depois o sistema usa o máximo para agregá-los. O que o máximo faz nessa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seleciona o menor valor numérico de saída e descarta toda pertinência das funções consequentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Multiplica os consequentes pelo universo de discurso para recuperar a escala física do sensor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcula a média das forças de disparo e usa esse número como saída crisp sem defuzzificar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em cada ponto da saída, conserva o maior grau entre as contribuições das regras ativadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escolhe a regra escrita por último e ignora as funções consequentes das regras anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na agregação pelo máximo, comparam-se as pertinências das contribuições consequentes ponto a ponto no universo de saída e conserva-se a maior. O resultado ainda é um conjunto fuzzy, a ser defuzzificado se for necessário um escalar.",
+      "section": "2. Fuzzificação e inferência por regras",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um controlador de nível de tanque, o sensor fornece uma leitura dentro da faixa calibrada, mas a base de regras não cobre uma combinação possível de nível e variação do nível. Qual ação de projeto é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar automaticamente a regra com menor força, pois ela representa melhor as regiões sem cobertura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter o nível em uma probabilidade e eliminar a necessidade de consequentes de controle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ampliar a faixa do sensor para forçar a ativação de uma regra já existente em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a defuzzificação pelo valor anterior, sem avaliar se a retenção é segura para a planta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Revisar a cobertura das funções e regras e definir comportamento seguro para a região não coberta.",
+          "correct": true
+        }
+      ],
+      "explanation": "A base deve cobrir as combinações relevantes das entradas e qualquer lacuna precisa ter tratamento deliberado. Uma política de contingência deve considerar a dinâmica e a segurança da planta, não ser escolhida arbitrariamente.",
+      "section": "4. Controle nebuloso: arquitetura, projeto e aplicação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Fuzzy Inference Process",
+      "publisher": "MathWorks",
+      "reference": "Etapas de fuzzificação, avaliação de regras, implicação, agregação e defuzzificação; graus de pertinência e centroide.",
+      "url": "https://www.mathworks.com/help/fuzzy/fuzzy-inference-process.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mamdani and Sugeno Fuzzy Inference Systems",
+      "publisher": "MathWorks",
+      "reference": "Diferenças de consequentes, características e processamento dos sistemas Mamdani e Sugeno/TSK.",
+      "url": "https://www.mathworks.com/help/fuzzy/types-of-fuzzy-inference-systems.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Defuzzification Methods",
+      "publisher": "MathWorks",
+      "reference": "Centroide, bissetor, média dos máximos, menor máximo e maior máximo.",
+      "url": "https://www.mathworks.com/help/fuzzy/defuzzification-methods.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Fuzzy Logic Toolbox Documentation",
+      "publisher": "MathWorks",
+      "reference": "Modelagem de sistemas de inferência fuzzy e funções de pertinência triangulares, trapezoidais e gaussianas.",
+      "url": "https://www.mathworks.com/help/fuzzy/fuzzy-inference-system-modeling.html",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

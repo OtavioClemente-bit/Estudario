@@ -1,0 +1,2130 @@
+{
+  "id": "seguranca-informacao.gestao-segredos-credenciais",
+  "subject": "Segurança da Informação",
+  "title": "Gestão de segredos e credenciais",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gestão de segredos",
+    "Gestão segura de segredos e credenciais",
+    "Armazenamento seguro de credenciais",
+    "Ciclo de vida de segredos digitais",
+    "Proteção de senhas e chaves de API",
+    "Gerenciamento de credenciais de aplicações",
+    "Cofre de segredos para sistemas",
+    "Rotação de senhas, tokens e chaves",
+    "Controle de acesso a segredos técnicos",
+    "Gestão de chaves e credenciais de serviço"
+  ],
+  "scope": {
+    "covers": "Conceito e classificação de segredos; ciclo de vida de criação, distribuição, armazenamento, consumo, rotação, revogação e descarte; cofres centralizados, identidade de workloads, privilégio mínimo, criptografia, versionamento, auditoria, segredos dinâmicos, pipelines, prevenção de vazamento e resposta a exposição; distinção entre gestão de segredos e gestão de chaves criptográficas.",
+    "excludes": "Configuração passo a passo de produto específico, algoritmos criptográficos em profundidade, legislação setorial, gestão geral de identidades humanas e recuperação de dados criptografados."
+  },
+  "theoryTitle": "O ciclo de vida de segredos em aplicações e serviços",
+  "chapters": [
+    {
+      "title": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "markdown": "### O problema que este assunto resolve\n\nUm segredo é uma informação cujo conhecimento permite autenticar, autorizar, assinar ou decifrar algo protegido. Exemplos concretos incluem senha de banco de dados, chave privada SSH, token de acesso a uma API, certificado com sua chave privada, chave de assinatura de software e senha de uma conta de serviço. Se alguém obtém um desses valores, pode agir como a aplicação ou identidade associada. A gestão de segredos controla quem pode obtê-los, em que contexto, por quanto tempo e como são trocados quando deixam de ser confiáveis.\n\n> **Siglas e termos deste capítulo**\n> - **Segredo estático**: valor que permanece válido até ser alterado ou revogado, como uma senha de serviço.\n> - **Segredo dinâmico**: credencial criada sob demanda, geralmente com prazo de validade e escopo limitado.\n> - **Credencial**: prova apresentada para autenticação; pode ser senha, chave, certificado ou token.\n> - **Workload**: aplicação, processo, contêiner ou máquina que executa uma tarefa.\n> - **Cofre de segredos**: serviço dedicado para armazenar, controlar e auditar valores sensíveis.\n\n### Segredo não é qualquer configuração\n\nNome do serviço, porta, nível de log e chave de recurso público costumam ser configuração, pois sua divulgação não concede acesso. Senha, token bearer, chave privada e string de conexão que inclui senha são segredos. Uma mesma configuração pode conter uma parte pública e outra sigilosa: o endereço do banco pode ser público dentro da organização, enquanto usuário e senha embutidos na string devem ser protegidos.\n\nA gestão precisa identificar o uso e o proprietário operacional de cada valor. Um inventário útil registra finalidade, sistema consumidor, ambiente, identidade autorizada, dependências, responsável por rotação e procedimento de revogação. Sem isso, uma credencial esquecida pode continuar ativa depois que a aplicação que a usava foi aposentada.\n\n### O ciclo de vida\n\n| Etapa | Ação concreta | Falha que se evita |\n| --- | --- | --- |\n| Criação | Gerar valor aleatório ou emitir credencial por mecanismo confiável | Senha previsível ou chave reutilizada |\n| Distribuição | Entregar por canal autenticado ao workload correto | Segredo enviado em chamado ou conversa aberta |\n| Armazenamento | Guardar em cofre com controle de acesso e proteção criptográfica | Valor exposto no repositório ou disco compartilhado |\n| Uso | Buscar no momento necessário e limitar cópias e duração | Segredo espalhado em logs e processos |\n| Rotação | Substituir o valor, validar consumidores e retirar o antigo | Credencial antiga válida indefinidamente |\n| Revogação e descarte | Invalidar acesso e remover cópias e versões desnecessárias | Uso continuado após incidente ou encerramento |\n\nSegredos dinâmicos reduzem reutilização: por exemplo, um serviço de banco pode emitir usuário e senha temporários para uma aplicação e permitir sua revogação ao fim da tarefa. Eles não eliminam toda credencial duradoura: o mecanismo emissor também precisa ser autenticado, e alguns sistemas não suportam identidades temporárias.\n\n### Como cai na prova\n\n- Uma chave de API que permite chamar um serviço é segredo mesmo que não seja uma senha humana.\n- Rotacionar significa substituir e coordenar o uso do valor novo; revogar significa invalidar o valor antigo.\n- Configuração pública e credencial podem coexistir na mesma string, mas só o trecho que concede acesso é segredo.\n- Reiniciar a aplicação não invalida por si só um token que já vazou; a credencial precisa ser revogada no serviço emissor."
+    },
+    {
+      "title": "2. Armazenamento, identidade e acesso mínimo",
+      "markdown": "### O problema que este assunto resolve\n\nO armazenamento seguro não depende apenas de criptografia: é preciso impedir que identidades sem necessidade leiam o valor e manter rastros de quem o acessou. Um repositório Git privado não transforma credenciais versionadas em armazenamento adequado; cópias podem permanecer em histórico, clones, artefatos e forks. Uma variável de ambiente evita colocar a senha literalmente no código, mas pode ser exposta por despejo de ambiente, diagnóstico, logs ou configuração indevida.\n\n> **Siglas e termos deste capítulo**\n> - **IAM**: gestão de identidades e acessos, que associa identidades a permissões.\n> - **Identidade de workload**: identidade atribuída a uma aplicação ou serviço para autenticar sem senha humana embutida.\n> - **KMS**: serviço de gerenciamento de chaves criptográficas, que pode cifrar ou decifrar dados.\n> - **TLS**: protocolo que protege a comunicação entre cliente e serviço.\n> - **Segregação de ambientes**: separação de desenvolvimento, homologação e produção para limitar alcance de falhas.\n\n### Cofre, criptografia e autorização\n\nUm cofre centralizado oferece operações de gravação, leitura, versionamento, políticas e auditoria para valores sensíveis. O valor deve estar cifrado em repouso e protegido em trânsito; isso não substitui autorização. Uma aplicação autorizada a ler um segredo recebe seu conteúdo em claro para utilizá-lo, portanto uma falha naquela aplicação ainda pode expô-lo.\n\nA permissão deve ser concedida à identidade específica do workload e limitada ao segredo e às ações necessárias. Uma função que apenas lê uma senha não precisa permissão para administrar o cofre, criar usuários ou alterar políticas. Separe segredos de produção dos de desenvolvimento; uma credencial de teste não deve permitir acesso ao banco real. Revise também permissões indiretas: quem pode assumir a identidade do workload, alterar sua implantação ou executar código no pipeline pode conseguir ler o segredo.\n\nNa nuvem, autenticação do workload por identidade federada ou identidade gerenciada costuma evitar criar mais uma chave estática para guardar. A documentação do Google Cloud, por exemplo, descreve Application Default Credentials, identidade de workload e federação; recomenda essas opções para evitar manter uma credencial de conta de serviço adicional. No AWS Secrets Manager, políticas baseadas em identidade e políticas associadas ao recurso podem controlar quais sujeitos executam quais ações.\n\n### Segredos e chaves criptográficas\n\nGestão de segredos trata de valores confidenciais que uma aplicação consome, como senha, token ou certificado. Gestão de chaves criptográficas trata de material de chave e operações criptográficas, frequentemente sem permitir exportar a chave privada. O Google distingue Secret Manager, que armazena valores recuperáveis com permissão, de Cloud KMS, que gerencia chaves e executa operações como cifrar e decifrar. Um cofre pode usar uma chave de KMS para cifrar os segredos; os serviços têm papéis complementares.\n\n### Como cai na prova\n\n- Cifrar o cofre não autoriza todos os desenvolvedores a ler os valores; autorização continua necessária.\n- Identidades de workload reduzem a necessidade de credenciais duradouras embutidas na aplicação.\n- Acesso de leitura e administração do cofre são permissões distintas.\n- KMS protege ou opera sobre chaves criptográficas; o cofre guarda valores como senhas, tokens e certificados recuperáveis."
+    },
+    {
+      "title": "3. Consumo, rotação, versões e auditoria",
+      "markdown": "### O problema que este assunto resolve\n\nMesmo bem armazenado, um segredo pode vazar durante o consumo ou permanecer útil tempo demais. A aplicação deve buscá-lo por canal autenticado, usar o menor conjunto de permissões e evitar imprimi-lo em logs, mensagens de erro, métricas, rastreamento distribuído ou relatórios de falha. O segredo deve permanecer disponível apenas nos componentes que precisam dele e pelo menor tempo operacional razoável.\n\n> **Siglas e termos deste capítulo**\n> - **Rotação**: substituição coordenada de um segredo por outro, com retirada do valor antigo.\n> - **Revogação**: invalidação imediata ou programada da credencial na autoridade que a aceita.\n> - **Versão**: cópia identificada de um valor armazenado em momentos diferentes.\n> - **Lease**: concessão temporária de uma credencial, com validade ou renovação controlada.\n> - **Trilha de auditoria**: registro protegido de ações e acessos relevantes.\n\n### Rotação sem interromper o serviço\n\nUma rotação segura considera consumidores e dependências. Um fluxo possível é criar a credencial nova, permitir temporariamente que emissor e consumidor a reconheçam, atualizar a aplicação, confirmar operação com o valor novo e então revogar o antigo. Em um banco de dados que permite duas credenciais simultâneas, essa transição pode evitar indisponibilidade. Se o serviço não oferece sobreposição, a equipe planeja janela, contingência e validação. Trocar o arquivo no cofre sem atualizar o sistema que valida a credencial pode causar falha de conexão.\n\nA rotação pode ser automática ou operacionalmente assistida. A automação precisa de permissões específicas e capacidade de alterar tanto o segredo quanto a conta ou serviço de destino. No AWS Secrets Manager, funções AWS Lambda podem executar rotação e precisam acessar o segredo e o banco ou serviço cujas credenciais são trocadas. Isso evidencia uma dependência concreta: a função de rotação precisa de autorização no cofre e no sistema alvo.\n\nVersões ajudam a controlar implantação e reversão operacional. O Google Secret Manager identifica versões por ID ou horário, permite fixá-las a workloads e desabilitar ou destruir versões. A recomendação de boas práticas do Google é preferir uma versão identificada em implantação validada quando o alias mais recente possa mudar sem coordenação. Reverter a aplicação para uma versão anterior do segredo só é seguro se aquela credencial ainda for válida e não estiver comprometida.\n\n### Auditoria e detecção\n\nRegistre identidade solicitante, recurso, operação, data e resultado. Monitore leituras incomuns, erros de autorização repetidos, mudanças de política, rotação, desativação e atividade administrativa. Logs não devem conter o valor secreto. Proteja os registros contra alteração pela mesma identidade que consome segredos; caso contrário, um invasor pode apagar seu próprio rastro. Sincronização de relógio ajuda correlacionar eventos entre cofre, aplicação e serviço de destino.\n\n### Como cai na prova\n\n- Troca no cofre sem atualizar ou confirmar o consumidor pode provocar indisponibilidade.\n- O registro de acesso deve revelar quem leu e quando, nunca registrar o conteúdo confidencial.\n- Reversão de versão não deve reativar uma credencial já comprometida.\n- Rotação automática precisa de autorização para executar a mudança nos dois lados: cofre e serviço que aceita a credencial."
+    },
+    {
+      "title": "4. Pipelines, vazamentos e resposta a incidentes",
+      "markdown": "### O problema que este assunto resolve\n\nFerramentas de integração e entrega contínuas compilam código, executam testes e implantam serviços; por isso, frequentemente têm acesso a tokens, chaves de assinatura e credenciais de nuvem. Uma configuração ampla pode fazer com que qualquer job ou fork obtenha segredos de produção. A proteção deve considerar tanto o cofre quanto a identidade que inicia a pipeline, o código executado e os artefatos gerados.\n\n> **Siglas e termos deste capítulo**\n> - **CI/CD**: integração contínua e entrega contínua ou implantação contínua.\n> - **Fork**: cópia independente de um repositório que pode executar código em outro contexto.\n> - **DLP**: prevenção de perda de dados, controles que ajudam a detectar ou impedir exposição.\n> - **Secret scanning**: inspeção de código e histórico em busca de padrões de credenciais.\n> - **Blast radius**: extensão do dano possível se uma credencial for usada indevidamente.\n\n### Pipeline com identidade limitada\n\nUse uma identidade própria por pipeline ou serviço, com permissões para apenas os segredos necessários à tarefa. Sempre que possível, o consumidor busca o segredo diretamente do cofre ao iniciar, em vez de a pipeline transportar e copiar o valor entre etapas. Credenciais usadas pela ferramenta de CI para autenticar no cofre também devem ter escopo estreito e duração limitada. Registre qual execução e qual solicitante originaram o acesso. Proteja secrets contra jobs originados de forks não confiáveis e contra saídas de depuração que imprimem variáveis.\n\nDetecção local e no servidor pode impedir que uma chave seja incluída em commit; ainda assim, um alerta de secret scanning não revoga a credencial. Mesmo depois de apagar a linha do arquivo, o valor pode continuar no histórico Git, em clones, caches e artefatos. A resposta precisa tratar a credencial como exposta.\n\n### Procedimento após exposição\n\n1. Identifique o tipo de credencial, os sistemas que a aceitam e os privilégios associados, sem copiar o valor em canais de atendimento.\n2. Revogue ou desabilite o valor comprometido na autoridade emissora; se a invalidação imediata ameaçar serviço crítico, coordene a substituição com prioridade e monitore uso suspeito.\n3. Emita um segredo novo, atualize consumidores por canal confiável e confirme que a operação normal voltou.\n4. Procure acessos anômalos nos logs do cofre e do serviço alvo; avalie quais dados ou ações podem ter sido alcançados.\n5. Remova o valor exposto de arquivos, histórico, artefatos e caches quando possível, mas não trate a remoção como substituta da revogação.\n6. Corrija a causa: permissões, logs, job, mecanismo de distribuição ou revisão que permitiu a exposição.\n\n### Como cai na prova\n\n- Apagar um segredo do último commit não torna seguro continuar usando a credencial já publicada no histórico.\n- Um scanner detecta possíveis exposições; a revogação ocorre no serviço que aceita o segredo.\n- Segredos de produção precisam ser inacessíveis a jobs não confiáveis e a ambientes de teste.\n- A resposta inclui contenção, troca, investigação e correção do processo, não só remoção do texto visível."
+    }
+  ],
+  "summary": "Segredo é um valor cuja posse permite autenticar, autorizar, assinar ou decifrar, como senha de banco, token de API ou chave privada. Sua gestão cobre criação segura, distribuição autenticada, armazenamento em cofre cifrado, consumo mínimo, rotação, revogação e descarte. Acesso ao cofre deve ser concedido a identidades de workloads com privilégio mínimo, separado por ambiente e auditado sem registrar o valor. Segredos dinâmicos e identidade federada reduzem credenciais estáticas; não eliminam a necessidade de proteger a identidade emissora. Rotação exige atualizar e testar o consumidor antes de invalidar a credencial antiga, quando a plataforma permitir sobreposição. Versionamento auxilia implantação e recuperação, mas não se deve restaurar credencial comprometida. Gestão de segredos não é o mesmo que gestão de chaves criptográficas: um cofre armazena senhas e tokens recuperáveis; um KMS gerencia chaves e pode executar operações criptográficas. Pipelines precisam de identidades específicas, escopo restrito, duração limitada e proteção contra forks e logs. Se um segredo vazar, revogue-o no serviço que o aceita, emita outro, atualize consumidores, investigue os registros e corrija a causa; apagar o texto do repositório não neutraliza a credencial.",
+  "flashcards": [
+    {
+      "front": "O que transforma um valor em segredo?",
+      "back": "A capacidade de permitir acesso, autenticação, autorização, assinatura ou decifração quando obtido por terceiro."
+    },
+    {
+      "front": "Cite quatro exemplos de segredos técnicos.",
+      "back": "Senha de banco, token de API, chave privada SSH e certificado acompanhado de chave privada."
+    },
+    {
+      "front": "Uma string de conexão é sempre inteiramente secreta?",
+      "back": "Não necessariamente; endereço pode ser configuração, enquanto usuário e senha nela embutidos são sigilosos."
+    },
+    {
+      "front": "O que caracteriza um segredo dinâmico?",
+      "back": "É emitido sob demanda e costuma ter escopo ou duração limitados."
+    },
+    {
+      "front": "Qual a diferença entre rotação e revogação?",
+      "back": "Rotação substitui e coordena o novo valor; revogação invalida o valor antigo perante o emissor."
+    },
+    {
+      "front": "Por que um repositório privado não é cofre de segredos?",
+      "back": "Histórico, clones, forks e artefatos podem preservar valores e o Git não oferece por si só políticas de uso e auditoria de segredo."
+    },
+    {
+      "front": "Por que criptografia em repouso não basta?",
+      "back": "Identidades sem necessidade ainda não devem poder ler; autorização e auditoria continuam necessárias."
+    },
+    {
+      "front": "O que é identidade de workload?",
+      "back": "Identidade atribuída a aplicação ou serviço para autenticar sem embutir uma senha humana ou chave estática."
+    },
+    {
+      "front": "Qual vantagem da federação de identidade?",
+      "back": "Permite confiar numa identidade existente para obter acesso sem criar e guardar uma credencial de longa duração adicional."
+    },
+    {
+      "front": "O que deve conter uma auditoria de leitura?",
+      "back": "Identidade, recurso, operação, horário e resultado, sem incluir o valor secreto."
+    },
+    {
+      "front": "O que é uma versão de segredo?",
+      "back": "Uma cópia identificada do valor armazenado, associada a um momento ou identificador."
+    },
+    {
+      "front": "Quando uma versão anterior pode ser reativada?",
+      "back": "Somente quando ainda for válida e não estiver comprometida; histórico por si só não garante segurança."
+    },
+    {
+      "front": "Quem precisa de acesso numa rotação automática?",
+      "back": "O mecanismo de rotação precisa alcançar o cofre e o serviço ou banco onde a credencial é alterada."
+    },
+    {
+      "front": "O que é privilégio mínimo aplicado a segredos?",
+      "back": "Conceder apenas as ações e os segredos necessários à identidade específica que os consome."
+    },
+    {
+      "front": "Por que separar produção de desenvolvimento?",
+      "back": "Uma falha ou credencial de teste não deve conceder acesso aos recursos reais de produção."
+    },
+    {
+      "front": "Um secret scanner revoga o valor encontrado?",
+      "back": "Não. Ele detecta possível exposição; a credencial deve ser invalidada no serviço emissor."
+    },
+    {
+      "front": "Por que apagar a linha do Git não basta após vazamento?",
+      "back": "O valor pode persistir no histórico, clones, forks, caches e artefatos, e segue válido até revogação."
+    },
+    {
+      "front": "O que guarda um cofre de segredos?",
+      "back": "Valores confidenciais recuperáveis por identidades autorizadas, como senhas, tokens e certificados."
+    },
+    {
+      "front": "Qual é o papel típico de um KMS?",
+      "back": "Gerenciar chaves criptográficas e oferecer operações como cifrar e decifrar, podendo proteger o cofre."
+    },
+    {
+      "front": "O que é blast radius?",
+      "back": "A extensão do dano que uma credencial pode causar se for exposta ou usada indevidamente."
+    },
+    {
+      "front": "Por que evitar segredos em logs?",
+      "back": "Logs circulam e são retidos em mais lugares; o valor pode ser copiado por pessoas e sistemas sem necessidade."
+    },
+    {
+      "front": "Qual é o propósito do inventário de segredos?",
+      "back": "Relacionar finalidade, consumidor, ambiente, responsáveis, dependências e procedimento de rotação ou revogação."
+    }
+  ],
+  "tips": [
+    "Pergunte qual ação a posse daquele valor permite: isso ajuda a separar segredo de configuração pública.",
+    "Localize quem autentica no cofre; no desenho seguro, a aplicação usa sua identidade própria.",
+    "Em rotação, pense nos dois lados: armazenador do valor e serviço que valida a credencial.",
+    "Se aparecer ‘apagar do commit’, verifique se o enunciado também revoga o valor no emissor.",
+    "Separe mentalmente o conteúdo recuperável do cofre e a chave criptográfica administrada por KMS.",
+    "Auditoria útil registra o acesso e seu resultado, nunca imprime o conteúdo do segredo."
+  ],
+  "traps": [
+    "Confundir credencial guardada fora do código com segredo automaticamente protegido; variável de ambiente também pode vazar.",
+    "Achar que criptografia substitui autorização: um workload autorizado recebe o conteúdo para usá-lo.",
+    "Confundir rotação com remoção de uma versão do cofre; o emissor precisa deixar de aceitar o valor antigo.",
+    "Supor que versão anterior é sempre boa para rollback, mesmo se foi exposta.",
+    "Acreditar que scanner ou remoção do histórico invalida a chave já copiada.",
+    "Dar permissão administrativa ampla à aplicação que só precisa ler um segredo específico."
+  ],
+  "activeRecall": [
+    "Explique por que um token de API e uma chave privada são segredos mesmo sem serem senhas humanas.",
+    "Descreva as etapas do ciclo de vida de um segredo desde sua criação até o descarte.",
+    "Compare cofre de segredos e repositório Git quanto a controle, auditoria e cópias persistentes.",
+    "Mostre como uma identidade de workload pode evitar uma chave estática embutida na aplicação.",
+    "Descreva um procedimento de rotação com sobreposição temporária de credenciais.",
+    "Diferencie Secret Manager de KMS e explique como podem trabalhar juntos.",
+    "Liste os dados de auditoria úteis e explique por que o valor não pode aparecer no log.",
+    "Monte a resposta a um vazamento publicado em commit, incluindo contenção e correção da causa."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir segredo com configuração",
+      "summary": "Segredo é o valor que concede acesso ou permite operação protegida; endereço ou porta podem ser configuração, embora uma string de conexão possa embutir senha."
+    },
+    {
+      "key": "e2",
+      "title": "Achar que cifrar basta",
+      "summary": "Criptografia protege o armazenamento e transporte, mas políticas de identidade, escopo, separação de ambientes e auditoria ainda limitam a leitura."
+    },
+    {
+      "key": "e3",
+      "title": "Trocar sem revogar nem validar",
+      "summary": "A rotação deve atualizar o consumidor, confirmar o uso novo e invalidar o antigo; atualização isolada pode causar indisponibilidade."
+    },
+    {
+      "key": "e4",
+      "title": "Tratar detecção como contenção",
+      "summary": "Secret scanning e remoção do texto não tornam uma credencial copiada inválida; revogação no emissor, investigação e correção do processo são necessárias."
+    },
+    {
+      "key": "e5",
+      "title": "Misturar gestão de segredos e KMS",
+      "summary": "O cofre armazena valores recuperáveis como senhas e tokens; KMS administra chaves e operações criptográficas, podendo proteger o cofre."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma chave privada usada para autenticar um serviço deve ser tratada como segredo, ainda que não seja uma senha digitada por pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A posse da chave privada pode permitir autenticação ou assinatura em nome do serviço. O critério é a capacidade de conceder acesso ou realizar operação protegida, não o formato de senha humana.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma senha removida do último commit deixa de representar risco mesmo que o repositório tenha histórico acessível a terceiros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Histórico, clones e cópias podem preservar o valor, que ainda pode ser aceito pelo serviço. É preciso revogá-lo na autoridade emissora e investigar o uso, além de remover cópias quando possível.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço de um banco e a senha de acesso embutida na mesma string de conexão necessariamente têm a mesma classificação de sigilo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O endereço pode ser apenas configuração, enquanto usuário e senha conferem acesso e exigem proteção. A classificação depende do efeito de obter cada componente.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial dinâmica tende a reduzir o tempo de reutilização, mas o mecanismo que a emite também precisa ser autenticado e protegido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Credenciais temporárias reduzem a janela de exposição e a reutilização. A aplicação ainda precisa provar sua identidade ao emissor, portanto a credencial ou identidade usada nessa etapa também merece proteção.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Revogar e rotacionar são sinônimos exatos: ambas as ações somente adicionam uma nova versão sem alterar a validade do valor antigo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Rotação substitui o valor e coordena sua adoção; revogação invalida o valor perante o serviço que o aceita. A rotação segura normalmente termina com a revogação da credencial antiga.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um segredo estático pode continuar válido por longo período se ninguém executar a aplicação que o utiliza.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A validade depende do serviço emissor e da política da credencial, não do processo consumidor. Uma senha esquecida pode continuar permitindo acesso até ser alterada ou revogada.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento deve ser protegido como segredo em um cenário de integração com API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome público do endpoint documentado pelo fornecedor, sem token nem chave de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de porta padrão publicado para o serviço, quando não embute qualquer autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O token bearer que autoriza chamadas em nome da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nome exibido no catálogo público de produtos, sem permissão associada à identificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O identificador público da versão da interface utilizada, que não autoriza chamadas por si só.",
+          "correct": false
+        }
+      ],
+      "explanation": "O token bearer concede autorização a quem o apresenta e, por isso, deve ser tratado como segredo. Endpoint, porta e versão podem ser configurações sem poder de autenticação, conforme o contexto.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe descobriu uma senha de banco publicada em um repositório e ainda válida. Qual ação contém o risco principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revogar a senha no banco, emitir outra e atualizar os consumidores autorizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar a linha do último commit e manter a senha válida até a próxima janela de manutenção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tornar o repositório privado e preservar a credencial atual enquanto monitora o banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear a variável no código e planejar a troca da senha para uma release futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar um comentário no commit e avisar a equipe para não reutilizar o valor publicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A credencial deve deixar de ser aceita pelo banco; em seguida, o valor novo deve chegar aos consumidores por caminho protegido. Remover ou ocultar o commit não invalida cópias já obtidas.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor o papel do inventário de segredos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Listar apenas os valores em claro para facilitar sua consulta por qualquer equipe, sem registrar os consumidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar finalidade, consumidor, ambiente, responsável e processo de troca.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir políticas de acesso por uma planilha de nomes de usuários, sem aplicar restrições no cofre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter senhas antigas disponíveis para todos os serviços dependentes, sem prazo ou processo de retirada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Documentar somente os segredos que já causaram incidente confirmado, deixando os demais sem responsável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inventário permite saber por que o segredo existe, quem o usa e como trocá-lo ou revogá-lo. Não deve distribuir o valor em claro nem substituir os controles técnicos de acesso.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual propriedade diferencia melhor uma credencial dinâmica de uma senha estática de serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A credencial dinâmica é sempre pública e não exige identidade do consumidor antes de sua emissão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A senha estática só pode ser usada uma vez durante a instalação inicial, sem possibilidade de reutilização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A credencial dinâmica é emitida sob demanda e costuma ter validade limitada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A senha estática é armazenada necessariamente em um módulo físico dedicado, independentemente da plataforma.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A credencial dinâmica não precisa ser aceita pelo sistema de destino, bastando existir no cofre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Credenciais dinâmicas costumam ser emitidas para uma sessão ou tarefa e expirar ou ser revogadas ao fim do uso. Elas ainda precisam ser aceitas pelo sistema de destino e protegidas durante sua emissão e consumo.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao separar configuração de segredo, qual dado normalmente exige proteção mais forte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O rótulo descritivo do ambiente de homologação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endereço DNS público do serviço de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome da biblioteca cliente usada pela aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A senha que permite abrir uma sessão autenticada no banco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O número da porta descrito na documentação técnica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A senha permite autenticar no banco e deve ser controlada como segredo. Rótulos, nomes de bibliotecas e parâmetros de conexão podem ser informações de configuração sem a mesma capacidade de conceder acesso.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa armazena tokens no histórico Git, mas restringe o repositório ao grupo de desenvolvimento. Essa medida, isoladamente, constitui gestão completa de segredos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Restringir leitura do repositório não oferece por si só ciclo de vida, revogação, auditoria de uso, distribuição controlada ou prevenção de cópias persistentes. O histórico Git pode conservar versões antigas do token.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta uma sequência coerente do ciclo de vida de uma credencial técnica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar, distribuir, armazenar, consumir, rotacionar e revogar ao fim do uso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Distribuir, publicar, reutilizar em todos os sistemas e arquivar sem responsável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar em log, copiar entre ambientes e revogar só após falha operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gerar, incorporar ao código-fonte e manter o valor antigo para contingência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar para produção, enviar por chat e dispensar registro de consumidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência cobre preparação, entrega, proteção, uso e troca ou invalidação quando necessário. Publicar em logs ou código e manter valores sem responsável aumenta a exposição e dificulta a resposta.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o processo que usava um token for encerrado, o token roubado deixa automaticamente de funcionar no serviço remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Encerrar o processo não altera a validade no serviço remoto. O token roubado pode continuar sendo apresentado até expirar ou ser revogado pela autoridade que o aceita.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um valor só é segredo se for armazenado em formato textual e chamado de senha na configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tokens, chaves privadas e certificados com chave privada também podem permitir autenticação ou operações protegidas. O formato e o rótulo não determinam a necessidade de proteção.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O inventário operacional de uma credencial pode registrar quem é responsável por sua rotação sem expor o valor secreto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Finalidade, consumidor, dependências, responsável e procedimento de troca são metadados úteis. O inventário não precisa reproduzir a credencial em claro.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida reduz a chance de uma cópia de desenvolvimento alcançar recursos reais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reutilizar a mesma senha em homologação e produção para facilitar suporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Separar ambientes e limitar identidades e credenciais por ambiente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Guardar as credenciais reais em arquivos de exemplo do projeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso a todos os desenvolvedores ao cofre de produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar o segredo de produção em testes automatizados locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar credenciais e autorizações por ambiente reduz o alcance de uma falha em código ou teste. Reutilizar o valor real ou ampliar acesso de desenvolvimento conecta indevidamente esses contextos.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cofre que cifra valores em repouso pode dispensar as regras que determinam quais identidades podem lê-los.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cifrar protege o armazenamento, mas o serviço entrega o valor em claro a consumidores autorizados. Políticas de identidade e escopo continuam essenciais para restringir essa leitura.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que precisa ler um único token deve receber administração total do cofre para evitar falhas de permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A aplicação deve receber apenas leitura do segredo necessário. Administração permite alterar políticas ou outros valores e amplia o dano possível caso a aplicação seja comprometida.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de gestão de chaves pode cifrar valores de um cofre sem substituir o controle de identidades do próprio cofre.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O KMS pode fornecer proteção criptográfica, enquanto o cofre aplica controle de leitura e registra operações sobre os valores. São controles e funções complementares.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual identidade deve preferencialmente acessar um segredo usado exclusivamente por um serviço de faturamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade própria do workload de faturamento, com acesso ao segredo necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma conta humana compartilhada entre toda a equipe técnica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A identidade administrativa global utilizada por todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma conta de teste sem registro de qual serviço a utiliza.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identidade de qualquer job que execute no mesmo repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "A identidade própria do workload permite atribuir e restringir o acesso ao serviço que realmente consome o segredo. Contas compartilhadas e administrativas dificultam atribuição e aumentam privilégios.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em AWS Secrets Manager, políticas do IAM ajudam a definir quem pode executar quais ações sobre quais segredos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação da AWS descreve políticas baseadas em identidade e associadas ao recurso para controlar acesso. As permissões devem ser limitadas aos sujeitos, recursos e ações necessários.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Google Secret Manager, o recurso secret contém metadados e versões, enquanto uma versão armazena os dados secretos efetivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Google separa o recurso e seus metadados das versões que contêm o valor, como senha, chave de API ou certificado. Essa separação permite controlar e auditar versões.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave KMS e uma senha de banco são necessariamente objetos do mesmo tipo, pois ambas são armazenadas cifradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A senha é um valor recuperável que a aplicação apresenta ao banco; o KMS gerencia material de chave e operações criptográficas. Um cofre pode usar uma chave KMS para proteger a senha sem que as funções se confundam.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração de acesso segue o princípio do menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir que todo processo da rede leia todos os segredos disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dar administração do cofre a cada consumidor para simplificar integração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autorizar a identidade do serviço a ler somente o segredo que utiliza.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Liberar leitura de produção para qualquer conta de homologação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhar uma conta humana entre serviços sem atribuição individual.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menor privilégio concede apenas a ação e o objeto necessários. Acesso amplo e contas compartilhadas aumentam o raio de impacto e dificultam identificar a origem de uma leitura.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma identidade federada pode reduzir a necessidade de guardar uma chave estática de serviço para acessar APIs de nuvem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A federação permite autenticar com uma identidade confiável existente, evitando criar outra credencial de longa duração que precise ser distribuída e protegida. A política de confiança e o escopo continuam necessários.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre cofre de segredos e KMS é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cofre armazena valores recuperáveis; o KMS gerencia chaves e operações criptográficas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O cofre administra somente portas de rede e configurações de conexão; o KMS armazena senhas humanas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O KMS substitui toda política de autorização aplicada pelo cofre, inclusive o controle da identidade consumidora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cofre serve apenas para arquivos públicos sem controle de leitura ou histórico de versões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O KMS é um repositório Git com histórico imutável de credenciais e entrega automática para aplicações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cofres gerenciam valores como senhas e tokens que consumidores autorizados recuperam. KMS gerencia chaves criptográficas e pode oferecer operações para proteger esses valores; os serviços podem se integrar.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação do Google Cloud, Application Default Credentials e identidade de workload são alternativas que podem evitar exportar uma credencial de conta de serviço para o consumidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação indica mecanismos como credenciais padrão da aplicação, servidor de metadados em plataformas de computação e identidade de workload no GKE. A recomendação reduz a necessidade de armazenar uma chave adicional fora do serviço de segredos.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como reduzir o risco de uma cópia local de desenvolvimento alcançar credenciais de produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma chave comum a todos os ambientes para reduzir divergências.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Separar recursos e permissões de produção e desenvolvimento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Dar aos desenvolvedores acesso de leitura a todo segredo em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exportar os segredos reais em arquivo junto à configuração de teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que qualquer identidade local assuma a função produtiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar projetos, ambientes e permissões cria barreiras entre recursos reais e testes. Reutilização de chaves ou acesso irrestrito remove essa contenção e amplia o dano de uma falha local.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma diferença prática entre identidade de workload e credencial estática embutida no código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade de workload permite autenticação sem incorporar uma chave duradoura ao código.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A credencial estática desaparece automaticamente quando a instância é encerrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A identidade de workload concede sempre acesso administrativo a todos os segredos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave embutida não pode ser copiada nem recuperada do histórico Git.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identidade de workload dispensa políticas no serviço que recebe a chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identidades atribuídas a workloads ou federadas podem ser verificadas pelo provedor sem inserir outra chave permanente no fonte. Elas ainda dependem de confiança e autorização configuradas no destino.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a rotação, trocar o valor no cofre e presumir que todos os consumidores já passaram a usar o novo valor pode interromper o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Consumidores podem manter cópias em memória ou ainda apontar para a versão anterior. A equipe deve coordenar atualização e validação antes de invalidar a credencial antiga, quando houver suporte à sobreposição.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trilha de auditoria segura deve guardar o conteúdo integral de cada senha lida para permitir a reconstrução do acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registro deve permitir atribuir identidade, recurso, operação, horário e resultado sem reproduzir o segredo. Guardar o valor transforma o log em nova fonte de exposição.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma versão antiga do cofre é automaticamente segura para rollback mesmo quando a equipe suspeita que ela foi copiada por um invasor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Histórico facilita implantação ou recuperação, mas não torna confiável uma credencial comprometida. Uma versão exposta deve ser invalidada no serviço que a aceita, não reativada por conveniência.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A rotação automática de uma senha de banco pode exigir que a função de rotação tenha acesso tanto ao cofre quanto ao banco alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A função precisa obter e atualizar o segredo e realizar a alteração correspondente no sistema que valida a credencial. Suas permissões devem ser específicas a essas tarefas.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para investigar uma leitura suspeita, é útil registrar a identidade solicitante, o segredo acessado, o horário e o resultado da operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses metadados ajudam a correlacionar a leitura com atividade do workload e do serviço de destino, sem revelar o conteúdo confidencial no log.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência é mais apropriada quando um sistema permite credenciais antiga e nova válidas em paralelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar a nova, atualizar e testar consumidores, depois revogar a anterior.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Revogar a anterior, apagar os logs e só então criar a nova.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar todas as versões antes de identificar os consumidores ativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar a nova em um canal aberto e esperar que seja adotada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deixar as duas válidas sem prazo, proprietário ou monitoramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sobreposição permite adotar e testar a credencial nova antes de invalidar a antiga, reduzindo interrupções. A janela precisa ser controlada para não deixar a credencial antiga válida indefinidamente.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O AWS Secrets Manager pode usar uma função Lambda no processo de rotação, que precisa das permissões necessárias no segredo e no serviço correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação da AWS especifica que a função de rotação precisa acessar o segredo e o banco ou serviço cujas credenciais administra. A função deve receber escopo mínimo para essas operações.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática de log protege o segredo e ainda ajuda a investigar seu uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar o valor em claro e criptografar o arquivo de log depois.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar identidade, recurso, operação e resultado sem incluir o valor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar todos os eventos do cofre para evitar falsos positivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir que o consumidor apague as próprias leituras após cada uso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar somente o texto do segredo sem horário ou autoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados de acesso ajudam a atribuir e investigar operações; o valor em si não deve ser impresso. Registros também precisam de proteção contra alteração indevida.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotação está concluída assim que uma nova versão aparece no cofre, ainda que o serviço de destino continue aceitando somente a senha antiga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O emissor e o consumidor precisam concordar sobre a credencial ativa. A versão deve ser aplicada e validada no serviço de destino; só depois a credencial anterior pode ser invalidada com segurança.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sincronização correta dos relógios pode ajudar a correlacionar logs de cofre, aplicação e serviço de destino durante uma investigação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Marcas de tempo consistentes ajudam a ordenar eventos de diferentes componentes e verificar se uma leitura precedeu uma ação suspeita no sistema alvo.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dado deve ficar fora de uma mensagem de erro produzida ao falhar uma conexão autenticada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identificação não sigilosa do componente que tentou conectar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O horário aproximado da falha para correlação operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor integral da senha ou do token apresentado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O identificador da operação que retornou erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe geral do erro sem detalhes de credencial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Senhas e tokens em mensagens de erro podem ser copiadas para sistemas de observabilidade, chamados e consoles. Registre contexto operacional sem revelar o valor autenticador.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Desabilitar uma versão suspeita pode ser uma etapa reversível de contenção, mas a equipe ainda deve avaliar se a credencial correspondente foi comprometida no sistema que a aceita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Desabilitar uma versão controla sua obtenção pelo cofre, mas não necessariamente invalida uma cópia já obtida junto ao serviço de destino. A autoridade que aceita a credencial também precisa ser considerada.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time quer controlar a implantação de novas credenciais para uma aplicação que pode reverter para configuração anterior. Qual abordagem é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar versão identificada, validar a implantação e manter rollback só se o valor antigo continuar confiável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apontar sempre para a versão mais recente e assumir que toda troca é compatível com consumidores antigos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a versão anterior antes de verificar consumidores ativos, integrações e dependências da implantação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reativar automaticamente a credencial antiga depois de qualquer falha, sem investigar possível comprometimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar todas as versões para arquivos de configuração sem controle de acesso e distribuir pelos ambientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Versões identificadas permitem validar qual valor uma implantação usa. Reversão deve ser consciente: uma credencial anterior comprometida não se torna segura porque a aplicação falhou com a nova.",
+      "section": "3. Consumo, rotação, versões e auditoria",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job de CI que precisa publicar um artefato deve receber permissão para ler toda senha de produção armazenada pela organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A identidade do job deve acessar somente recursos e segredos necessários à tarefa. Permissão global aumenta o impacto de código malicioso ou de uma configuração comprometida.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma execução de pipeline deve ser atribuível a uma identidade ou solicitante para que leituras anômalas possam ser investigadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atribuição de chamadas do pipeline ajuda relacionar acesso ao segredo com a execução e com quem a iniciou ou definiu. Contas compartilhadas sem correlação dificultam essa investigação.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner de segredos encontrou token válido num repositório. Qual providência é necessária além de remover o texto visível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revogar o token no serviço emissor, substituí-lo e investigar uso suspeito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Renomear o arquivo e considerar encerrada a resposta ao incidente sem revisar o histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o scanner para que ele não gere novos alertas durante as próximas implantações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover o token para outro commit público sem alterar o valor nem revisar as cópias existentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o token ativo, pois o scanner já registrou sua localização e permitiu documentar o risco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Detecção identifica exposição potencial, mas não invalida o token. Revogar no serviço emissor contém o uso, e a investigação verifica possíveis chamadas ou ações feitas com a credencial.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jobs disparados por forks não confiáveis podem executar código que tente extrair segredos disponibilizados ao pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Código de uma cópia não confiável pode alterar etapas ou imprimir valores ao executá-las. Segredos de produção não devem ser disponibilizados a execuções cuja origem e código não sejam confiáveis.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha reduz a circulação de segredos durante uma implantação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A pipeline copia o valor em texto entre todos os jobs e imprime a variável durante cada etapa de depuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O consumidor autorizado busca o segredo do cofre quando inicia, usando identidade própria.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O pipeline grava credenciais em arquivos permanentes de cada agente de build compartilhado entre projetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os repositórios recebem uma cópia do segredo no arquivo de exemplo mantido junto ao código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A equipe envia a credencial por chat para cada operador de implantação e mantém a conversa arquivada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando possível, o consumidor busca diretamente o segredo com identidade limitada. Isso evita que a pipeline transporte e replique o valor em diversas etapas e arquivos.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma senha for removida do último commit, é desnecessário procurar cópias em histórico, forks, caches ou artefatos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cópias podem persistir em histórico, clones, forks, caches e artefatos. A credencial deve ser tratada como exposta e revogada; a remoção de cópias reduz propagação, mas não substitui a revogação.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto descreve uma resposta adequada à exposição de credencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revogar e trocar, atualizar consumidores, investigar logs e corrigir a causa da exposição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar o alerta, manter o valor ativo e fechar o chamado como falso positivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o commit e impedir auditoria para limitar registros do incidente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reutilizar o mesmo valor em outro serviço para evitar interrupção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma versão nova sem alterar permissões ou verificar uso anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta combina contenção na autoridade emissora, atualização dos consumidores, investigação de possíveis ações e correção do processo que permitiu a exposição. Apenas apagar o texto deixa cópias e validade sem controle.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A credencial que uma ferramenta de CI usa para autenticar no cofre deve ter escopo limitado aos segredos e serviços exigidos pelo job.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A orientação da OWASP para integração contínua recomenda limitar o escopo de autorização das credenciais do pipeline. Uma credencial ampla pode expor segredos não relacionados à tarefa.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de remover um segredo exposto, é útil corrigir também logs, jobs ou permissões que possibilitaram sua publicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Corrigir o processo evita recorrência; a resposta não termina na troca da credencial. Se um job imprime variáveis ou uma política concede acesso amplo, essas causas também devem ser tratadas.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma credencial usada pelo pipeline deve ser temporária e limitada ao que a tarefa precisa, sempre que o mecanismo permitir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Duração limitada e escopo restrito reduzem a janela e o alcance de uma exposição. A OWASP recomenda credenciais de CI/CD temporárias e limitadas ao necessário para o job.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a principal utilidade de secret scanning em um repositório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Detectar padrões de credenciais para permitir prevenção ou investigação de exposição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir automaticamente políticas IAM por regras de nomes de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revogar no serviço remoto todas as chaves que pareçam longas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantir que forks e clones antigos não contenham credenciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cifrar em repouso os logs de auditoria do cofre de produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Secret scanning procura padrões potencialmente sensíveis e pode ajudar a bloquear commits ou gerar alertas. Não revoga credenciais nem elimina cópias anteriores; essas ações pertencem à resposta operacional.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após confirmar que um token vazado foi usado de forma suspeita, a equipe deve avaliar atividades no serviço alvo além de trocar o token.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A credencial pode ter sido usada para acessar ou alterar recursos antes da revogação. Logs do serviço alvo ajudam a delimitar impacto e identificar ações que exigem contenção adicional.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline deve receber credenciais de produção em execuções de qualquer fork, pois o controle do repositório original já limita o risco.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, desde que a saída do job esconda os valores com asteriscos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, se o fork mantiver os mesmos arquivos de configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; execuções de código não confiável não devem receber segredos de produção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não, mas o job pode publicar os valores em artefato privado permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, desde que o token seja armazenado em variável de ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O código executado em um fork pode alterar o job e exfiltrar qualquer valor disponibilizado, inclusive por canais que a máscara não cobre. Execuções não confiáveis devem ser isoladas de segredos produtivos.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta de detecção local pode impedir que uma credencial seja commitada, mas ainda é necessário um processo para lidar com segredos já publicados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Hooks e verificações de repositório ajudam na prevenção futura, mas não neutralizam valores que já foram copiados ou permanecem válidos. Para exposições existentes, revogação e investigação são necessárias.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual canal é mais adequado para entregar uma credencial inicial a um serviço recém-provisionado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um chamado aberto para todas as equipes com a senha no corpo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um canal autenticado e restrito à identidade responsável pelo serviço.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo de exemplo commitado junto ao código da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma mensagem em grupo cujo histórico fica acessível a fornecedores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma variável pública no pipeline, reutilizada por todos os projetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrega deve ocorrer por meio autenticado e com acesso limitado ao consumidor autorizado. Chamados amplos, repositórios e variáveis compartilhadas multiplicam cópias e leitores sem necessidade.",
+      "section": "1. O que é um segredo e por que seu ciclo de vida importa",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida protege melhor um certificado usado para autenticar um servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar certificado e chave privada no repositório privado do serviço para facilitar renovações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar a chave privada em log de acesso restrito para reconstruir falhas de TLS depois da implantação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controlar a chave privada e distribuir o certificado público conforme necessário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tratar a chave privada como configuração compartilhada sem restrição de leitura entre equipes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reutilizar a chave privada em todos os serviços e ambientes para evitar divergência de certificados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chave privada permite que o servidor prove sua identidade e deve ser protegida. O certificado público pode ser distribuído para validação, enquanto a chave não deve ser publicada nem reutilizada sem controle.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação recebe permissão para ler um segredo específico, mas alguém pode alterar o código que ela executa. Qual risco permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A criptografia do cofre deixa de funcionar para todos os outros segredos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O controle de acesso impede que o processo veja o valor autorizado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A alteração do código pode fazer o processo exfiltrar o segredo que já pode ler.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A rotação automática revoga toda identidade humana da organização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A versão identificada apaga os registros de auditoria existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menor privilégio reduz o alcance, mas o processo autorizado precisa receber o valor para usá-lo. Quem controla seu código ou implantação pode tentar exfiltrar esse segredo; por isso, cadeia de entrega e identidade do workload também integram a superfície de risco.",
+      "section": "2. Armazenamento, identidade e acesso mínimo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta indica leituras de um segredo a partir de uma origem inesperada. Qual resposta inicial combina melhor com gestão de segredos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar o alerta e manter a credencial ativa até a próxima rotação periódica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar a auditoria para interromper os eventos que geram notificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compartilhar o valor com mais operadores para comparar as cópias locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Investigar acessos, conter a credencial e verificar o serviço que a aceita.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Reverter o código sem avaliar se houve uso do segredo fora do padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Origem inesperada pode indicar comprometimento. A equipe deve investigar a trilha de acesso, conter a credencial quando necessário e verificar atividade no serviço alvo; ignorar o evento ou apenas alterar código não invalida o valor obtido.",
+      "section": "4. Pipelines, vazamentos e resposta a incidentes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Secrets Management Cheat Sheet",
+      "publisher": "OWASP Foundation",
+      "reference": "Princípio do menor privilégio, automação, CI/CD, credenciais temporárias, auditoria e ciclo de vida de segredos.",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Secret Manager best practices",
+      "publisher": "Google Cloud",
+      "reference": "IAM, separação de ambientes, identidades de workload, versões, rotação, auditoria e prevenção de exposição em ambiente de execução.",
+      "url": "https://cloud.google.com/secret-manager/docs/best-practices",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Secret Manager overview",
+      "publisher": "Google Cloud",
+      "reference": "Conceitos de recurso e versão, auditoria, criptografia, IAM e distinção entre gestão de segredos e KMS.",
+      "url": "https://cloud.google.com/secret-manager/docs/overview",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Authentication and access control for AWS Secrets Manager",
+      "publisher": "Amazon Web Services",
+      "reference": "Políticas baseadas em identidade e recurso, permissões de funções de rotação e acesso a chaves KMS.",
+      "url": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-57 Part 1 Revision 5: Recommendation for Key Management",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Orientações gerais para proteção, inventário, uso e gerenciamento de material criptográfico.",
+      "url": "https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

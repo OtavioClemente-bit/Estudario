@@ -1,0 +1,2642 @@
+{
+  "id": "seguranca-informacao.protecao-dados-repouso-transito",
+  "subject": "Segurança da Informação",
+  "title": "Proteção de dados em repouso e em trânsito",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Proteção de dados em repouso e em trânsito",
+    "Dados armazenados e dados transmitidos",
+    "Criptografia de dados armazenados",
+    "Criptografia de dados em trânsito",
+    "Segurança de dados em repouso",
+    "Segurança de dados em trânsito",
+    "Proteção criptográfica de informações",
+    "TLS e criptografia de armazenamento",
+    "Confidencialidade de dados armazenados",
+    "Confidencialidade de dados transmitidos",
+    "Criptografia de discos e arquivos",
+    "Proteção de conexões com TLS"
+  ],
+  "scope": {
+    "covers": "Estados dos dados em repouso, em trânsito e em uso; ameaças e objetivos de confidencialidade, integridade e autenticidade; criptografia de disco inteiro, volume/disco virtual e arquivo/pasta; proteção de bancos, cópias de segurança e mídias removíveis; TLS, negociação de parâmetros, certificados e validação de identidade; gestão do ciclo de vida das chaves; camadas de proteção, limitações, seleção de controles e erros comuns.",
+    "excludes": "Implementação detalhada de algoritmos, configuração de produtos específicos, legislação brasileira sobre proteção de dados e recomendações normativas de órgãos brasileiros não fornecidas no escopo."
+  },
+  "theoryTitle": "Como proteger os dados armazenados e os que circulam",
+  "chapters": [
+    {
+      "title": "1. Estados dos dados e objetivos da proteção",
+      "markdown": "### O problema que este assunto resolve\n\nUma informação pode estar gravada em um SSD, em uma cópia de segurança ou em um pendrive; pode também estar atravessando uma rede entre um navegador e um servidor. Os riscos mudam conforme o estado. **Dados em repouso** são os registrados em mídia ou sistema de armazenamento. **Dados em trânsito** são os que trafegam por uma rede ou outro canal de comunicação. **Dados em uso** estão sendo processados, por exemplo, na memória de uma aplicação. Criptografar o disco não protege automaticamente uma sessão de rede, e usar TLS não protege automaticamente um pendrive perdido.\n\n> **Siglas e termos deste capítulo**\n> - **Confidencialidade**: impedir que pessoas ou sistemas sem autorização leiam a informação.\n> - **Integridade**: detectar alteração não autorizada ou acidental.\n> - **Autenticidade**: conferir a identidade da parte ou a origem da informação.\n> - **Criptografia**: transformação controlada por chave que torna os dados ininteligíveis a quem não tem a chave adequada.\n> - **Dado em uso**: conteúdo que está sendo processado, normalmente em memória ou dentro de um serviço.\n\n### Onde a proteção é necessária\n\nA SP 800-111 do NIST trata a criptografia de armazenamento como uso combinado de criptografia e autenticação para restringir o acesso e o uso da informação guardada. Ela destaca que a escolha depende do tipo de armazenamento, do volume de dados, do ambiente em que ficará e das ameaças a mitigar. Isso inclui computador de mesa ou portátil, telefone, mídia removível e armazenamento em servidor. Uma política coerente também considera cópias, exportações, arquivos temporários e backups: uma cópia desprotegida pode contornar o controle aplicado ao sistema principal.\n\nA proteção precisa corresponder ao objetivo. Criptografia sem autenticação confiável pode deixar um atacante usar o dispositivo ou sessão; autenticação sem criptografia não oculta o conteúdo contra interceptação. Integridade e autenticidade também são distintas de sigilo: um conteúdo pode estar cifrado e ainda assim exigir mecanismo que detecte modificação.\n\n| Estado | Exemplo | Controle típico |\n| --- | --- | --- |\n| Repouso | Arquivo no notebook ou backup em mídia | Criptografia de armazenamento e controle de acesso |\n| Trânsito | Requisição entre cliente e servidor | TLS corretamente configurado e validação do certificado |\n| Uso | Dados abertos pela aplicação | Acesso mínimo, isolamento e proteção do ambiente de execução |\n\n### Limites da criptografia\n\nA criptografia reduz a exposição quando uma mídia é perdida ou quando o tráfego é observado por terceiros, desde que as chaves e os endpoints estejam protegidos. Ela não corrige permissões excessivas, malware em um computador já desbloqueado, cópias em texto claro, erros de configuração ou vazamento por um usuário autorizado. Um servidor comprometido pode revelar dados depois de decifrá-los; um canal TLS legítimo também pode transportar uma solicitação maliciosa.\n\n### Como cai na prova\n\nClassifique primeiro o estado do dado no cenário: mídia esquecida aponta para repouso; pacote observado na rede aponta para trânsito; conteúdo aberto em processo aponta para uso. Depois verifique qual propriedade o mecanismo entrega. A SP 800-52 Rev. 2 descreve TLS como mecanismo para proteção de dados disseminados eletronicamente; a SP 800-111 aborda tecnologias de criptografia de armazenamento. São controles complementares."
+    },
+    {
+      "title": "2. Criptografia de dados em repouso",
+      "markdown": "### O problema que este assunto resolve\n\nSe alguém obtiver acesso físico a um notebook desligado, a um disco removido ou a uma mídia descartada, poderá tentar ler seus arquivos em outro equipamento. A criptografia de armazenamento busca impedir essa leitura sem a autenticação ou chave necessária. Na prática, o NIST organiza as soluções para dispositivos de usuário final em três grupos: disco inteiro, volume ou disco virtual, e arquivo ou pasta.\n\n> **Siglas e termos deste capítulo**\n> - **Criptografia de disco inteiro (FDE)**: protege, em geral, todos os setores de um disco, inclusive áreas do sistema operacional.\n> - **Volume**: divisão lógica de um dispositivo de armazenamento.\n> - **Disco virtual**: contêiner que se apresenta ao sistema como unidade de armazenamento.\n> - **Criptografia de arquivo/pasta**: protege objetos selecionados, em vez de necessariamente cifrar toda a unidade.\n> - **Mídia removível**: dispositivo que pode ser conectado e retirado, como pendrive ou disco externo.\n\n### Escolha do alcance\n\nA criptografia de disco inteiro simplifica a cobertura de muitos arquivos locais e reduz o risco de deixar arquivos do sistema fora da proteção. Normalmente, o conteúdo fica acessível ao sistema depois que o mecanismo de inicialização/autenticação libera a chave. Por isso, não se deve confundir disco criptografado com computador protegido enquanto já está ligado e desbloqueado.\n\nCriptografar um volume ou disco virtual permite delimitar uma área protegida, útil para dados específicos ou contêineres transportáveis. Criptografar arquivos ou pastas possibilita selecionar conteúdo e pode manter a proteção do objeto em determinados fluxos de cópia, mas exige atenção a arquivos temporários, versões, miniaturas, índices e aplicativos que criam cópias fora da pasta. A proteção de um arquivo também pode depender da aplicação e do modo de compartilhamento.\n\n| Técnica | Alcance típico | Ponto de atenção |\n| --- | --- | --- |\n| Disco inteiro | Unidade física e grande parte de seu conteúdo | Protege melhor a perda do equipamento desligado; não substitui controles após desbloqueio |\n| Volume/disco virtual | Uma partição ou contêiner delimitado | É preciso controlar montagem, cópia do contêiner e credenciais |\n| Arquivo/pasta | Objetos escolhidos | Há risco de cópias auxiliares e arquivos fora da seleção |\n\n### Cópias, acesso e descarte\n\nA proteção precisa alcançar backups, exportações e mídias removíveis que contenham a mesma informação. A criptografia deve ser acompanhada por autenticação, gestão segura das chaves e permissões adequadas. Uma chave guardada junto com o dispositivo, sem proteção equivalente, pode anular o benefício. Quando a mídia sai de uso, o tratamento deve considerar se as chaves precisam ser destruídas e se existem cópias recuperáveis; apagar o nome de um arquivo ou formatar rapidamente não prova que os dados deixaram de ser recuperáveis.\n\nA recuperação também faz parte do projeto: se a chave se perder, dados legítimos podem ficar inacessíveis. Procedimentos de custódia e recuperação devem limitar quem consegue restaurar o acesso, registrar operações relevantes e evitar guardar segredo em texto claro no mesmo local protegido.\n\n### Como cai na prova\n\nA banca pode trocar o alcance de cada técnica ou afirmar que criptografia de disco protege contra qualquer acesso. A resposta exige identificar cenário e estado: a proteção de disco reduz exposição de dados armazenados em equipamento desligado, enquanto a sessão já autenticada e o dado aberto exigem outras barreiras."
+    },
+    {
+      "title": "3. Proteção de dados em trânsito com TLS",
+      "markdown": "### O problema que este assunto resolve\n\nAo trafegar em rede, dados podem ser observados, alterados ou apresentados como se viessem de outra parte. O **TLS (Transport Layer Security)** protege comunicações entre endpoints. A SP 800-52 Rev. 2 do NIST descreve serviços de confidencialidade, integridade e autenticação e orienta a seleção e a configuração de implementações TLS. O protocolo não torna os próprios endpoints confiáveis: ele protege o canal estabelecido entre eles.\n\n> **Siglas e termos deste capítulo**\n> - **TLS**: protocolo de segurança da camada de transporte usado para proteger comunicações.\n> - **Handshake**: troca inicial que negocia parâmetros de segurança e estabelece material de sessão.\n> - **Cipher suite**: conjunto negociado de algoritmos e funções criptográficas.\n> - **Certificado X.509**: documento de chave pública usado, entre outras funções, para autenticar uma identidade.\n> - **CA**: autoridade certificadora cuja cadeia pode ser usada para validar certificados.\n\n### O que acontece na conexão\n\nDurante o handshake, cliente e servidor negociam parâmetros criptográficos e podem trocar certificados de chave pública. A validação do certificado verifica se a identidade apresentada corresponde ao destino esperado, se a cadeia chega a uma âncora confiável e se o certificado está válido para o uso e nome pertinentes. Se o cliente ignora erros de certificado, a criptografia pode continuar ativa, mas a autenticação do servidor fica comprometida e um intermediário pode se passar pelo destino.\n\nDepois da negociação, os dados da aplicação são protegidos pelas chaves de sessão. Confidencialidade dificulta a leitura por observadores; integridade detecta alterações não autorizadas; autenticação ajuda a verificar quem participa da conexão. Essas propriedades dependem da versão e configuração efetivamente negociadas. A SP 800-52 Rev. 2 orienta suporte a TLS 1.2 com conjuntos baseados em FIPS para servidores e clientes governamentais abrangidos por sua orientação, e suporte a TLS 1.3; isso é conteúdo da publicação do NIST, não uma regra universal para todo sistema brasileiro.\n\n| Elemento | Função | Erro comum |\n| --- | --- | --- |\n| Handshake | Negocia parâmetros e inicia a sessão | Achar que é o conteúdo inteiro da comunicação |\n| Certificado | Vincula uma identidade a uma chave pública conforme validação | Aceitar qualquer certificado sem conferir destino e cadeia |\n| Chaves de sessão | Protegem os registros trocados | Confundir sua função com a chave privada do certificado |\n| TLS | Protege o canal entre endpoints | Supor que corrige um servidor comprometido |\n\n### Configuração e aplicação\n\nServidores e clientes devem evitar protocolos e conjuntos criptográficos inadequados à política de segurança e manter implementações atualizadas. A validação de hostname, cadeia e validade do certificado não deve ser desativada como solução para erro de conexão. HTTPS é HTTP transportado por TLS, mas não garante que o conteúdo do site seja verdadeiro, que a aplicação não tenha falha ou que o usuário esteja autorizado. Tráfego entre serviços internos também pode precisar de TLS, sobretudo quando atravessa redes compartilhadas ou limites de confiança.\n\n### Como cai na prova\n\nDesconfie de afirmações de que TLS criptografa o banco gravado no servidor, substitui autenticação do usuário ou elimina toda interceptação. Em questão sobre captura de tráfego, procure proteção do canal; em questão sobre disco perdido, procure proteção de armazenamento."
+    },
+    {
+      "title": "4. Chaves, camadas de defesa e operação segura",
+      "markdown": "### O problema que este assunto resolve\n\nCriptografia depende das chaves: uma chave exposta pode permitir leitura ou falsificação; uma chave perdida pode impedir recuperação. A SP 800-57 Part 1 Rev. 5 do NIST trata a gestão de material criptográfico ao longo de seu ciclo de vida, incluindo geração, armazenamento, estabelecimento, entrada e saída, uso e destruição. O projeto de proteção deve cobrir tanto os dados quanto as chaves que os protegem.\n\n> **Siglas e termos deste capítulo**\n> - **Chave criptográfica**: valor secreto ou controlado que governa uma operação criptográfica.\n> - **Chave simétrica**: mesma chave secreta é usada nas operações correspondentes de cifração e decifração.\n> - **Par assimétrico**: chave pública e chave privada relacionadas matematicamente, com funções diferentes.\n> - **HSM**: módulo de segurança de hardware que pode proteger operações e material criptográfico.\n> - **Rotação**: substituição planejada de chaves por novas, sem abandonar os controles de acesso e recuperação.\n\n### Ciclo de vida e separação\n\nAs chaves precisam ser geradas por meios adequados, associadas a finalidade e responsáveis, armazenadas com proteção compatível e distribuídas sem exposição indevida. O acesso deve seguir necessidade de uso. Deve haver procedimentos para cópia de recuperação quando necessária, substituição, resposta a comprometimento e destruição quando deixam de ser necessárias. A gestão também considera metadados: qual chave protege qual conjunto de dados, em que período e quem pode usá-la.\n\nNão se deve guardar a chave de decifração em texto claro ao lado do arquivo cifrado, nem embutir segredo permanente no código-fonte distribuído. Um serviço de gestão de chaves ou HSM pode separar funções e controlar operações, mas não dispensa autorização, auditoria, recuperação planejada e proteção do serviço que o acessa. Rotação sem migração ou preservação apropriada pode tornar dados históricos ilegíveis.\n\n### Defesa em camadas\n\nCombine criptografia com classificação da informação, minimização de cópias, autenticação forte, privilégio mínimo, monitoramento, atualização, proteção de endpoints e procedimentos de backup e recuperação. Em trânsito, valide o certificado e configure ambos os lados. Em repouso, inventarie dispositivos, repositórios, réplicas e cópias de segurança. Para dados muito sensíveis, pode ser apropriado proteger em mais de uma camada, por exemplo criptografia de volume e controles da própria aplicação, desde que as chaves não fiquem concentradas no mesmo domínio de risco.\n\n| Situação | Controle necessário | O que não resolve sozinho |\n| --- | --- | --- |\n| Notebook perdido desligado | Criptografia de armazenamento e proteção da chave | Malware em sessão já desbloqueada |\n| Backup levado para fora | Criptografia do backup, custódia e controle de acesso | TLS usado apenas durante a cópia original |\n| Tráfego observado | TLS corretamente negociado e certificado validado | Disco cifrado no servidor de destino |\n| Chave comprometida | Revogação/retirada, substituição e avaliação de exposição | Trocar a senha do usuário sem tratar a chave |\n\n### Como cai na prova\n\nA segurança não é propriedade do algoritmo isolado: depende de implantação, endpoints, autenticação, chaves, cópias e operação. Diferencie criptografia (transforma dados), hash (resumo unidirecional), assinatura (evidência criptográfica de origem/integridade conforme a chave) e gestão de acesso. Um hash comum não cifra nem recupera o conteúdo original."
+    }
+  ],
+  "summary": "Dados em repouso estão armazenados; dados em trânsito circulam por uma rede; dados em uso estão sendo processados. Criptografia de armazenamento protege mídias e cópias conforme o alcance escolhido: disco inteiro, volume/disco virtual ou arquivo/pasta. TLS protege o canal e pode oferecer confidencialidade, integridade e autenticação, desde que seja configurado corretamente e os certificados sejam validados. Criptografia não substitui controles de acesso, proteção de endpoints nem gestão do ciclo de vida das chaves. As SP 800-111, SP 800-52 Rev. 2 e SP 800-57 Part 1 Rev. 5 do NIST fornecem orientações técnicas para esses temas.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza dado em repouso?",
+      "back": "Informação registrada em mídia ou sistema de armazenamento, como SSD, backup, banco ou pendrive."
+    },
+    {
+      "front": "O que caracteriza dado em trânsito?",
+      "back": "Informação que circula por rede ou canal de comunicação entre endpoints."
+    },
+    {
+      "front": "Quais são os três estados de dados tratados nesta matéria?",
+      "back": "Em repouso, em trânsito e em uso (durante o processamento)."
+    },
+    {
+      "front": "Quais são as três classes de criptografia de armazenamento da SP 800-111?",
+      "back": "Disco inteiro; volume ou disco virtual; arquivo ou pasta."
+    },
+    {
+      "front": "O que protege a criptografia de disco inteiro?",
+      "back": "Em geral, a unidade física e grande parte de seus dados locais, especialmente contra leitura da mídia sem desbloqueio."
+    },
+    {
+      "front": "Quando usar criptografia de arquivo ou pasta?",
+      "back": "Quando se quer selecionar objetos específicos, considerando cópias auxiliares e arquivos temporários que podem ficar fora da proteção."
+    },
+    {
+      "front": "O que TLS protege?",
+      "back": "O canal de comunicação entre endpoints, podendo prover confidencialidade, integridade e autenticação."
+    },
+    {
+      "front": "Para que serve o handshake TLS?",
+      "back": "Negociar parâmetros de segurança, autenticar partes conforme configuração e estabelecer material de sessão."
+    },
+    {
+      "front": "Qual a função de um certificado no TLS?",
+      "back": "Associar uma identidade a uma chave pública para permitir autenticação após validação da cadeia e do destino."
+    },
+    {
+      "front": "O que ocorre se o cliente ignora erros de certificado?",
+      "back": "A conexão pode permanecer cifrada, mas a autenticação do servidor fica comprometida, facilitando personificação."
+    },
+    {
+      "front": "Disco cifrado protege um computador já desbloqueado contra malware?",
+      "back": "Não necessariamente; após o desbloqueio, o sistema pode fornecer dados decifrados aos processos autorizados ou comprometidos."
+    },
+    {
+      "front": "TLS substitui criptografia de backup?",
+      "back": "Não. TLS protege o tráfego durante a transferência; a mídia do backup requer proteção em repouso."
+    },
+    {
+      "front": "Quais fatores orientam escolha de criptografia de armazenamento segundo a SP 800-111?",
+      "back": "Tipo de armazenamento, quantidade de informação, ambiente e ameaças a mitigar."
+    },
+    {
+      "front": "O que a integridade busca assegurar?",
+      "back": "Detectar alterações não autorizadas ou acidentais na informação."
+    },
+    {
+      "front": "O que a confidencialidade busca assegurar?",
+      "back": "Impedir leitura por pessoas ou sistemas não autorizados."
+    },
+    {
+      "front": "Por que proteger chaves separadamente dos dados?",
+      "back": "Quem obtém a chave pode contornar a criptografia; sua custódia precisa de controles próprios."
+    },
+    {
+      "front": "Quais fases compõem o ciclo de vida de chaves?",
+      "back": "Geração, armazenamento, estabelecimento/distribuição, entrada e saída, uso e destruição."
+    },
+    {
+      "front": "Qual risco de guardar a chave junto ao arquivo cifrado?",
+      "back": "A perda ou cópia do arquivo pode levar também à chave que permite decifrá-lo."
+    },
+    {
+      "front": "Um hash comum é criptografia reversível?",
+      "back": "Não. É um resumo unidirecional e não permite recuperar o conteúdo original por decifração."
+    },
+    {
+      "front": "O que TLS não garante sobre um site?",
+      "back": "Não garante que o conteúdo seja verdadeiro, que o servidor esteja livre de falhas ou que o usuário esteja autorizado."
+    }
+  ],
+  "tips": [
+    "Classifique o cenário pelo estado do dado: disco e backup indicam repouso; rede indica trânsito; processamento indica uso.",
+    "Associe as três classes da SP 800-111 ao alcance: disco inteiro, volume/disco virtual e arquivo/pasta.",
+    "No TLS, separe handshake, certificado e chaves de sessão: são elementos com funções diferentes.",
+    "Ao avaliar certificado, confira identidade do destino e cadeia confiável; não ignore alertas para contornar falhas.",
+    "Lembre que criptografia depende da proteção, disponibilidade e ciclo de vida das chaves.",
+    "Em questão sobre limitação, pergunte se endpoint comprometido, cópia em claro ou sessão desbloqueada contornaria o controle."
+  ],
+  "traps": [
+    "Afirmar que TLS cifra automaticamente arquivos gravados no servidor confunde canal de trânsito com armazenamento em repouso.",
+    "Afirmar que disco cifrado protege contra qualquer pessoa após o usuário desbloqueá-lo ignora que o sistema pode entregar dados em claro.",
+    "Tratar certificado como conteúdo secreto: ele é usado para vincular identidade e chave pública; a chave privada é que deve ser guardada.",
+    "Ignorar erro de certificado mantém possível cifração, mas enfraquece a autenticação e permite ataque de intermediário.",
+    "Supor que backup copiado de um disco cifrado continua protegido sem verificar formato, exportação e chave ignora cópias em texto claro.",
+    "Confundir rotação de chave com simples troca de senha pode deixar dados antigos expostos ou inacessíveis."
+  ],
+  "activeRecall": [
+    {
+      "question": "Compare dado em repouso, em trânsito e em uso com um exemplo de cada.",
+      "answer": "Repouso: arquivo em SSD; trânsito: requisição entre navegador e servidor; uso: conteúdo aberto na memória pela aplicação."
+    },
+    {
+      "question": "Quais três alcances de criptografia de armazenamento são apresentados na SP 800-111?",
+      "answer": "Disco inteiro, volume/disco virtual e arquivo/pasta; a escolha depende do armazenamento, quantidade, ambiente e ameaças."
+    },
+    {
+      "question": "Explique o papel do handshake, do certificado e das chaves de sessão em TLS.",
+      "answer": "Handshake negocia parâmetros; certificado pode autenticar identidade e associar chave pública; chaves de sessão protegem os registros da comunicação."
+    },
+    {
+      "question": "Por que ignorar uma advertência de certificado é perigoso mesmo quando o navegador mostra HTTPS?",
+      "answer": "Pode haver canal cifrado sem autenticação correta do servidor, permitindo que intermediário se faça passar pelo destino."
+    },
+    {
+      "question": "Quais são as principais limitações de criptografar um disco?",
+      "answer": "Não impede necessariamente acesso após desbloqueio, malware em execução, cópias em claro nem uso de permissões excessivas."
+    },
+    {
+      "question": "O que uma organização deve administrar além dos dados cifrados?",
+      "answer": "As chaves: geração, armazenamento, distribuição, acesso, uso, recuperação, substituição e destruição."
+    },
+    {
+      "question": "Explique por que TLS e criptografia de backup são controles complementares.",
+      "answer": "TLS protege o canal durante a transmissão; criptografia do backup protege os dados depois de gravados ou transportados em mídia."
+    },
+    {
+      "question": "Diferencie confidencialidade, integridade e autenticidade.",
+      "answer": "Confidencialidade limita leitura; integridade detecta modificação; autenticidade dá confiança sobre identidade ou origem."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir repouso com trânsito",
+      "summary": "Criptografia de disco ou arquivo trata dados armazenados; TLS protege comunicação em rede. Um mecanismo não substitui automaticamente o outro."
+    },
+    {
+      "key": "e2",
+      "title": "Superestimar o alcance da criptografia",
+      "summary": "A criptografia não protege necessariamente dados já abertos em endpoint comprometido, arquivos auxiliares em claro ou usuários com acesso legítimo excessivo."
+    },
+    {
+      "key": "e3",
+      "title": "Certificado sem validação",
+      "summary": "TLS pode manter cifração mesmo se a aplicação ignorar erro de certificado; sem validação adequada, a identidade do servidor não está assegurada."
+    },
+    {
+      "key": "e4",
+      "title": "Chaves mal administradas",
+      "summary": "Chave exposta contorna proteção; chave perdida pode bloquear acesso. Gestão deve cobrir ciclo de vida, custódia, recuperação e substituição."
+    },
+    {
+      "key": "e5",
+      "title": "Confundir propriedades de segurança",
+      "summary": "Confidencialidade, integridade e autenticidade são objetivos distintos. Criptografia de sigilo, hash e assinatura não são sinônimos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um notebook corporativo desligado contém arquivos locais e pode ser perdido durante uma viagem. Qual controle atende diretamente ao risco de leitura do disco por terceiros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografar o disco e exigir autenticação antes de liberar os dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar TLS no portal interno, mesmo que os arquivos permaneçam sem proteção local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar hash aos nomes das pastas e manter os documentos em texto claro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fazer cópia diária para um pendrive sem criptografia guardado na mesma mochila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restringir a rede sem fio, embora o risco ocorra após a perda física do equipamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Criptografia de disco protege dados armazenados quando a unidade é acessada sem a autenticação necessária. TLS protege comunicações, hash de nomes não cifra o conteúdo, cópia desprotegida cria outro alvo e controle de rede não impede leitura física offline.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma conexão TLS, qual é a finalidade principal do handshake entre cliente e servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar uma cópia permanente dos arquivos enviados no armazenamento do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Negociar parâmetros e iniciar a sessão TLS protegida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir o controle de acesso da aplicação por uma chave pública compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar que os dados armazenados no banco não precisem de criptografia própria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todo conteúdo transmitido em resumo hash que o destinatário não decifra.",
+          "correct": false
+        }
+      ],
+      "explanation": "O handshake negocia parâmetros de segurança e estabelece material de sessão; pode também participar da autenticação por certificados. Não grava arquivos, não substitui autorização da aplicação, não cifra automaticamente o banco e TLS transporta dados recuperáveis pelo endpoint autorizado.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política precisa proteger somente a pasta de contratos em uma unidade que também contém arquivos públicos. Qual abordagem corresponde ao escopo descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografar apenas o tráfego DNS e deixar os arquivos da pasta sem controle local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar checksum aos arquivos e usar o resultado como senha de decifração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar criptografia seletiva de arquivos ou pasta, revisando cópias auxiliares.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Configurar certificado TLS para cada contrato gravado no mesmo diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criptografar somente o nome da unidade, sem transformar os dados armazenados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A criptografia de arquivo ou pasta permite selecionar objetos, mas é preciso verificar temporários, exportações e cópias fora da área. TLS protege tráfego, checksum não cifra e proteger somente nome ou DNS não protege o conteúdo.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente confidencialidade e integridade em uma comunicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confidencialidade detecta alterações, enquanto integridade impede toda leitura por terceiros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autenticidade cifra os dados, e confidencialidade confirma quem os enviou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Integridade recupera o texto original, e hash assegura disponibilidade do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confidencialidade limita leitura; integridade permite detectar modificação não autorizada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Disponibilidade e integridade significam o mesmo, pois ambas dependem de TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Confidencialidade trata de leitura por não autorizados; integridade trata da detecção de modificações. Autenticidade é distinta, hash não recupera o original e disponibilidade também não é sinônimo de integridade.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup cifrado está sendo transferido para outro centro de dados por uma rede compartilhada. Qual desenho cobre os dois estados envolvidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover a criptografia do backup e confiar somente no firewall de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter o backup protegido em repouso e proteger a transferência com TLS validado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar TLS somente ao banco original e transferir o backup sem proteção adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar a chave junto ao arquivo e usar um hash para ocultar a rota de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criptografar o canal, dispensando controle da chave depois que o arquivo chegar.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backup é dado em repouso e deve permanecer cifrado na mídia; durante a transferência, TLS protege o canal. Firewalls não cifram o arquivo, TLS no sistema original não alcança a cópia, hash não oculta dados e a chave segue precisando de custódia.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um navegador alerta que o certificado do servidor não corresponde ao destino solicitado. O que a decisão de ignorar o alerta causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativa necessariamente toda criptografia e apaga as chaves do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garante que a identidade está correta, pois a conexão continua usando HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte o certificado inválido em uma chave de armazenamento para o navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impede ataques de intermediário ao aceitar qualquer cadeia apresentada na rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pode cifrar o canal sem autenticar corretamente o servidor.",
+          "correct": true
+        }
+      ],
+      "explanation": "A cifração do canal e a autenticação da identidade são propriedades distintas. Ignorar o erro pode permitir uma sessão criptografada com um impostor; HTTPS não torna correta uma identidade que falhou na validação.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois que um usuário autorizado desbloqueia um notebook com criptografia de disco, um programa malicioso executado na sessão tenta ler seus documentos. Qual avaliação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sessão desbloqueada pode fornecer arquivos ao malware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O programa não pode obter os dados porque a unidade permanece cifrada em todos os estados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O TLS do navegador transforma todos os arquivos locais em conteúdo inacessível ao malware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O certificado do usuário impede qualquer processo local de acessar os documentos abertos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A integridade do disco bloqueia automaticamente todo programa que execute na sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proteção de disco é especialmente útil contra acesso à mídia bloqueada. Após desbloqueio, o sistema pode fornecer conteúdo em claro a processos da sessão; são necessários também controle de endpoint, privilégio mínimo e outras defesas.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação é própria da gestão de uma chave criptográfica e não deve ser tratada como irrelevante após a cifração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cor do ícone que aparece no aplicativo depois de concluir a operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome informal da pasta, sem vínculo com os dados protegidos ou seus usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificar dados, usuários e o ciclo de uso da chave.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de cliques do operador, sem relação com custódia ou autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem alfabética dos arquivos que foram enviados por uma conexão TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A gestão de chaves envolve associação a uso e dados, proteção, acesso, recuperação, substituição e destruição. Metadados de finalidade e custódia sustentam operação segura; aspectos visuais e ordem dos arquivos não resolvem esses requisitos.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer reduzir exposição em caso de perda de pendrives com relatórios. Qual conjunto é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar relatórios em claro e confiar em senha de abertura do computador de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cifrar a mídia, custodiar a chave e limitar o acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar TLS apenas ao e-mail que originou os relatórios e não proteger os pendrives.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear os arquivos com códigos aleatórios e manter conteúdo e mídia sem cifração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gerar hash dos relatórios e apagar a cópia cifrada para simplificar a recuperação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O risco decorre da leitura de informação armazenada em mídia removível perdida. Cifração, controle de chaves e autorização atuam diretamente; TLS no envio original, nomes opacos e hash não protegem o conteúdo já gravado.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor o papel da autoridade certificadora em uma conexão TLS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela armazena permanentemente os dados da aplicação e entrega a chave de disco ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela cifra o tráfego de cada usuário sem que cliente e servidor negociem parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela substitui o servidor e processa todas as operações do banco de dados protegido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela pode integrar a cadeia de confiança usada para validar certificados e identidades.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ela converte os registros do protocolo em senhas que o cliente não consegue verificar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma CA emite ou valida certificados dentro de uma infraestrutura de confiança; o cliente verifica a cadeia conforme suas âncoras e políticas. A CA não guarda dados de aplicação nem substitui negociação, servidor ou autorização.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto de armazenamento, qual comparação entre disco inteiro e arquivo/pasta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disco inteiro seleciona um único documento; arquivo/pasta cifra necessariamente toda a unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos são protocolos de rede que negociam certificados durante o handshake.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivo/pasta elimina a necessidade de controlar cópias temporárias fora da seleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Disco inteiro protege só o nome do volume; arquivo/pasta transforma dados em hash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Disco inteiro cobre a unidade; arquivo/pasta seleciona objetos.",
+          "correct": true
+        }
+      ],
+      "explanation": "A diferença principal é o alcance: disco inteiro cobre ampla área do dispositivo, enquanto a técnica por arquivo ou pasta seleciona objetos. Mesmo a seleção pode deixar temporários e cópias auxiliares fora do seu alcance.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente um hash comum de uma operação de criptografia de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hash é cifração reversível, enquanto criptografia sempre produz resumo sem chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hash oferece ocultação do conteúdo e recuperação do texto mediante certificado TLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hash resume; cifração recupera o conteúdo com a chave.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Hash autentica automaticamente o servidor remoto e protege arquivos em repouso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hash e criptografia são nomes equivalentes para qualquer transformação matemática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um hash comum é resumo unidirecional, útil em verificações, mas não substitui cifração reversível. Criptografia usa chaves e permite que o destinatário autorizado recupere o conteúdo; certificado TLS não transforma hash em mecanismo de decifração.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa usa certificado TLS válido em seu portal público. O que essa condição, isoladamente, permite concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que o banco de dados do portal está cifrado e não pode ser acessado por administradores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que o usuário está autorizado a ler qualquer informação apresentada pelo serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que a aplicação não possui falhas, malware ou dados incorretos em suas páginas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que TLS pode autenticar a identidade e proteger o canal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Que toda cópia de segurança e todo arquivo exportado permanece protegido fora do portal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certificado validado contribui à autenticação da identidade do endpoint; TLS protege o canal conforme parâmetros negociados. Isso não prova autorização, ausência de falhas ou cifração de arquivos e backups armazenados.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a decisão mais adequada ao planejar armazenamento cifrado para diferentes tipos de dispositivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher sempre a mesma técnica, sem analisar mídia, volume, ambiente ou ameaças.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar tipo de armazenamento, quantidade, ambiente e ameaças que se pretende mitigar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Selecionar somente pelo custo do certificado TLS usado pelo sistema corporativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desconsiderar autenticação porque a cifra por si só limita todo tipo de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proteger apenas os discos fixos, pois dispositivos móveis não guardam informação sensível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SP 800-111 indica que a escolha depende do tipo de armazenamento, quantidade de informação, ambiente e ameaças. Não há solução universal independente do contexto; autenticação e proteção de dispositivos móveis também importam.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante o handshake, o cliente aceita um certificado válido para outro nome de domínio. Qual risco permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cifra pode ocorrer sem validar o destino esperado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O disco local do cliente é automaticamente decifrado por qualquer chave pública apresentada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A aplicação perde necessariamente todos os dados que estavam em repouso no servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cadeia confiável impede qualquer personificação, independentemente do nome certificado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão deixa de trafegar dados porque TLS não suporta certificado com nome diferente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação deve conferir se o certificado se aplica ao destino esperado. Confiar apenas na cadeia sem conferir o nome pode permitir autenticação do endpoint errado; a cifração do canal não corrige esse erro de identidade.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave usada para decifrar arquivos foi exposta em um repositório de código. Qual resposta aborda diretamente o incidente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a chave ativa e apenas renomear os arquivos para que não sejam localizados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a senha do portal, sem avaliar arquivos ou sistemas que usam a chave exposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o histórico do repositório e presumir que nenhuma cópia foi obtida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar hash aos arquivos e deixar a chave comprometida disponível para restauração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conter o acesso, substituir a chave e avaliar dados expostos e cópias afetadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O comprometimento exige tratar a própria chave e os dados protegidos por ela: conter uso, substituir ou retirar a chave conforme o sistema, avaliar exposição e preservar recuperação segura. Trocar senha de outro serviço não neutraliza a chave vazada.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: uma organização deve considerar backups e mídias removíveis ao definir proteção para dados em repouso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Backups e mídias removíveis são locais de armazenamento que podem conter cópias sensíveis. Uma cópia desprotegida pode contornar a criptografia aplicada ao servidor principal.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: TLS é voltado à proteção de dados em trânsito entre endpoints, não à cifração automática de todos os arquivos persistidos no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TLS protege a comunicação durante a transmissão. Os arquivos persistidos no servidor são dados em repouso e requerem controles de armazenamento, acesso e chaves apropriados.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a criptografia de disco inteiro continua impedindo necessariamente que um processo malicioso leia arquivos depois que o usuário desbloqueia o equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Depois de desbloqueado, o sistema pode disponibilizar dados decifrados aos processos da sessão. Criptografia de disco não substitui proteção contra malware e controles de acesso durante o uso.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um erro de certificado pode comprometer a autenticação do servidor mesmo que o navegador ainda consiga estabelecer um canal cifrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cifração e autenticação são propriedades diferentes. Ignorar incompatibilidade de identidade ou cadeia pode manter o tráfego cifrado, mas com uma parte que não foi validada como o destino correto.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a gestão de chaves inclui proteção durante geração, armazenamento, distribuição, uso e destruição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A SP 800-57 descreve atividades de gestão de material criptográfico ao longo do ciclo de vida. A proteção não termina quando os dados são cifrados: as chaves precisam permanecer controladas e disponíveis conforme a finalidade.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: qualquer hash comum permite recuperar o documento original quando o destinatário conhece o resumo produzido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Hash comum é uma função unidirecional e não um mecanismo de cifração reversível. Para recuperar um conteúdo cifrado, é necessária operação criptográfica apropriada e a chave correspondente.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: o fato de um site usar HTTPS comprova, por si só, que o usuário tem autorização para acessar qualquer dado exibido pelo serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HTTPS protege a comunicação e ajuda a autenticar o endpoint; autorização é decidida pela aplicação e pela identidade/permissões do usuário. São controles diferentes.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a SP 800-111 identifica disco inteiro, TLS em trânsito e arquivo ou pasta como classes de soluções de criptografia de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege dados em trânsito, não é uma classe de armazenamento. A SP 800-111 trata disco inteiro, volume ou disco virtual, e arquivo ou pasta.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: guardar a chave de decifração em texto claro no mesmo dispositivo que contém os dados cifrados pode anular parte da proteção contra perda do dispositivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se atacante obtém ao mesmo tempo os dados e a chave acessível, pode contornar a confidencialidade oferecida pela cifra. A custódia da chave precisa de proteção compatível e separação adequada.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um certificado TLS é o próprio arquivo secreto que contém todos os dados transmitidos pela conexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O certificado é um documento de chave pública usado para associar identidade e chave pública. Os dados da sessão são protegidos por chaves de sessão negociadas; o certificado não é um contêiner do tráfego.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: um firewall, sozinho, transforma arquivos gravados em um disco perdido em dados ilegíveis para quem conectar a mídia em outro computador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Firewall controla tráfego de rede e não cifra o conteúdo do disco. Para mitigar leitura de mídia perdida, é necessária proteção de armazenamento, acompanhada de autenticação e gestão de chaves.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: validar o nome do servidor no certificado ajuda a garantir que o endpoint autenticado é aquele que o cliente pretendia acessar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A validação de certificado deve incluir correspondência com a identidade esperada, além de cadeia confiável e condições de validade. Uma cadeia confiável sem conferir o destino pode aceitar certificado para outro serviço.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: TLS pode proteger o tráfego entre serviços internos quando a comunicação atravessa uma rede compartilhada ou limite de confiança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A necessidade depende do risco e da arquitetura; o fato de a rede ser interna não elimina interceptação, erro ou comprometimento de segmentos. TLS protege o canal quando corretamente configurado nos endpoints.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: cifrar um backup durante a transmissão com TLS dispensa verificar se a mídia de destino protege os dados depois que a transferência termina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege o canal enquanto o backup trafega; após gravado, ele passa a ser dado em repouso. A mídia de destino, as permissões e as chaves precisam ser protegidas separadamente.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a criptografia de arquivo ou pasta elimina automaticamente cópias temporárias que um aplicativo cria em outro diretório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A proteção por objeto cobre os objetos selecionados, mas não garante que arquivos temporários, exportações, miniaturas ou cópias sejam criados dentro da área cifrada. O fluxo de dados precisa ser inventariado.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: perder a única cópia de uma chave pode comprometer a disponibilidade dos dados cifrados, mesmo que ninguém tenha acessado a informação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Confidencialidade não é o único objetivo: sem a chave necessária, usuários autorizados podem ficar impossibilitados de recuperar os dados. Recuperação deve ser planejada e controlada para não criar outra exposição.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: as orientações da SP 800-52 Rev. 2 para suporte a TLS em servidores e clientes governamentais dos Estados Unidos devem ser apresentadas como obrigação legal geral de todo sistema brasileiro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Trata-se de publicação técnica do NIST com orientação para o contexto governamental dos EUA, e não de uma lei brasileira universal. Seus conceitos técnicos podem informar projetos, mas a aplicabilidade normativa depende do contexto próprio.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a proteção de dados em uso pode exigir controles adicionais porque o conteúdo pode estar disponível em claro para o processo que o está tratando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Criptografia de armazenamento ou de canal não impede necessariamente que uma aplicação autorizada leia o conteúdo durante o processamento. Isolamento, privilégios mínimos, segurança do endpoint e monitoramento continuam relevantes.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: TLS corretamente configurado, por si só, garante que o conteúdo apresentado pelo servidor seja verdadeiro e livre de falhas de aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege a conexão e pode autenticar o endpoint; não comprova a veracidade semântica do conteúdo nem a ausência de vulnerabilidades no servidor. Um endpoint legítimo comprometido também pode enviar dados maliciosos.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: a SP 800-57 trata a gestão de chaves como ciclo de atividades, e não apenas como escolha inicial de algoritmo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A publicação aborda o gerenciamento de material criptográfico, incluindo geração, armazenamento, estabelecimento, entrada e saída, uso e destruição. Algoritmo adequado sem custódia e operação seguras não basta.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: se um disco inteiro está cifrado, uma cópia exportada em texto claro para uma pasta temporária fica automaticamente protegida pela mesma cifra em qualquer destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A cópia pode ser gravada em outro volume ou sistema sem a proteção original. O fluxo de exportação, temporários, backups e destinos deve ser avaliado; cifra de uma unidade não se propaga automaticamente a toda cópia.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: proteção de confidencialidade, integridade e autenticidade pode exigir mecanismos ou configurações diferentes, ainda que TLS possa oferecer mais de um desses serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. São objetivos distintos. TLS pode provisionar confidencialidade, integridade e autenticação conforme a configuração negociada, mas uma propriedade não deve ser presumida somente pela presença de outra.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Certo ou errado: certificados públicos e chaves privadas têm o mesmo nível de sigilo e devem ser distribuídos do mesmo modo aos clientes TLS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O certificado contém informações de chave pública e identidade e pode ser apresentado para validação. A chave privada correspondente deve ser protegida contra divulgação e uso não autorizado; não se distribui como o certificado.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Certo ou errado: manter uma cópia de recuperação de chave pode apoiar disponibilidade, mas essa cópia também precisa de custódia e acesso controlados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Recuperação reduz risco de perda definitiva de acesso, mas uma cópia sem controle se torna caminho alternativo para decifrar os dados. Deve haver autorização, proteção, registro e procedimento de uso apropriados.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Certo ou errado: a SP 800-111 recomenda escolher a tecnologia de armazenamento considerando, entre outros elementos, tipo de mídia, quantidade de informação, ambiente e ameaças.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O guia apresenta esses fatores para selecionar solução de criptografia de armazenamento. Isso evita assumir que um alcance único será adequado para todo dispositivo e ameaça.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Certo ou errado: depois da rotação, basta apagar a chave antiga, pois qualquer chave nova decifra os dados anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A chave nova não decifra automaticamente dados cifrados com a anterior. É preciso planejar recriptografia ou retenção controlada da chave histórica antes de destruí-la.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Um serviço replica dados armazenados para recuperação de desastre. Que análise evita uma lacuna comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incluir réplicas, cópias e chaves nos controles de acesso e cifração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Proteger só a cópia primária e deixar réplicas fora do inventário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar nomes aleatórios sem verificar onde os dados ficam gravados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confiar na rede, pois replicação torna os dados inacessíveis a operadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cifrar o tráfego e presumir que o armazenamento herda essa proteção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas são outros locais de armazenamento e precisam entrar no inventário, nas permissões e na gestão de chaves. TLS pode proteger a transferência, mas não implica cifração depois que os dados são gravados.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo transmite credenciais por uma rede compartilhada. Qual medida protege diretamente o canal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cifrar a base no servidor e supor que isso protege também credenciais durante o trajeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar hash às credenciais e não validar o serviço remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar TLS com parâmetros seguros e validar o certificado do serviço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ocultar o endereço do servidor e deixar o tráfego sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proteger logs locais e confiar em todo pacote da rede interna.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS com validação de certificado protege o canal e ajuda a autenticar o serviço. Cifrar o banco trata repouso; hash não protege sozinho o canal e ocultar endereço não substitui segurança de transporte.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a rotação de uma chave, como manter dados antigos recuperáveis sem expor chaves históricas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar referências à chave antiga assim que a nova for criada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar chaves antigas em claro junto aos arquivos cifrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reutilizar a chave antiga para todo dado novo sem controle de finalidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planejar recriptografia ou retenção controlada das chaves históricas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Excluir backups sem verificar quais dados dependem da chave anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotação deve mapear os dados protegidos pela chave anterior e prever recriptografia ou retenção controlada enquanto forem necessários. Apagar a chave causa indisponibilidade; guardá-la exposta mantém risco de confidencialidade.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual controle reduz o risco de uma conta de serviço usar uma chave para finalidade diferente da prevista?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir finalidade, identidade autorizada e permissões mínimas para a chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Distribuir a mesma chave secreta a todos os serviços da organização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Embutir a chave no código e ocultar o repositório da internet pública.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar registros de uso para evitar auditoria das operações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir acesso irrestrito e confiar que a cifra rejeite usos indevidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Vincular a chave a uma finalidade e concedê-la somente às identidades que precisam dela aplica privilégio mínimo. Compartilhamento amplo, segredo no código e ausência de trilha aumentam o impacto de comprometimento.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor recebe tráfego TLS, decifra os dados e os grava em banco sem proteção de armazenamento. Qual risco persiste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tráfego não foi protegido, pois o banco só aceita dados que chegam cifrados no disco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O certificado impede consultas por administradores autorizados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dados persistidos podem ser lidos por acesso ao banco ou à mídia.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "TLS cifra automaticamente logs e exportações feitos pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão protege os dados em repouso depois que a sessão termina.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comunicação pode ter sido protegida durante o transporte, mas os dados decifrados tornam-se informação em repouso no banco. É necessário avaliar armazenamento, permissões, cópias e gestão de chaves.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve gestão coerente de chave criptográfica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar, compartilhar sem controle e apagar somente depois de incidente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gerar, proteger e usar pela finalidade; depois encerrar com controle.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar manualmente, enviar em canal aberto e guardar junto ao arquivo cifrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cifrar uma vez e ignorar necessidades de recuperação e auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter cópias ilimitadas em claro e remover vínculo com os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gestão abrange o ciclo de vida, da geração e armazenamento ao uso e destruição, com distribuição e controles apropriados. Exposição, compartilhamento irrestrito e ausência de recuperação não são práticas seguras.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário exige controles de dados em uso além da criptografia de armazenamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um disco removido e conectado a outro computador sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um backup arquivado em cofre e desconectado da rede de usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um processo comprometido consulta registros depois que a aplicação abre a base.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um pacote capturado em segmento compartilhado antes de chegar ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma mídia descartada cuja chave foi destruída e verificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processo comprometido acessa dados já abertos durante o processamento. Criptografia em repouso não basta; controles de endpoint, isolamento, autorização e privilégio mínimo também são relevantes.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação sincroniza documentos com serviço remoto, mas mantém cache local. Qual providência é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar cache e transmissão como fluxos distintos e proteger as cópias locais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que TLS cifra qualquer cache local após a desconexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar nomes dos documentos e manter cache e dispositivo sem controles.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar autenticação do serviço para impedir sincronização da pasta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar a chave no cache porque ele só existe durante o tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache local é cópia persistida e deve ser tratado como dado em repouso. TLS protege a transferência, mas não garante cifração posterior do cache; armazenamento, chave e acesso precisam ser avaliados.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição da SP 800-52 Rev. 2 é adequada ao estudar protocolos TLS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um guia só de certificados para armazenar arquivos em mídia removível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recomenda remover TLS 1.2 de qualquer sistema em rede interna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui autenticação da aplicação pelo certificado do canal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Orienta configuração TLS e suporte às versões no contexto tratado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Define TLS como mecanismo de cifração de arquivos persistidos em discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SP 800-52 Rev. 2 orienta seleção e configuração de implementações TLS e trata suporte às versões no contexto governamental a que se dirige. Não substitui autorização da aplicação nem protege diretamente arquivos em disco.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer impedir leitura de dados transmitidos e detectar alteração não autorizada. Como deve formular os objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar sigilo como suficiente, pois conteúdo cifrado não pode ser modificado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar certificado e presumir integridade automática de arquivos armazenados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar confidencialidade de integridade e escolher mecanismo que cubra ambas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir criptografia por renomeação dos arquivos e controle de endereço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar disponibilidade como sinônimo de autenticidade do remetente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Confidencialidade e integridade são objetivos distintos. A solução deve prover ambos conforme canal e dados; certificado TLS não protege automaticamente arquivo armazenado, e renomeação não oferece esses serviços.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho reduz o risco de comprometimento conjunto entre dados cifrados e suas chaves?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Embutir a chave no backup e dar acesso irrestrito ao operador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar a chave em claro no código de todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter cópia da chave em cada pasta cifrada sem registrar seu uso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar recuperação e auditoria para que nenhuma equipe conheça a chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Separar custódia, limitar identidades e registrar operações em serviço controlado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Separar o domínio das chaves dos dados, limitar identidades e registrar operações reduz o risco de comprometimento conjunto. A gestão ainda precisa prever recuperação controlada e proteger o serviço de chaves.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um pendrive com arquivos sensíveis levado para fora do escritório, que fator deve orientar a proteção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tipo de mídia, ameaças de perda e custódia da chave de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Versão do navegador usado no portal em que os arquivos foram criados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Firewall do escritório, mesmo quando o dispositivo está fora da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Algoritmo de compressão, sem avaliar confidencialidade ou autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cor do dispositivo, que substitui inventário e política de uso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mídia removível é um tipo de armazenamento e a perda física deve orientar a seleção da solução. Firewall e navegador não protegem diretamente os dados gravados no dispositivo.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa escolher entre proteger todo o disco e somente documentos confidenciais. Qual distinção é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disco inteiro protege só arquivos abertos; arquivo ou pasta cifra toda a unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Disco inteiro protege apenas a rede; arquivo ou pasta negocia certificados TLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivo ou pasta dispensa revisar temporários e cópias fora da seleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambas são técnicas de armazenamento, com alcances diferentes conforme a escolha.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Disco inteiro produz hashes; arquivo ou pasta torna o conteúdo irreversível.",
+          "correct": false
+        }
+      ],
+      "explanation": "As técnicas protegem dados armazenados com alcances diferentes. Disco inteiro cobre grande parte da unidade; arquivo ou pasta permite seleção, mas cópias auxiliares podem escapar da área escolhida.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização investiga por que um arquivo cifrado não pode ser restaurado após falha no serviço de chaves. Qual controle teria reduzido o risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar qualquer registro de operação para evitar exposição de metadados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar a chave no mesmo diretório dos arquivos para facilitar a busca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que cada usuário crie cópias sem inventário ou autorização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar TLS só durante a gravação e apagar a chave ao concluir a tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Planejar recuperação controlada e testar a disponibilidade das chaves necessárias.",
+          "correct": true
+        }
+      ],
+      "explanation": "A recuperação das chaves integra a disponibilidade dos dados cifrados. Deve haver procedimento controlado, responsável definido e teste de restauração; exposição em diretório ou cópias sem controle aumenta risco de acesso indevido.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe avalia uma unidade virtual que armazena documentos de um projeto específico. Qual técnica corresponde melhor ao alcance descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "TLS de transporte, que protege os arquivos quando estão desligados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criptografia de volume ou disco virtual para delimitar a área protegida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Hash dos nomes, que transforma o conteúdo em texto recuperável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Certificado público, que cifra setores sem chave de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Firewall local, que restringe leitura física da unidade removida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A SP 800-111 descreve criptografia de volume e disco virtual como solução de armazenamento com alcance delimitado. TLS protege comunicação, hash não cifra o conteúdo e firewall não protege mídia offline.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente recebe certificado cuja cadeia é confiável, mas o nome não corresponde ao serviço solicitado. Qual conduta preserva a autenticação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar a conexão porque qualquer certificado da cadeia serve para o destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a senha local e continuar sem verificar o nome apresentado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar TLS e confiar no firewall para confirmar a identidade remota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rejeitar a identidade incompatível e corrigir certificado ou endereço configurado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Guardar o certificado no disco e presumir que isso confirma o hostname.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cadeia confiável não basta: o cliente também deve conferir se o certificado corresponde ao destino esperado. Corrigir o nome ou a configuração evita aceitar endpoint incorreto; ignorar a incompatibilidade enfraquece a autenticação.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave deixou de ser usada e os dados protegidos por ela foram migrados e verificados. Qual etapa encerra sua gestão com segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar a chave antiga para que qualquer operador confira a migração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter a chave ativa indefinidamente, sem inventário de finalidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar somente o nome da chave e preservar cópias em texto claro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reutilizar a chave antiga para novos dados sem registrar a mudança.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Destruir a chave conforme procedimento e registrar o encerramento controlado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando a chave já não é necessária e a migração foi verificada, a destruição controlada evita uso posterior indevido. Antes disso, é preciso confirmar que dados históricos e cópias legítimas não dependem dela.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço usa TLS entre navegador e proxy, mas o trecho do proxy ao servidor de aplicação atravessa rede compartilhada sem TLS. Que lacuna existe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O certificado do navegador deixa de proteger os arquivos locais do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco perde sua integridade porque o proxy remove as tabelas de histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo dado em repouso passa a ser público ao encerrar a sessão do navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O segundo trecho pode expor tráfego, pois TLS só protege o canal terminado no proxy.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A criptografia de disco do servidor cobre automaticamente o tráfego entre os serviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada conexão TLS protege o trecho entre seus endpoints. Se o proxy encerra TLS e envia dados em claro pela rede compartilhada, esse segundo segmento continua exposto e deve ser protegido conforme o risco.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa manter legível o sistema antigo durante implantação gradual. Que decisão sobre a proteção de disco deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar toda autenticação para evitar que o sistema antigo solicite a chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar TLS no banco e remover qualquer controle de armazenamento local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Planejar desbloqueio, acesso autorizado e compatibilidade sem expor a chave.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter a chave no código para que ambas as versões sempre a encontrem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assumir que cifra de disco não afeta inicialização ou operação do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A implantação deve preservar operação autorizada e acesso à chave sem embutir segredo ou desativar controles. A criptografia afeta como o sistema acessa dados armazenados, então compatibilidade e recuperação fazem parte do projeto.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado expirado ainda corresponde ao hostname solicitado. Qual é o problema ao aceitá-lo sem avaliação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A validade temporal é parte da verificação e não deve ser ignorada automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A criptografia do disco local é substituída pela chave privada do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O handshake passa a registrar dados do usuário em uma CA pública.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O certificado expirado converte TLS em um mecanismo de hash unidirecional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identidade não atende a todas as verificações; é preciso corrigir ou renovar o certificado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Correspondência de nome é apenas uma parte da validação. Validade temporal e cadeia também precisam ser verificadas; aceitar certificado expirado sem avaliação pode comprometer confiança na identidade do endpoint.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação ajuda a limitar o impacto se uma conta de serviço for comprometida e puder solicitar operações criptográficas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limitar permissões, finalidade e dados acessíveis por essa identidade de serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compartilhar sua credencial com operadores para evitar interrupção do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar logs para impedir que o incidente seja associado à chave usada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso a todas as chaves para que a conta escolha a mais adequada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar segredos de longo prazo no repositório público da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Privilégio mínimo limita quais operações e dados a identidade comprometida pode alcançar. Compartilhamento amplo, ausência de auditoria e acesso irrestrito ampliam o impacto em vez de contê-lo.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O aplicativo exporta um arquivo protegido para uma pasta temporária fora do volume cifrado. Qual controle deve ser revisado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cadeia de certificados TLS do navegador que abriu o documento original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As proteções aplicadas ao destino temporário e às cópias que ele gera.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O tamanho da chave pública usada para autenticar o servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra de firewall que controla conexão entre os discos locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem alfabética dos arquivos exportados para a pasta de trabalho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A exportação cria uma cópia em outro local, fora da área protegida pelo volume original. O destino temporário precisa de controle de acesso, armazenamento cifrado e tratamento de cópias subsequentes.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação faz autenticação do servidor, mas o certificado apresentado pertence a um nome diferente. Qual propriedade fica diretamente enfraquecida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilidade do disco que guarda a chave privada do usuário final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confidencialidade dos dados já arquivados em cópia de segurança offline.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Integridade dos setores do SSD que contém o sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticação do endpoint como o serviço que o cliente pretendia acessar.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Recuperação de documentos excluídos da mídia removível do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A incompatibilidade do nome impede confirmar que o endpoint é o serviço solicitado, ainda que a cadeia possa ser confiável. Isso enfraquece autenticação do servidor; não trata diretamente de armazenamento local ou recuperação.",
+      "section": "3. Proteção de dados em trânsito com TLS",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe guarda chaves criptográficas em um serviço central. Qual medida é compatível com gestão segura desse componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder a todos os usuários administrativos acesso integral às chaves.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir trilhas de auditoria para reduzir metadados armazenados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restringir identidades, proteger operações e planejar recuperação controlada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter toda chave de cópia em texto claro no mesmo banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir alteração de finalidade sem registro ou revisão de autorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Serviço central não elimina controles: acesso mínimo, proteção de operações, auditoria e recuperação controlada continuam necessários. Cópias em claro e concessões amplas transformam o serviço em ponto de comprometimento concentrado.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização recebeu um arquivo cifrado por fornecedor e precisa confirmar se ele mudou durante a transferência. O que precisa avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do arquivo, pois nomes iguais demonstram conteúdo íntegro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cifra de disco do destinatário, que prova a origem do arquivo externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O certificado TLS, que garante também a correção semântica de qualquer arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tamanho da mídia, sem comparar informação recebida com uma referência confiável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mecanismo de integridade e origem apropriado, além da confidencialidade do arquivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Cifração para confidencialidade não deve ser confundida com verificação de integridade e origem. É preciso usar mecanismos adequados e uma referência confiável; nome e tamanho não demonstram que o conteúdo permaneceu intacto.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor usa TLS moderno, mas mantém acesso de leitura amplo no sistema de arquivos. Qual risco o TLS não corrige?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A captura de dados em trânsito no canal já protegido pelo protocolo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A exposição de arquivos em repouso a contas locais sem necessidade de acesso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A validação de identidade do servidor pelo cliente conectado corretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A negociação dos parâmetros criptográficos entre cliente e servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A proteção dos registros que atravessam a sessão TLS estabelecida.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege o canal, mas não corrige permissões locais excessivas sobre arquivos armazenados. Controle de acesso e criptografia de armazenamento podem ser necessários para limitar exposição no endpoint.",
+      "section": "1. Estados dos dados e objetivos da proteção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo deve armazenar arquivos de dois projetos com grupos de acesso distintos. Qual desenho pode apoiar essa separação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar tudo em uma pasta comum e confiar em TLS para restringir acesso local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar um único segredo compartilhado e dispensar regras de autorização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar hash nos nomes e deixar os arquivos sem controle por usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar volumes ou arquivos protegidos e associar acesso às permissões adequadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transferir os documentos por rede privada sem proteger os dados armazenados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Volume ou arquivo/pasta permite delimitar dados protegidos, enquanto permissões definem quem pode utilizá-los. O desenho deve ainda considerar chaves, cópias e temporários; TLS só trata o canal de transferência.",
+      "section": "2. Criptografia de dados em repouso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação caracteriza corretamente o papel de um HSM no contexto de proteção de chaves?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um serviço que substitui a necessidade de autorizar usuários da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um protocolo para transportar arquivos sem verificar certificado do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode proteger material e operações criptográficas, mas não elimina controles de gestão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É a técnica de hash reversível usada para restaurar arquivos apagados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma forma de criptografia de pastas que protege qualquer cópia exportada.",
+          "correct": false
+        }
+      ],
+      "explanation": "HSM é um módulo de segurança de hardware que pode proteger operações e material criptográfico. Autorização, auditoria, recuperação e proteção do serviço que o acessa continuam necessários.",
+      "section": "4. Chaves, camadas de defesa e operação segura",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-111 — Guide to Storage Encryption Technologies for End User Devices",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Classes de criptografia de armazenamento, objetivos, ameaças e critérios de seleção",
+      "url": "https://csrc.nist.gov/pubs/sp/800/111/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-52 Rev. 2 — Guidelines for the Selection, Configuration, and Use of TLS Implementations",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "TLS, confidencialidade, integridade, autenticação, certificados e configuração",
+      "url": "https://csrc.nist.gov/pubs/sp/800/52/r2/final",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST SP 800-57 Part 1 Rev. 5 — Recommendation for Key Management: Part 1 – General",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Gestão e proteção de material criptográfico e ciclo de vida de chaves",
+      "url": "https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

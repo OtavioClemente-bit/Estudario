@@ -1,0 +1,2338 @@
+{
+  "id": "infra-ti.servidores-email-administracao-rotas-retencao",
+  "subject": "Infraestrutura de TI",
+  "title": "Servidores de e-mail: administração, rotas e retenção",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Servidores de e-mail: administração básica, rotas, listas de distribuição e retenção",
+    "Administração de servidores de correio eletrônico",
+    "Configuração básica de servidor SMTP corporativo",
+    "Microsoft Exchange e administração de mensagens",
+    "Postfix e roteamento de mensagens eletrônicas",
+    "Rotas de e-mail e conectores de transporte",
+    "Listas de distribuição em servidores de e-mail",
+    "Grupos de distribuição do Microsoft Exchange",
+    "Aliases e listas de correio no Postfix",
+    "Políticas de retenção de mensagens em caixas postais",
+    "Retenção e arquivamento de e-mail corporativo",
+    "Administração de filas de correio eletrônico",
+    "Políticas de fluxo de mensagens e transporte SMTP"
+  ],
+  "scope": {
+    "covers": "Administração básica de servidores de e-mail Microsoft Exchange e Postfix: papéis dos protocolos SMTP, IMAP e POP; parâmetros de identidade, domínios aceitos e retransmissão; conectores de recebimento e envio; roteamento por domínio e por mapas; filas e diagnóstico; listas de distribuição, expansão, moderação e controle de remetentes; aliases; políticas, tags, arquivamento, exclusão e retenção legal; segurança operacional e validação de mudanças.",
+    "excludes": "Configuração detalhada de DNS público, antispam avançado, criptografia de ponta a ponta, administração de clientes de e-mail, desenvolvimento de aplicações de correio e regras jurídicas de guarda documental específicas de cada setor."
+  },
+  "theoryTitle": "Como administrar e encaminhar mensagens com segurança",
+  "chapters": [
+    {
+      "title": "1. O papel do servidor de e-mail e sua configuração básica",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço de e-mail precisa receber mensagens para os domínios atendidos, determinar se cada destinatário existe, encaminhar mensagens externas ao próximo servidor e entregar mensagens locais à caixa postal. O **MTA** (agente de transferência, como Exchange Transport ou Postfix) conversa com outros servidores principalmente por SMTP. O acesso do usuário à caixa costuma ser oferecido por serviços de armazenamento e protocolos como IMAP; POP é outra forma de acesso, em geral voltada à retirada de mensagens. O servidor de envio não é o mesmo papel do cliente que redige e lê mensagens.\n\n> **Siglas e termos deste capítulo**\n> - **MTA**: agente que recebe, enfileira, roteia e transfere mensagens entre servidores.\n> - **SMTP**: protocolo de submissão e transferência de mensagens entre agentes.\n> - **IMAP/POP**: protocolos de acesso à caixa postal pelo usuário.\n> - **Domínio aceito**: domínio para o qual a organização recebe e processa destinatários.\n> - **Relay**: retransmissão de mensagem para outro servidor ou domínio.\n> - **Fila**: armazenamento temporário de mensagens aguardando processamento ou entrega.\n\n### Configurações que definem a função\n\nNo Postfix, `main.cf` contém parâmetros gerais, enquanto `master.cf` define serviços e processos oferecidos pelo sistema. Entre os parâmetros fundamentais de `main.cf` estão `myhostname` (identidade plenamente qualificada), `myorigin` (domínio acrescentado a remetentes locais), `mydestination` (domínios entregues localmente), `inet_interfaces` (endereços em que o serviço escuta), `relay_domains` (domínios para os quais o host pode retransmitir como MX) e `relayhost` (próximo salto usado para envio indireto). Após editar configurações, a documentação recomenda validar e recarregar o serviço; alterações em parâmetros de escuta podem exigir reinício.\n\nNo Exchange, o administrador configura domínios aceitos e conectores. Um conector de recebimento controla como o servidor aceita conexões e mensagens; um conector de envio define como mensagens destinadas a domínios externos ou a um parceiro deixam a organização. Exchange também separa transporte, resolução de destinatários, armazenamento e acesso às caixas. Não se deve presumir que instalar o Exchange já cria todo o caminho de saída para a Internet: a configuração do conector de envio é uma decisão explícita.\n\n| Necessidade | Postfix | Exchange\n| --- | --- | ---\n| Identificar o servidor | `myhostname` | identidade e configuração do servidor/organização\n| Receber para domínios | `mydestination` ou classes virtuais | domínio aceito e conector de recebimento\n| Encaminhar para próximo salto | `relayhost`, classes e mapas | conector de envio e escopo de endereço\n| Definir serviços disponíveis | `master.cf` | funções e serviços de transporte\n\n### Como cai na prova\n\nA questão costuma trocar **receber para um domínio** por **ser relay para esse domínio**, ou confundir SMTP com IMAP. Verifique qual lado da comunicação está em pauta: SMTP transporta/submete a mensagem; IMAP/POP dão acesso do usuário à caixa. Outra cobrança frequente é reconhecer que restringir o relay a clientes e destinatários autorizados evita transformar o servidor em relay aberto, explorável para spam."
+    },
+    {
+      "title": "2. Rotas, conectores e filas de mensagem",
+      "markdown": "### O problema que este assunto resolve\n\nDepois de aceitar uma mensagem, o MTA precisa decidir seu próximo destino. A resolução considera o domínio do destinatário, se ele é local, hospedado, de relay ou externo, as rotas configuradas e eventuais regras de transporte. Se o próximo servidor não estiver disponível, o MTA normalmente mantém a mensagem na fila e tenta novamente; uma falha permanente pode gerar uma notificação de não entrega.\n\n> **Siglas e termos deste capítulo**\n> - **MX**: registro DNS que anuncia servidores responsáveis por receber e-mail de um domínio.\n> - **Next hop**: próximo servidor ao qual a mensagem será encaminhada.\n> - **Conector**: conjunto de instruções de entrada ou saída no Exchange.\n> - **Transport map**: mapa do Postfix que associa destino a transporte/próximo salto.\n> - **Fila de saída**: mensagens aceitas que ainda aguardam entrega.\n> - **NDR/bounce**: relatório de não entrega, emitido após falha definitiva.\n\n### Roteamento no Exchange e no Postfix\n\nNo Exchange, conectores de envio são selecionados de acordo com o destinatário e a configuração do conector. Eles podem encaminhar mensagens diretamente pela resolução DNS ou apontar para um smart host; conectores também permitem controlar tráfego entre Exchange local e Microsoft 365, parceiros ou dispositivos. Conectores de recebimento definem as conexões de entrada aceitas. Regras de fluxo de e-mail (transport rules) inspecionam mensagens em trânsito e podem aplicar condições, exceções e ações; diferem de regras de caixa de entrada, que atuam após a entrega.\n\nNo Postfix, as classes de endereço ajudam a decidir aceitação e entrega. A classe local usa `mydestination` e entrega a contas locais; domínios de caixa virtual usam `virtual_mailbox_domains` e `virtual_transport`; domínios de alias virtual redirecionam destinatários para endereços de outras classes; domínios de relay usam `relay_domains` e `relay_transport`; outros destinos externos seguem o transporte padrão. `transport_maps` pode escolher um transporte e um próximo salto para um domínio ou destinatário. `relayhost` define um encaminhamento geral quando a entrega direta não é desejada ou possível.\n\nUma rota específica pode prevalecer sobre uma rota padrão. O administrador deve conferir o domínio destinatário, a tabela consultada, o transporte e o próximo salto selecionados. No Postfix, um mapa textual em formato indexado pode exigir reconstrução com `postmap` depois de editado; depois, recarrega-se a configuração quando aplicável. No Exchange, a validação deve confirmar escopo, domínios, DNS ou smart host, TLS exigido pelo cenário e conectividade.\n\n### Diagnóstico da entrega\n\nA fila permite distinguir mensagem ainda em tentativa de entrega de mensagem rejeitada. Em Postfix, `postqueue -p` lista a fila; `postqueue -f` solicita nova tentativa, mas não corrige um destino ou credencial inválidos. Logs registram a aceitação, a resolução, o transporte escolhido e o resultado. No Exchange, rastreamento de mensagens e logs de protocolo ajudam a reconstruir o caminho entre recepção, transporte e entrega. Um teste útil parte de uma mensagem identificável e confere cada etapa, sem apagar a fila como primeira resposta.\n\n### Como cai na prova\n\nSe o enunciado pede encaminhamento geral via provedor, a ideia é `relayhost` no Postfix ou smart host/conector de envio no Exchange. Para uma exceção por domínio, considere mapa de transporte ou conector com escopo apropriado. Fila cheia, falha temporária e rejeição SMTP são estados diferentes; forçar reenvio não elimina a causa da falha."
+    },
+    {
+      "title": "3. Listas de distribuição, grupos e aliases",
+      "markdown": "### O problema que este assunto resolve\n\nUma lista de distribuição entrega uma mensagem dirigida a um endereço coletivo aos seus membros. O servidor expande o grupo durante o processamento do transporte e encaminha cópias aos destinatários resolvidos. O endereço coletivo não precisa ser uma caixa postal comum; em geral, é um objeto que representa destinatários. Isso facilita avisos a equipes, mas exige controle de associação, remetentes autorizados, moderação e tratamento de membros externos.\n\n> **Siglas e termos deste capítulo**\n> - **Grupo de distribuição**: objeto que expande um endereço coletivo para seus membros de e-mail.\n> - **Grupo dinâmico**: grupo cuja associação resulta de critérios de atributos, em vez de lista fixa.\n> - **Alias**: endereço alternativo que aponta para um ou mais destinatários.\n> - **Expansão**: resolução do endereço coletivo em destinatários individuais.\n> - **Moderação**: retenção de mensagem para aprovação antes da distribuição.\n> - **Envelope**: endereços usados para roteamento SMTP, distintos dos cabeçalhos exibidos.\n\n### Grupos no Exchange\n\nUm grupo de distribuição possui endereço de e-mail e membros; a mensagem é expandida pelo transporte e entregue aos membros habilitados para correio. A administração define quem pode enviar, se remetentes externos são aceitos, se mensagens precisam de aprovação e quem são os moderadores. Grupos dinâmicos usam filtros de destinatários para determinar membros, então alterações de atributos podem alterar a distribuição sem edição manual de cada lista. Grupos habilitados para segurança também concedem permissões, enquanto um grupo de distribuição simples tem finalidade de distribuição. Um grupo do Microsoft 365 agrega recursos colaborativos e não deve ser tratado como sinônimo perfeito de lista tradicional.\n\n### Aliases e listas no Postfix\n\nO arquivo tradicional de aliases locais mapeia um nome local a uma conta ou lista de destinatários; depois de alterá-lo, executa-se `newaliases` para reconstruir a base correspondente. `virtual_alias_maps` associa endereços completos a endereços locais ou remotos e pode afetar destinatários locais, virtuais e remotos. Essa tabela não cria, por si só, uma caixa postal separada: redireciona o destinatário do envelope. Mapas de aliases podem expandir um endereço em vários membros, implementando uma lista simples.\n\nExpansões precisam terminar em destinatários válidos e não formar ciclos. Um alias que aponta novamente para si ou para uma cadeia circular pode produzir erro de loop; testar a resolução e manter cadastro atualizado evita mensagens perdidas. Para lista grande com inscrição, descadastro, moderação e preferências, costuma-se usar um gerenciador de listas dedicado, em vez de manter manualmente dezenas de aliases.\n\n### Como cai na prova\n\nO ponto central é separar endereço coletivo, membros e caixa postal. Expandir um grupo não significa guardar uma cópia central numa caixa de grupo. No Postfix, `virtual_alias_maps` trata encaminhamento de endereços; `virtual_mailbox_maps` identifica destinatários com entrega em caixas virtuais. Em Exchange, regras de fluxo atuam durante o transporte, enquanto a configuração de remetentes e moderadores pertence às propriedades do grupo."
+    },
+    {
+      "title": "4. Retenção, arquivamento e exclusão controlada",
+      "markdown": "### O problema que este assunto resolve\n\nUma política de retenção determina por quanto tempo mensagens devem permanecer disponíveis e o que ocorre ao fim do período. Ela atende a necessidades operacionais, de gestão documental e de preservação, mas não é sinônimo de backup: retenção governa o ciclo de vida e a possibilidade de exclusão; backup mantém cópias para recuperação após incidentes. A regra deve ser planejada conforme as obrigações da organização, aplicada a caixas adequadas e testada antes de atingir todos os usuários.\n\n> **Siglas e termos deste capítulo**\n> - **MRM**: Messaging Records Management, recursos clássicos de tags e políticas de retenção do Exchange.\n> - **DPT**: tag padrão aplicada a itens sem tag mais específica.\n> - **RPT**: tag voltada a uma pasta padrão, como Itens Excluídos.\n> - **Tag pessoal**: tag que o usuário pode aplicar a itens ou pastas permitidas.\n> - **Arquivo online**: caixa de arquivo associada à caixa principal para armazenamento de mensagens.\n> - **Hold**: preservação que impede a eliminação definitiva de conteúdo sujeito à retenção legal ou investigativa.\n\n### Tags e políticas MRM do Exchange\n\nNo MRM, tags definem idade de retenção e ação; a política de retenção reúne tags e é atribuída à caixa postal. Uma DPT alcança itens sem tag específica; uma RPT se aplica a uma pasta padrão suportada; tags pessoais podem ser aplicadas a itens ou pastas permitidas pelo usuário. A política não executa ações até ser processada pelo serviço de gerenciamento de pastas. A ação pode mover item para o arquivo, excluir permitindo recuperação ou excluir permanentemente, conforme a tag e a configuração.\n\nUma caixa postal recebe uma política MRM por vez. Antes da aplicação, confira quais tags a política contém, idades, ações, caixas abrangidas e existência de arquivo quando a ação prevê arquivamento. A mudança da política não equivale a apagar instantaneamente todo conteúdo vencido; o processamento é periódico. A documentação atual da Microsoft recomenda políticas e rótulos de retenção do Purview para a gestão do ciclo de vida, mantendo MRM quando necessário para mover mensagens ao arquivo. Políticas de retenção podem preservar conteúdo em Recoverable Items mesmo quando o usuário o edita ou apaga. Um hold pode conservar conteúdo para investigação ou obrigação de preservação; ele não é um mecanismo de backup e não se deve prometer recuperação sem avaliar o escopo e o estado da caixa.\n\n### Postfix e retenção\n\nPostfix é principalmente um MTA: aceita, roteia e entrega mensagens, mas não fornece por si só um sistema de política de retenção de caixas postais equivalente ao MRM do Exchange. A retenção da caixa é implementada pelo serviço de armazenamento/acesso associado, por exemplo, Dovecot ou uma plataforma de arquivamento, e por políticas organizacionais. É essencial distinguir fila de transporte de arquivo postal: a fila contém mensagens em trânsito e pendentes, não o histórico completo da caixa do usuário.\n\n### Como cai na prova\n\nA alternativa correta identifica a unidade e o efeito da regra: tags determinam ação e idade, políticas associam tags a caixas, arquivo desloca mensagem e hold preserva conteúdo sujeito a retenção. Não confunda apagar de forma recuperável com apagar permanentemente, retenção com backup, ou fila SMTP com arquivo de mensagens."
+    },
+    {
+      "title": "5. Segurança operacional, monitoramento e mudanças",
+      "markdown": "### O problema que este assunto resolve\n\nUma alteração de rota ou grupo pode redirecionar mensagens de toda a organização, expor informações ou criar uma retransmissão explorável. Administrar serviço de correio exige privilégio mínimo, controle de alteração, observabilidade e verificação do resultado. O operador precisa conseguir explicar que mensagens entraram, que rota foi escolhida, onde estão as pendências e quem recebeu uma lista.\n\n> **Siglas e termos deste capítulo**\n> - **Relay aberto**: servidor que retransmite mensagens para destinos arbitrários sem autenticação ou autorização adequada.\n> - **TLS**: proteção de transporte entre dois pontos, quando negociada e validada conforme a política.\n> - **RBAC**: controle de acesso baseado em funções administrativas.\n> - **Trace**: rastreamento de etapas e resultado de uma mensagem.\n> - **NDR**: relatório de falha definitiva de entrega ao remetente.\n> - **Change control**: registro, revisão, janela e plano de reversão de uma mudança.\n\n### Controles e rotina administrativa\n\nRestrinja retransmissão a clientes autenticados ou redes e domínios explicitamente autorizados; não confunda aceitar correio destinado a um domínio hospedado com aceitar relay de qualquer remetente para qualquer destino. Use contas administrativas separadas, permissões mínimas e revisão de membros e proprietários de grupos. Em conectores para parceiros, limite IPs ou certificados de origem quando o cenário exigir, exija TLS quando acordado e monitore falhas de negociação. Proteja arquivos de configuração: no Postfix, a documentação alerta que permissões de escrita em `main.cf`, `master.cf` ou diretórios pais equivalem a poder administrativo elevado.\n\nAntes da mudança, registre valor anterior, impacto esperado e plano de retorno. Faça validação sintática e teste com destinatários representativos; confirme mensagens recebidas, encaminhadas, rejeitadas e colocadas em fila. Observe logs e rastreamento após a aplicação. Em mapas Postfix, reconstrua a base indexada e recarregue quando necessário. Ao tratar fila, investigue primeiro os códigos e o motivo, pois reenvio pode apenas repetir a falha. Uma lista grande pode causar expansão ampla; restrinja remetentes e use moderação em grupos sensíveis.\n\n### Como cai na prova\n\nCenários de relay aberto testam autorização de retransmissão; casos de mensagens atrasadas testam fila e logs; alterações em conectores testam direção e escopo. Política de retenção precisa ser aprovada conforme a necessidade e acompanhada de exceções de preservação, não aplicada como limpeza indiscriminada."
+    }
+  ],
+  "summary": "Um servidor de e-mail recebe, resolve e encaminha mensagens; SMTP é usado na transferência, enquanto IMAP/POP atendem ao acesso à caixa. No Postfix, parâmetros de main.cf, classes de endereço, relayhost e transport_maps determinam aceitação e rotas; aliases redirecionam destinatários. No Exchange, conectores de recebimento e envio estabelecem fluxos, grupos de distribuição expandem destinatários e regras de fluxo atuam em trânsito. Tags MRM compõem políticas de retenção atribuídas às caixas; ações podem arquivar, excluir com recuperação ou excluir permanentemente. Retenção não é backup e fila de transporte não é arquivo postal. Controle de relay, permissões, logs, rastreamento e testes de mudança sustentam a operação segura.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel de um MTA?",
+      "back": "Receber, enfileirar, resolver rotas e transferir mensagens entre servidores; Postfix e o transporte do Exchange cumprem esse papel."
+    },
+    {
+      "front": "Para que serve SMTP?",
+      "back": "Submeter e transferir mensagens entre agentes de correio; não é o protocolo usual para navegar na caixa postal."
+    },
+    {
+      "front": "Qual a diferença entre IMAP e POP?",
+      "back": "São protocolos de acesso do usuário à caixa; IMAP normalmente mantém e sincroniza mensagens no servidor, enquanto POP é voltado à retirada de mensagens."
+    },
+    {
+      "front": "O que define mydestination no Postfix?",
+      "back": "Domínios que o Postfix trata como locais e para os quais tenta entrega local, em vez de encaminhá-los como domínios remotos."
+    },
+    {
+      "front": "O que faz relayhost no Postfix?",
+      "back": "Define um host de encaminhamento geral para entrega indireta, por exemplo o smarthost do provedor."
+    },
+    {
+      "front": "O que faz transport_maps?",
+      "back": "Associa destinatários ou domínios a um transporte e, opcionalmente, a um próximo salto específico."
+    },
+    {
+      "front": "Para que serve um conector de envio no Exchange?",
+      "back": "Estabelece como o Exchange envia mensagens para destinos externos, parceiros ou outros ambientes; pode usar DNS ou smart host."
+    },
+    {
+      "front": "Qual a função de um conector de recebimento?",
+      "back": "Controlar conexões e mensagens que entram no servidor Exchange por determinado caminho."
+    },
+    {
+      "front": "Como uma lista de distribuição entrega mensagens?",
+      "back": "O transporte expande o endereço coletivo em seus membros e encaminha a mensagem aos destinatários resolvidos."
+    },
+    {
+      "front": "O que diferencia um alias de uma caixa postal?",
+      "back": "Alias é um endereço alternativo que redireciona para destinatários; não implica armazenamento próprio separado."
+    },
+    {
+      "front": "Qual o escopo de virtual_alias_maps?",
+      "back": "Redireciona destinatários de envelope e pode atingir destinatários locais, virtuais e remotos."
+    },
+    {
+      "front": "O que faz newaliases após editar /etc/aliases?",
+      "back": "Reconstrói a base de aliases locais para que a nova configuração seja consultada pelo serviço."
+    },
+    {
+      "front": "O que é uma DPT no Exchange MRM?",
+      "back": "Tag padrão que se aplica automaticamente aos itens sem uma tag mais específica na caixa."
+    },
+    {
+      "front": "O que é uma RPT?",
+      "back": "Tag de retenção associada a uma pasta padrão suportada, como Itens Excluídos."
+    },
+    {
+      "front": "Qual a diferença entre arquivamento e exclusão?",
+      "back": "Arquivamento move a mensagem para a caixa de arquivo; exclusão remove da caixa conforme ação e possibilidade de recuperação configuradas."
+    },
+    {
+      "front": "Retenção equivale a backup?",
+      "back": "Não. Retenção governa o ciclo de vida e a preservação de itens; backup mantém cópias para recuperação após falha ou perda."
+    },
+    {
+      "front": "O que é um hold?",
+      "back": "Configuração de preservação que pode impedir eliminação definitiva de conteúdo sujeito a obrigação ou investigação."
+    },
+    {
+      "front": "O que a fila do Postfix representa?",
+      "back": "Mensagens em trânsito aguardando processamento ou entrega, não o arquivo histórico das mensagens da caixa postal."
+    },
+    {
+      "front": "O que caracteriza um relay aberto?",
+      "back": "Retransmissão para destinos arbitrários sem autorização adequada, que pode ser abusada para envio de spam."
+    },
+    {
+      "front": "Por que rastrear uma mensagem?",
+      "back": "Para identificar etapas de recebimento, resolução, transporte e entrega ou a causa de uma rejeição ou atraso."
+    }
+  ],
+  "tips": [
+    "Associe mydestination ao tratamento local e relayhost ao próximo salto geral no Postfix.",
+    "No Exchange, diferencie conector de recebimento de conector de envio pela direção do fluxo.",
+    "Quando o destinatário é coletivo, procure a etapa de expansão do grupo e confira seus membros e restrições de remetente.",
+    "Memorize DPT para itens sem tag específica e RPT para pasta padrão; a política reúne tags e é atribuída à caixa.",
+    "Antes de reenfileirar mensagens, leia o log e o código de falha para encontrar o motivo original.",
+    "Cheque autorização de relay separadamente da lista de domínios locais; uma configuração não substitui a outra."
+  ],
+  "traps": [
+    "A prova diz que IMAP transfere mensagens entre MTAs e SMTP serve para ler a caixa. Os papéis foram invertidos.",
+    "A prova trata relay_domains como sinônimo de mydestination. Um domínio local é entregue aqui; um domínio de relay é retransmitido sob autorização.",
+    "A prova afirma que um conector de envio recebe conexões de entrada. No Exchange, conectores têm direção e escopo configurados.",
+    "A prova diz que um grupo de distribuição guarda as mensagens numa caixa comum. O grupo normalmente expande destinatários no transporte.",
+    "A prova diz que virtual_alias_maps cria uma mailbox virtual. O mapa redireciona endereços; mailbox virtual usa parâmetros próprios de entrega.",
+    "A prova equipara retenção a backup. A política rege preservação ou descarte ao longo do tempo; backup serve à recuperação de cópia."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre receber um domínio local e retransmitir para um domínio autorizado.",
+      "answer": "No Postfix, mydestination identifica domínios cuja mensagem é entregue localmente. relay_domains identifica domínios para os quais o servidor atua como relay, como MX primário ou secundário. A autorização de relay evita encaminhar correio de estranhos a destinos arbitrários."
+    },
+    {
+      "question": "Como uma mensagem externa pode sair por um smart host?",
+      "answer": "No Postfix, relayhost define o próximo salto geral; uma transport map pode estabelecer exceção por destino. No Exchange, um conector de envio pode direcionar o fluxo a um smart host e limitar os domínios destinatários."
+    },
+    {
+      "question": "Como o Postfix usa as classes de endereço para decidir a entrega?",
+      "answer": "Classifica o domínio como local, alias virtual, mailbox virtual, relay ou padrão. Cada classe tem parâmetros de domínio, validação de destinatário e transporte próprios."
+    },
+    {
+      "question": "O que deve ser administrado numa lista de distribuição?",
+      "answer": "Membros, endereço, proprietários, remetentes permitidos, aceitação de remetentes externos, moderação e comportamento com destinatários inválidos ou externos."
+    },
+    {
+      "question": "Como funcionam as tags MRM de retenção?",
+      "answer": "Tags especificam idade e ação; DPT vale como padrão para itens sem tag específica, RPT atende pastas padrão e tags pessoais podem ser aplicadas pelo usuário. A política agrupa tags e é associada à caixa."
+    },
+    {
+      "question": "Por que um atraso na fila não prova que a rota está errada?",
+      "answer": "Pode haver indisponibilidade temporária do próximo servidor, erro DNS, falha de autenticação, limitação ou problema local de recursos. Logs e rastreamento revelam a etapa e o motivo."
+    },
+    {
+      "question": "Que controles evitam o abuso de um servidor como relay?",
+      "answer": "Permitir relay apenas a clientes autenticados ou origens e domínios autorizados, rejeitar destinatários inválidos e monitorar volume e recusas. Não expor autorização ampla a clientes externos."
+    },
+    {
+      "question": "Como diferenciar retenção, arquivamento e backup?",
+      "answer": "Retenção define por quanto tempo e sob que condição o item é preservado ou eliminado; arquivamento move o item a uma caixa de arquivo; backup mantém cópia para recuperação de dados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Domínio local confundido com relay",
+      "summary": "mydestination trata domínios para entrega local; relay_domains delimita domínios que o servidor encaminha sob sua função e autorização."
+    },
+    {
+      "key": "e2",
+      "title": "Protocolos de transporte e acesso trocados",
+      "summary": "SMTP submete e transfere mensagens entre agentes. IMAP e POP são protocolos de acesso do usuário à caixa postal."
+    },
+    {
+      "key": "e3",
+      "title": "Rota geral confundida com exceção",
+      "summary": "relayhost é encaminhamento geral no Postfix; transport_maps permitem escolha por destinatário ou domínio. No Exchange, conectores de envio podem selecionar escopo e smart host."
+    },
+    {
+      "key": "e4",
+      "title": "Alias confundido com caixa postal",
+      "summary": "Alias redireciona endereços para destinatários. Entrega numa mailbox virtual é configurada como classe de mailbox e transporte correspondente."
+    },
+    {
+      "key": "e5",
+      "title": "Retenção confundida com cópia de segurança",
+      "summary": "Retenção e holds governam ciclo de vida e preservação de mensagens. Backup é mecanismo separado de recuperação; fila SMTP não é arquivo da caixa."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No Postfix, o parâmetro mydestination identifica domínios para os quais as mensagens são entregues localmente, em vez de tratadas como destinos remotos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "mydestination lista os domínios considerados locais pelo Postfix. As mensagens para destinatários válidos nesses domínios seguem para entrega local, conforme a configuração do transporte local.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SMTP é o protocolo usado principalmente para o usuário sincronizar pastas e ler mensagens já armazenadas na caixa postal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "SMTP é usado para submissão e transferência de mensagens entre agentes. IMAP é normalmente usado para acessar e sincronizar a caixa postal, e POP oferece outra forma de retirada das mensagens.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Postfix, relayhost identifica os domínios tratados como locais, substituindo a função de mydestination.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. relayhost define um host de encaminhamento usado para entrega indireta. mydestination lista os domínios tratados como locais; os parâmetros têm funções distintas.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os parâmetros gerais do Postfix ficam em master.cf, enquanto main.cf contém exclusivamente a lista de filas de mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "main.cf contém parâmetros gerais como identidade, domínios e rotas. master.cf descreve serviços e processos oferecidos pelo Postfix; nenhum dos dois é simplesmente a lista de mensagens em fila.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de um conector de recebimento no Exchange garante, por si só, que o servidor já possui uma rota de saída para qualquer domínio da Internet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Conectores de recebimento controlam conexões de entrada. A saída exige configuração de envio adequada, como conector de envio e seu escopo; uma direção não cria automaticamente a outra.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O relay aberto é um servidor que encaminha mensagens para destinos arbitrários sem autorização adequada, podendo ser abusado para spam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um relay aberto aceita retransmitir para destinos sem exigir origem ou autenticação autorizada. Restringir o relay a clientes e destinos permitidos reduz o abuso e a inclusão do servidor em listas de bloqueio.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Exchange, um conector de recebimento determina como mensagens destinadas a domínios externos deixam a organização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O conector de envio define como mensagens deixam o Exchange; o de recebimento controla conexões e mensagens de entrada. A direção e o escopo devem corresponder ao fluxo configurado.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Postfix, transport_maps pode determinar um transporte e um próximo salto específico para um destinatário ou domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mapas de transporte podem associar destinos a um transporte e next hop. Assim, podem criar uma rota específica que difere do encaminhamento geral definido por relayhost.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Regras de fluxo do Exchange atuam em mensagens em trânsito, enquanto regras de caixa de entrada atuam depois da entrega na caixa postal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mail flow rules, também chamadas transport rules, avaliam mensagens no pipeline de transporte. Regras de caixa de entrada são executadas no contexto da caixa após a mensagem ser entregue.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha temporária no próximo servidor prova que a mensagem foi rejeitada permanentemente e deve ser removida imediatamente da fila.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Falhas temporárias podem deixar a mensagem na fila para novas tentativas. É necessário examinar logs e código de resposta; excluir ou forçar a mensagem sem diagnosticar pode causar perda ou apenas repetir a falha.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fila do Postfix representa mensagens que aguardam processamento ou entrega e não funciona como arquivo histórico das caixas dos usuários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila é parte do transporte e contém mensagens pendentes de processamento ou entrega. O conteúdo permanente da caixa fica sob responsabilidade do serviço de armazenamento de mensagens.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de distribuição é expandida em destinatários durante o transporte, e seus membros podem receber cópias endereçadas ao grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor resolve o endereço coletivo em seus membros e entrega aos destinatários expandidos. A lista, em regra, não é uma caixa postal central que armazena uma única cópia para leitura comum.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Postfix, virtual_alias_maps pode redirecionar endereços de destinatários locais, virtuais e remotos, pois o mapeamento virtual não se limita aos domínios de alias virtual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Postfix destaca que virtual_alias_maps aplica-se a destinatários de todas as classes. Isso difere de alias_maps, consultado para destinatários locais e normalmente indexado pela parte local do endereço.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após alterar o arquivo tradicional de aliases locais do Postfix, postmap reconstrói a base consultada pelo serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. newaliases recompila a tabela tradicional de aliases locais. postmap constrói mapas indexados, como tabelas de transporte ou aliases virtuais, a partir do respectivo arquivo fonte.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atribuir moderador a um grupo de distribuição transforma o grupo em caixa postal e impede que o transporte expanda seus membros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Moderação retém mensagens para aprovação conforme a configuração do grupo; ela não converte o grupo em mailbox. Após aprovação, a mensagem ainda pode ser expandida e distribuída aos membros.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tag de retenção pode definir uma ação, como mover a mensagem para arquivo ou excluí-la, ao atingir a idade configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "No MRM do Exchange, tags indicam idade e ação de retenção. Entre as ações documentadas estão mover para arquivo e formas de exclusão com ou sem possibilidade de recuperação.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política MRM pode ser atribuída a várias caixas, mas cada caixa pode ter mais de uma política MRM simultaneamente para combinar suas tags.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma política pode ser associada a várias caixas, mas uma caixa postal não pode ter mais de uma política MRM de retenção. Para combinar configurações, adicionam-se as tags necessárias à mesma política.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um hold relacionado à preservação de mensagens substitui a necessidade de backup e garante, sem análise de escopo, recuperação integral de qualquer conteúdo apagado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Hold e retenção preservam conteúdo conforme escopo e configuração, mas não substituem backup nem garantem recuperação irrestrita. A recuperação depende da cobertura, do estado da caixa e dos controles efetivamente aplicados.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Postfix, listas de distribuição mantidas como aliases devem ser verificadas para evitar referências circulares e destinatários inválidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Aliases podem expandir para outros destinatários ou listas. Ciclos podem causar erro de expansão, e destinatários inválidos provocam falhas de entrega; por isso a resolução e os membros precisam ser revisados.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MRM do Exchange, uma DPT fornece ação padrão aos itens sem tag mais específica, enquanto uma RPT se associa a uma pasta padrão suportada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A DPT vale para itens não marcados por tag mais específica. A RPT é voltada a pastas padrão, como Caixa de Entrada ou Itens Excluídos, de acordo com os tipos suportados.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma retenção que mantém cópia de conteúdo no Recoverable Items deve ser entendida como recurso de retenção, e não como sistema geral de backup de caixas postais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Políticas de retenção do Exchange podem preservar cópias em Recoverable Items quando o usuário altera ou exclui conteúdo. Esse mecanismo atende ao ciclo de vida e preservação, não substitui o plano de backup e restauração.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer que o Postfix encaminhe por um provedor todo e-mail destinado à Internet, pois a rede bloqueia conexões diretas. Qual ajuste atende melhor ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover relay_domains para que o Postfix escolha automaticamente um smart host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Listar todos os domínios externos em mydestination para entrega local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apontar myorigin para o endereço IP do servidor que recebe mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um alias local com o nome do provedor para cada destinatário externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir relayhost com o servidor de encaminhamento fornecido pelo provedor.",
+          "correct": true
+        }
+      ],
+      "explanation": "relayhost configura o host intermediário para entrega indireta, adequado quando o servidor não pode enviar diretamente. mydestination trata domínios locais, myorigin define domínio de origem e aliases não são rotas gerais de saída.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa confirmar que o serviço Postfix está configurado para receber correio destinado ao domínio institucional e entregá-lo localmente. Qual parâmetro deve ser examinado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "relayhost, pois ele define os domínios atendidos como caixas locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "myorigin, pois ele cadastra cada destinatário válido no domínio local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "mydestination, pois lista os domínios tratados como locais pelo servidor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "transport_maps, pois ele substitui a configuração de todos os domínios locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "inet_interfaces, pois ele enumera os usuários autorizados a receber mensagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "mydestination designa domínios locais do Postfix. relayhost aponta a entrega para um próximo salto, myorigin define domínio de origem e inet_interfaces controla endereços de escuta, não a relação de usuários válidos.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador alterou main.cf e quer verificar a identidade configurada para o próprio servidor Postfix. Qual parâmetro corresponde diretamente ao nome do host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "virtual_alias_maps, que registra o nome DNS apresentado no banner SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "mydestination, que informa o nome de cada usuário local cadastrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "relay_domains, que identifica o nome que aparece no envelope remetente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "relayhost, que informa os nomes alternativos da máquina local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "myhostname, que identifica o nome do próprio servidor de correio.",
+          "correct": true
+        }
+      ],
+      "explanation": "myhostname define a identidade do host Postfix. mydestination enumera domínios locais, relay_domains delimita domínios retransmitidos e relayhost aponta para um próximo salto.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário precisa ler e sincronizar pastas de sua caixa postal hospedada no servidor, sem administrar a transferência SMTP entre servidores. Qual protocolo é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNS, que transfere o conteúdo das mensagens após consultar o servidor de destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SMTP, que mantém a árvore de pastas e sincroniza o estado lido da caixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MX, que oferece ao usuário uma sessão autenticada para navegar pelas mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IMAP, que permite acessar e sincronizar mensagens mantidas na caixa postal.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TLS, que define pastas, mensagens lidas e regras de organização da caixa.",
+          "correct": false
+        }
+      ],
+      "explanation": "IMAP é usado por clientes para acessar e sincronizar a caixa no servidor. SMTP transporta ou submete mensagens; MX e DNS ajudam a localizar destinos e TLS protege conexões, mas não são protocolos de navegação na caixa.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar os arquivos principais do Postfix, onde o administrador encontra parâmetros gerais como myhostname, mydestination e relayhost?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em master.cf, que guarda a lista de mensagens pendentes de entrega.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em transport_maps, que substitui os arquivos de configuração do daemon.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em aliases, que guarda os registros DNS dos domínios atendidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em main.cf, que reúne parâmetros gerais de configuração do serviço.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Em postqueue, que persiste a identidade e as interfaces de rede do host.",
+          "correct": false
+        }
+      ],
+      "explanation": "main.cf contém parâmetros gerais de configuração do Postfix. master.cf define serviços e processos; aliases e mapas têm funções específicas e postqueue é um comando para inspecionar ou operar sobre a fila.",
+      "section": "1. O papel do servidor de e-mail e sua configuração básica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instalação Exchange local recebe mensagens internas, mas os destinatários externos precisam ser encaminhados a um servidor de segurança de e-mail. Qual componente deve ser configurado para esse fluxo de saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um conector de recebimento com restrições para mensagens que entram no Exchange.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma regra de caixa de entrada que mova as mensagens recebidas para a pasta Enviados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um conector de envio com escopo de destinatários e smart host apropriados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma lista de distribuição que inclua o servidor externo entre os membros do grupo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tag de retenção que archive os itens antes de deixarem a organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O conector de envio controla como mensagens deixam a organização e pode apontar para um smart host. Conectores de recebimento tratam entrada, regras de caixa atuam após entrega, listas distribuem a membros e retenção governa o ciclo de vida.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mensagens de um domínio parceiro devem seguir um caminho dedicado, enquanto os demais domínios usam a rota padrão do Postfix. Qual recurso é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "myorigin, configurado com o domínio do parceiro para mudar o destinatário final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "mydestination, acrescentando o parceiro como domínio entregue na máquina local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "newaliases, criando um atalho local para o nome DNS do parceiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "transport_maps, associando o domínio parceiro ao transporte e próximo salto desejados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "local_recipient_maps, definindo o servidor remoto para todos os destinatários externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "transport_maps permite uma rota específica por destino, indicando transporte e próximo salto. myorigin controla o domínio de origem, mydestination indica domínio local, aliases expandem destinatários e local_recipient_maps valida destinatários locais.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem foi aceita pelo Postfix, mas continua aguardando tentativa de entrega porque o próximo servidor está temporariamente indisponível. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mensagem foi rejeitada permanentemente e deve ser removida sem consultar os logs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mensagem foi entregue localmente e precisa ser restaurada por uma política de retenção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O destinatário foi expandido como lista e a mensagem não pode mais ser rastreada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aceitação inicial prova que a rota está correta e exclui erro de autenticação no salto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mensagem está em fila e pode ser tentada novamente quando a falha temporária passar.",
+          "correct": true
+        }
+      ],
+      "explanation": "Falhas temporárias de conexão ou serviço podem manter a mensagem na fila para novas tentativas. Logs identificam o motivo e a etapa; aceitação não confirma a entrega final nem elimina problemas de rota ou autenticação.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após editar um mapa de transporte textual armazenado em formato hash no Postfix, o operador quer que a tabela indexada reflita o novo conteúdo. Qual ação é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar newaliases, que reconstrói todos os mapas de transporte e os conectores SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar postqueue -f, que recompila os arquivos de configuração antes de retransmitir.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar myorigin, que converte automaticamente mapas textuais em tabelas indexadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar postfix stop e apagar a fila, que gera novamente as tabelas hash cadastradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar postmap sobre o mapa e recarregar o serviço se a alteração exigir.",
+          "correct": true
+        }
+      ],
+      "explanation": "Mapas indexados do Postfix precisam ser reconstruídos com postmap após a alteração do arquivo fonte. A documentação também orienta recarregar a configuração quando parâmetros de main.cf ou master.cf forem alterados; newaliases é voltado à tabela de aliases locais.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer inspecionar mensagens paradas na fila do Postfix antes de decidir se solicita nova tentativa. Qual recurso mostra a fila de mensagens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "postqueue -p, que lista mensagens pendentes e seus identificadores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "newaliases, que lista destinatários individuais e o tamanho de cada caixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "postmap -q, que apresenta todas as mensagens aceitas e seus anexos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "mydestination, que imprime os domínios e o estado atual de cada mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "master.cf, que consulta a fila sem iniciar processos de transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "postqueue -p exibe a fila pendente. newaliases atualiza aliases, postmap consulta ou constrói mapas, e os parâmetros de configuração não são comandos de inspeção do estado das mensagens.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer que somente usuários internos autenticados possam retransmitir mensagens para a Internet pelo servidor Postfix. Qual princípio de configuração atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar todos os domínios da Internet como locais para evitar validação SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir relay a clientes autenticados ou origens explicitamente autorizadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover a validação de destinatários para que qualquer remetente possa enviar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir myorigin com o nome do usuário e aceitar todos os próximos saltos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar virtual_alias_maps para que o mapa autorize automaticamente todo relay externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O relay deve ser concedido apenas a clientes autenticados ou origens e destinos previstos pela política. Isso permite o envio autorizado sem expor o servidor como relay aberto, que pode ser abusado para spam.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um setor quer que uma mensagem enviada a comunicados@empresa seja entregue aos integrantes cadastrados no Exchange. Qual configuração atende diretamente ao caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma tag de retenção com nome Comunicados e aplicá-la aos membros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um conector de envio para cada caixa postal que poderá receber o aviso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar um grupo de distribuição com endereço e membros correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar um domínio aceito separado para cada integrante da equipe de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar o endereço coletivo como smart host no conector de recebimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um grupo de distribuição oferece um endereço coletivo que o transporte expande para os membros. Tags controlam retenção, conectores tratam rotas e domínios aceitos não substituem cadastro de grupos.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador deseja impedir que remetentes externos publiquem diretamente numa lista interna do Exchange. Qual controle deve ser conferido na configuração do grupo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política de retenção da lista, para excluir mensagens externas antes do transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conector de envio padrão, para remover o endereço do grupo dos destinatários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O período de arquivo da caixa de cada membro, para rejeitar mensagens externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As permissões de remetentes autorizados e a aceitação de remetentes externos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A regra de caixa de entrada do proprietário, para bloquear a aceitação SMTP pelo grupo.",
+          "correct": false
+        }
+      ],
+      "explanation": "As propriedades do grupo controlam quem pode enviar e se remetentes externos são aceitos. Retenção, conectores de saída e regras de caixa não são o controle direto de autorização de publicação na lista.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe Postfix precisa fazer contato@exemplo encaminhar mensagens para três caixas distintas. Qual abordagem simples implementa essa distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar inet_interfaces para repetir a entrega da mensagem a cada destinatário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir relayhost com os três endereços separados por vírgula para cópia múltipla.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar os nomes das três caixas em mydestination para formar uma lista coletiva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma regra de retenção com ação de mover cada mensagem a três arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar no mapa de aliases uma entrada que expanda o endereço para os três destinatários.",
+          "correct": true
+        }
+      ],
+      "explanation": "Aliases podem expandir um nome para vários destinatários, funcionando como lista simples. relayhost escolhe próximo salto, mydestination trata domínios locais e os outros controles não fazem expansão de membros.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja que uma lista seja mantida automaticamente com pessoas cujo atributo de departamento seja Financeiro. Qual recurso Exchange corresponde melhor ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um conector de recebimento com filtro de conteúdo baseado no cabeçalho da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um alias virtual que replica o endereço dos usuários no domínio externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma caixa compartilhada com encaminhamento manual das mensagens recebidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma DPT que inclui automaticamente usuários conforme o conteúdo de e-mail.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um grupo de distribuição dinâmico com filtro de destinatários sobre atributos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um grupo dinâmico determina membros por filtros de atributos, de modo que a associação pode refletir mudanças de departamento sem editar uma lista fixa. Conectores, aliases e tags não selecionam membros por atributo de diretório.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao examinar o Postfix, o técnico quer diferenciar redirecionamento de endereço de entrega numa caixa virtual própria. Qual afirmação descreve virtual_alias_maps?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define o caminho físico da mailbox e o serviço que grava mensagens nela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Associa destinatários a outros endereços, sem criar necessariamente uma mailbox separada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Lista exclusivamente os domínios aceitos como entrega local em mydestination.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configura somente usuários SMTP autenticados que podem retransmitir para a Internet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazena o histórico das mensagens removidas por uma política de retenção do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "virtual_alias_maps é uma tabela de reescrita/redirecionamento de destinatários. Mailbox virtual final tem parâmetros próprios, como virtual_mailbox_domains e virtual_transport; um alias não cria armazenamento de caixa por si só.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um grupo de distribuição sensível deve permitir envio público, mas reter mensagens para aprovação antes da distribuição. Qual recurso atende à segunda parte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o limite de tamanho no conector de envio para postergar cada mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Associar um alias de grupo a uma caixa de arquivo para leitura dos moderadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Habilitar moderação e definir os moderadores responsáveis pela aprovação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar uma transport map que transforme o grupo em domínio local temporário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar uma RPT que bloqueie o transporte enquanto a mensagem não expirar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A moderação retém mensagens destinadas ao grupo até que um moderador as aprove ou rejeite. Limites de conector, aliases e tags de retenção não implementam esse fluxo de aprovação.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política MRM deve mover mensagens sem tag específica ao arquivo após a idade definida. Que tipo de tag é o padrão para esses itens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma DPT, aplicada ao conjunto de itens que não recebeu tag mais específica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma RPT, aplicada automaticamente a todas as mensagens de todas as pastas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma tag pessoal, que o usuário não pode aplicar nem visualizar na caixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um conector de envio, que move mensagens entre a caixa principal e o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um mapa virtual, que converte a idade da mensagem em destino SMTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Default Policy Tag é a regra de retenção geral para itens sem tag mais específica. RPT atende pastas padrão determinadas, enquanto tags pessoais dependem de aplicação pelo usuário e conectores não movem mensagens de caixa.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja uma regra específica para a pasta Itens Excluídos, separada da regra padrão para itens não marcados. Qual tipo de tag MRM corresponde à pasta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma DPT, porque ela é aplicada exclusivamente à pasta padrão selecionada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tag pessoal, porque todo usuário escolhe a regra administrativa da pasta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma etiqueta de conector, pois cada pasta constitui uma rota de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma RPT, associada a uma pasta padrão suportada pela política.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma classe relay, configurada para remover itens quando o domínio for externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retention Policy Tags são específicas de pastas padrão suportadas, como Itens Excluídos. A DPT é o padrão para itens sem tag mais específica; grupos de transporte e classes Postfix não são tags de retenção.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer que o usuário possa escolher exceções de retenção em mensagens individuais dentro dos limites definidos pela organização. Que mecanismo MRM pode oferecer essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma RPT aplicada por padrão a todas as pastas personalizadas e mensagens individuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tag pessoal disponibilizada ao usuário para itens ou pastas permitidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um conector de envio escolhido pelo usuário para cada mensagem enviada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um transport map que define o prazo de expiração conforme o domínio do destinatário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um grupo dinâmico que seleciona mensagens por idade e aplica ações de arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tags pessoais podem permitir que usuários apliquem configurações previstas a itens ou pastas permitidas. RPT é voltada a pastas padrão e conectores ou mapas cuidam de transporte, não de preferência de retenção do item.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de arquivo não moveu mensagens após ser aplicada a caixas postais. Qual explicação operacional deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir uma segunda política MRM à caixa fará as duas políticas processarem os mesmos itens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mensagem precisa ser incluída num transport map para a regra de idade ser executada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma regra de fluxo precisa reenviar cada item para o conector de arquivo externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ação de arquivo depende de haver arquivo disponível e do processamento periódico da caixa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O processo de retenção ocorre no protocolo SMTP logo após o servidor aceitar a mensagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ação de mover para arquivo requer arquivo associado à caixa e o processamento de retenção ocorre pelo serviço de gerenciamento, não no instante de aceitação SMTP. Uma caixa tem uma política MRM por vez.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A organização precisa preservar conteúdo de caixas para investigação, mesmo que usuários apaguem mensagens sujeitas à medida. Qual conceito Exchange deve ser avaliado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um hold configurado com escopo de preservação adequado ao caso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um alias de distribuição que envie cópia das mensagens para todos os gestores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um relayhost que encaminhe mensagens apagadas para o servidor de investigação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma regra de caixa de entrada que mova itens excluídos para a pasta Enviados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma fila SMTP permanente que substitua o armazenamento normal das caixas postais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um hold pode preservar conteúdo de caixas abrangidas mesmo quando o usuário o exclui, conforme configuração e escopo. Não é preciso distribuir cópias a gestores nem substituir a caixa ou a fila do MTA.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A direção quer aplicar uma regra de retenção comum a várias caixas de equipe sem distribuir configurações individuais diferentes. Qual ação MRM corresponde ao modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir uma política de retenção com as tags desejadas a cada caixa abrangida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um conector de recebimento e anexar a política aos destinatários SMTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir relay_domains como a lista de caixas cujas mensagens devem ser mantidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar os arquivos de aliases na caixa compartilhada dos administradores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma regra de fluxo que converta cada mensagem em uma cópia de backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política agrupa tags de retenção e pode ser aplicada às caixas abrangidas. Conectores e relay_domains governam transporte e endereçamento, e regras de fluxo não substituem política de retenção nem backup.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um setor compara o MRM clássico com a gestão atual de ciclo de vida no Microsoft 365. Qual afirmação está de acordo com a orientação oficial atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O MRM substituiu todos os recursos Purview e é o único método atual de reter conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Políticas Purview e rótulos são recomendados para retenção/exclusão; MRM segue útil para mover itens ao arquivo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "As políticas Purview servem apenas para roteamento e não podem atuar sobre caixas Exchange.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rótulos de retenção não podem ser aplicados a mensagens e tratam somente de arquivos locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A adoção de rótulos desativa automaticamente todos os conectores e grupos de distribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Microsoft recomenda políticas e rótulos de retenção do Purview para gestão de ciclo de vida e preservação no Microsoft 365; MRM continua disponível, especialmente para mover mensagens ao arquivo. O recurso escolhido deve corresponder ao objetivo operacional.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração em um grupo pode ampliar os destinatários de mensagens internas. Qual procedimento reduz o risco antes de aplicar a mudança em produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar a mudança diretamente e usar a fila SMTP para desfazer a associação se necessário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover os logs durante a alteração para evitar que a expansão fique registrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revisar membros e remetentes, testar o escopo e registrar plano de reversão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Habilitar relay aberto temporário para garantir que todos recebam o aviso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir uma política de retenção adicional para conter os destinatários excedentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudanças em grupos podem afetar muitas caixas. Revisar associação, autorização, escopo, teste e plano de reversão reduz o risco e deixa rastreável a alteração; fila e retenção não revertem membros.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem está atrasada e o remetente relata que o destino não a recebeu. Qual evidência deve ser consultada para localizar a etapa da falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O rastreamento de mensagem ou logs de transporte com identificador e resposta do próximo salto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A lista de tags pessoais do remetente, pois ela registra a negociação SMTP de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O conteúdo do arquivo de aliases, pois ele armazena todos os estados de entrega remota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A regra de caixa de entrada do destinatário, que registra cada tentativa anterior do MTA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome do domínio aceito, pois ele comprova que a mensagem foi entregue ao destino final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logs de transporte e rastreamento mostram recepção, resolução, conector/transporte selecionado e respostas do próximo salto. Ser domínio aceito não prova entrega final; tags e regras de caixa não registram o percurso externo.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador vai editar main.cf e master.cf num servidor Postfix. Qual controle é especialmente importante para esses arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir escrita a qualquer usuário de suporte para que possam corrigir rotas sem demora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retirar os arquivos do controle de acesso e mantê-los legíveis somente pelo daemon SMTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar senhas em texto aberto dentro dos arquivos para facilitar a auditoria de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restringir propriedade e escrita a administradores autorizados, pois a alteração concede poder elevado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apagar cópias antigas e logs antes de cada mudança para impedir comparação de valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Postfix alerta que permitir escrita não autorizada nos arquivos centrais de configuração ou nos diretórios pais equivale a conceder privilégios administrativos. O acesso deve ser restrito e as mudanças controladas.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem foi aceita para entrega a uma lista Exchange, mas o destinatário afirma que não recebeu cópia. Qual verificação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A existência de uma RPT para a pasta Caixa de Entrada do proprietário da lista.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A expansão do grupo, os membros atuais e as restrições ou moderação aplicadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O parâmetro relayhost do servidor Postfix que não participa do ambiente Exchange.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A configuração POP do usuário, que determina se o grupo reconhece o destinatário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O valor de myorigin, que define a associação do grupo de distribuição no diretório.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrega coletiva depende de o destinatário estar incluído na expansão e de não haver restrição ou moderação impedindo o envio. Retenção, configurações Postfix e protocolo de acesso individual não controlam membros do grupo.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Postfix atrás de NAT recebe conexões externas por um endereço público diferente do endereço da interface interna. Que aspecto merece configuração e diagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo de aliases deve conter o IP público como membro de todas as listas locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "myorigin deve receber o IP público para que o NAT encaminhe conexões de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "relayhost deve ser preenchido com o IP público para aceitar SMTP de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "virtual_alias_maps deve converter o endereço público em nome da interface privada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A configuração de interfaces externas/proxy e o encaminhamento NAT devem refletir o endereço exposto.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando o host está atrás de proxy ou NAT, o Postfix pode precisar conhecer os endereços externos em que recebe correio, especialmente em cenários de MX secundário, para evitar loops. myorigin, relayhost e aliases têm funções distintas.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de conexão ao servidor SMTP teve sucesso, mas uma mensagem não chegou ao destinatário externo. O que esse resultado permite concluir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente que uma conexão respondeu; ainda é preciso verificar aceitação, rota, fila e entrega final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Que o destinatário existe, a lista foi expandida e a mensagem está arquivada na caixa remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o conector de envio foi escolhido corretamente para qualquer domínio destinatário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que não existe problema de autorização, TLS, DNS ou resposta do próximo salto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a mensagem foi entregue, pois o teste de porta substitui o rastreamento do transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste de conectividade comprova apenas que houve resposta no nível testado. O fluxo completo ainda depende de protocolo, autorização, resolução de destinatário, escolha de rota, aceitação pelo próximo MTA e entrega na caixa.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista de comunicação recebe muitos e-mails indesejados de fora. A equipe quer controlar o envio sem excluir automaticamente todo conteúdo recebido. Qual medida é mais alinhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar a fila inteira do servidor a cada mensagem externa recebida pelo grupo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar exclusão permanente de retenção às mensagens antes da expansão do grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restringir remetentes permitidos ou aplicar moderação conforme a política do grupo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alterar mydestination para que o domínio externo seja tratado como caixa local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar a expansão de membros e usar o grupo como arquivo de todas as caixas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Remetentes autorizados e moderação são controles de publicação de grupos. Apagar fila ou definir retenção não substitui autorização de envio e pode causar perda de mensagens legítimas.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na revisão de uma política Exchange, a equipe precisa distinguir uma exclusão recuperável de uma remoção permanente. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As ações são equivalentes porque ambas encaminham a mensagem para o arquivo online.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir permitindo recuperação conserva possibilidade de restauração conforme retenção; excluir permanentemente remove essa possibilidade normal.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A exclusão permanente é apenas um rótulo visual e mantém sempre o item na Caixa de Entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exclusão recuperável encaminha a mensagem ao relayhost para ser guardada fora da organização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As ações dependem do domínio destinatário e são aplicadas por transport_maps no Postfix.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ação de exclusão permitindo recuperação move o item para a área de itens recuperáveis por um período configurado. Exclusão permanente não oferece a recuperação normal; holds podem alterar a preservação conforme seus parâmetros.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa de endereços como vendas@ e suporte@ que redirecionem a caixas existentes sem criar caixas postais independentes. Qual recurso Postfix é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "virtual_alias_maps, mapeando cada endereço para um ou mais destinatários existentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "virtual_mailbox_domains, que arquiva as mensagens sem associá-las a destinatários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "relay_domains, que converte todo alias em uma nova conta local Unix.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "mydestination, que cria automaticamente uma mailbox para cada endereço listado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "inet_interfaces, que define o destino de cada mensagem conforme o endereço local.",
+          "correct": false
+        }
+      ],
+      "explanation": "virtual_alias_maps permite redirecionar endereços para destinatários existentes, inclusive múltiplos. virtual_mailbox_domains e virtual_transport atendem à entrega em caixas virtuais; alias não cria armazenamento independente.",
+      "section": "3. Listas de distribuição, grupos e aliases",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer impedir que um conector de parceiro aceite qualquer servidor da Internet fingindo pertencer ao domínio parceiro. Qual configuração deve ser avaliada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar tags pessoais aos remetentes externos para que possam escolher a retenção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Restringir origem por IP ou certificado e exigir TLS conforme o acordo de conexão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Adicionar o domínio do parceiro em mydestination para que a validação de origem seja dispensada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um grupo de distribuição com todos os servidores externos conhecidos como membros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar POP para buscar mensagens do parceiro e ignorar as credenciais SMTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectores podem impor controles de segurança como origem permitida por IP ou certificado e TLS para tráfego entre organizações. Tags, domínios locais, grupos e POP não autenticam o servidor remetente no conector.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador usa a opção de forçar a fila a tentar novamente, mas o próximo host continua rejeitando mensagens por autenticação inválida. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fila corrigiu a credencial e a rejeição deixará de ocorrer sem mudança adicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mensagem foi movida para a caixa de arquivo e não participa mais do transporte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O erro de autenticação exige corrigir a causa; reenfileirar apenas provoca nova tentativa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A falha prova que a lista de distribuição tem um membro duplicado no diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Postfix deve tratar o domínio externo como mydestination para dispensar autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Solicitar nova tentativa não altera credenciais nem permissões do próximo host. A falha deve ser corrigida na autenticação ou configuração da rota; depois disso, a mensagem pode ser reenviada ou deixada para tentativa normal.",
+      "section": "2. Rotas, conectores e filas de mensagem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa guardar mensagens durante período de retenção e ainda manter cópia para recuperação após desastre de armazenamento. Qual planejamento distingue corretamente os recursos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar somente a fila SMTP, pois ela mantém cópias de todas as caixas após a entrega.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente um grupo de distribuição, pois seus membros formam uma réplica histórica das mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar retenção como regra de exclusão e dispensar qualquer mecanismo de cópia de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Combinar política de retenção para ciclo de vida com backup separado para recuperação de desastre.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar um conector de envio como armazenamento central e restaurar caixas a partir dos logs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retenção controla preservação ou descarte de conteúdo no ciclo de vida; backup fornece cópia para recuperação após falhas. Um projeto pode exigir ambos, com escopo e testes próprios.",
+      "section": "4. Retenção, arquivamento e exclusão controlada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança numa regra de fluxo do Exchange deve ser testada sem afetar a entrega normal enquanto a equipe valida as condições. Qual recurso atende ao teste controlado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar a regra em modo de teste, com ou sem dicas de política, antes de aplicá-la efetivamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atribuir a regra como uma RPT e esperar que o processamento de pastas faça a validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma fila permanente e desativar o pipeline de transporte durante toda a avaliação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar relayhost e considerar qualquer mensagem aceita como resultado positivo do teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a regra em alias local para que ela seja executada após a leitura pelo usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de fluxo podem ser colocadas em modo de teste para observar correspondências sem executar normalmente suas ações sobre a entrega, inclusive com opções de dicas de política. Isso permite revisar condições e exceções antes de ativar a regra.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer confirmar se a configuração Postfix está aceitando qualquer destinatário desconhecido de um domínio local. Qual aspecto é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política de retenção de mensagens da caixa do postmaster no Exchange Online.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A validação de destinatários locais, incluindo local_recipient_maps e sua configuração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A configuração de grupos dinâmicos que expandem listas no Microsoft 365.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de membros de virtual_alias_maps, que define a validade de toda classe local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O período de novas tentativas da fila, que cria contas para destinatários ausentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "local_recipient_maps pode indicar destinatários locais válidos e permitir rejeição de usuários inexistentes antes da aceitação. Se a tabela estiver vazia, o comportamento de aceitação muda; fila e retenção não cadastram destinatários.",
+      "section": "5. Segurança operacional, monitoramento e mudanças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix Basic Configuration",
+      "publisher": "The Postfix Project",
+      "reference": "Parâmetros main.cf, domínios locais, relay_domains, relayhost, arquivos e recarga",
+      "url": "https://www.postfix.org/BASIC_CONFIGURATION_README.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix Address Classes",
+      "publisher": "The Postfix Project",
+      "reference": "Classes local, virtual alias, virtual mailbox, relay e default; domínios, destinatários e transportes",
+      "url": "https://www.postfix.org/ADDRESS_CLASS_README.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix Address Rewriting",
+      "publisher": "The Postfix Project",
+      "reference": "virtual_alias_maps, aliases e reescrita de endereços",
+      "url": "https://www.postfix.org/ADDRESS_REWRITING_README.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Postfix Virtual Domain Hosting",
+      "publisher": "The Postfix Project",
+      "reference": "Hospedagem de domínios, aliases virtuais, mapas e entrega",
+      "url": "https://www.postfix.org/VIRTUAL_README.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Connectors in Exchange",
+      "publisher": "Microsoft Learn",
+      "reference": "Conectores de recebimento e envio e seleção por destinatários",
+      "url": "https://learn.microsoft.com/en-us/exchange/mail-flow/connectors/connectors",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mail flow and the transport pipeline",
+      "publisher": "Microsoft Learn",
+      "reference": "Fluxo do Exchange, resolução de destinatários e expansão de grupos",
+      "url": "https://learn.microsoft.com/en-us/exchange/mail-flow/mail-flow",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mail flow rules in Exchange Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Condições, ações, exceções e processamento de regras de transporte",
+      "url": "https://learn.microsoft.com/en-us/exchange/policy-and-compliance/mail-flow-rules/mail-flow-rules",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Retention tags and retention policies in Exchange Online",
+      "publisher": "Microsoft Learn",
+      "reference": "DPT, RPT, tags pessoais, ações e políticas MRM",
+      "url": "https://learn.microsoft.com/en-us/exchange/security-and-compliance/messaging-records-management/retention-tags-and-policies",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apply a retention policy to mailboxes in Exchange Online",
+      "publisher": "Microsoft Learn",
+      "reference": "Atribuição de política de retenção às caixas postais",
+      "url": "https://learn.microsoft.com/exchange/security-and-compliance/messaging-records-management/apply-retention-policy",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Learn about retention for Exchange",
+      "publisher": "Microsoft Learn",
+      "reference": "Retenção de Exchange, Recoverable Items e ações de políticas",
+      "url": "https://learn.microsoft.com/en-us/purview/retention-policies-exchange",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

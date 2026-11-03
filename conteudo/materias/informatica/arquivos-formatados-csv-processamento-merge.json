@@ -1,0 +1,2269 @@
+{
+  "id": "informatica.arquivos-formatados-csv-processamento-merge",
+  "subject": "Informática",
+  "title": "Arquivos formatados, TXT, CSV e processamento Merge",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquivos formatados por caracteres",
+    "Arquivos formatados por delimitadores",
+    "Arquivos de largura fixa e delimitados",
+    "Processamento de arquivos TXT",
+    "Arquivos CSV e separação de campos",
+    "Leitura de registros de arquivos texto",
+    "Processamento sequencial de arquivos",
+    "Merge de arquivos ordenados",
+    "Intercalação de arquivos por chave",
+    "Arquivos formatados CSV processamento Merge"
+  ],
+  "scope": {
+    "covers": "Arquivos de texto formatados por largura fixa e por delimitadores; estrutura de registros, campos, posições, separadores, cabeçalhos, tipos e codificação; TXT e CSV, convenções de aspas, vírgulas, quebras de linha, delimitadores alternativos e validação; processamento sequencial e Merge/intercalação de arquivos ordenados pela mesma chave, com tratamento de registros menores, iguais e maiores, duplicidades e verificações de saída.",
+    "excludes": "Sintaxe completa de linguagens de programação, comandos específicos de uma ferramenta de planilha, banco de dados relacional, algoritmos externos de ordenação e formatos binários proprietários."
+  },
+  "theoryTitle": "Leitura e processamento de arquivos formatados",
+  "chapters": [
+    {
+      "title": "1. Registros, campos e formatos",
+      "markdown": "### O problema que este assunto resolve\n\nUm arquivo texto pode guardar uma sequência de registros, como uma lista de pessoas, produtos ou lançamentos. Para que dois sistemas interpretem cada informação do mesmo modo, eles precisam concordar sobre onde começa e termina cada registro e cada campo. O formato é esse contrato: define a organização dos caracteres e como um leitor os separa. TXT é uma designação ampla para arquivo de texto simples; não garante sozinho que exista cabeçalho, delimitador específico, codificação ou estrutura de colunas.\n\n> **Siglas e termos deste capítulo**\n> - **Registro**: conjunto de campos que descreve uma ocorrência, geralmente uma linha lógica.\n> - **Campo**: unidade de informação do registro, como matrícula ou data.\n> - **Largura fixa**: cada campo ocupa posições ou quantidade de caracteres previamente definida.\n> - **Delimitador**: caractere ou sequência que marca a fronteira entre campos.\n> - **Esquema**: descrição da ordem, largura, significado e tipo esperado dos campos.\n> - **Codificação**: regra que representa caracteres em bytes, como UTF-8.\n\n### Por quantidade de caracteres: largura fixa\n\nNum arquivo de largura fixa, as fronteiras dos campos são inferidas por posições. Imagine o leiaute `000123Ana  Silva     0000450`: posições 1–6 podem ser o código, 7–26 o nome e 27–33 o valor. Não há vírgula necessária entre as colunas. O leitor tem de conhecer o leiaute e contar a partir da posição inicial convencionada, normalmente a primeira posição. Se um nome maior que o espaço previsto desloca o valor seguinte, o registro fica desalinhado e pode ser lido incorretamente.\n\nCampos podem ser preenchidos com espaços ou zeros, conforme o contrato. Um número `42` em campo de cinco posições pode aparecer como `00042` ou `   42`; o leitor precisa saber se o preenchimento faz parte da representação e como removê-lo. Um campo de largura fixa não significa que todo valor tenha o mesmo comprimento semântico: significa que a área reservada no registro tem largura definida.\n\n### Por delimitadores\n\nNo formato delimitado, um caractere separador — por exemplo, vírgula, ponto e vírgula, tabulação ou barra vertical — divide os campos. `27;Lia;SP` contém três campos separados por ponto e vírgula. O leiaute não precisa reservar vinte posições para um nome, mas o próprio conteúdo pode conter o separador. Por isso formatos como CSV definem regras de aspas para proteger delimitadores que pertencem ao valor.\n\n| Característica | Largura fixa | Delimitado |\n| --- | --- | --- |\n| Como localizar campo | Posição e largura acordadas | Procurar o separador, respeitando regras de escape/aspas |\n| Exemplo de linha | `0042Lia     SP` | `42;Lia;SP` |\n| Risco frequente | Campo comprido desloca posições | Separador dentro do valor é interpretado como fronteira |\n| Conhecimento exigido | Mapa de posições e larguras | Delimitador, aspas, codificação e regras de registro |\n\n### TXT não é sinônimo de formato sem estrutura\n\nUm arquivo `.txt` pode conter texto livre, linhas de largura fixa, valores separados por tabulação ou outro leiaute combinado. A extensão é uma pista, não uma descrição suficiente. Para importar corretamente, confirme codificação, fim de linha, cabeçalho, separador, ordem das colunas, representação de ausências e tipos. O mesmo arquivo pode parecer legível num editor e ainda ser interpretado errado se abrir com a codificação ou o delimitador incorreto.\n\n### Como cai na prova\n\n- Em largura fixa, a posição de início e o tamanho do campo definem o recorte; não se procura uma vírgula para achar a coluna.\n- Em arquivos delimitados, o separador marca fronteiras, salvo quando regras de citação indicam que ele integra o valor.\n- TXT designa texto simples, não um esquema universal. Arquivo CSV também é texto, mas segue convenções tabulares.\n- Um leiaute só pode ser processado com segurança quando produtor e consumidor concordam sobre codificação, campos e limites de registro."
+    },
+    {
+      "title": "2. CSV: campos e consistência",
+      "markdown": "### O problema que este assunto resolve\n\nCSV é usado para trocar dados tabulares por texto. A RFC 4180 documenta uma convenção comum e registra o tipo de mídia `text/csv`, mas ressalta que implementações variam. Na convenção descrita, cada registro ocupa uma linha, os campos são separados por vírgulas, e a primeira linha pode opcionalmente ser um cabeçalho. Portanto, não basta olhar a extensão: é preciso identificar as regras acordadas pelo arquivo e pelo programa que o lê.\n\n> **Siglas e termos deste capítulo**\n> - **CSV**: *Comma-Separated Values*, valores separados por vírgulas.\n> - **Cabeçalho**: registro inicial cujos campos nomeiam as colunas, se o contrato o indicar.\n> - **Campo citado**: campo delimitado por aspas duplas para proteger caracteres especiais.\n> - **Escape de aspas**: na convenção RFC 4180, aspas duplas dentro de campo citado são duplicadas.\n> - **CRLF**: par de caracteres carriage return e line feed usado como quebra de linha na convenção documentada.\n> - **Valor nulo/ausente**: dado sem valor, cuja representação precisa ser definida pelo sistema; campo vazio não informa automaticamente sua semântica.\n\n### Regras de leitura que evitam separar o campo errado\n\nUm registro como `17,Marina,Recife` tem três campos. Se o segundo valor contém vírgula, ele pode ser citado: `17,\"Marina, Costa\",Recife`. A vírgula dentro das aspas pertence ao conteúdo; a que está fora separa campos. Uma aspa que integra o texto é duplicada dentro de um campo citado: `\"Ele disse \"\"sim\"\"\"`. Campos citados também podem conter quebras de linha; nesse caso, uma quebra física no arquivo não significa necessariamente que começou outro registro. Um leitor CSV deve aplicar as regras de citação, em vez de dividir cada linha cegamente pela vírgula.\n\nO número de campos de cada registro deve ser compatível com o esquema. A RFC recomenda a mesma quantidade de campos em cada linha e, quando há cabeçalho, que ele tenha a mesma quantidade. Na prática, valida-se também a ordem e o tipo: uma coluna de data não deve virar texto arbitrário, e zeros à esquerda de um identificador não devem ser descartados como se fossem zeros numéricos.\n\n### Separadores regionais e configuração explícita\n\nEmbora o nome signifique valores separados por vírgula, sistemas locais frequentemente usam ponto e vírgula como delimitador, por exemplo quando a vírgula é usada como separador decimal. Tabulação também é comum em arquivos tabulares de texto. São variantes de arquivo delimitado: o leitor deve receber o separador real, não presumir que toda extensão `.csv` usa vírgula. A biblioteca CSV do Python, por exemplo, permite definir `delimiter` e `quotechar`; sua documentação recomenda abrir arquivos CSV com `newline=''` para tratar corretamente quebras de linha incorporadas e evitar caracteres extras em algumas plataformas.\n\n| Conteúdo do campo | Exemplo CSV com vírgula | Interpretação |\n| --- | --- | --- |\n| Texto simples | `Ana` | Um valor sem caractere especial |\n| Vírgula no valor | `\"Silva, Ana\"` | Uma célula contendo a vírgula |\n| Aspas no valor | `\"Disse \"\"oi\"\"\"` | Valor com aspas literais duplicadas no arquivo |\n| Campo vazio | `A,,C` | O campo do meio está vazio; sua semântica depende do contrato |\n\n### Cabeçalho, tipos e codificação\n\nUm cabeçalho não é obrigatório em todo CSV. Se existir, o consumidor não deve tratá-lo como registro de dados; se não existir, a primeira linha é dado. O parâmetro `header` do tipo de mídia descrito pela RFC pode indicar presença ou ausência, mas muitos arquivos dependem de acordo externo. Codificação também precisa ser compatível; a RFC admite parâmetros de conjunto de caracteres para `text/csv`, e um decodificador incorreto pode corromper acentos.\n\n### Como cai na prova\n\n- Aspas permitem que delimitador, aspas escapadas ou quebras de linha pertençam a um campo, segundo as regras de citação.\n- `A,,C` contém três campos, e não dois; o campo central está vazio. Não se pode inferir que vazio sempre equivale a zero, espaço ou ausência sem contrato.\n- Cabeçalho é opcional; sua presença deve ser conhecida pelo consumidor.\n- CSV é texto com regras tabulares; um separador alternativo como ponto e vírgula é possível, mas deve ser configurado."
+    },
+    {
+      "title": "3. Processamento e validação",
+      "markdown": "### O problema que este assunto resolve\n\nProcessar um arquivo formatado significa converter caracteres em registros e campos de modo previsível, validar o leiaute, executar uma operação e produzir uma saída que outro programa consiga ler. A rotina típica abre uma origem, interpreta cabeçalho e registros, verifica estrutura e valores, aplica regras e grava o resultado. Separar essas etapas ajuda a localizar se o defeito está na entrada, na regra ou na gravação.\n\n> **Siglas e termos deste capítulo**\n> - **Parsing**: análise do texto para reconhecer registros, campos e valores.\n> - **EOF**: fim do arquivo (*end of file*), condição de que não há mais registro a ler.\n> - **Validação estrutural**: conferir número e posição de campos, delimitador e formato de registro.\n> - **Validação semântica**: conferir se valores fazem sentido para o domínio, como data válida ou chave não vazia.\n> - **Fluxo sequencial**: percorrer os registros na ordem em que aparecem, normalmente uma vez.\n> - **Rejeição**: registro separado para diagnóstico quando não atende às regras de processamento.\n\n### Uma rotina segura, passo a passo\n\n1. Identifique codificação, fim de linha, delimitador ou mapa de larguras, cabeçalho e tipos esperados.\n2. Leia o cabeçalho conforme contrato e associe nomes a colunas, sem confundi-lo com dado.\n3. Para cada registro lógico, aplique o parser correto: regras de aspas no CSV ou posições no leiaute fixo.\n4. Valide quantidade de campos, comprimentos, tipos e campos obrigatórios.\n5. Transforme apenas após preservar os valores originais necessários para auditoria.\n6. Escreva em formato definido e confira contagens, totais, chaves e registros rejeitados.\n\nUma linha física pode não corresponder a um registro lógico em CSV se um campo citado incluir quebra de linha. De modo semelhante, separar uma linha por posição pressupõe que os caracteres e a codificação não alteraram a largura que o leiaute espera. Para largura fixa definida em bytes, texto multibyte exige cuidado: contar caracteres visualizados não é necessariamente contar bytes. O contrato do arquivo deve dizer qual unidade define posições.\n\n### Erros frequentes e tratamento\n\nUma linha com quantidade inesperada de campos pode indicar delimitador errado, aspas desbalanceadas, truncamento ou versão diferente do esquema. Não se deve corrigir silenciosamente movendo colunas sem regra explícita. Registre a linha/registro, a causa e a ação, e mantenha rejeições separadas do resultado válido. Trate campos como texto quando forem identificadores: converter `00073` para número pode produzir `73` e perder zeros significativos. Datas e decimais também dependem do padrão e da localidade.\n\n### Como cai na prova\n\n- O parser precisa respeitar o formato: divisão simples em cada vírgula não processa corretamente todos os CSVs.\n- A validação estrutural verifica leiaute; a semântica verifica se valores atendem às regras do domínio.\n- Cabeçalho, codificação, largura e delimitador são parte do contrato de entrada.\n- Contagem de registros de entrada, saída e rejeitados é uma checagem concreta contra perda ou duplicação acidental."
+    },
+    {
+      "title": "4. Merge: intercalação",
+      "markdown": "### O problema que este assunto resolve\n\nEm processamento de arquivos, **Merge** costuma designar a intercalação de duas ou mais sequências já ordenadas pela mesma chave, formando uma saída também ordenada. Exemplo: um cadastro de contas e um arquivo de lançamentos, ambos em ordem crescente de número de conta. O programa compara as chaves correntes e consome o registro menor; ao encontrar chaves iguais, aplica a regra de combinação definida para o caso. Isso não é simplesmente concatenar arquivos, e não é a operação de mesclar branches de controle de versão.\n\n> **Siglas e termos deste capítulo**\n> - **Chave de ordenação**: campo ou conjunto de campos usado para ordenar e comparar registros.\n> - **Intercalação (merge)**: combinar sequências ordenadas preservando a ordem.\n> - **Ponteiro corrente**: registro atualmente lido de cada arquivo.\n> - **Correspondência**: igualdade de chaves conforme tipo, normalização e regra definidas.\n> - **Registro órfão**: chave que aparece num arquivo e não encontra par no outro.\n> - **Estabilidade da ordem**: preservação de ordem relativa em caso de chaves iguais, quando o algoritmo e o requisito a determinam.\n\n### Comparação de duas entradas\n\nSuponha A com chaves `02, 05, 09` e B com `01, 05, 10`. Com os dois registros correntes, compare: como `01 < 02`, grave o registro de B e avance B. Depois compare `02` com `05`, grave `02` e avance A. Ao comparar `05` com `05`, as chaves coincidem; a regra de negócio pode juntar campos, emitir um registro combinado, emitir ambos ou rejeitar duplicidade. Em seguida, avança-se conforme essa regra. Quando um arquivo chega ao fim, os registros restantes do outro ainda precisam ser tratados, se a operação exigir preservá-los.\n\n| Comparação das chaves correntes | Ação de intercalação comum |\n| --- | --- |\n| chave A < chave B | Emitir/consumir A; avançar A |\n| chave A > chave B | Emitir/consumir B; avançar B |\n| chave A = chave B | Executar regra de correspondência e avançar entradas envolvidas |\n| Uma entrada chegou ao fim | Tratar os registros restantes da outra entrada conforme o tipo de merge |\n\n### Pré-condições e tipos de combinação\n\nA ordenação é pré-condição essencial. Se uma entrada apresentar `02, 09, 05`, uma comparação local pode emitir `02, 01, 09, 05` e quebrar a saída ordenada; ordenar uma entrada não corrige automaticamente a outra. A ordem precisa usar a mesma chave e a mesma convenção: texto versus número, maiúsculas/minúsculas, espaços, zeros à esquerda e collation podem mudar a comparação.\n\nO resultado para chaves iguais e órfãs depende da operação pedida. Uma junção interna emite apenas correspondências; uma junção externa pode preservar registros sem par; uma atualização cadastral pode substituir campos do arquivo mestre quando há alteração correspondente. Duplicidades de chave podem gerar mais de uma correspondência e multiplicar resultados. Portanto, defina antes se chaves devem ser únicas, como resolver repetições e o que fazer com órfãos. “Merge” descreve a intercalação, não uma única regra universal de negócio.\n\n### Como cai na prova\n\n- Merge ordenado pressupõe entradas ordenadas pela mesma chave e com comparações compatíveis.\n- Em chaves diferentes, avança-se a entrada com menor chave; em chaves iguais, executa-se a regra de correspondência.\n- Após EOF de uma entrada, os remanescentes da outra não desaparecem por mágica: a regra de saída define sua preservação ou descarte.\n- Concatenar não compara chaves e não garante saída ordenada. Merge também não é sinônimo de ordenar uma entrada desordenada."
+    }
+  ],
+  "summary": "Arquivos formatados organizam registros e campos por posições (largura fixa) ou por delimitadores. TXT é apenas texto simples; o leiaute precisa ser conhecido. CSV segue convenções de campos e aspas: vírgulas dentro de campos citados não separam colunas, aspas internas são escapadas e cabeçalho é opcional. O processamento deve configurar codificação, delimitador, cabeçalho e tipos, validar estrutura e conteúdo e conferir registros de saída. Merge intercala entradas previamente ordenadas pela mesma chave: consome a menor chave, trata igualdade segundo regra definida e trata os remanescentes após EOF. Não equivale a concatenar ou ordenar dados desorganizados.",
+  "flashcards": [
+    {
+      "front": "Como se reconhece um campo em arquivo de largura fixa?",
+      "back": "Pelo intervalo de posições ou quantidade de caracteres definido no leiaute."
+    },
+    {
+      "front": "Como se reconhece um campo em arquivo delimitado?",
+      "back": "Pelo separador acordado, respeitando as regras de citação e escape."
+    },
+    {
+      "front": "A extensão TXT garante um esquema?",
+      "back": "Não. TXT indica texto simples; o conteúdo pode ser livre ou seguir vários leiautes."
+    },
+    {
+      "front": "O que é um registro?",
+      "back": "Um conjunto de campos que representa uma ocorrência do arquivo."
+    },
+    {
+      "front": "Qual risco de largura fixa com campo maior que a área reservada?",
+      "back": "O campo seguinte pode ficar deslocado e ser interpretado incorretamente."
+    },
+    {
+      "front": "CSV sempre tem cabeçalho?",
+      "back": "Não. A presença do cabeçalho é opcional e precisa ser conhecida."
+    },
+    {
+      "front": "Na convenção RFC 4180, qual caractere separa campos CSV?",
+      "back": "A vírgula, salvo quando protegida como conteúdo dentro de campo citado."
+    },
+    {
+      "front": "Como representar vírgula que pertence ao valor de uma célula?",
+      "back": "Colocar o campo entre aspas duplas, conforme a convenção usada."
+    },
+    {
+      "front": "Como aspas duplas literais são representadas dentro de campo citado no RFC 4180?",
+      "back": "Duplicando a aspa, por exemplo \"\" dentro do campo citado."
+    },
+    {
+      "front": "O que representa A,,C em CSV com vírgula?",
+      "back": "Três campos, com o campo central vazio."
+    },
+    {
+      "front": "Por que não dividir CSV cegamente em cada vírgula?",
+      "back": "Uma vírgula entre aspas pode pertencer ao valor e não separar campos."
+    },
+    {
+      "front": "O que é um delimitador alternativo?",
+      "back": "Separador como ponto e vírgula ou tabulação, escolhido pelo formato acordado."
+    },
+    {
+      "front": "Que duas classes de validação se aplicam a arquivos?",
+      "back": "Estrutural (leiaute) e semântica (validade dos valores)."
+    },
+    {
+      "front": "Por que preservar zeros à esquerda em identificadores?",
+      "back": "Eles podem fazer parte do identificador e não representar magnitude numérica."
+    },
+    {
+      "front": "O que deve ser conferido além da extensão do arquivo?",
+      "back": "Codificação, delimitador ou larguras, cabeçalho, quebras de linha, ordem e tipos."
+    },
+    {
+      "front": "Qual é a pré-condição principal do Merge ordenado?",
+      "back": "As entradas devem estar ordenadas pela mesma chave e regra de comparação."
+    },
+    {
+      "front": "No Merge, o que se faz se a chave corrente A for menor que B?",
+      "back": "Consome-se/emite-se A e avança-se a entrada A."
+    },
+    {
+      "front": "O que fazer quando as chaves correntes coincidem?",
+      "back": "Aplicar a regra de correspondência definida para o domínio e avançar as entradas envolvidas."
+    },
+    {
+      "front": "O que é registro órfão em Merge?",
+      "back": "Um registro cuja chave não encontra correspondência na outra entrada."
+    },
+    {
+      "front": "Merge significa concatenar?",
+      "back": "Não. Intercalação compara chaves para preservar ordem; concatenação apenas põe conteúdos em sequência."
+    }
+  ],
+  "tips": [
+    "Antes de importar, escreva o contrato: codificação, cabeçalho, delimitador ou posições, tipos e formato de ausências.",
+    "Para largura fixa, marque início e fim de cada coluna e confira uma linha real com régua de posições.",
+    "Para CSV, use um parser que entenda aspas; não faça split simples por vírgula.",
+    "Trate códigos, CEPs e matrículas como texto se zeros à esquerda tiverem significado.",
+    "No Merge, teste entradas com chave menor, igual, maior, duplicada e com uma delas vazia.",
+    "Compare contagens de entrada, correspondências, órfãos, rejeições e saída para localizar perda ou duplicação."
+  ],
+  "traps": [
+    "Confundir TXT com um leiaute padronizado: extensão não define estrutura.",
+    "Tratar toda vírgula no CSV como separador, inclusive dentro de campo citado.",
+    "Supor que CSV sempre usa vírgula ou sempre contém cabeçalho.",
+    "Converter automaticamente identificadores e perder zeros à esquerda.",
+    "Executar Merge em entradas sem ordenação compatível e esperar saída ordenada.",
+    "Descartar os registros restantes depois que uma entrada chega ao fim sem verificar a regra de saída."
+  ],
+  "activeRecall": [
+    "Explique como o leitor diferencia colunas em largura fixa e em formato delimitado.",
+    "Por que o nome TXT não basta para importar corretamente um arquivo?",
+    "Mostre como uma vírgula e uma aspa podem aparecer como conteúdo de campo CSV.",
+    "O que precisa ser conhecido sobre o cabeçalho antes de processar um CSV?",
+    "Diferencie validação estrutural de validação semântica com um exemplo de cada.",
+    "Descreva as comparações de chave e os avanços de ponteiro no Merge de duas entradas.",
+    "O que pode acontecer com duplicidades de chave e registros órfãos no Merge?",
+    "Como verificar que o processamento não perdeu nem duplicou registros?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre posição fixa e delimitador",
+      "summary": "Largura fixa usa posições e áreas reservadas; formato delimitado procura fronteiras indicadas por separadores, com regras de citação."
+    },
+    {
+      "key": "e2",
+      "title": "Interpretação ingênua de CSV",
+      "summary": "Separar cada linha em vírgulas ignora campos citados, aspas escapadas e quebras de linha dentro de campos."
+    },
+    {
+      "key": "e3",
+      "title": "Perda de informação ao interpretar valores",
+      "summary": "Codificação, localidade ou conversão numérica automática pode corromper acentos, datas, decimais e identificadores com zeros à esquerda."
+    },
+    {
+      "key": "e4",
+      "title": "Merge sem pré-condições e regras definidas",
+      "summary": "A intercalação requer ordenação compatível; igualdade, duplicidade e órfãos precisam de regra explícita."
+    },
+    {
+      "key": "e5",
+      "title": "Confusão entre intercalação e concatenação",
+      "summary": "Merge compara chaves para intercalar registros ordenados; concatenar apenas anexa uma sequência à outra."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um arquivo reserva as posições 1–5 para matrícula e 6–25 para nome. Como o leitor deve localizar os campos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelas posições e larguras fixadas no leiaute, sem procurar separador entre as colunas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pela primeira vírgula encontrada, que encerra a matrícula em qualquer registro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pelo cabeçalho obrigatório, que identifica os campos sem necessidade de posições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pela quebra de linha, que separa matrícula e nome dentro do mesmo registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pelo tipo numérico, que faz o leitor detectar sozinho o fim da matrícula mesmo sem largura declarada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em largura fixa, o mapa de posições determina o recorte de cada campo. Um separador ou cabeçalho pode existir em outros formatos, mas não substitui o leiaute posicional descrito.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo chamado dados.txt apresenta uma linha de texto livre por registro, sem esquema de colunas informado. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A extensão obriga que os campos sejam separados por tabulação em todas as linhas, qualquer que seja o conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sem delimitador, cada linha precisa conter exatamente uma palavra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo TXT tem largura fixa e deve ser lido contando caracteres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O programa pode presumir CSV com cabeçalho porque o arquivo é textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A extensão indica texto simples, mas não define por si só um leiaute de campos.",
+          "correct": true
+        }
+      ],
+      "explanation": "TXT é uma designação ampla de arquivo texto. O conteúdo pode ser livre ou estruturado de várias formas, então o leitor precisa de um contrato ou de análise adicional para reconhecer campos.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina divide cada linha pelo caractere ponto e vírgula. Qual é a característica que define o arquivo processado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada coluna ocupa sempre uma quantidade fixa de caracteres.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As posições das colunas são calculadas pelo tamanho do arquivo inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira coluna precisa ser numérica para que o separador funcione.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quebra de linha separa campos e o ponto e vírgula separa registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os campos são delimitados por ponto e vírgula conforme o leiaute acordado.",
+          "correct": true
+        }
+      ],
+      "explanation": "O ponto e vírgula está atuando como delimitador de campos. O formato não exige que cada campo tenha uma largura fixa, embora o esquema ainda possa estabelecer tipos e quantidade de colunas.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao ler um arquivo de largura fixa, um nome ultrapassa a área reservada e invade os caracteres destinados ao campo seguinte. Qual defeito ocorreu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O delimitador foi interpretado como parte do nome e duplicou a coluna.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cabeçalho opcional foi lido como registro e deslocou os dados, ainda que o leiaute posicional não o previsse.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O parser tratou corretamente um campo citado com quebra de linha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo foi concatenado antes que as chaves fossem ordenadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo excedeu sua largura prevista, deslocando a interpretação posicional seguinte.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em largura fixa, a área de cada campo tem limite estabelecido. Se a origem não respeita o limite e não há regra de truncamento ou validação, os caracteres seguintes podem ser atribuídos ao campo errado.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista recebe um TXT que contém códigos e nomes em colunas delimitadas por tabulação. Como deve classificá-lo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como texto sem qualquer possibilidade de estrutura tabular.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como arquivo binário, pois há colunas separadas por caracteres.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como arquivo de largura fixa, pois cada registro está numa linha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como CSV de vírgulas obrigatórias, independentemente do separador usado, sem ajustar a configuração do leitor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como arquivo texto delimitado por tabulação, conforme o leiaute informado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A extensão TXT não impede uma estrutura tabular. As tabulações funcionam como delimitadores neste caso, e o consumidor precisa configurar o separador correto.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um leiaute posicional declara campo de código com seis posições e preenchimento à esquerda por zeros. Como o valor 73 pode aparecer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como `73`, pois posições não incluem caracteres de preenchimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como `000073`, ocupando as seis posições previstas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como `00073`, pois o campo deve ter uma posição a menos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como `73,`, pois o fim do campo é sempre uma vírgula.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como `      73`, pois o contrato exige espaços antes dos dígitos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o campo tem seis posições e o contrato manda preencher com zeros à esquerda, o valor ocupa todas elas como `000073`. Espaços e separadores seriam regras diferentes.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contrato de um CSV consta que a primeira linha contém nomes de colunas. O que o leitor deve fazer com essa linha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpretá-la como cabeçalho e usar seus nomes para identificar os campos seguintes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Descartá-la sempre sem examiná-la, mesmo que o contrato mude e a linha contenha valores que seriam dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usá-la como delimitador que substitui as vírgulas dos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dividi-la em registros separados por cada nome de coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Convertê-la em dado numérico antes de ler as demais linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como o contrato informa cabeçalho, a primeira linha nomeia os campos e não deve entrar como uma ocorrência comum. Essa decisão não pode ser presumida para todos os CSVs, pois cabeçalho é opcional.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CSV separado por vírgulas, qual é a interpretação de `31,\"Costa, Lima\",RJ`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quatro campos, pois cada vírgula sempre encerra um valor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dois campos, porque as aspas anulam também a vírgula externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Três campos; o segundo contém a vírgula protegida pelas aspas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um único campo, porque a linha contém aspas duplas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Três registros, pois as vírgulas indicam mudança de linha lógica.",
+          "correct": false
+        }
+      ],
+      "explanation": "O campo citado `Costa, Lima` conserva sua vírgula como conteúdo. As vírgulas que estão fora das aspas separam os três campos do registro.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na convenção de CSV documentada pela RFC 4180, como se representam aspas duplas que fazem parte de um campo citado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminando as aspas do valor e acrescentando uma barra no fim do registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicando a aspa literal dentro do campo delimitado por aspas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituindo cada aspa por vírgula para manter o mesmo número de colunas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encerrando o campo e iniciando outro com a aspa restante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Movendo a aspa para o cabeçalho da coluna correspondente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na regra descrita, uma aspa dupla dentro de campo citado é escapada por duplicação. Assim o leitor distingue a aspa de conteúdo da aspa que fecha o campo.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o cabeçalho no CSV?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É sempre obrigatório e a RFC exige nomes em todas as colunas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É proibido quando o separador é uma vírgula.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Só pode existir em arquivo de largura fixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É opcional; o consumidor precisa saber se a primeira linha o contém.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É detectado sempre pelo tipo numérico da primeira coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "A convenção documentada permite cabeçalho opcional. Sem indicação ou acordo, o leitor precisa determinar se a primeira linha é nome de campo ou dado, evitando classificar registros incorretamente.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema exporta um arquivo chamado clientes.csv com ponto e vírgula entre colunas. Qual configuração é adequada para a leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir ponto e vírgula como delimitador conforme o arquivo e o contrato.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Forçar vírgula como delimitador porque toda extensão CSV a exige.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar separadores e inferir colunas apenas pelo tipo dos valores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler cada ponto e vírgula como encerramento de um registro inteiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interpretar a primeira coluna como cabeçalho e descartar todo o conteúdo restante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Extensão não garante o caractere separador. O leitor deve corresponder às regras reais da origem; ponto e vírgula é uma configuração possível para arquivo delimitado.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo contém a linha `A,,C`. Quantos campos há, e como interpretar o central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dois campos, pois separadores consecutivos são contados como um só.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quatro campos, pois cada delimitador cria dois campos novos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um campo com duas vírgulas internas sem qualquer separação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Três campos, sendo o do meio necessariamente zero numérico porque todo campo vazio equivale a zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Três campos, sendo o do meio vazio; o contrato define seu significado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Dois delimitadores consecutivos delimitam um campo vazio entre eles, totalizando A, campo vazio e C. Vazio não implica automaticamente zero ou valor nulo sem regra de domínio.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa preservar o identificador textual `000184` durante a importação. Qual escolha evita perda de informação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter sempre para inteiro e reconstruir o identificador por arredondamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover zeros à esquerda porque não alteram o valor matemático.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar o identificador como texto conforme o esquema da coluna.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar a codificação do sistema para inferir a quantidade de dígitos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interpretar os zeros como delimitadores e descartá-los antes do parser.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificadores são rótulos, não necessariamente quantidades. A conversão numérica pode transformar `000184` em `184`, alterando a representação que o sistema precisa preservar.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um CSV pode conter uma quebra de linha dentro de um campo citado. Que cuidado o processamento exige?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar todos os registros por linha física antes de interpretar aspas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descartar o campo citado, pois quebras de linha são proibidas em qualquer CSV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a quebra interna em delimitador de coluna sem consultar o formato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar parsing que reconheça as regras de citação e o registro lógico completo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tratar a linha seguinte como cabeçalho sempre que houver aspas abertas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quebra física pode pertencer ao conteúdo de campo citado, então não se deve assumir que cada linha de bytes é um registro lógico. Um leitor CSV precisa interpretar o estado das aspas conforme o formato.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A leitura exibe caracteres acentuados corrompidos, embora o delimitador e a quantidade de campos estejam corretos. Qual aspecto deve ser verificado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A codificação declarada na origem e a usada pelo decodificador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ordem alfabética das chaves antes do Merge.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A largura fixa dos campos, mesmo que o arquivo seja delimitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença obrigatória de cabeçalho em toda planilha CSV.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A regra de preservar os registros órfãos em uma junção externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bytes interpretados com codificação incompatível podem produzir caracteres corrompidos sem necessariamente alterar o número de campos. A codificação é parte do contrato do arquivo texto.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par associa corretamente a validação ao que ela examina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estrutural: se a data é feriado; semântica: se há três delimitadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estrutural: se o valor é permitido no negócio; semântica: se há cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estrutural: contagem e formato dos campos; semântica: validade da data e do domínio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Estrutural: se a ordenação é crescente; semântica: se a codificação é UTF-8.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estrutural: se o arquivo é TXT; semântica: se a extensão é CSV.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validação estrutural confere o leiaute, como número e formato de campos. Validação semântica verifica o significado e a validade dos valores, como uma data existente ou uma categoria aceita.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha foi lida com uma coluna a mais que o esquema esperado. Qual resposta de processamento é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deslocar todos os campos silenciosamente e gravar sem registrar a divergência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar a discrepância, pois qualquer CSV pode variar livremente em colunas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a última coluna em todas as linhas, inclusive nas válidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter a linha inteira em um campo e considerar a validação aprovada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Investigar delimitador, aspas ou versão do leiaute e registrar a rejeição se não atender ao contrato.",
+          "correct": true
+        }
+      ],
+      "explanation": "Campo extra pode resultar de delimitador incorreto, citação malformada, truncamento ou mudança de esquema. A rotina deve diagnosticar e tratar segundo regra explícita, em vez de deslocar dados silenciosamente.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação CSV no Python deve ser configurada para o separador que realmente aparece no arquivo; a extensão, por si só, não o determina.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Bibliotecas de CSV permitem escolher o delimitador, e arquivos com extensão CSV podem empregar convenções diferentes, como ponto e vírgula. A configuração precisa seguir o arquivo real.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RFC 4180 torna obrigatório que todo CSV tenha uma primeira linha com os nomes das colunas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A convenção descrita admite uma linha de cabeçalho opcional. O consumidor precisa saber se ela existe para não confundir nomes de coluna com o primeiro registro de dados.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num arquivo delimitado, um campo vazio entre dois delimitadores consecutivos ocupa uma posição no registro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em `A,,C`, o delimitador consecutivo delimita o campo central vazio. O registro continua tendo três posições, embora o significado do vazio dependa do contrato.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A extensão `.txt` determina que o arquivo use largura fixa em vez de delimitadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TXT indica arquivo de texto, mas não define sozinho como os campos são organizados. Pode haver texto livre, largura fixa ou campos separados por tabulação ou outro caractere.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em largura fixa, o leitor usa as posições definidas no leiaute mesmo quando não há caractere separador visível entre campos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As fronteiras são inferidas pela posição e pela largura acordadas; não é preciso haver vírgula ou tabulação entre as áreas reservadas.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CSV, uma vírgula entre aspas duplas precisa ser tratada como separador de dois campos, assim como uma vírgula fora das aspas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Dentro de campo citado, a vírgula pode ser conteúdo. O parser CSV interpreta as aspas e só usa como fronteira os delimitadores que não estão protegidos pelo campo citado.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma codificação incompatível pode corromper acentos mesmo que as fronteiras dos campos tenham sido reconhecidas corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A codificação define como bytes representam caracteres. Um leitor pode separar campos corretamente e ainda decodificar os caracteres com a tabela errada.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um identificador contém zeros à esquerda, convertê-lo para número sempre preserva integralmente a informação do campo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A conversão pode remover zeros à esquerda. Em códigos que são rótulos, e não quantidades, deve-se preservar a representação textual prevista no esquema.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma quebra física de linha dentro de campo CSV citado pode não encerrar o registro lógico naquele ponto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As regras CSV podem permitir quebras de linha em campos citados. O parser deve acompanhar o estado de citação para identificar o fim do registro lógico.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha com quantidade inesperada de campos deve ser deslocada silenciosamente até que coincida com o esquema, para evitar rejeições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Deslocar campos sem uma regra pode atribuir valores a colunas erradas e ocultar um delimitador ou leiaute divergente. Deve-se diagnosticar, registrar e aplicar tratamento explícito.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação estrutural pode conferir a quantidade de campos e a validação semântica pode verificar se uma data é válida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quantidade e disposição de campos são propriedades do leiaute. Existência e validade da data são propriedades do conteúdo interpretado.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O leitor pode inferir com segurança que toda primeira linha de qualquer CSV é cabeçalho, sem configuração ou contrato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cabeçalho é opcional; sem informação, a primeira linha pode ser dado. A decisão precisa vir do contrato, de metadados ou de uma regra de identificação confiável.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o arquivo possui ponto e vírgula entre colunas, o leitor pode configurá-lo como delimitador sem deixar de ser um arquivo texto tabular.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CSV e formatos tabulares de texto podem usar delimitadores alternativos conforme o produtor e o consumidor acordem. A extensão não substitui a configuração real.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Merge ordenado, concatenar primeiro todo o arquivo B ao fim de A garante uma saída em ordem crescente, desde que cada arquivo de origem esteja ordenado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A concatenação pode colocar uma chave pequena de B depois de uma chave grande de A. Merge compara as chaves correntes e intercala os registros para preservar a ordem global.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que um Merge por chave produza ordem confiável, as entradas precisam seguir ordem e regra de comparação compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se uma entrada usa ordem textual e a outra ordem numérica, ou se uma delas não está ordenada, a comparação dos registros correntes pode não produzir resultado global ordenado.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando as chaves correntes do Merge são iguais, existe uma única regra universal que obriga a descartar uma das linhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Chaves iguais exigem regra de negócio: combinar campos, emitir ambos, preservar duplicidade ou rejeitar, por exemplo. O significado do Merge depende da operação especificada.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao chegar ao fim de uma das entradas de Merge, os registros restantes da outra podem ser emitidos conforme o tipo de combinação solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O algoritmo não deve descartar remanescentes automaticamente. Uma combinação que preserva órfãos os emite; uma operação que exige correspondência pode tratá-los de outro modo conforme sua regra.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Chaves duplicadas num dos arquivos podem produzir várias correspondências e alterar a quantidade de linhas do resultado de um Merge.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A multiplicidade depende da regra aplicada aos grupos de chaves iguais. Se a operação combinar cada ocorrência com cada ocorrência correspondente, a saída pode crescer; por isso unicidade e duplicidade devem ser definidas.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Merge de duas entradas, se a chave corrente de A é menor que a de B, a ação comum é emitir A e avançar A.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como A tem a menor chave, ela vem antes na saída ordenada. Avança-se A para comparar seu próximo registro com o registro corrente de B.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Merge ordenado corrige automaticamente uma entrada fora de ordem, pois a comparação com a outra sequência reordena todos os registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Merge pressupõe entradas ordenadas. Uma entrada fora de ordem pode levar a saída a ficar desordenada; é preciso ordenar ou rejeitar a entrada antes da intercalação.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Merge de arquivos de dados descrito nesta matéria é a mesma operação que mesclar branches de um sistema de controle de versão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Aqui Merge é intercalação de registros de arquivos ordenados por chave. Mesclar branches é uma operação de controle de versão com outro objeto e outras regras.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Há duas entradas ordenadas: A = 03, 08, 12 e B = 01, 09. Qual é a sequência correta se o Merge apenas intercalar as chaves?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "03, 08, 12, 01, 09, mantendo primeiro todo o arquivo A.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "01, 03, 08, 09, 12, comparando as chaves correntes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "01, 09, 03, 08, 12, copiando B antes de A.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "03, 01, 08, 09, 12, alternando uma linha de cada entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "01, 03, 09, 12, 08, ordenando apenas o primeiro registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A saída ordenada resulta da comparação progressiva: 01, depois 03 e 08 de A, então 09 de B e por fim 12 de A. Concatenar ou alternar não considera os valores das chaves.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A entrada A tem chave corrente 14 e a entrada B tem 11. O que faz a intercalação crescente comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Emite B, pois 11 é a menor chave, e avança a entrada B.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Emite A e B simultaneamente, embora as chaves sejam diferentes e nenhum critério tenha estabelecido correspondência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Emite A, pois a primeira entrada tem prioridade sobre a segunda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descarta B e avança A até alcançar a mesma chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para o processo, porque todo Merge exige igualdade entre as chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na intercalação crescente, a menor chave corrente deve sair primeiro. Como 11 é menor que 14, emite-se o registro B e avança-se essa entrada.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas entradas ordenadas contêm a chave 52, uma em cada arquivo. O que o algoritmo deve fazer nesse ponto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar ambas sem registrar o caso, pois igualdade significa duplicidade inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avançar somente a entrada A e deixar B sem tratamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar a regra definida para correspondência de chaves iguais e avançar conforme ela.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ordenar novamente todos os arquivos dentro do passo de igualdade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concatenar os arquivos inteiros e usar 52 como cabeçalho da saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "A igualdade sinaliza uma correspondência, mas não determina sozinha o resultado. A aplicação pode combinar campos, emitir registros ou tratar duplicidades conforme a regra do domínio.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A entrada A terminou, mas B ainda contém as chaves 70 e 75. O contrato pede preservar registros sem correspondência. Qual resultado é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar as chaves restantes porque não podem mais ser comparadas com os registros da entrada que terminou.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar A do início e repetir todas as correspondências encontradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gravar apenas a chave 70, que é a primeira depois do EOF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Emitir os remanescentes de B como registros sem par, conforme o contrato.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Tratar o fim de A como indicação de que o arquivo B também acabou.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como o contrato preserva órfãos, os registros restantes da entrada ainda disponível devem ser emitidos. EOF numa origem não implica EOF nas outras.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois arquivos parecem ordenados, mas A compara códigos numericamente e B como texto. Que risco deve ser resolvido antes do Merge?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhum: qualquer ordem crescente produz a mesma sequência para toda chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As regras podem divergir, como em 2 e 10; ambas devem compartilhar comparação compatível.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Merge transforma automaticamente campos texto em números sem perda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A comparação textual é válida somente quando as entradas têm cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem só importa depois que todos os registros forem concatenados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ordem numérica e textual podem posicionar valores de maneira distinta, e zeros à esquerda, espaços ou collation também influenciam. A pré-condição requer chave e comparação compatíveis entre as entradas.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dos arquivos apresenta as chaves 04, 12, 08, enquanto o outro está crescente. Qual medida é necessária para uma intercalação crescente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar a inversão, pois basta que uma das duas entradas esteja ordenada para garantir a sequência crescente final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar 08 como delimitador e removê-lo antes da comparação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Intercalar normalmente e ordenar somente as chaves iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar ou rejeitar a entrada fora de ordem antes do Merge.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Copiar a entrada fora de ordem depois da outra para preservar o conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência 04, 12, 08 viola a pré-condição de ordenação. Comparar apenas os registros correntes não reorganiza itens anteriores; é necessário corrigir ou rejeitar a entrada antes de intercalar.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mestre tem uma ocorrência da chave 6 e a tabela de alterações tem três ocorrências da mesma chave. O que precisa ser definido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se a chave deve ser única e como múltiplas correspondências serão emitidas ou resolvidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se a extensão dos dois arquivos será alterada para `.txt` antes da leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o cabeçalho do mestre deverá ser duplicado três vezes na saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o delimitador pode ser removido dos registros depois da ordenação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se todas as ocorrências repetidas serão convertidas em EOF, encerrando a leitura no primeiro valor duplicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Duplicidades podem gerar mais de um par correspondente ou exigir deduplicação segundo regra de negócio. A política precisa ser explícita para evitar multiplicação ou perda inesperada de registros.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo combina cadastro e atualizações e precisa manter também cadastros sem atualização. Qual regra atende esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Junção que emite apenas pares cujas chaves são iguais e remove os registros do cadastro que não tiveram atualização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concatenação cega de todas as linhas em ordem de chegada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Regra que preserva os registros sem par, isto é, uma combinação externa apropriada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Regra que descarta qualquer linha sem correspondência para manter a saída curta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Regra de largura fixa que desloca as colunas sem verificar chaves.",
+          "correct": false
+        }
+      ],
+      "explanation": "O requisito é conservar cadastros órfãos sem atualização. Uma regra de combinação externa preserva registros sem par; a junção interna limitaria a saída às correspondências.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer comprovar que um processamento não perdeu linhas. Qual conjunto de controles é mais informativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente se o nome do arquivo de saída termina em `.csv` e se o sistema reconhece essa extensão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir registros de entrada, saída, rejeitados e regras de correspondência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contar apenas as linhas do cabeçalho e ignorar os dados processados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar o tamanho em bytes, sem examinar registros ou codificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mudar o delimitador até que o número de linhas pareça esperado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contagens reconciliadas e verificações de chaves permitem explicar registros emitidos, rejeitados e combinados. Extensão ou tamanho em bytes isolados não demonstram que todos os registros foram interpretados corretamente.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo tem número variável de caracteres em cada campo, mas separa colunas por tabulação, inclusive quando há espaços dentro dos valores. Qual abordagem descreve seu processamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cortar cada campo pelas mesmas posições fixas em todas as linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Separar por espaços, pois tabulações são equivalentes a posições reservadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a tabulação como delimitador conforme o leiaute, sem inferir largura fixa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tratar cada coluna como registro independente sem delimitador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter as tabulações em quebras de linha antes de ler os campos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quantidade variável de caracteres e a tabulação como fronteira caracterizam um arquivo delimitado. Espaços internos não são separadores se o contrato define tabulação.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo de largura fixa é reservado para cinco caracteres, mas contém o identificador `0042` e um espaço final. O espaço pode integrar a representação física do campo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em largura fixa, os cinco caracteres da área reservada podem incluir preenchimento, como espaço final. O leitor segue o contrato para retirar ou preservar esse preenchimento.",
+      "section": "1. Registros, campos e formatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em arquivo de largura fixa, um campo definido em posições por bytes sempre terá a mesma contagem de caracteres visíveis em qualquer codificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Caracteres podem ocupar quantidades diferentes de bytes conforme a codificação. Se o leiaute usa posições em bytes, contar caracteres visíveis não basta e a codificação deve ser conhecida.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um parser CSV que abre o arquivo com tratamento apropriado de quebras de linha pode interpretar corretamente campos citados que contenham uma quebra interna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O parser deve reconhecer o campo citado como unidade mesmo atravessando quebra física. A documentação oficial do módulo CSV do Python orienta abrir o arquivo com `newline=''` para seu tratamento de linhas e cita problemas que essa opção evita.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de um cabeçalho CSV com três nomes comprova que todas as linhas de dados seguintes também possuem três campos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O cabeçalho descreve os nomes das colunas, mas não garante que cada registro esteja íntegro. É necessário validar a quantidade de campos de cada linha conforme o esquema.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num CSV, usar parser adequado em vez de separar texto por vírgula permite respeitar delimitadores protegidos pelas regras de aspas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O parser reconhece estado de campo citado e escape de aspas. Uma divisão simples não distingue vírgula estrutural de vírgula que integra o valor.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Merge pode emitir uma sequência global ordenada mesmo que uma entrada esteja desordenada, desde que a outra esteja corretamente ordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O algoritmo compara registros correntes e pressupõe que cada sequência avance em ordem. Uma inversão numa entrada pode fazer uma chave menor aparecer depois de uma maior na saída.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma operação Merge preserva somente chaves presentes nos dois arquivos, registros sem par são excluídos por definição daquela operação interna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma combinação interna emite apenas correspondências. Se a necessidade for preservar registros órfãos, deve-se escolher uma regra externa ou tratamento explícito de remanescentes.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para duas sequências ordenadas, a comparação da menor chave corrente permite decidir qual registro deve ser emitido primeiro na saída crescente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa comparação local é o passo fundamental da intercalação: emitir a menor chave e avançar sua origem mantém a saída em ordem, dada a pré-condição de entradas ordenadas.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A regra para resolver registros com chave igual pode ser deixada implícita porque todas as formas de Merge produzem o mesmo tratamento de duplicidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A operação pode combinar valores, emitir ocorrências múltiplas, preservar ambas ou rejeitar duplicidades. O requisito precisa determinar qual comportamento é correto.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o contrato manda preservar órfãos, um arquivo que ainda tem registros deve ser lido até o fim depois que a outra entrada atingir EOF.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os remanescentes da entrada não encerrada são órfãos em relação à outra e precisam ser tratados segundo a regra de preservação. EOF de uma origem não encerra automaticamente as demais.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conferência por contagem pode comparar registros lidos, rejeitados e emitidos para investigar divergências no processamento de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A reconciliação de contagens, junto de verificações de chaves e totais, oferece evidência concreta sobre perdas, rejeições ou duplicações no processamento.",
+      "section": "3. Processamento e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RFC 4180 define uma convenção comum de CSV e observa que implementações existentes podem apresentar diferenças de interpretação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O documento é informacional, descreve o formato seguido por muitas implementações e reconhece que não havia uma especificação universalmente seguida por todos os programas. Por isso, compatibilidade deve ser verificada.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em processamento por Merge, ordenar uma entrada pela chave e a outra por uma chave diferente ainda satisfaz a pré-condição de ordem compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As duas entradas precisam estar ordenadas pela chave de comparação escolhida, com convenção compatível. Ordenações por chaves distintas não permitem decidir corretamente a ordem global pretendida.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na convenção descrita pela RFC 4180, o último registro CSV precisa obrigatoriamente terminar com uma quebra de linha CRLF.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A RFC 4180 admite que o último registro tenha ou não uma quebra de linha final. O leitor não deve rejeitar um arquivo apenas porque a última linha não termina em CRLF.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No módulo CSV do Python, abrir o arquivo com `newline=''` impede o parser de reconhecer quebras de linha dentro de campos citados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação recomenda `newline=''` para que o módulo CSV faça o tratamento de linhas, inclusive para interpretar corretamente quebras incorporadas em campos citados e evitar caracteres extras em certas gravações.",
+      "section": "2. CSV: campos e consistência",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando chaves iguais aparecem em duas entradas de Merge, a ordem relativa de todas as ocorrências empatadas fica determinada sem qualquer regra adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A comparação identifica igualdade, mas a política para emitir ou combinar ocorrências e preservar desempates depende dos requisitos do processo. O contrato deve estabelecer esse comportamento quando a ordem importar.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os códigos textuais `02` e `2` representam necessariamente a mesma chave em qualquer processamento de Merge.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Como texto, `02` e `2` são representações distintas; como números, podem ser equivalentes. O tipo e a normalização da chave precisam ser definidos de modo compatível nas entradas.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma junção interna por chave em Merge sempre produz exatamente a soma das quantidades de registros das duas entradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma junção interna preserva correspondências e pode descartar órfãos; duplicidades também influenciam a quantidade emitida. Portanto, a soma das entradas não determina por si só a contagem do resultado.",
+      "section": "4. Merge: intercalação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4180 — Common Format and MIME Type for CSV Files",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Registros e campos CSV, cabeçalho opcional, aspas, vírgula dentro de campo citado, quebras CRLF e tipo de mídia text/csv.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4180.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "csv — CSV File Reading and Writing",
+      "publisher": "Python Software Foundation",
+      "reference": "Leitura e gravação CSV; configuração de delimiter e quotechar; abertura com newline='' para tratamento de quebras de linha.",
+      "url": "https://docs.python.org/3/library/csv.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Import Flat File Wizard",
+      "publisher": "Microsoft Learn",
+      "reference": "Importação de arquivos texto delimitados e de largura fixa; delimitadores como vírgula, tabulação, ponto e vírgula e barra vertical.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/import-export/import-flat-file-wizard?view=sql-server-ver15",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Process fixed-width text files with mapping data flows",
+      "publisher": "Microsoft Learn",
+      "reference": "Arquivos de texto de largura fixa e divisão por posições ordinais.",
+      "url": "https://learn.microsoft.com/en-us/azure/data-factory/how-to-fixed-width",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

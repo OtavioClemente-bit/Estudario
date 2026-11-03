@@ -1,0 +1,2116 @@
+{
+  "id": "infra-ti.integracao-ambientes-hibridos-conectividade",
+  "subject": "Infraestrutura de TI",
+  "title": "Integração de ambientes híbridos e conectividade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Integração entre ambientes híbridos on-premises e nuvem",
+    "Conectividade híbrida entre rede local e nuvem",
+    "VPN site-to-site entre data center e nuvem",
+    "Conexões dedicadas de rede para nuvem pública",
+    "Integração de redes locais com provedores de nuvem",
+    "Conectividade privada para ambientes híbridos",
+    "Túneis IPsec site-to-site em arquitetura híbrida",
+    "Roteamento BGP em conexão híbrida com nuvem",
+    "Interconexão de data center com nuvem pública",
+    "Alta disponibilidade para VPN híbrida",
+    "ExpressRoute e VPN para conectividade híbrida",
+    "Cloud VPN e Interconnect em redes híbridas"
+  ],
+  "scope": {
+    "covers": "Integração de redes on-premises e nuvem por VPN site-to-site IPsec, conexões dedicadas ou de parceiros e alternativas equivalentes; componentes de terminação, endereçamento, roteamento estático e BGP, redundância, segurança, monitoramento, coexistência VPN e circuito privado, diagnóstico e critérios de escolha.",
+    "excludes": "Configuração detalhada de fabricante, comandos de roteadores específicos, dimensionamento contratual de circuitos, desenho completo de aplicações distribuídas e conectividade de acesso remoto individual (VPN client-to-site)."
+  },
+  "theoryTitle": "Conectividade entre rede local e nuvem",
+  "chapters": [
+    {
+      "title": "1. O que significa integrar ambientes híbridos",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização pode manter sistemas em seu data center e, ao mesmo tempo, executar máquinas virtuais e serviços em uma nuvem pública. Para que usuários e aplicações de ambos os lados troquem dados, as redes precisam de caminhos roteáveis, regras de segurança coerentes e endereços sem conflitos. Esse arranjo é chamado de **ambiente híbrido**.\n\nA conectividade pode usar a Internet com túneis criptografados, um circuito privado contratado de um provedor ou uma combinação dos dois. Uma VPN site-to-site liga redes inteiras por gateways; não é a conexão de um usuário remoto com software cliente. Uma conexão privada reduz a exposição ao caminho público, mas não substitui controles de acesso nem criptografia em todos os casos.\n\n> **Siglas e termos deste capítulo**\n> - **On-premises**: infraestrutura instalada e administrada nas dependências ou no data center da organização.\n> - **VPC/VNet**: rede virtual isolada criada no provedor de nuvem.\n> - **Gateway**: equipamento ou serviço que termina um enlace ou túnel e encaminha pacotes.\n> - **Híbrido**: operação coordenada de recursos locais e de nuvem.\n\n### Fluxo de um pacote\n\nUm host local envia tráfego para seu roteador de borda. Este encaminha o pacote ao gateway VPN ou ao roteador do circuito privado; do outro lado, o gateway da nuvem encaminha o tráfego à sub-rede virtual de destino. O caminho de volta também precisa existir. Uma sessão pode falhar mesmo com o túnel ativo quando falta rota de retorno ou uma regra de firewall bloqueia a resposta.\n\n| Requisito | Verificação prática |\n| --- | --- |\n| Endereçamento | Prefixos locais e da nuvem não se sobrepõem indevidamente |\n| Rota de ida | O destino aponta para o gateway correto |\n| Rota de retorno | A nuvem conhece os prefixos locais e vice-versa |\n| Política | Firewalls permitem o fluxo necessário nos dois sentidos |\n| Capacidade | Banda, latência e perda atendem à aplicação |\n\n### Como cai na prova\n\nA banca pode dizer que “o túnel está estabelecido” e ainda assim perguntar por que a aplicação não funciona: investigue rotas, retorno, DNS e filtros. Conectividade de rede não concede automaticamente autorização para acessar todos os recursos."
+    },
+    {
+      "title": "2. VPN site-to-site e túneis IPsec",
+      "markdown": "### O problema que este assunto resolve\n\nA VPN site-to-site cria um caminho lógico entre o gateway da rede local e um gateway da nuvem, normalmente atravessando a Internet. O IPsec protege os pacotes entre os extremos por autenticação e criptografia. Cada lado precisa conhecer os parâmetros compatíveis, como endereços dos pares, algoritmos aceitos, chaves ou certificados e seletores de tráfego.\n\nUma conexão VPN pode ter mais de um túnel. A documentação da AWS descreve dois túneis por conexão Site-to-Site VPN, utilizáveis para alta disponibilidade; o Cloud VPN também orienta topologias com túneis redundantes. Isso não garante failover sozinho: os dois caminhos precisam estar configurados, monitorados e anunciados corretamente.\n\n> **Siglas e termos deste capítulo**\n> - **IPsec**: conjunto de protocolos de segurança na camada IP.\n> - **IKE**: protocolo de negociação de parâmetros e chaves para IPsec.\n> - **Túnel**: enlace lógico protegido entre os gateways.\n> - **Gateway do cliente**: representação/configuração do equipamento do lado da organização.\n> - **NAT-T**: encapsulamento que permite atravessar dispositivos com tradução de endereços.\n\n### Roteamento sobre o túnel\n\nCom rotas estáticas, o administrador informa explicitamente os prefixos remotos. Com roteamento dinâmico, o BGP troca rotas entre os pares e pode retirar caminhos que deixaram de funcionar. No Google Cloud, HA VPN usa roteamento dinâmico BGP; a modalidade Classic VPN documentada admite roteamento estático. Recursos e requisitos variam entre provedores, portanto não se deve supor que todo serviço VPN opere da mesma forma.\n\nA alta disponibilidade exige avaliar falhas de túnel, gateway, enlace local, energia e operadora. Dois túneis terminados no mesmo equipamento local ainda compartilham um ponto único de falha. Para failover previsível, configure métricas/prioridades, anúncios de prefixo e testes de retirada de rota.\n\n### Como cai na prova\n\nVPN site-to-site não significa que a Internet deixa de ser usada: em sua forma usual, o tráfego atravessa a rede pública, protegido pelo túnel. IPsec protege o transporte, mas não corrige prefixos sobrepostos, rotas ausentes ou política de firewall incorreta."
+    },
+    {
+      "title": "3. Conexões dedicadas e interconexões de parceiros",
+      "markdown": "### O problema que este assunto resolve\n\nQuando a organização precisa de conectividade previsível, maior capacidade ou menor dependência da Internet pública, pode contratar um circuito dedicado ou uma interconexão por parceiro. O provedor entrega conectividade até um ponto de presença da nuvem; o serviço é então associado a uma rede virtual ou gateway do cliente. Os nomes comerciais variam: Azure ExpressRoute, AWS Direct Connect e Google Cloud Interconnect são exemplos de famílias de serviços, não sinônimos de VPN.\n\nNo ExpressRoute, a arquitetura privada descrita pela Microsoft combina circuito, gateway ExpressRoute implantado na rede virtual e recurso de conexão que os vincula. O circuito é provisionado por um parceiro ou, em modelos específicos, por conexão direta. O peering privado usa BGP para trocar rotas entre roteador local e borda do provedor. Google Cloud Interconnect distingue Dedicated Interconnect, que conecta diretamente à rede Google, e Partner Interconnect, que usa um provedor suportado.\n\n> **Siglas e termos deste capítulo**\n> - **Circuito**: serviço lógico de conectividade contratado/provisionado até a rede do provedor.\n> - **Ponto de peering**: local em que redes e equipamentos de borda interconectam.\n> - **BGP**: protocolo de roteamento entre sistemas autônomos.\n> - **Interconexão dedicada**: conexão privada direta ou provisionada em infraestrutura de interconexão.\n> - **Parceiro**: operadora/provedor que entrega o acesso até a nuvem.\n\n### O que a conexão dedicada não promete\n\n“Privado” descreve o caminho de conectividade e não equivale a criptografia ponta a ponta. A proteção adicional pode ser necessária segundo o risco e a política institucional. Tampouco uma conexão dedicada elimina a necessidade de rotas de retorno, firewalls, segmentação, DNS e monitoramento. Há custos de porta, circuito, provedor e transferência que devem ser avaliados junto com banda, latência e disponibilidade.\n\n| Opção | Caminho típico | Característica central |\n| --- | --- | --- |\n| VPN site-to-site | Internet + túneis IPsec | Criptografia sobre rede compartilhada; implantação normalmente ágil |\n| Interconexão dedicada | Circuito privado via provedor/ponto de presença | Capacidade e caminho mais previsíveis, com provisionamento e custo próprios |\n| VPN sobre interconexão | Circuito privado + IPsec | Combina caminho privado com criptografia de rede |\n\n### Como cai na prova\n\nNão afirme que toda conexão dedicada é automaticamente criptografada ou que a VPN sempre oferece banda determinística. Diferencie segurança do túnel, privacidade do caminho, capacidade contratada e redundância física."
+    },
+    {
+      "title": "4. Endereçamento, rotas e BGP",
+      "markdown": "### O problema que este assunto resolve\n\nUm enlace só transporta tráfego que os roteadores sabem encaminhar. Antes de ativar uma ligação híbrida, inventarie os blocos CIDR de cada rede. Se a rede local e a VPC/VNet usam o mesmo prefixo, o roteador não consegue distinguir com clareza qual destino está do outro lado; a solução costuma ser renumerar, traduzir endereços de forma planejada ou interpor arquitetura que trate o conflito.\n\nCom rotas estáticas, cada prefixo é configurado manualmente em ambos os lados. É simples em topologias pequenas, mas requer manutenção quando os prefixos mudam e precisa de mecanismo próprio para detecção de indisponibilidade. O BGP anuncia prefixos e atualiza a seleção de caminhos conforme sessões e políticas. O BGP não substitui o projeto: anúncios excessivos ou incorretos podem desviar tráfego.\n\n> **Siglas e termos deste capítulo**\n> - **CIDR**: notação de prefixo, como `10.20.0.0/16`.\n> - **ASN**: identificador de sistema autônomo usado em sessões BGP.\n> - **Prefixo**: bloco de endereços alcançável por uma rota.\n> - **Rota assimétrica**: ida e volta seguem caminhos diferentes.\n> - **Propagação de rotas**: distribuição de rotas aprendidas a outras tabelas/segmentos.\n\n### Controles sobre anúncios\n\nDefina quais prefixos cada lado pode anunciar e aceitar; aplique filtros e limites de rota. Confira a tabela efetiva de rotas no gateway e nas sub-redes, não apenas o estado “conectado” do circuito. Revise prioridades quando existem caminhos VPN e dedicados simultâneos. Um caminho de contingência deve ser menos preferido durante operação normal e assumir após falha, conforme política de roteamento testada.\n\n### Como cai na prova\n\nUma sessão BGP estabelecida não prova que o prefixo correto foi anunciado, aceito e instalado. Se há comunicação de ida sem resposta, verifique rota de retorno, filtros, seleção de caminho e endereços sobrepostos."
+    },
+    {
+      "title": "5. Redundância, segurança e operação",
+      "markdown": "### O problema que este assunto resolve\n\nA conectividade híbrida é um serviço operacional, não apenas uma configuração inicial. O desenho deve cobrir falhas de túnel, roteador, fonte de energia, última milha, operadora, ponto de presença e gateway da nuvem. Redundância só é efetiva quando os componentes não compartilham todos os mesmos riscos e quando o tráfego muda de caminho de forma comprovada.\n\nPara monitorar, acompanhe estado de túneis e sessões BGP, contadores de erro, latência, perda, utilização, rotas aprendidas e alarmes do provedor. Faça testes controlados de failover e retorno ao caminho principal. Registre mudanças, contatos de escalonamento, prefixos anunciados e procedimento de reversão.\n\n> **Siglas e termos deste capítulo**\n> - **Failover**: transferência do tráfego para caminho alternativo após falha.\n> - **SLA**: compromisso de nível de serviço do provedor.\n> - **MTU**: tamanho máximo do pacote transmitido sem fragmentação no enlace.\n> - **ACL/firewall**: regras que permitem ou bloqueiam fluxos.\n> - **DNS**: serviço que traduz nomes em endereços e pode integrar zonas locais e de nuvem.\n\n### Segurança de ponta a ponta\n\nUse segmentação entre redes, regras de menor privilégio, autenticação forte dos equipamentos e rotação/armazenamento protegido de segredos. Restrinja os prefixos roteados ao necessário. Para IPsec, harmonize IKE, propostas criptográficas e parâmetros de fase; para circuitos privados, avalie criptografia adicional conforme sensibilidade e modelo de ameaça. Não publique rotas internas nem portas administrativas sem necessidade.\n\nDNS híbrido merece atenção: clientes locais podem precisar resolver nomes privados da nuvem e cargas na nuvem podem consultar zonas locais por encaminhadores apropriados. A rota IP ativa não garante que o nome resolva.\n\n### Como cai na prova\n\nDuas conexões no diagrama não garantem independência se usam o mesmo roteador ou duto físico. Alta disponibilidade depende de diversidade, roteamento e teste. Um túnel ativo sem rota ou DNS funcional não garante serviço para a aplicação."
+    },
+    {
+      "title": "6. Seleção e diagnóstico de uma solução",
+      "markdown": "### O problema que este assunto resolve\n\nA escolha entre VPN, conexão dedicada ou combinação depende de requisitos mensuráveis: volume e crescimento do tráfego, latência, variação de desempenho, disponibilidade, necessidade de criptografia, tempo para implantação, cobertura geográfica, dependência de terceiros e custo total. VPN pode servir como conexão principal ou contingência; circuito privado pode atender fluxos volumosos e previsíveis. Uma arquitetura híbrida pode manter VPN como caminho de backup.\n\nPara diagnosticar, percorra o caminho em camadas: confirme endereços e resolução DNS; teste alcance entre gateways; examine IKE/IPsec e estado do túnel; confira BGP ou rotas estáticas nos dois sentidos; verifique tabela efetiva, firewall e grupos de segurança; avalie MTU, fragmentação, latência, perda e capacidade; por fim, valide a aplicação.\n\n> **Siglas e termos deste capítulo**\n> - **MSS**: tamanho máximo de segmento TCP, relacionado ao MTU efetivo.\n> - **Plano de controle**: sinalização, como sessão BGP e estado do túnel.\n> - **Plano de dados**: encaminhamento efetivo dos pacotes de usuário.\n> - **Ponto único de falha**: componente cuja falha interrompe todo o serviço.\n\n### Roteiro prático de implantação\n\n1. Levantar prefixos, fluxos, dependências, criticidade e requisitos de desempenho.\n2. Escolher topologia e provedor; confirmar compatibilidade dos gateways e capacidade.\n3. Provisionar circuito ou gateways e definir pares, autenticação e parâmetros IPsec quando houver VPN.\n4. Configurar rotas, filtros e políticas de segurança nos dois lados.\n5. Validar conectividade, DNS, aplicações e caminho de retorno.\n6. Testar falha e recuperação, registrar evidências e acompanhar métricas.\n\n### Como cai na prova\n\nUma boa resposta identifica que disponibilidade, privacidade, criptografia e desempenho são propriedades distintas. A solução deve ser testada ponta a ponta, com contingência e operação monitorada, e não escolhida apenas pelo rótulo “dedicada” ou “VPN”."
+    }
+  ],
+  "summary": "Ambientes híbridos exigem endereçamento coerente, rotas de ida e volta, segurança e observabilidade. VPN site-to-site usa gateways e túneis IPsec, geralmente sobre a Internet, podendo usar rotas estáticas ou BGP conforme o serviço. Conexões dedicadas ou de parceiros entregam um caminho privado até a rede do provedor e costumam usar BGP, mas não implicam criptografia automática. A alta disponibilidade requer diversidade real de gateways, enlaces e operadoras, configuração de failover, testes e monitoramento. Sobreposição de prefixos, DNS, MTU, filtros e rotas de retorno são causas recorrentes de falha.",
+  "flashcards": [
+    {
+      "front": "O que conecta uma VPN site-to-site?",
+      "back": "Gateways das redes local e de nuvem, formando um túnel entre redes inteiras."
+    },
+    {
+      "front": "Qual protocolo protege tipicamente o túnel site-to-site?",
+      "back": "IPsec, negociado entre gateways com parâmetros compatíveis."
+    },
+    {
+      "front": "VPN site-to-site é igual a acesso remoto de usuário?",
+      "back": "Não. A primeira liga redes por gateways; acesso remoto liga cliente individual à rede."
+    },
+    {
+      "front": "O que faz IKE?",
+      "back": "Negocia parâmetros e chaves usados para estabelecer associações IPsec."
+    },
+    {
+      "front": "O que informa uma rota estática?",
+      "back": "Um prefixo remoto e o próximo salto configurados manualmente."
+    },
+    {
+      "front": "O que o BGP troca?",
+      "back": "Anúncios de prefixos e informações para seleção de rotas entre pares."
+    },
+    {
+      "front": "Por que prefixos sobrepostos são problemáticos?",
+      "back": "Ambos os lados podem considerar local o mesmo destino e não encaminhar corretamente."
+    },
+    {
+      "front": "O que uma conexão dedicada oferece?",
+      "back": "Caminho privado provisionado por conexão direta ou provedor, com capacidade contratada."
+    },
+    {
+      "front": "Conexão dedicada garante criptografia?",
+      "back": "Não automaticamente; criptografia deve ser verificada ou adicionada conforme o risco."
+    },
+    {
+      "front": "O que é peering privado no ExpressRoute?",
+      "back": "Conectividade privada com redes virtuais Azure por meio de circuito e gateway ExpressRoute."
+    },
+    {
+      "front": "Quais elementos centrais compõem a arquitetura ExpressRoute privada descrita pela Microsoft?",
+      "back": "Circuito, gateway de rede virtual ExpressRoute e recurso de conexão que os associa."
+    },
+    {
+      "front": "Dedicated Interconnect conecta como?",
+      "back": "Diretamente à rede Google Cloud por interconexão dedicada."
+    },
+    {
+      "front": "Partner Interconnect conecta como?",
+      "back": "À rede Google Cloud por meio de um provedor de serviços suportado."
+    },
+    {
+      "front": "O que significa failover?",
+      "back": "Transferir tráfego para caminho alternativo após indisponibilidade do caminho preferido."
+    },
+    {
+      "front": "Dois túneis garantem alta disponibilidade?",
+      "back": "Não se compartilham falhas, rotas e configurações; é preciso validar diversidade e failover."
+    },
+    {
+      "front": "O que verificar além do estado do túnel?",
+      "back": "Rotas dos dois sentidos, filtros, DNS, MTU, perda e funcionamento da aplicação."
+    },
+    {
+      "front": "Como uma VPN pode atravessar um NAT?",
+      "back": "NAT Traversal encapsula tráfego IPsec para atravessar dispositivos de tradução."
+    },
+    {
+      "front": "O que é rota de retorno?",
+      "back": "Caminho que permite ao destino encaminhar respostas de volta à rede de origem."
+    },
+    {
+      "front": "Qual a função de segmentação?",
+      "back": "Limitar comunicação entre zonas de rede conforme a necessidade de negócio."
+    },
+    {
+      "front": "O que deve ser monitorado numa conexão híbrida?",
+      "back": "Túneis, BGP, rotas, latência, perda, utilização, erros e eventos do provedor."
+    },
+    {
+      "front": "O que é MTU?",
+      "back": "Maior tamanho de pacote transmitido sem fragmentação em um enlace."
+    },
+    {
+      "front": "Uma rota ativa garante que o nome DNS resolva?",
+      "back": "Não. Resolução de nomes requer DNS e encaminhamento entre zonas quando aplicável."
+    },
+    {
+      "front": "Qual é o risco de anunciar prefixos demais por BGP?",
+      "back": "Rotas indevidas podem desviar tráfego ou expor redes não planejadas."
+    },
+    {
+      "front": "Por que testar a retirada de rota?",
+      "back": "Para confirmar que a falha detectada aciona o caminho alternativo como esperado."
+    }
+  ],
+  "tips": [
+    "Desenhe o caminho de ida e o de volta antes de investigar um fluxo.",
+    "Separe no diagnóstico túnel, sessão de roteamento e encaminhamento de dados.",
+    "Mantenha inventário de prefixos local, virtuais e anunciados por cada par.",
+    "Trate circuito privado, criptografia, capacidade e SLA como requisitos diferentes.",
+    "Teste falha física e lógica do caminho principal em janela controlada.",
+    "Compare métricas do gateway com testes de aplicação e resolução DNS."
+  ],
+  "traps": [
+    "Confundir VPN site-to-site com VPN de acesso remoto individual.",
+    "Supor que túnel estabelecido significa aplicação acessível.",
+    "Afirmar que conexão dedicada sempre cifra o tráfego automaticamente.",
+    "Considerar dois túneis redundantes quando ambos dependem do mesmo equipamento local.",
+    "Ignorar rota de retorno ou sobreposição de endereços ao testar conectividade.",
+    "Supor que todo serviço VPN do mercado usa o mesmo modelo de roteamento."
+  ],
+  "activeRecall": [
+    "Explique o percurso de um pacote de uma sub-rede local até uma VM na nuvem e de volta.",
+    "Compare túnel IPsec e circuito dedicado quanto a caminho, criptografia e previsibilidade.",
+    "Diferencie rota estática de BGP e cite uma necessidade operacional de cada uma.",
+    "Liste quatro dependências que podem manter uma conexão indisponível mesmo com o túnel ativo.",
+    "Como evitar que uma redundância aparente compartilhe o mesmo ponto de falha?",
+    "Que controles limitam anúncios BGP inadequados entre organização e nuvem?",
+    "Descreva uma sequência de diagnóstico que vai de DNS até a camada de aplicação.",
+    "Quais critérios mensuráveis orientam a escolha entre VPN e interconexão privada?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Túnel ativo confundido com conectividade ponta a ponta",
+      "summary": "O túnel pode estar estabelecido enquanto faltam rota, retorno, permissão de firewall ou resolução de nome.",
+      "description": "O túnel pode estar estabelecido enquanto faltam rota, retorno, permissão de firewall ou resolução de nome."
+    },
+    {
+      "key": "e2",
+      "title": "Privacidade do circuito confundida com criptografia",
+      "summary": "Um caminho privado e criptografia são propriedades distintas; confirme a proteção exigida pelo risco.",
+      "description": "Um caminho privado e criptografia são propriedades distintas; confirme se há cifragem exigida pelo risco."
+    },
+    {
+      "key": "e3",
+      "title": "Redundância sem independência",
+      "summary": "Túneis que compartilham roteador, energia ou operadora podem falhar simultaneamente.",
+      "description": "Túneis que compartilham roteador, energia ou operadora podem falhar simultaneamente."
+    },
+    {
+      "key": "e4",
+      "title": "BGP tratado como configuração automática infalível",
+      "summary": "Sessões BGP precisam de políticas, filtros, prefixos corretos, prioridades e monitoramento.",
+      "description": "Sessões BGP precisam de políticas, filtros, prefixos corretos, prioridades e monitoramento."
+    },
+    {
+      "key": "e5",
+      "title": "Conflito de prefixos ignorado",
+      "summary": "Faixas coincidentes entre local e nuvem tornam ambígua a decisão de roteamento.",
+      "description": "Faixas coincidentes entre local e nuvem tornam ambígua a decisão de roteamento."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma VPN site-to-site costuma interligar gateways de redes distintas por um túnel IPsec, em vez de depender de um cliente VPN instalado em cada usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo site-to-site termina nos gateways e encaminha tráfego entre redes. O acesso remoto individual é outro cenário, normalmente com cliente ou serviço de acesso de usuário.",
+      "section": "2. VPN site-to-site e túneis IPsec",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de um túnel VPN estabelecido prova que qualquer aplicação entre as duas redes está acessível, mesmo que não haja rota de retorno configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Estado do túnel informa a condição do enlace lógico, não garante rotas, retorno, regras de segurança ou funcionamento da aplicação. A resposta precisa encontrar caminho de volta.",
+      "section": "1. O que significa integrar ambientes híbridos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão dedicada privada e uma VPN IPsec são conceitos distintos: a primeira descreve o caminho de conectividade, enquanto a segunda protege o tráfego entre gateways.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A conexão dedicada trata do percurso contratado até a nuvem; IPsec fornece proteção criptográfica entre pares. Uma arquitetura pode combinar as duas propriedades.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No roteamento estático, os prefixos remotos são aprendidos automaticamente do par por anúncios BGP, sem configuração manual de rotas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Rotas estáticas são configuradas explicitamente. A troca dinâmica de anúncios de prefixo é característica do BGP, embora também exija configuração e políticas.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas redes locais e virtuais podem usar o mesmo prefixo sem afetar o roteamento, pois o gateway sempre reconhece a intenção do administrador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Prefixos sobrepostos tornam ambíguo o destino e podem fazer cada lado tratar como local um endereço que deveria ser remoto. O plano de endereçamento deve evitar ou resolver o conflito.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Anúncios BGP devem ser limitados aos prefixos planejados, pois uma rota indevida pode alterar o caminho do tráfego entre rede local e nuvem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Políticas de importação e exportação filtram o que cada par aceita ou anuncia. Uma sessão estabelecida não valida por si só se os prefixos divulgados são corretos.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas VPNs configuradas no mesmo roteador local e no mesmo enlace físico garantem tolerância independente a falhas de equipamento e de última milha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se os caminhos compartilham roteador e enlace, a falha de qualquer componente comum pode interromper ambos. Redundância requer avaliar domínios de falha e testar a comutação.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma conexão dedicada, pode ser necessário adicionar criptografia de rede se a política de segurança exigir proteção do tráfego em trânsito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O caráter privado do circuito não deve ser tratado como prova de criptografia. A organização avalia sensibilidade e ameaça e pode encapsular o tráfego em IPsec ou usar outro controle criptográfico adequado.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BGP elimina a necessidade de conferir rotas de retorno, filtros de firewall e prefixos aceitos pelos dois lados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. BGP troca rotas, mas não decide as regras de segurança da aplicação nem garante que anúncios e caminhos correspondam ao projeto. Retorno e filtros precisam ser verificados separadamente.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A resolução DNS pode falhar entre ambientes híbridos mesmo quando há rotas IP funcionais entre as sub-redes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Resolver nomes privados pode exigir encaminhadores DNS e integração entre zonas. A existência de caminho IP não configura automaticamente a resolução de nomes.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A métrica de latência isolada descreve por completo a qualidade de uma conexão híbrida, dispensando observação de perda, utilização e estabilidade do túnel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Latência é apenas uma dimensão. Perda, jitter, banda disponível, erros e estabilidade influenciam aplicações e devem ser acompanhados junto ao estado de rotas e túneis.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O MTU efetivo pode afetar fluxos através de túneis, porque encapsulamento reduz o espaço disponível para o pacote original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cabeçalhos adicionais de encapsulamento consomem parte do quadro. Se os extremos não tratam tamanho e fragmentação adequadamente, alguns fluxos podem falhar ou ter desempenho degradado.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VPN de contingência só precisa ser desenhada; testar a retirada do caminho primário não acrescenta evidência útil sobre o failover.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O teste comprova detecção da falha, retirada de rota, seleção do caminho alternativo e recuperação do serviço. Sem exercitar o mecanismo, problemas de prioridade e dependências podem passar despercebidos.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Cloud VPN documentado pelo Google, a modalidade HA VPN aceita roteamento dinâmico BGP, enquanto a modalidade Classic VPN usa roteamento estático.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação oficial distingue os modelos de roteamento: HA VPN suporta apenas roteamento dinâmico BGP e Classic VPN suporta roteamento estático. Não se deve generalizar esse detalhe para produtos de outros provedores.",
+      "section": "2. VPN site-to-site e túneis IPsec",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura ExpressRoute privada descrita pela Microsoft, circuito, gateway de rede virtual e conexão são recursos que desempenham papéis relacionados, mas distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O circuito liga a infraestrutura local à borda do provedor, o gateway ExpressRoute fica associado à rede virtual, e o recurso de conexão os vincula. O fluxo depende de provisionar e associar esses elementos.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o objetivo principal de uma VPN site-to-site?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estender conectividade entre redes por gateways, protegendo o tráfego do túnel com IPsec.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir o roteamento entre sub-redes por uma sessão de DNS que conecta usuários diretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar uma cópia de segurança dos dados locais dentro do gateway sem transmitir pacotes de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conectar cada estação individual à nuvem por um cliente, sem interligar os prefixos das redes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reservar um circuito físico exclusivo que não utiliza gateways nem parâmetros de segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "A VPN site-to-site interliga redes por gateways e usa IPsec com frequência para proteger os pacotes. DNS não substitui roteamento; backup e circuito dedicado são outras funções ou opções de conectividade.",
+      "section": "2. VPN site-to-site e túneis IPsec",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação local não alcança uma VM na nuvem embora o túnel conste como ativo. Qual verificação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recriar imediatamente todas as máquinas virtuais com endereços públicos e ignorar a tabela de rotas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir rotas dos dois lados, regras de segurança, retorno e resolução do nome usado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar o protocolo de aplicação por BGP, pois ele transporta qualquer sessão entre servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a criptografia do túnel, já que um túnel ativo impede encaminhamento de tráfego.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a velocidade nominal contratada antes de verificar se o endereço de destino resolve.",
+          "correct": false
+        }
+      ],
+      "explanation": "O túnel é só uma parte do caminho. Rotas, retorno, filtros e DNS são verificações imediatas; alterar endereços ou protocolo sem evidência não corrige essas dependências.",
+      "section": "1. O que significa integrar ambientes híbridos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção representa melhor a diferença entre uma VPN IPsec e um circuito de interconexão dedicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A VPN fornece sempre fibra física exclusiva; a interconexão dedicada usa apenas a Internet pública.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas são mecanismos de resolução DNS, mas só a VPN anuncia nomes entre as redes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VPN cifra um túnel entre gateways; o circuito privado define um caminho de conectividade provisionado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O circuito privado criptografa obrigatoriamente cada pacote e torna dispensáveis os firewalls locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A interconexão substitui gateways e roteadores, enquanto a VPN exige uma máquina virtual por usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "IPsec oferece proteção criptográfica entre gateways. Circuito privado descreve o caminho provisionado até a nuvem. O circuito não implica criptografia automática nem elimina controles de rede.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação reduz o risco de prefixos locais e da nuvem serem interpretados como a mesma rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o mesmo bloco nos dois lados para simplificar os anúncios de todos os roteadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Anunciar o prefixo conflitante duas vezes no BGP para que a nuvem escolha o lado correto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar DNS, pois a resolução de nomes remove automaticamente a ambiguidade de endereços.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planejar faixas CIDR distintas e inventariar endereços antes de provisionar as redes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Manter faixas coincidentes e aumentar o MTU para que o pacote indique sua rede de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Planejamento e inventário evitam sobreposição, que causa ambiguidade de encaminhamento. BGP, DNS e MTU não identificam automaticamente a intenção quando dois lados usam o mesmo prefixo.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe tem poucos prefixos fixos e deseja controlar manualmente o próximo salto, aceitando manter rotas quando a topologia mudar. Qual técnica corresponde ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DNS privado, que instala automaticamente um caminho IP baseado no nome solicitado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NAT Traversal, que anuncia os prefixos remotos e escolhe o gateway de menor custo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criptografia IPsec, que substitui a necessidade de indicar redes alcançáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FastPath, que remove a necessidade de configurar qualquer rota entre os ambientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rotas estáticas configuradas nos equipamentos e tabelas de rotas dos dois ambientes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Rotas estáticas são apropriadas quando os prefixos são poucos e estáveis e se aceita manutenção manual. DNS resolve nomes; IPsec protege o túnel; nenhum deles instala por si só todas as rotas.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando é especialmente útil usar BGP numa conexão híbrida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando os pares precisam trocar prefixos dinamicamente e reagir a mudanças de caminho conforme políticas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quando se quer que o protocolo negocie chaves IPsec e dispense qualquer gateway de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando é necessário converter nomes DNS em endereços sem usar resolvedores configurados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando a organização precisa criptografar os dados de aplicação sem configurar segurança adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando se deseja evitar anunciar rotas e manter todo o tráfego sem decisão de próximo salto.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP troca informações de alcance e auxilia na seleção de rotas entre pares, sujeito às políticas configuradas. Ele não negocia chaves IPsec, resolve DNS nem fornece criptografia de aplicação.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário oferece maior independência entre caminhos de contingência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dois túneis no mesmo roteador e no mesmo circuito, sem monitorar a retirada de rota, pois nomes diferentes na interface criam separação física e executam failover automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gateways e enlaces redundantes distribuídos por equipamentos e rotas físicas independentes, com failover testado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um circuito principal com dois nomes DNS apontando para o mesmo endereço de gateway.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um gateway único que recebe duas regras de firewall idênticas para a mesma rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duas rotas estáticas iguais no mesmo equipamento, sem um caminho de transporte alternativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Independência depende de reduzir componentes compartilhados e validar a comutação. Duplicar túneis, nomes ou regras sobre o mesmo ponto não remove falhas comuns.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função tem o NAT Traversal em uma VPN IPsec?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o BGP e anunciar automaticamente todos os prefixos da VPC para o roteador local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter um circuito privado em ligação de fibra física dedicada dentro do data center.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Encapsular o tráfego IPsec para que ele possa atravessar dispositivos que realizam tradução de endereços.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Resolver nomes de máquinas locais e atualizar os registros de DNS da nuvem sem encaminhadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Detectar perda de energia no gateway remoto e executar o failover da aplicação por conta própria.",
+          "correct": false
+        }
+      ],
+      "explanation": "NAT-T permite transportar tráfego IPsec através de NAT ao encapsulá-lo adequadamente. Roteamento, DNS e failover de aplicação são funções separadas.",
+      "section": "2. VPN site-to-site e túneis IPsec",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento confirma que uma rota de contingência funciona de fato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ver apenas a tela de provisionamento e presumir que a rota alternativa será escolhida corretamente, mesmo sem encaminhar pacotes reais ou observar o retorno da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a métrica do caminho de backup e nunca verificar o caminho de retorno após a troca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar permanentemente o gateway principal sem registrar o impacto nem plano de reversão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Induzir falha controlada do caminho preferido e observar convergência, tráfego e recuperação da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Testar somente resolução DNS enquanto os túneis e as sessões de roteamento permanecem inativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste controlado observa detecção, convergência, ida e volta e comportamento da aplicação. A existência da configuração não comprova funcionamento do failover.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação ao ExpressRoute privado descrito pela Microsoft, qual alternativa está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O circuito é um agente DNS instalado em cada VM e substitui o gateway da rede virtual, dispensando associação de rede virtual e configuração de rotas nos dois ambientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gateway fica na rede local, enquanto o circuito é criado dentro de cada sub-rede de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conexão ExpressRoute serve somente para criptografar pacotes e não associa recursos de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O peering privado conecta exclusivamente a serviços públicos usando endereços públicos de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O circuito, o gateway ExpressRoute na rede virtual e o recurso de conexão formam componentes distintos associados.",
+          "correct": true
+        }
+      ],
+      "explanation": "A arquitetura documentada separa circuito, gateway de rede virtual e conexão que os vincula. O peering privado alcança redes virtuais Azure por esse caminho, e não é um agente DNS ou uma função puramente criptográfica.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia Dedicated Interconnect de Partner Interconnect na documentação do Google Cloud?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dedicated conecta diretamente à rede Google; Partner entrega a conectividade por provedor de serviços suportado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dedicated é um túnel de usuário remoto; Partner é um sistema de resolução DNS privado gerenciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dedicated usa sempre Internet pública com IPsec; Partner não pode anunciar rotas via BGP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dedicated liga somente duas VPCs; Partner é obrigatório para comunicação entre sub-redes locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dedicated dispensa qualquer roteador; Partner substitui o gateway da rede virtual do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação caracteriza Dedicated Interconnect como conexão direta à rede Google e Partner Interconnect como conectividade através de um provedor suportado. Os nomes não significam acesso de usuário ou serviço DNS.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para tráfego sensível em circuito privado, qual decisão de segurança é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar todas as regras de firewall, pois o circuito privado autentica cada servidor de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar o risco e aplicar criptografia adicional se a política exigir confidencialidade em trânsito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Confiar apenas no nome comercial do serviço, pois toda interconexão cifra automaticamente os pacotes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Anunciar todos os prefixos internos à Internet para que o provedor identifique o tráfego sensível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar segmentação e gestão de segredos para evitar sobrecarga do gateway dedicado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Privacidade de caminho não equivale necessariamente a criptografia ponta a ponta. O risco e a política determinam se IPsec ou outra proteção deve ser aplicada, mantendo segmentação e filtros.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de métricas é mais útil para acompanhar a operação de uma ligação híbrida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o número de VMs criadas, sem observar gateways, tráfego ou rotas aprendidas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas o total de usuários conectados ao DNS, sem medir perda ou capacidade do enlace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Estado de túneis e BGP, rotas, latência, perda, utilização e erros de interface.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente o custo mensal do circuito, pois ele indica diretamente o estado dos pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cor do recurso no portal, sem coletar alarmes de túnel, roteamento ou aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas de controle e dados revelam estado de túnel, roteamento e qualidade do transporte. Elas devem ser correlacionadas com testes DNS e de aplicação, não substituídas por indicadores indiretos.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo TCP pequeno funciona pelo túnel, mas transferências maiores param. Que hipótese de rede merece ser investigada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sobreposição de ASN, porque o tamanho do pacote altera a identidade do sistema autônomo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ausência de conexão ExpressRoute, mesmo que os pacotes pequenos atravessem o túnel ativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falta de registros DNS PTR, que impede a segmentação de pacotes IP maiores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MTU e MSS efetivos, fragmentação e tratamento de pacotes encapsulados no caminho.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de rotas estáticas, que sempre limita o tamanho máximo do segmento TCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encapsulamento reduz o MTU útil; problemas de fragmentação ou MSS podem afetar mais os fluxos maiores. A investigação deve considerar o caminho completo antes de alterar roteamento sem evidência.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer implantar rapidamente uma conexão inicial criptografada usando a infraestrutura de rede existente e aceita atravessar a Internet. Qual opção é mais aderente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interconexão física dedicada sem gateways, porque é sempre provisionada instantaneamente pela Internet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DNS público entre os ambientes, que cifra automaticamente o tráfego de todas as aplicações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BGP sem túnel ou caminho de transporte, pois o protocolo cria um enlace físico entre os roteadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um backup de banco de dados, que estabelece sessões IP entre sub-redes sem configuração de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VPN site-to-site com gateways compatíveis, túnel IPsec e rotas configuradas nos dois ambientes.",
+          "correct": true
+        }
+      ],
+      "explanation": "VPN site-to-site atende ao requisito de túnel criptografado sobre a Internet com gateways e roteamento configurados. Circuito dedicado e DNS têm propósitos e prazos de implantação diferentes.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização transfere grandes volumes continuamente e precisa de desempenho mais previsível que o acesso público. Qual alternativa deve avaliar prioritariamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interconexão dedicada ou de parceiro, comparando capacidade, redundância, latência e custo total.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VPN client-to-site em cada servidor, pois acesso individual elimina a necessidade de roteamento híbrido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DNS dividido, pois zonas privadas aumentam a banda física disponível entre os data centers.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rota estática adicional no mesmo enlace, pois ela duplica a capacidade contratada do circuito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar BGP e firewall, já que circuitos de alta capacidade dispensam controles operacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma interconexão privada pode oferecer capacidade e previsibilidade contratadas, mas deve ser dimensionada e comparada em custo e resiliência. DNS e duplicação lógica de rotas não aumentam banda física.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta uma sequência de diagnóstico razoável para um serviço híbrido indisponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reinstalar primeiro todos os servidores e só depois descobrir se havia rota de retorno, supondo que a reinstalação recrie o pareamento BGP e instale as rotas remotas corretas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar nome e endereço, túnel ou circuito, rotas nos dois sentidos, filtros, MTU e aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alterar a chave IPsec a cada falha e ignorar se a sessão de roteamento está estabelecida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o gateway remoto e concluir que uma falha de DNS é a causa principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o prefixo CIDR de todas as redes sem conferir endereços ou regras existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diagnóstico percorre dependências desde resolução e endereçamento até transporte, rotas, segurança e aplicação. Mudanças sem evidência podem ampliar o incidente ou ocultar sua causa.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação do Google Cloud, qual afirmação sobre HA VPN está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Qualquer configuração com um túnel recebe automaticamente o SLA máximo, mesmo sem redundância de pares.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O serviço não usa IPsec e encaminha pacotes diretamente à Internet pública como destino final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A alta disponibilidade depende da topologia; usar uma única interface ativa não assegura o SLA de disponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A configuração não requer gateway par nem rotas, porque a nuvem descobre redes locais por DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Classic VPN e HA VPN têm necessariamente os mesmos modos de roteamento e recursos IPv6.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação informa que uma configuração HA VPN com apenas uma interface ativa não recebe SLA de disponibilidade, e o nível de serviço depende da topologia. HA VPN é um túnel IPsec e tem requisitos de redundância e roteamento próprios.",
+      "section": "2. VPN site-to-site e túneis IPsec",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma topologia com VPN principal e circuito privado de backup, qual configuração é essencial para que a contingência seja útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o backup sem rotas aprendidas, pois o provedor reconhecerá os destinos pela aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Anunciar todos os prefixos com a mesma prioridade e bloquear qualquer mudança de caminho, pois prioridades idênticas mantêm o principal ativo quando ele falha e dispensam convergência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar monitoramento para evitar que o gateway retire o caminho principal por erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir preferência e propagação de rotas, observar falha do principal e testar ida e volta pelo backup.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Configurar somente DNS alternativo, sem prover transporte entre os gateways de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A contingência precisa ter rotas válidas, preferência planejada, detecção de falha e teste do caminho alternativo e de retorno. DNS sozinho não fornece transporte IP.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A organização anuncia seus prefixos locais por BGP, mas a nuvem não instala as rotas esperadas. Qual investigação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar estado da sessão, filtros de importação/exportação, prefixos anunciados e tabela efetiva de rotas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar a resolução DNS, pois o DNS controla diretamente quais prefixos BGP são aceitos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a MTU do gateway, porque o tamanho do quadro determina se o anúncio será permitido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar IPsec de todos os túneis, ainda que o problema esteja no circuito dedicado e no BGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma nova sub-rede com endereço sobreposto para forçar a nuvem a aceitar a rota antiga.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sessão pode estar ativa com anúncio ausente ou rejeitado por política. Conferir filtros e tabela efetiva separa problema de sinalização do encaminhamento de dados.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre a arquitetura ExpressRoute privada é consistente com a documentação Microsoft?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O gateway ExpressRoute é instalado obrigatoriamente em cada estação on-premises para iniciar acesso remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gateway ExpressRoute é implantado na rede virtual e conecta a VNet ao circuito provisionado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O circuito é uma tabela DNS global e o recurso de conexão serve para criar registros de nomes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O peering privado dispensa o circuito e encaminha o tráfego pela Internet sem associação de gateway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gateway só existe no ponto de presença do parceiro e não se associa a uma rede virtual Azure.",
+          "correct": false
+        }
+      ],
+      "explanation": "A referência de arquitetura coloca o gateway ExpressRoute dentro da rede virtual, ligado ao circuito pela conexão ExpressRoute. O serviço não é acesso remoto por estação nem serviço DNS.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe restringe fluxos híbridos por firewall e segmentação, mas libera somente a porta de ida. O servidor remoto recebe a solicitação e a resposta não retorna. Qual conceito explica melhor a falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cifra IPsec converte automaticamente o pacote de resposta em consulta DNS inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ASN local foi registrado no serviço DNS, mas precisa ser convertido para um endereço MAC público.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A política ou rota de retorno não permite o fluxo de resposta, embora o caminho de ida exista.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O circuito privado alterou o MTU da aplicação e, por isso, removeu o gateway da tabela de rotas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O túnel tem duas interfaces, então a resposta só pode ser entregue por uma estação cliente VPN.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conexões com estado e políticas de segurança precisam permitir o tráfego de retorno, e as tabelas devem conter rota para a origem. Caminho unidirecional não completa uma sessão.",
+      "section": "1. O que significa integrar ambientes híbridos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual critério é mais adequado para comparar ofertas de VPN e circuito privado antes de contratar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do produto, pois serviços com rótulo VPN ou dedicado têm propriedades idênticas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de nomes DNS cadastrados, sem considerar volume de dados ou risco de indisponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cor do ícone do gateway, pois ela determina a qualidade do caminho e o SLA contratado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A existência de uma única rota, pois redundância e custo não são requisitos de conectividade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Requisitos de banda, latência, disponibilidade, criptografia, implantação, cobertura e custo total.",
+          "correct": true
+        }
+      ],
+      "explanation": "A seleção depende de requisitos técnicos e operacionais verificáveis, além de custo. O rótulo comercial isolado não informa criptografia, diversidade, banda real ou tempo de provisionamento.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Google Cloud, a documentação distingue Dedicated Interconnect e Partner Interconnect pelo tipo de entrega do caminho até a rede Google.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conexão dedicada chega diretamente; a conexão de parceiro usa um provedor suportado como intermediário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conexão dedicada é uma VPN de usuário; a conexão parceira é um servidor DNS de zona privada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conexão dedicada não leva tráfego IP; a conexão parceira só pode carregar cópias de backup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conexão dedicada exige um navegador; a conexão parceira instala roteamento BGP automaticamente nos hosts.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas opções são túneis IPsec sobre Internet pública e diferem somente no formato dos endereços.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação define Dedicated Interconnect como conexão direta e Partner Interconnect como conexão por provedor suportado. São modelos de interconexão, não ferramentas DNS ou clientes de acesso remoto.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa que pequenas consultas passam, mas aplicações que enviam blocos maiores apresentam retransmissões. Qual próxima ação é tecnicamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar nomes alternativos ao DNS, pois cada nome reduz o tamanho dos cabeçalhos IP do túnel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o ASN do roteador, pois o número de sistema autônomo determina o tamanho de segmento permitido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar as rotas de retorno, que causam exclusivamente falha em pacotes pequenos e não em grandes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir MTU no percurso encapsulado e revisar MSS, fragmentação e mensagens de descoberta de MTU.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir a interconexão por uma rota estática, sem medir o quadro ou a retransmissão observada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Problemas de MTU/MSS e fragmentação podem afetar especialmente pacotes maiores em túneis. A medição do caminho e a análise de retransmissão são mais pertinentes que alterações arbitrárias de DNS ou ASN.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para permitir que workloads locais e de nuvem resolvam nomes privados de ambos os lados, qual componente deve ser planejado além das rotas IP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Integração de DNS, como encaminhadores e zonas privadas acessíveis pelos clientes apropriados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma segunda chave IKE, pois a negociação IPsec publica registros privados para toda sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma rota BGP padrão, que converte automaticamente qualquer nome de host em endereço privado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumento da largura de banda do circuito, que replica os registros DNS locais para a nuvem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NAT Traversal, que sincroniza zonas e registros sem consultas a resolvedores.",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS híbrido requer encaminhamento e zonas configurados para que cada ambiente consulte os nomes privados do outro. A conectividade IP é necessária, mas não cria registros nem encaminhadores.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática limita o impacto de um erro de configuração de roteamento híbrido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir qualquer rota recebida para acelerar a propagação sem revisar a origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtrar anúncios por prefixo, revisar políticas e limitar as redes aceitas em cada lado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar segmentação e firewall para que anúncios incorretos não encontrem bloqueios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o mesmo prefixo em toda rede local e virtual para reduzir a quantidade de políticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar no estado verde da sessão BGP e não consultar a tabela efetiva de rotas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtros de prefixo e políticas controlam o alcance anunciado e aceito. Sessão ativa não impede divulgação incorreta, portanto a tabela instalada e a origem das rotas devem ser revisadas.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa dois túneis VPN, um terminando em cada um de dois gateways locais independentes, com rotas de contingência testadas. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O desenho garante disponibilidade absoluta, dispensando teste de manutenção e observação de rota, porque dois gateways eliminam por definição falhas de operadora, energia e configuração mesmo que compartilhem enlaces.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O desenho elimina a necessidade de rotas de retorno porque os gateways são fisicamente distintos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O desenho reduz alguns pontos comuns de falha, mas ainda requer monitoramento e análise dos enlaces e provedores compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O desenho transforma automaticamente IPsec em circuito privado dedicado sem custos de transporte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O desenho torna firewall e segmentação desnecessários, pois os gateways autenticam qualquer fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gateways independentes e failover testado melhoram resiliência, mas enlaces, energia, operadora ou serviços compartilhados ainda podem ser pontos comuns. Disponibilidade não é absoluta e segurança permanece necessária.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um circuito privado, a rota aparece na tabela do gateway da nuvem, mas não na sub-rede de destino. Qual componente investigar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave compartilhada do túnel, mesmo que não exista túnel VPN nessa arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os registros MX do domínio, que instalam automaticamente prefixos em tabelas de sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tamanho do ASN, que determina se a rota pode ser copiada para uma tabela de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Propagação ou associação de rotas até a tabela efetiva usada pela sub-rede e suas políticas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A resolução PTR do servidor, que habilita o gateway a propagar todas as rotas privadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma rota aprendida no gateway ainda precisa alcançar a tabela ou associação que rege o tráfego da sub-rede. DNS e parâmetros de VPN não explicam a ausência de propagação no circuito privado.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição do papel do gateway em uma conexão híbrida está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui todos os servidores DNS e armazena o conteúdo das aplicações por padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele executa somente cópias de segurança e não participa do encaminhamento de pacotes, função que switches de acesso realizam entre redes virtuais mesmo sem rotas ou gateway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele decide a autorização de negócio de cada usuário sem regras de firewall ou identidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele é uma rota estática textual que não possui interface, túnel ou associação com redes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele termina ou associa o enlace de rede e encaminha tráfego entre o ambiente conectado e a rede virtual.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gateways são pontos de terminação, associação e encaminhamento de conectividade. DNS, backup e autorização de aplicação são funções diferentes, embora possam trabalhar em conjunto.",
+      "section": "1. O que significa integrar ambientes híbridos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre disponibilidade de uma conexão híbrida é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Depende da topologia, diversidade de componentes, roteamento, operação do provedor e testes de failover.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É determinada exclusivamente pelo número de endereços IP públicos alocados ao gateway na nuvem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É igual à banda nominal do circuito, sem relação com roteadores, operadoras ou energia local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É garantida quando uma tela mostra dois túneis, ainda que ambos usem o mesmo enlace físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É definida pelo TTL DNS e não depende do estado dos gateways ou das rotas anunciadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Disponibilidade resulta do desenho e da operação de ponta a ponta. Duas interfaces ou túneis podem compartilhar falhas; a topologia e os testes determinam a resiliência real.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando faz sentido combinar IPsec e interconexão dedicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando a organização quer remover todos os roteadores e enviar pacotes sem endereços IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando se deseja usar o caminho privado de maior capacidade e também cifrar o tráfego entre gateways.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quando o DNS deve substituir o circuito e os anúncios BGP em redes de produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando a conexão dedicada já foi contratada, pois IPsec impede qualquer uso de rotas redundantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando se precisa transformar o gateway da nuvem em cliente de acesso remoto por usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A combinação pode somar o caminho privado de alta capacidade à criptografia IPsec, desde que a arquitetura e o serviço suportem a implantação. As funções não se excluem e continuam exigindo roteamento.",
+      "section": "3. Conexões dedicadas e interconexões de parceiros",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall permite o fluxo, mas a sub-rede da VM encaminha o destino para outro gateway. Que aspecto é prioritário revisar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista de aliases do serviço de VPN, que determina por nome o próximo salto de cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O certificado TLS da aplicação, pois ele escolhe a rota IP antes de qualquer firewall.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela efetiva de rotas e o próximo salto escolhido para o prefixo remoto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O SLA do provedor, pois a métrica contratual corrige automaticamente a rota da sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de interfaces DNS do gateway, pois cada interface cria uma rota de rede virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com permissão de firewall já confirmada, a tabela efetiva e o próximo salto explicam por onde a sub-rede encaminha o tráfego. Certificados, SLA e DNS não substituem decisão de roteamento.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dado ajuda a verificar conectividade de camada 2 entre um circuito ExpressRoute e o roteador local, segundo o tutorial Microsoft?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tabela de registros MX do domínio, verificando se o servidor de correio anuncia a VNet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O histórico do cliente VPN, ainda que a configuração seja exclusivamente de circuito ExpressRoute.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O contador de consultas DNS reversas, que prova o estabelecimento de BGP e da camada física.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela ARP do circuito, verificando se a entrada local apresenta o endereço MAC esperado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A lista de máquinas virtuais iniciadas, que confirma a troca de quadros entre os roteadores locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tutorial recomenda examinar a tabela ARP do circuito para verificar conectividade de camada 2; entrada ausente ou sem MAC pode apontar configuração local ou do provedor. Isso antecede a validação de rotas e recursos superiores.",
+      "section": "6. Seleção e diagnóstico de uma solução",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede local tem aplicações que resolvem nomes, mas não conseguem abrir conexão TCP com a rede de nuvem. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resolução DNS comprova que o túnel e todos os filtros estão funcionando para qualquer protocolo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O BGP controla a abertura da porta TCP e substitui as regras de segurança da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A existência de registro de nome torna desnecessário o endereço IP do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conexão dedicada deve ser removida, pois DNS e TCP não podem coexistir numa rede híbrida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DNS pode estar funcional enquanto rota, firewall, porta de destino ou caminho de retorno continua incorreto.",
+          "correct": true
+        }
+      ],
+      "explanation": "DNS resolve nome para endereço, mas não prova transporte TCP nem autorização. Depois da resolução, verifique rota, retorno, firewall e serviço de destino.",
+      "section": "1. O que significa integrar ambientes híbridos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de controles ajuda a proteger uma VPN site-to-site sem abrir a rede inteira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticar os pares, proteger segredos, filtrar prefixos e permitir apenas fluxos necessários nos firewalls.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Anunciar todas as redes internas, compartilhar a chave em texto público e liberar qualquer porta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar IPsec após o túnel subir e confiar somente no nome do provedor de nuvem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover segmentação, pois a existência de dois gateways impede acesso entre aplicações internas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente nomes DNS secretos, que substituem autenticação criptográfica e regras de tráfego.",
+          "correct": false
+        }
+      ],
+      "explanation": "Proteção envolve autenticação e gestão segura de chaves, controle dos prefixos roteados, segmentação e regras de menor privilégio. Nomes secretos não substituem controle criptográfico.",
+      "section": "5. Redundância, segurança e operação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão sobre o estado de uma sessão BGP é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sessão ativa prova que todos os prefixos planejados foram aceitos e que as aplicações respondem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sessão pode estar ativa, mas os prefixos ainda precisam ser conferidos quanto a anúncio, aceitação e instalação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sessão ativa significa que o tráfego está criptografado por IPsec mesmo sem túnel configurado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sessão ativa substitui os filtros de firewall, pois BGP autoriza cada conexão de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sessão ativa elimina a necessidade de anunciar rotas de retorno para a rede de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "BGP ativo atesta a relação de roteamento, mas não prova que o prefixo desejado foi anunciado, aceito e instalado nem que o serviço está acessível. Conferir a tabela e o caminho de retorno é indispensável.",
+      "section": "4. Endereçamento, rotas e BGP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Cloud VPN overview",
+      "publisher": "Google Cloud",
+      "reference": "IPsec, HA VPN, Classic VPN, roteamento e topologias híbridas",
+      "url": "https://docs.cloud.google.com/network-connectivity/docs/vpn/concepts/overview",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is AWS Site-to-Site VPN?",
+      "publisher": "Amazon Web Services",
+      "reference": "Conceitos de conexão VPN, túneis, gateway do cliente e gateway da nuvem",
+      "url": "https://docs.aws.amazon.com/vpn/latest/s2svpn/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Connect an on-premises network to Azure by using ExpressRoute",
+      "publisher": "Microsoft Learn",
+      "reference": "Circuito, gateway, conexão, peering privado e fluxo de tráfego",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/reference-architectures/hybrid-networking/expressroute-private-peering-connectivity",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Establish a private peering connection using ExpressRoute",
+      "publisher": "Microsoft Learn",
+      "reference": "Provisionamento de circuito, peering privado e associação ao gateway ExpressRoute",
+      "url": "https://learn.microsoft.com/en-us/azure/expressroute/configure-expressroute-private-peering",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cloud Interconnect documentation",
+      "publisher": "Google Cloud",
+      "reference": "Dedicated Interconnect e Partner Interconnect",
+      "url": "https://docs.cloud.google.com/network-connectivity/docs/interconnect",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HA VPN over Cloud Interconnect overview",
+      "publisher": "Google Cloud",
+      "reference": "Túneis IPsec sobre interconexão privada e comportamento de redundância",
+      "url": "https://docs.cloud.google.com/network-connectivity/docs/interconnect/concepts/ha-vpn-interconnect",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

@@ -1,0 +1,1969 @@
+{
+  "id": "infra-ti.monitoramento-correlacao-logs",
+  "subject": "Infraestrutura de TI",
+  "title": "Monitoramento e correlação de logs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Correlação de logs",
+    "Correlação entre logs e traces",
+    "Monitoramento e correlação de logs distribuídos",
+    "Logs correlacionados em microsserviços",
+    "Rastreamento distribuído e logs",
+    "OpenTelemetry para correlação de logs",
+    "TraceId e SpanId em logs de aplicação",
+    "Contexto de execução em registros de log",
+    "Correlação temporal de eventos de sistema",
+    "Análise de logs em sistemas distribuídos"
+  ],
+  "scope": {
+    "covers": "Monitoramento de logs e correlação entre registros, traces, métricas e componentes: correlação temporal, por origem e por contexto de execução; TraceId, SpanId, TraceFlags e propagação de contexto; modelo de logs OpenTelemetry e distinção entre Resource e Attributes; logs estruturados, campos consistentes, ingestão, consulta e análise; tratamento de contexto ausente, amostragem, relógios, cardinalidade, privacidade e limites da correlação.",
+    "excludes": "Configuração aprofundada de produto específico de observabilidade, sintaxe proprietária de consulta, administração de infraestrutura de armazenamento e implementação detalhada de protocolos de tracing."
+  },
+  "theoryTitle": "Como correlacionar logs em sistemas monitorados",
+  "chapters": [
+    {
+      "title": "1. O que significa correlacionar logs",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço distribuído produz muitos registros separados: o portal recebe uma requisição, um serviço de pedidos consulta o catálogo e outro serviço autoriza o pagamento. Ao investigar uma falha, encontrar cada mensagem isoladamente não mostra qual delas pertence à mesma operação nem em que ordem causal ocorreu. **Correlacionar logs** é associar registros relacionados para reconstruir o contexto de uma operação, encontrar a sequência de eventos e navegar entre sinais de monitoramento.\n\n> **Siglas e termos deste capítulo**\n> - **Log**: registro de um evento observado por uma aplicação ou componente.\n> - **Trace (rastro)**: representação do caminho de uma operação por um ou mais componentes.\n> - **Span**: unidade de trabalho dentro de um trace, com contexto e duração.\n> - **Observabilidade**: capacidade de investigar o estado interno de um sistema a partir de seus sinais externos, como logs, métricas e traces.\n> - **Correlação**: associação de registros por atributos compartilhados ou por contexto causal.\n\n### Três caminhos complementares\n\n| Base da correlação | Campos ou evidência | Uso | Limite típico |\n| --- | --- | --- | --- |\n| Temporal | horário do evento e janela de busca | aproximar eventos ocorridos no mesmo intervalo | relógios divergentes e eventos concorrentes podem confundir a ordem |\n| Origem | serviço, host, instância, ambiente e versão | filtrar eventos produzidos pelo mesmo componente | origem comum não prova que os registros pertencem à mesma requisição |\n| Contexto de execução | TraceId e SpanId propagados | seguir uma operação e seus trabalhos relacionados | depende de instrumentação e propagação consistentes |\n\nUma investigação robusta usa as três bases em conjunto. O horário ajuda a delimitar a busca; os atributos de origem mostram qual versão ou instância produziu o evento; os identificadores de contexto ligam componentes que participaram da mesma operação. Correlação facilita encontrar relações, mas não prova por si só a causa de um defeito: é preciso interpretar os eventos e a topologia do sistema.\n\n### Logs, métricas e traces se complementam\n\nUma métrica pode mostrar que a taxa de erros aumentou, um trace pode mostrar qual chamada demorou ou falhou e os logs podem trazer o detalhe do evento, como a exceção ou o identificador do pedido. Um painel útil permite partir de uma anomalia de métrica, abrir traces relacionados e consultar os logs com o mesmo contexto. Logs não substituem métricas de séries temporais nem mostram necessariamente a duração e as relações entre spans.\n\n### Como cai na prova\n\n- Uma mesma janela de tempo é uma pista, não uma identidade causal: eventos simultâneos podem pertencer a operações diferentes.\n- Um TraceId comum agrupa spans de um trace; um SpanId aponta para uma unidade específica de trabalho.\n- A correlação melhora a investigação e a navegação entre sinais, mas não determina automaticamente a causa raiz."
+    },
+    {
+      "title": "2. Identificadores de contexto e propagação",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma chamada entre serviços, o contexto precisa atravessar processos e a rede. Sem isso, cada serviço pode gerar identificadores próprios e a trilha se quebra exatamente nas fronteiras em que a investigação mais precisa dela. A propagação transporta contexto serializado do serviço que chama para o serviço chamado, para que a atividade seguinte continue o trace relacionado.\n\n> **Siglas e termos deste capítulo**\n> - **TraceId**: identificador que agrupa os spans pertencentes a um trace.\n> - **SpanId**: identificador de um span específico.\n> - **TraceFlags**: sinalizadores associados ao contexto de trace, incluindo a indicação de amostragem definida pelo contexto W3C.\n> - **W3C Trace Context**: padrão que define contexto de tracing interoperável, incluindo o cabeçalho `traceparent`.\n> - **Propagador**: componente que injeta contexto em uma mensagem de saída e o extrai na entrada.\n\n### Como a cadeia de chamadas permanece ligada\n\nQuando o serviço A chama o serviço B, a instrumentação pode transmitir o contexto no cabeçalho HTTP `traceparent`. O formato inclui versão, TraceId, identificador do pai e flags. O serviço receptor extrai o contexto e cria um novo span relacionado ao span remoto. Assim, cada serviço tem seu SpanId próprio, enquanto os spans podem pertencer ao mesmo TraceId. Não se deve copiar um mesmo SpanId para todas as etapas: o ID identifica o span individual.\n\nEm mensageria, o mesmo princípio vale: o produtor injeta contexto nos metadados da mensagem e o consumidor o extrai ao processá-la. A propagação depende de instrumentação compatível nos dois lados e de não descartar ou sobrescrever os metadados no intermediário. Chamadas assíncronas e filas exigem preservar contexto na mensagem; não basta confiar que uma variável local sobreviverá à troca de processo.\n\n### Contexto no registro de log\n\nA especificação de logs OpenTelemetry define campos de contexto TraceId, SpanId e TraceFlags. Quando um log ocorre dentro de um span ativo e a biblioteca integra contexto de logs com tracing, o registro pode receber esses campos automaticamente. Para formatos não OTLP, a convenção da OpenTelemetry recomenda nomes como `trace_id`, `span_id` e `trace_flags`, registrados conforme o formato utilizado. Um SpanId presente deveria vir acompanhado do TraceId correspondente.\n\nContexto pode não existir em tarefas fora de requisições rastreadas, eventos anteriores à criação do span, sistemas legados ou componentes sem instrumentação. Ausência de identificador não significa que o evento não ocorreu; significa que aquele registro não pode ser ligado por esse caminho. O horário, os atributos de origem e identificadores de negócio seguros podem ajudar a restringir a investigação, sem serem substitutos equivalentes do trace.\n\n### Como cai na prova\n\n- TraceId agrupa o rastro; SpanId diferencia a operação local dentro dele.\n- Propagar contexto é transportar e reconstruir a relação na fronteira, não apenas escrever IDs arbitrários na mensagem.\n- `traceparent` é um mecanismo padronizado de contexto; o cabeçalho não contém o corpo completo dos logs."
+    },
+    {
+      "title": "3. Estrutura dos registros e qualidade dos dados",
+      "markdown": "### O problema que este assunto resolve\n\nBuscar `falha` em mensagens livres pode encontrar centenas de ocorrências sem separar serviços, operações ou tipos de evento. Logs estruturados preservam campos com significado e tipo, permitindo filtrar, agregar e correlacionar dados de maneira previsível. A OpenTelemetry define um modelo lógico comum que permite representar logs de fontes diferentes e mapear formatos legados para uma estrutura uniforme.\n\n> **Siglas e termos deste capítulo**\n> - **OTLP**: protocolo OpenTelemetry usado para transportar sinais de telemetria.\n> - **Resource**: atributos relativamente estáveis que descrevem a entidade observada que emitiu o registro.\n> - **Attributes**: dados adicionais do evento específico, que podem variar entre registros da mesma origem.\n> - **Body**: conteúdo principal do registro, que pode ser texto ou dado estruturado.\n> - **Timestamp**: momento em que o evento ocorreu segundo o relógio da origem.\n> - **ObservedTimestamp**: momento em que o sistema de coleta observou o evento.\n\n### Campos que ajudam a localizar e interpretar eventos\n\nO modelo de log OpenTelemetry prevê, entre outros, Timestamp, ObservedTimestamp, TraceId, SpanId, TraceFlags, SeverityText, SeverityNumber, Body, Resource, InstrumentationScope, Attributes e EventName. Timestamp e ObservedTimestamp respondem a perguntas diferentes: quando a fonte diz que ocorreu e quando o coletor o observou. Em conversões para sistemas que aceitam apenas um horário, a recomendação do modelo é preferir Timestamp quando presente e usar ObservedTimestamp na falta dele.\n\nResource descreve o emissor, por exemplo o serviço, sua versão ou o ambiente de execução, e tende a permanecer igual em vários eventos daquela fonte. Attributes descrevem a ocorrência específica, como rota, código de resposta ou identificador de uma operação, e variam de evento a evento. Colocar um atributo variável de uma requisição como se fosse identidade fixa do Resource confunde a origem; tratar a versão do serviço como detalhe aleatório de cada evento dificulta a análise da implantação.\n\n### Da mensagem livre à busca confiável\n\nUma mensagem como `falha ao chamar catálogo` é legível, mas aplicações de consulta têm dificuldade para separar campos embutidos em prosa. Um registro estruturado pode carregar `event_name`, `service.name`, `deployment.environment`, `trace_id`, `span_id`, `http.route`, `http.response.status_code` e um corpo descritivo. Nomes consistentes entre serviços facilitam consultas comuns. Campos devem refletir fatos observados, manter tipos coerentes e evitar valores ambíguos.\n\nLogs JSON são uma forma possível de serializar estrutura, mas JSON sozinho não garante qualidade: campos inconsistentes, dados ausentes ou contexto incorreto continuam prejudicando a correlação. Em formatos legados, pipelines de ingestão podem fazer parse e mapear campos; a transformação deve preservar o significado e não inventar identificadores que pareçam autênticos.\n\n### Como cai na prova\n\n- Resource descreve a fonte; Attributes descrevem informações adicionais do evento.\n- Timestamp e ObservedTimestamp não são sinônimos quando há atraso de coleta.\n- Estrutura e convenções de nomes melhoram filtro e associação, mas não tornam correta uma instrumentação defeituosa."
+    },
+    {
+      "title": "4. Investigação, limitações e cuidados operacionais",
+      "markdown": "### O problema que este assunto resolve\n\nUm identificador bem propagado não resolve sozinho toda investigação. Eventos podem chegar atrasados, ser amostrados, ter campos removidos em uma transformação ou conter dados sensíveis que não deveriam ser indexados. A equipe precisa validar a qualidade da trilha e proteger os registros enquanto usa filtros e relações para encontrar evidências.\n\n> **Siglas e termos deste capítulo**\n> - **Ingestão**: recebimento, parsing, enriquecimento e encaminhamento de registros para armazenamento.\n> - **Amostragem**: seleção de parte dos traces ou eventos para coleta, análise ou retenção.\n> - **Cardinalidade**: número de valores distintos assumidos por um atributo, relevante para índices e agregações.\n> - **PII**: informação pessoal identificável.\n> - **Causa raiz**: mecanismo que originou o incidente, estabelecido por análise de evidências.\n\n### Roteiro prático de investigação\n\n1. Comece pelo sintoma em uma métrica, alerta ou relato e delimite serviço, ambiente, versão e período.\n2. Abra um trace de exemplo e verifique a sequência dos spans, as fronteiras entre serviços e o ponto em que o erro aparece.\n3. Use TraceId para localizar registros daquele rastro e SpanId para restringir os eventos ao trabalho específico.\n4. Compare horários de origem e observação, atributos de origem e eventos correlatos; considere atraso, fuso e dessincronização de relógios.\n5. Confirme a hipótese em outros traces ou instâncias e examine alterações recentes antes de atribuir causa.\n\nUma busca por TraceId deve retornar eventos cujo contexto esteja corretamente instrumentado e preservado. Uma busca por intervalo temporal é útil quando não há IDs, mas pode misturar operações concorrentes. Identificadores de negócio como número de pedido ajudam a seguir o fluxo funcional, desde que sejam protegidos, tenham formato controlado e não exponham dados pessoais.\n\n### Limites e controles\n\nAmostragem pode manter alguns logs e descartar o trace relacionado, ou o contrário, conforme a configuração. Portanto, “não encontrei” não prova que o evento não existiu. Uma taxa elevada de campos com valores únicos, como IDs de usuário colocados sem critério em dimensões indexadas, pode aumentar custos e dificultar agregações; identificadores de correlação são úteis para pesquisa pontual, mas não são boas dimensões para toda métrica agregada.\n\nLogs podem revelar tokens, senhas, dados de saúde e outros conteúdos sensíveis. Registre apenas o necessário, mascare ou remova segredos antes da ingestão, controle acesso e retenção e evite incorporar dados pessoais em Baggage ou cabeçalhos que atravessam serviços. O contexto distribuído é dado de observabilidade e deve ser tratado como entrada externa: validar e limitar os valores reduz risco de abuso e de poluição dos índices.\n\n### Como cai na prova\n\n- Horários próximos, origem comum e TraceId são evidências com forças diferentes; combine-as e confira a instrumentação.\n- Uma ausência na busca pode resultar de amostragem, atraso, parsing ou retenção, não apenas de inexistência.\n- A correlação orienta a investigação; causa raiz exige validação técnica e evidências adicionais."
+    }
+  ],
+  "summary": "Correlação de logs associa eventos relacionados para investigar uma operação, combinando horário, origem e contexto de execução. Logs, métricas e traces respondem perguntas complementares. Em OpenTelemetry, TraceId agrupa spans de um trace, SpanId identifica um span específico e TraceFlags carrega sinalizadores do contexto. O contexto pode ser propagado entre serviços pelo W3C Trace Context, inclusive pelo cabeçalho HTTP traceparent, e anexado aos registros de log. O modelo de logs inclui horários de ocorrência e observação, severidade, corpo, Resource, Attributes e campos de contexto. Resource descreve a entidade emissora e Attributes acrescentam dados do evento. Registros estruturados e nomes consistentes facilitam consulta, parsing e navegação entre sinais. Correlação temporal pode ser afetada por atraso ou relógios divergentes; amostragem, falta de instrumentação e transformação defeituosa também deixam lacunas. Correlação não prova causalidade nem determina a causa raiz. Investigações devem validar a sequência em traces e logs, considerar limites da coleta, reduzir cardinalidade de dimensões analíticas e proteger dados sensíveis, como tokens e identificadores pessoais.",
+  "flashcards": [
+    {
+      "front": "O que é correlação de logs?",
+      "back": "Associação de registros relacionados por tempo, origem ou contexto compartilhado para entender uma operação ou investigar um evento."
+    },
+    {
+      "front": "Qual a função de um TraceId?",
+      "back": "Agrupar spans que pertencem ao mesmo trace, inclusive quando a operação passa por diferentes serviços."
+    },
+    {
+      "front": "Qual a função de um SpanId?",
+      "back": "Identificar um span particular, isto é, uma unidade de trabalho dentro do trace."
+    },
+    {
+      "front": "O que representa TraceFlags no modelo de logs?",
+      "back": "Sinalizadores do contexto de trace, incluindo a indicação de amostragem conforme o contexto W3C."
+    },
+    {
+      "front": "O que faz a propagação de contexto?",
+      "back": "Serializa e transporta contexto entre processos ou serviços e permite que o receptor o reconstrua."
+    },
+    {
+      "front": "Para que serve o cabeçalho traceparent?",
+      "back": "Transporta campos padronizados de contexto de trace em comunicações compatíveis com W3C Trace Context."
+    },
+    {
+      "front": "TraceId e SpanId são intercambiáveis?",
+      "back": "Não. TraceId agrupa o trace; SpanId distingue um span individual."
+    },
+    {
+      "front": "Como logs se relacionam com traces?",
+      "back": "Campos de contexto nos registros permitem localizar logs associados ao mesmo trace ou span."
+    },
+    {
+      "front": "Qual a diferença entre Timestamp e ObservedTimestamp?",
+      "back": "Timestamp indica quando a fonte relata que o evento ocorreu; ObservedTimestamp indica quando a coleta o observou."
+    },
+    {
+      "front": "O que descreve Resource em um LogRecord?",
+      "back": "A entidade observada que gerou o log, como uma aplicação ou infraestrutura de origem."
+    },
+    {
+      "front": "O que guardam Attributes em um LogRecord?",
+      "back": "Informações adicionais sobre aquela ocorrência, que podem variar entre eventos da mesma fonte."
+    },
+    {
+      "front": "Qual a utilidade de logs estruturados?",
+      "back": "Preservam campos e tipos que podem ser filtrados, consultados e correlacionados de forma consistente."
+    },
+    {
+      "front": "Como logs, métricas e traces se complementam?",
+      "back": "Métricas revelam tendências e sintomas; traces mostram o caminho e duração; logs detalham eventos."
+    },
+    {
+      "front": "Por que a correlação temporal pode falhar?",
+      "back": "Atrasos de ingestão, fusos e relógios não sincronizados alteram a ordem aparente; operações simultâneas também se sobrepõem."
+    },
+    {
+      "front": "O que a amostragem pode causar na investigação?",
+      "back": "Pode deixar de fora logs ou traces relacionados, criando lacunas sem provar que o evento não ocorreu."
+    },
+    {
+      "front": "O que é cardinalidade de um atributo?",
+      "back": "A quantidade de valores distintos que o atributo pode assumir, importante para índices e agregações."
+    },
+    {
+      "front": "Por que evitar tokens em logs?",
+      "back": "Eles podem conceder acesso a sistemas e sua indexação amplia exposição e risco de reutilização indevida."
+    },
+    {
+      "front": "A correlação prova a causa raiz?",
+      "back": "Não. Ela ajuda a encontrar evidências relacionadas; a causa precisa ser validada por análise técnica."
+    },
+    {
+      "front": "O que fazer se um log não tem TraceId?",
+      "back": "Verificar escopo da instrumentação, horário, origem e identificadores funcionais seguros, reconhecendo que a ligação é menos conclusiva."
+    },
+    {
+      "front": "Qual o papel do parsing na ingestão?",
+      "back": "Interpretar formatos recebidos e mapear seus campos para uma estrutura consultável sem mudar seu significado."
+    }
+  ],
+  "tips": [
+    "Associe cada ID ao seu nível: TraceId para o rastro inteiro e SpanId para uma etapa específica.",
+    "Ao ler Resource e Attributes, pergunte se o valor descreve o emissor ou o evento individual.",
+    "Para falhas distribuídas, siga o contexto propagado de serviço a serviço e confira onde a cadeia se interrompe.",
+    "Use horário como filtro inicial; confirme a associação pelo trace, origem e sequência observada.",
+    "Compare Timestamp com ObservedTimestamp quando os eventos parecem fora de ordem.",
+    "Em questões, desconfie de afirmações que tratam correlação como prova automática de causalidade."
+  ],
+  "traps": [
+    "Confundir TraceId com SpanId e supor que um trace inteiro usa um único SpanId.",
+    "Tratar coincidência temporal como evidência suficiente de que dois logs pertencem à mesma requisição.",
+    "Confundir Resource, que caracteriza a origem, com Attributes, que enriquecem a ocorrência.",
+    "Achar que traceparent transporta mensagens de log ou o conteúdo completo do trace.",
+    "Concluir que um evento não existiu porque não apareceu em uma busca sujeita a amostragem ou retenção.",
+    "Supor que log estruturado é automaticamente correto e seguro sem validar campos, contexto e dados sensíveis."
+  ],
+  "activeRecall": [
+    "Explique como um TraceId ajuda a investigar uma requisição atendida por três serviços.",
+    "Diferencie SpanId, TraceId e TraceFlags em uma frase para cada um.",
+    "Descreva como o contexto atravessa uma chamada HTTP usando traceparent.",
+    "Dê dois exemplos de campos que descrevem Resource e dois que variam por evento em Attributes.",
+    "Explique por que Timestamp e ObservedTimestamp podem divergir.",
+    "Desenhe o caminho de uma investigação que parte de uma métrica de erro e chega aos logs.",
+    "Liste três motivos para uma busca não encontrar todos os registros relacionados.",
+    "Explique por que correlação temporal não estabelece causalidade.",
+    "Descreva dois riscos de registrar tokens, segredos ou identificadores pessoais em logs.",
+    "Explique como cardinalidade alta pode afetar a consulta e a agregação de telemetria."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre TraceId e SpanId",
+      "summary": "TraceId agrupa todos os spans do trace; SpanId identifica uma unidade de trabalho. Spans relacionados têm IDs próprios e são ligados pelo contexto e relações pai-filho."
+    },
+    {
+      "key": "e2",
+      "title": "Coincidência tratada como causalidade",
+      "summary": "Horários próximos ou origem comum ajudam a filtrar, mas não demonstram que eventos pertencem à mesma operação nem que um causou o outro."
+    },
+    {
+      "key": "e3",
+      "title": "Resource confundido com Attributes",
+      "summary": "Resource caracteriza a entidade emissora e tende a ser estável; Attributes trazem dados específicos da ocorrência e podem variar."
+    },
+    {
+      "key": "e4",
+      "title": "Contexto interrompido em fronteiras",
+      "summary": "Sem injeção, extração e preservação dos metadados, a cadeia de trace pode quebrar em chamadas HTTP, mensageria ou processos assíncronos."
+    },
+    {
+      "key": "e5",
+      "title": "Conclusão baseada em observação incompleta",
+      "summary": "Amostragem, atraso, parsing, retenção e instrumentação parcial podem ocultar registros. Ausência na consulta não demonstra ausência do evento."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma operação passa pelo portal, pelo serviço de pedidos e pelo serviço de pagamento. Qual dado permite agrupar os spans dessa operação distribuída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome do host que recebeu a primeira conexão do navegador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O TraceId propagado ao longo das chamadas entre serviços.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A severidade textual atribuída aos logs de cada componente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O horário de ingestão compartilhado por todos os registros do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome do arquivo de configuração de cada serviço envolvido.",
+          "correct": false
+        }
+      ],
+      "explanation": "TraceId é o identificador comum do trace e permite localizar spans relacionados mesmo quando a operação atravessa processos. Host, severidade, configuração e horário de ingestão podem ajudar em filtros, mas não identificam com a mesma precisão a operação distribuída.",
+      "section": "1. O que significa correlacionar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a diferença entre TraceId e SpanId?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TraceId identifica a máquina; SpanId identifica o ambiente de implantação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SpanId agrupa o trace inteiro; TraceId distingue cada mensagem de log.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TraceId e SpanId são sinônimos definidos para formatos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TraceId agrupa o rastro; SpanId identifica um span particular.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TraceId é horário de início; SpanId registra o horário de término.",
+          "correct": false
+        }
+      ],
+      "explanation": "TraceId reúne os spans pertencentes a um trace, enquanto SpanId identifica uma etapa ou unidade de trabalho. Origem, horário e mensagem são informações diferentes e não substituem esses identificadores.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa encontrar os logs associados à etapa que chamou um serviço de catálogo. Que identificador oferece a granularidade mais direta para essa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O SpanId da unidade de trabalho correspondente à chamada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A versão do binário executada no cluster de produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Timestamp observado pelo agente de coleta central.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nome da fila usada para distribuir mensagens internas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A descrição textual do evento registrada no corpo do log.",
+          "correct": false
+        }
+      ],
+      "explanation": "SpanId aponta para um span específico, como a etapa de chamada ao catálogo. TraceId seria adequado para localizar o rastro inteiro; os demais campos podem filtrar registros, mas não identificam aquela unidade de trabalho.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar registros da mesma aplicação, que conjunto de campos descreve melhor quando a fonte relata o evento e quando o coletor o observou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SeverityText e SeverityNumber, que indicam duas escalas de horário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resource e InstrumentationScope, que armazenam o tempo de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TraceId e SpanId, que correspondem aos relógios de coleta e origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Body e EventName, que guardam o instante da primeira observação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Timestamp e ObservedTimestamp, que registram momentos distintos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Timestamp representa o horário do evento na origem; ObservedTimestamp representa quando o sistema de observabilidade o observou. Severidade classifica gravidade, os IDs identificam contexto e Body/EventName descrevem o registro.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um LogRecord, qual campo é apropriado para descrever a aplicação e a infraestrutura que originaram o registro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Body, por conter sempre o endereço e a versão do processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Attributes, pois esse campo define a identidade fixa do emissor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resource, que caracteriza a entidade observada emissora.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "TraceFlags, que registra serviço, ambiente e versão implantada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ObservedTimestamp, que identifica o host em que o evento nasceu.",
+          "correct": false
+        }
+      ],
+      "explanation": "Resource descreve a entidade que produziu os logs, como aplicação ou infraestrutura. Attributes guardam informações adicionais da ocorrência e podem variar; os demais campos têm funções de conteúdo, contexto ou tempo.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo representa melhor o conteúdo variável de Attributes em eventos de uma mesma aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome do serviço que emite continuamente os registros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A versão implantada que identifica a instância emissora.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A região fixa do cluster onde o processo está instalado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rota e o código HTTP desta ocorrência específica.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O nome da biblioteca de instrumentação do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Attributes podem descrever a ocorrência particular, como rota e código de resposta, e mudar entre registros da mesma origem. Serviço, versão, região e escopo de instrumentação descrevem mais naturalmente a fonte ou o instrumento.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel mostra aumento da taxa de erros e a equipe quer descobrir a sequência de chamadas que levou a uma falha. Qual sinal é mais adequado para visualizar essa sequência e seus spans?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O trace relacionado ao intervalo e ao serviço afetado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O arquivo de configuração geral da plataforma de logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela agregada de severidade dos registros do mês.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O inventário de hosts sem relação com a operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A média diária de armazenamento consumido pelos coletores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trace organiza spans e suas relações, permitindo seguir o caminho de uma operação. A métrica identificou o sintoma e os logs detalham eventos, mas um inventário ou estatística de armazenamento não reconstrói a sequência da chamada.",
+      "section": "1. O que significa correlacionar logs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada HTTP entre dois serviços precisa manter o contexto de tracing. Qual mecanismo padronizado pode transportar esse contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo Body do log, enviado como resposta em cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cabeçalho W3C traceparent, extraído e injetado pelos propagadores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nome da classe que serializa o evento de severidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Timestamp, copiado como única informação no corpo da chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O índice de armazenamento, transmitido no lugar do contexto remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "W3C Trace Context usa o cabeçalho traceparent para transportar o contexto de trace, e propagadores fazem a injeção e extração. Corpo do log, horário e índice de armazenamento não exercem esse papel padronizado.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um log estruturado costuma ser mais fácil de consultar do que uma mensagem livre contendo os mesmos dados em prosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o formato estruturado elimina a necessidade de validar a instrumentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque mensagens livres não podem ser armazenadas por coletores modernos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque campos nomeados permitem filtros e consultas consistentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque a estrutura converte qualquer erro em métrica automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque JSON garante que os dados nunca serão incompletos ou sensíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos explícitos permitem filtrar e interpretar valores sem depender de regras frágeis de texto. A estrutura não corrige instrumentação e JSON não assegura completude, correção ou segurança por si só.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao pesquisar eventos de uma fonte externa, qual horário o modelo OpenTelemetry recomenda priorizar se o destino aceita apenas um timestamp e ambos estão disponíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SeverityNumber, convertido para a hora local do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ObservedTimestamp, ainda que o instante original seja conhecido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Timestamp, que informa o momento relatado pela origem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SpanId, ordenado numericamente como se fosse relógio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "EventName, cujo texto define a duração do registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na conversão para um formato que suporta apenas um horário, a orientação é usar Timestamp se estiver presente e recorrer a ObservedTimestamp quando Timestamp não existir. Os outros campos não representam o instante de ocorrência.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa agendada sem requisição rastreada produz um log sem TraceId. Qual interpretação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O registro prova que o serviço perdeu todos os dados da execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O log pode ser legítimo, mas não se liga a um trace por esse ID.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O coletor deve inventar um TraceId igual ao nome da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todo processo agendado precisa fingir que recebeu uma chamada HTTP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O banco de logs deve eliminar registros sem TraceId automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pode haver eventos sem contexto de trace, como tarefas autônomas ou componentes não instrumentados. A ausência impede a correlação por TraceId, mas não torna o registro inválido nem justifica fabricar contexto; origem e horário podem apoiar a análise.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma investigação encontra dois erros no mesmo segundo, mas com TraceIds distintos. Qual conclusão é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os erros pertencem ao mesmo span porque o horário coincide.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O primeiro log causou o segundo por ter sido indexado antes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os registros devem ser unidos manualmente em um único trace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ambos são necessariamente duplicatas criadas pelo coletor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Coincidência de horário não supera os contextos distintos observados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Eventos simultâneos podem pertencer a operações diferentes. TraceIds distintos indicam contextos distintos na telemetria disponível; deve-se investigar cada cadeia, sem inferir causalidade pela ordem de indexação ou pelo relógio.",
+      "section": "1. O que significa correlacionar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trace parece começar depois do erro registrado por um serviço upstream. Que verificação ajuda a explicar a ordem aparente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar horários de origem e observação e verificar relógios e atraso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir os TraceIds por nomes de serviço alfabeticamente ordenados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar o log porque qualquer diferença invalida a mensagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas a severidade para reconstruir o tempo de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o evento antigo para usar o relógio do coletor central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atrasos de ingestão, fuso e relógios desalinhados podem alterar a ordem apresentada. Timestamp e ObservedTimestamp ajudam a separar quando a fonte relata a ocorrência de quando ela chegou à coleta, sem adulterar os dados originais.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir o risco de expor credenciais durante a análise centralizada de logs. Qual prática atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar tokens completos no Body para facilitar cópia e validação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Indexar senhas em Attributes com acesso liberado aos operadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Replicar cabeçalhos de autorização para todos os serviços downstream.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover ou mascarar segredos antes de enviar os registros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a retenção para que credenciais sejam auditadas por mais tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segredos não devem ser registrados em claro; mascará-los ou removê-los antes da ingestão limita exposição. Aumentar a retenção ou replicar credenciais amplia o risco, e permissões amplas não compensam o registro desnecessário.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao correlacionar logs e traces, o que uma equipe pode concluir com segurança quando a busca não retorna um registro esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O componente não executou a operação em nenhum momento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O TraceId foi obrigatoriamente inválido desde sua criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É preciso verificar amostragem, atraso, parsing e retenção.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Todos os logs do trace foram apagados deliberadamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serviço emissor não estava instrumentado para métricas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ausência na consulta pode decorrer de amostragem, atraso, falha de parsing, retenção ou contexto perdido. A busca isolada não prova que a operação não ocorreu nem identifica automaticamente qual dessas causas explica a lacuna.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um identificador de usuário com milhões de valores distintos pode ser uma escolha ruim para uma dimensão de agregação muito usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque identificadores pessoais substituem a necessidade de todos os logs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque valores únicos tornam os índices e agregações mais custosos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque qualquer atributo com muitos valores impede a gravação de traces.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque alta cardinalidade converte o TraceId em um SpanId.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque dimensões com valores únicos não podem ser filtradas em buscas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cardinalidade é a quantidade de valores distintos; dimensões altamente variáveis podem elevar custos e reduzir a eficiência de agregações e índices. Ainda podem ser úteis para pesquisa pontual, mas exigem escolha e tratamento cuidadosos, especialmente se forem pessoais.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem em fila atravessa processos diferentes e o consumidor precisa relacionar seu trabalho ao contexto do produtor. O que deve ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O consumidor deve criar um TraceId sem examinar metadados da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O coletor deve inferir o contexto pelo nome da fila e pelo horário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mensagem precisa conter todos os logs do serviço produtor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O serviço deve copiar o SpanId do produtor para cada span futuro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O produtor propaga contexto nos metadados e o consumidor o extrai.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em trabalho assíncrono, o contexto deve acompanhar a mensagem por metadados ou mecanismo equivalente. O consumidor extrai a relação e cria sua própria atividade correlacionada, sem presumir que variáveis locais persistem entre processos.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe revisa logs com TraceId e SpanId. Qual interpretação de SpanId está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele representa a decisão de retenção do coletor central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele identifica de forma única o serviço que hospeda a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele descreve um evento de negócio entre sistemas distintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele identifica um span relacionado ao TraceId indicado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ele define a severidade numérica que será exibida no painel.",
+          "correct": false
+        }
+      ],
+      "explanation": "SpanId identifica um span e deve ser entendido em conjunto com o TraceId do contexto. Identidade de serviço, evento de negócio, severidade e política de retenção são outros conceitos.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implantação atualiza a versão do serviço e os erros surgem apenas em instâncias novas. Que conjunto de dados facilita filtrar essa diferença de origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A versão e o serviço descritos como atributos de Resource.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O corpo do log repetido como identificador de cada instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O SpanId usado como substituto da configuração implantada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A hora de observação transformada em nome fixo de serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O código de resposta armazenado como identidade permanente do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nome e versão do serviço são atributos típicos de Resource, pois caracterizam a entidade emissora e ajudam a distinguir instâncias ou implantações. Body, SpanId, tempo e código HTTP não substituem essa descrição estável de origem.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline transforma logs JSON e remove trace_id por uma regra de limpeza não documentada. Qual impacto operacional é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O recurso fará o trace ser reconstruído pela severidade do registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ingestão passará a distinguir todos os spans por timestamp.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A correlação direta desses logs com traces será prejudicada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O corpo do evento será convertido automaticamente em TraceFlags.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A remoção aumenta a qualidade porque IDs não pertencem a logs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o pipeline descarta o campo de contexto, o log deixa de oferecer o vínculo direto por TraceId com o trace. Horário e severidade podem apoiar uma investigação aproximada, mas não restauram o identificador removido.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe parte de um alerta de latência, abre um trace e localiza uma exceção nos logs associados. Qual afirmação expressa a relação correta entre esses sinais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A métrica substitui o trace por medir a mesma sequência de spans.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O log identifica sozinho todas as causas sem análise adicional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O trace agrega valores de latência de todo o ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exceção transforma o alerta em prova definitiva de causalidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Métrica aponta o sintoma, trace mostra o caminho e log detalha o evento.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os sinais são complementares: a métrica destaca a tendência, o trace oferece o caminho de execução e o log registra detalhes do evento. A equipe ainda valida a hipótese antes de concluir causa raiz.",
+      "section": "1. O que significa correlacionar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas fontes registram horário de evento diferente embora o coletor tenha observado os registros em sequência. Qual abordagem evita interpretar a ordem de coleta como ordem causal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar o horário de ingestão como instante original para todos os eventos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Examinar os dois timestamps, a origem e a relação no trace.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ordenar os nomes de host e usar essa lista como sequência temporal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar os eventos fora de ordem para limpar a visualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir SpanIds pelos números de linha dos arquivos de log.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timestamp e ObservedTimestamp separam ocorrência relatada da observação pela coleta. A relação no trace, os atributos de origem e a qualidade dos relógios ajudam a reconstruir o contexto sem igualar ordem de ingestão à causalidade.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento é mais apropriado ao investigar uma falha que aparece em apenas uma versão recente de um serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar traces e logs por serviço, ambiente e versão antes de concluir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Unir todos os eventos do mesmo minuto em um único TraceId.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar Resource porque apenas o texto livre permite ver implantações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concluir causa raiz pelo nome do alerta sem revisar os registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a versão de todos os eventos para evitar filtros seletivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtrar pela origem e versão ajuda a comparar a telemetria da implantação recente com a anterior. A equipe deve então verificar a sequência e os detalhes dos traces e logs; agrupar por minuto ou eliminar campos destrói informação útil.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação emite logs fora de qualquer span ativo, mas registra service.name e deployment.environment. Qual uso ainda é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir automaticamente um SpanId pelo nome do ambiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inferir TraceFlags com base na região do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a origem em contexto de requisição sem propagação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtrar a origem e o ambiente, embora não haja vínculo direto por span.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Agrupar todos os registros do serviço no mesmo TraceId.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os campos de Resource continuam úteis para filtrar a aplicação e o ambiente. Sem span ativo ou contexto propagado, eles não fornecem um vínculo direto com uma requisição específica e não devem ser convertidos em identificadores inventados.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja medir quantas requisições falham por rota e ainda pesquisar um TraceId específico. Qual estratégia distingue melhor esses usos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agregar a métrica por TraceId e proibir pesquisa por atributos de rota.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar rota como dimensão controlada e TraceId para investigação pontual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar cada identificador pessoal como dimensão de todas as métricas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todos os valores de TraceId em nomes de serviço estáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover códigos de resposta porque eles elevam qualquer cardinalidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma rota normalizada e códigos controlados podem ser dimensões úteis para agregações. TraceId tem muitos valores e serve melhor à navegação de uma operação específica; incluí-lo em toda agregação amplia cardinalidade e custo.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema inclui um identificador funcional de pedido nos logs para investigar uma jornada. Qual cuidado é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o identificador como prova de que todos os serviços o propagaram.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Colocar dados pessoais completos no valor para reduzir consultas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar o campo como dado controlado e evitar conteúdo pessoal desnecessário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir TraceId por esse identificador em qualquer integração técnica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o campo sem controle de acesso por ser apenas operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um identificador funcional pode ajudar a seguir o fluxo, mas não substitui o contexto de tracing nem garante propagação. O valor deve ser minimizado e protegido para evitar exposição de informações pessoais ou sensíveis nos índices.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de logs, que descrição diferencia melhor o Body do EventName?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Body contém o conteúdo do registro; EventName identifica sua classe ou tipo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Body descreve a origem permanente; EventName registra o instante de coleta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Body define o TraceId; EventName identifica o SpanId do processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Body indica amostragem; EventName é o campo de severidade numérica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Body guarda somente texto simples; EventName aceita qualquer objeto estruturado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Body carrega o conteúdo da entrada e pode ser texto ou dado estruturado. EventName nomeia a classe ou tipo de evento, idealmente de forma estável e identificadora da estrutura, não do horário ou do contexto de tracing.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui instrumentação de logs e traces, mas o agente de coleta transforma trace_id em um campo aninhado que o backend não indexa. Qual solução é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar um TraceId no backend para cada mensagem que chega sem índice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar a severidade como chave para recompor o contexto perdido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todos os traces para manter o formato atual dos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ampliar a janela de tempo até que os IDs fiquem pesquisáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar parsing e mapeamento para preservar e indexar o campo de contexto.",
+          "correct": true
+        }
+      ],
+      "explanation": "A transformação de ingestão precisa preservar a semântica e mapear trace_id a um campo pesquisável. Inventar IDs não recupera a relação original, e horário ou severidade não substituem o contexto que foi mal interpretado.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha é vista no serviço consumidor, mas o trace mostra um erro anterior no serviço chamado. Que procedimento reduz o risco de atribuir a causa ao componente errado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar a árvore de spans, os logs e os tempos das chamadas relacionadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher como causa o serviço cujo log foi ingerido por último.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar todo erro posterior como origem do primeiro evento observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o trace e decidir pelo nível de severidade mais alto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Unificar os spans em um só para remover diferenças entre serviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "A árvore de spans e os registros correlacionados ajudam a distinguir origem, propagação e consequência de uma falha. Horário de ingestão e severidade, isoladamente, não estabelecem qual serviço iniciou o problema.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão de trace context foi extraído da chamada recebida, mas um proxy remove o cabeçalho antes de encaminhar a requisição. Que efeito pode surgir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os logs passam a conter automaticamente Timestamp e ObservedTimestamp iguais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A cadeia pode se romper e o serviço seguinte iniciar contexto independente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Resource do proxy assume o SpanId da aplicação de destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A severidade do registro recupera o TraceId removido pelo proxy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O backend identifica a requisição sem cabeçalhos por sua duração exata.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a fronteira remove o contexto propagado, o próximo componente pode perder a relação com o trace anterior. Deve-se verificar configuração e compatibilidade da propagação no caminho, em vez de esperar que campos sem relação reconstruam o ID.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A amostragem está configurada para conservar apenas parte dos traces. Como esse fato deve afetar uma busca por logs de uma requisição antiga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A busca sempre terá todos os logs porque logs não são sinais amostrados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todo trace não encontrado prova que a aplicação não recebeu a requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deve-se considerar que eventos relacionados podem ter sido descartados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É correto preencher os registros faltantes por interpolação de spans.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A amostragem afeta somente severidade, sem impacto na observabilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A amostragem pode produzir visibilidade parcial, a depender de como logs e traces são coletados. Uma busca sem resultado não prova ausência da requisição; é preciso conhecer a política de seleção, retenção e exportação.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer anexar contexto adicional de uma requisição para que serviços seguintes possam enriquecer sinais de observabilidade. Que cuidado deve acompanhar o uso desse contexto propagado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir credenciais para que cada serviço evite autenticação própria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aceitar qualquer valor externo sem limites ou validação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicar todos os dados pessoais nos logs e métricas descendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar o dado propagado como entrada e limitar conteúdo sensível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar o contexto adicional como substituto dos TraceIds padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contexto propagado pode chegar de uma fronteira externa e ser consumido por vários serviços. Validar e limitar os valores, evitando segredos ou dados pessoais desnecessários, reduz risco de exposição e poluição; ele não substitui identificadores de trace.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao mapear um formato legado para o modelo OpenTelemetry, qual princípio preserva melhor a utilidade dos registros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar os campos de origem e gerar identificadores próprios no destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter todo campo desconhecido em TraceId para simplificar buscas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar timestamps da fonte e registrar apenas a chegada ao backend.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar texto livre como Resource para agrupar mensagens parecidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapear campos segundo seus significados e preservar dados compatíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "O modelo comum deve preservar significado durante o mapeamento. Campos desconhecidos não viram identificadores arbitrários, e timestamps, origem e corpo devem manter suas funções quando o destino puder representá-los.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registros gerados dentro de spans ativos podem receber TraceId e SpanId automaticamente quando a instrumentação integra os sistemas de logs e tracing.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A integração de logs com o contexto ativo pode preencher os identificadores do trace e do span no registro. Esse comportamento depende da instrumentação e da existência de um contexto ativo; não deve ser presumido em qualquer aplicação sem configuração.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SpanId é o identificador que agrupa todos os serviços participantes de um trace distribuído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quem agrupa os spans do rastro é o TraceId. SpanId identifica um span particular, por exemplo uma chamada ou operação dentro daquele rastro.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O campo Resource descreve a entidade emissora, enquanto Attributes pode conter dados que variam por ocorrência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Resource representa características da origem observada, como aplicação ou infraestrutura. Attributes acrescenta informações da ocorrência específica e, por isso, pode variar entre eventos de uma mesma fonte.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Timestamp e ObservedTimestamp sempre representam o instante da observação pelo coletor e não podem divergir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Timestamp indica quando a fonte relata a ocorrência; ObservedTimestamp pode registrar quando a coleta observou o evento. Por isso podem divergir quando há atraso ou diferença entre relógios.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois eventos registrados no mesmo segundo necessariamente pertencem à mesma requisição distribuída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Operações concorrentes podem ocorrer no mesmo intervalo e até no mesmo componente. Horário é uma pista para busca, enquanto contexto de trace e outros dados sustentam a associação.",
+      "section": "1. O que significa correlacionar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propagação de contexto pode ser usada em chamadas entre processos e em mensagens assíncronas, desde que a instrumentação transporte e extraia os metadados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Contexto pode atravessar fronteiras de rede e mensagens, mas o mecanismo precisa injetá-lo e extraí-lo no transporte correspondente. Uma variável local não acompanha automaticamente uma mensagem processada por outro processo.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro sem TraceId é necessariamente inválido e deve ser eliminado da plataforma de observabilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O campo é opcional porque nem todo evento pertence a uma requisição rastreada ou tem contexto disponível. O registro ainda pode ser útil por horário, origem e conteúdo, embora não possa ser associado diretamente a um trace por esse campo.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de logs estruturados garante que os identificadores de contexto estejam corretos e completos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Estrutura facilita parsing e pesquisa, mas valores podem estar ausentes, incorretos ou ter sido removidos no caminho. A qualidade da correlação depende de instrumentação e preservação do contexto.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A correlação entre um log e um trace identifica evidências relacionadas, mas não basta isoladamente para provar a causa raiz do incidente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A associação facilita navegar pelos sinais e formular hipóteses. A causa raiz requer interpretação da sequência, validação em outros eventos e consideração da arquitetura e das mudanças envolvidas.",
+      "section": "1. O que significa correlacionar logs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Amostragem e retenção podem fazer com que uma busca deixe de mostrar parte dos eventos relacionados a uma operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Seleção de traces, exportação e políticas de retenção podem produzir visibilidade parcial. A equipe precisa conhecer esses limites antes de concluir que um registro nunca foi emitido.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar tokens de acesso em texto claro é uma forma segura de melhorar a correlação porque o TraceId também é um identificador técnico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Tokens podem permitir acesso e não são identificadores de correlação. Devem ser omitidos ou mascarados; TraceId e SpanId oferecem contexto de tracing sem exigir que credenciais sejam registradas.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A cardinalidade de um atributo não afeta os custos de indexação nem a eficiência de agregações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Alta cardinalidade significa grande quantidade de valores distintos, o que pode pressionar armazenamento e consulta. Um ID ainda pode ser útil para busca pontual, mas não é automaticamente uma boa dimensão de agregação ampla.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cabeçalho traceparent contém o corpo completo de todos os logs produzidos pela requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. traceparent carrega campos de contexto para relacionar spans e serviços, não as mensagens de log. Os registros são emitidos e transportados por seus próprios mecanismos de logging.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em caso de formato de destino com apenas um campo temporal, usar Timestamp quando disponível e ObservedTimestamp quando ele faltar é uma recomendação de conversão do modelo OpenTelemetry.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A orientação preserva o instante informado pela origem sempre que conhecido; o horário de observação serve como alternativa quando a fonte não forneceu Timestamp.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um proxy remove o contexto recebido, o serviço seguinte pode perder a relação automática com o trace anterior, mesmo que produza seus próprios logs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Produzir logs não basta para manter a relação distribuída. A fronteira precisa preservar o contexto ou transportá-lo de forma compatível para que o próximo serviço o extraia.",
+      "section": "2. Identificadores de contexto e propagação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o formato legado não possui campo equivalente para algum dado do modelo comum, o pipeline deve inventar um valor para manter todos os campos preenchidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mapeamentos devem preservar significado e reconhecer limitações do formato de origem. Fabricar IDs ou valores cria uma falsa aparência de contexto e pode levar a associações enganosas.",
+      "section": "3. Estrutura dos registros e qualidade dos dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma investigação, combinar horário, origem e TraceId pode oferecer evidências mais úteis do que depender exclusivamente de uma única dimensão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contexto de trace liga a operação, os atributos de origem distinguem componentes e horários delimitam a janela. As dimensões se complementam e ajudam a detectar lacunas ou inconsistências.",
+      "section": "4. Investigação, limitações e cuidados operacionais",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry — Context propagation",
+      "publisher": "OpenTelemetry",
+      "reference": "Contexto, propagação entre serviços, cabeçalho traceparent e correlação automática de logs com traces",
+      "url": "https://opentelemetry.io/docs/concepts/context-propagation/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry — Logs Data Model",
+      "publisher": "OpenTelemetry",
+      "reference": "Campos TraceId, SpanId, TraceFlags, Timestamp, ObservedTimestamp, Resource, Attributes e Body",
+      "url": "https://opentelemetry.io/docs/specs/otel/logs/data-model/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry — Trace Context in non-OTLP Log Formats",
+      "publisher": "OpenTelemetry",
+      "reference": "Convenções trace_id, span_id e trace_flags em formatos de log legados",
+      "url": "https://opentelemetry.io/docs/specs/otel/compatibility/logging_trace_context/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenTelemetry — Logging",
+      "publisher": "OpenTelemetry",
+      "reference": "Motivações para correlação por tempo, contexto de execução e origem da telemetria",
+      "url": "https://opentelemetry.io/docs/specs/otel/logs/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elastic — Plaintext application logs",
+      "publisher": "Elastic",
+      "reference": "Campos de correlação no nível de serviço e de trace, como service.name e trace.id",
+      "url": "https://www.elastic.co/docs/solutions/observability/logs/plaintext-application-logs",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

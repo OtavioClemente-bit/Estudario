@@ -1,0 +1,1787 @@
+{
+  "id": "informatica.otimizacao-performance-bancos-dados-escala",
+  "subject": "Informática",
+  "title": "Otimização de performance em larga escala em bancos de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Otimização de performance em larga escala",
+    "Performance em bancos de dados em larga escala",
+    "Otimização de bancos de dados em larga escala",
+    "Ajuste de desempenho de bancos de dados",
+    "Escalabilidade de bancos de dados relacionais",
+    "Tuning de consultas em bancos de dados",
+    "Ajuste de consultas SQL em larga escala",
+    "Desempenho de consultas em grandes volumes",
+    "Banco de dados de alto desempenho",
+    "Escala horizontal e vertical de banco de dados",
+    "Índices e planos de execução de consultas",
+    "Cache e réplicas para bancos de dados",
+    "Particionamento de tabelas em larga escala",
+    "Otimização de carga e consultas no banco",
+    "Performance de SGBD em sistemas de grande porte"
+  ],
+  "scope": {
+    "covers": "Otimização de desempenho de bancos de dados em larga escala: definição de metas e métricas, diagnóstico de gargalos, planos de execução e estatísticas, índices e custos de escrita, desenho de consultas e paginação, manutenção e estatísticas, particionamento, cache e consistência, pool de conexões, réplicas de leitura, escalabilidade vertical e horizontal, distribuição de carga e validação por testes de carga.",
+    "excludes": "Sintaxe completa de um SGBD específico, administração detalhada de infraestrutura de nuvem, modelagem relacional introdutória, recuperação de desastres, segurança de banco de dados e comandos de migração de esquema."
+  },
+  "theoryTitle": "Diagnóstico e escala de desempenho em bancos de dados",
+  "chapters": [
+    {
+      "title": "1. Medir antes de ajustar",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco pode responder depressa a uma consulta isolada e ainda assim falhar quando milhares de sessões chegam ao mesmo tempo. Em larga escala, o objetivo não é simplesmente tornar uma instrução mais rápida: é sustentar o volume esperado sem ultrapassar limites de latência, erro, throughput, custo e capacidade. Uma otimização válida começa por requisitos observáveis e por uma linha de base medida sob carga representativa.\n\n> **Siglas e termos deste capítulo**\n> - **Latência**: tempo percebido entre uma solicitação e sua resposta.\n> - **Throughput**: quantidade de operações concluídas por unidade de tempo.\n> - **SLO**: objetivo de nível de serviço, como uma meta de latência ou disponibilidade.\n> - **P95/P99**: percentis; P99 é o tempo abaixo do qual terminam 99% das observações.\n> - **Gargalo**: recurso ou etapa que limita o desempenho global.\n\n### Defina o que significa “rápido”\n\nUma média esconde caudas lentas. Se a maioria das consultas termina em poucos milissegundos, mas uma parcela demora segundos, a média pode não revelar a experiência ruim de parte dos usuários. Acompanhe percentis de latência, taxa de erros, throughput e saturação de CPU, memória, armazenamento e conexões. Meça também por operação ou classe de consulta: misturar uma busca simples com um relatório pesado dificulta localizar regressões.\n\nUma linha de base descreve a operação antes da mudança: volume e distribuição de dados, concorrência, consultas mais frequentes e mais caras, versão do software e configuração. Compare o resultado após o ajuste em condições semelhantes. Sem essa comparação, uma queda de latência pode ser efeito de menos tráfego, cache aquecido ou conjunto de dados menor, e não da alteração feita.\n\n| Sinal | Pergunta de diagnóstico | Exemplos de causa\n| --- | --- | ---\n| Latência alta em uma consulta | Onde o plano gasta tempo? | leitura excessiva, ordenação, junção cara\n| Muitas consultas por solicitação | O aplicativo repete trabalho? | padrão N+1, busca em laço\n| CPU saturada | Há cálculo ou varredura excessiva? | filtros sem seletividade, agregações\n| Espera por I/O | Os dados cabem na memória útil? | leitura aleatória, conjunto ativo grande\n| Espera por conexão | O pool está dimensionado e saudável? | conexões presas, rajadas de concorrência\n\n### Investigue com evidências\n\nO plano de execução mostra a estratégia escolhida pelo otimizador: tipos de varredura, ordem e algoritmo de junções, ordenações e agregações. No PostgreSQL, `EXPLAIN` exibe o plano estimado; `EXPLAIN ANALYZE` executa a instrução e inclui tempos e linhas observadas. A execução pode ter efeitos colaterais se a instrução modificar dados, por isso o comando deve ser usado com cuidado e, quando possível, em ambiente controlado. Estimativas de linhas muito diferentes das linhas reais podem apontar estatísticas desatualizadas ou distribuição de dados que o modelo não descreve bem.\n\nO MySQL também documenta `EXPLAIN` para inspecionar como o otimizador processaria instruções, inclusive ordem de junção e acesso às tabelas. O comando informa; não é uma receita universal para forçar um índice. Uma varredura sequencial pode ser mais barata quando a consulta precisa de grande parte da tabela. O plano deve ser interpretado em relação ao filtro, à seletividade, ao volume lido e à carga real.\n\n### Um ciclo de otimização\n\n1. Defina a meta observável e reproduza a carga relevante.\n2. Identifique as operações que mais contribuem para a latência ou o consumo total.\n3. Examine plano, linhas estimadas e reais, esperas e estatísticas.\n4. Mude uma hipótese por vez; registre o que mudou.\n5. Repita o teste com os mesmos dados e concorrência.\n6. Acompanhe depois da implantação e reverta se a regressão atingir a meta.\n\nOtimização é uma troca entre recursos. Um índice pode acelerar leituras e aumentar armazenamento, custo de escrita e manutenção. Cache diminui consultas ao banco, mas pode devolver informação antiga. Mais memória ou CPU pode aliviar um gargalo, mas não conserta consultas que fazem trabalho desnecessário.\n\n### Como cai na prova\n\n- A resposta correta parte de métricas e plano de execução, e compara antes e depois em carga representativa.\n- `EXPLAIN` descreve o plano; não garante por si só que a consulta terá bom desempenho na produção.\n- Uma média baixa não prova que os percentis altos estejam dentro da meta.\n- O plano mais rápido depende de seletividade e tamanho: varredura sequencial não é sempre erro, e índice não é sempre vantagem."
+    },
+    {
+      "title": "2. Consultas, índices e manutenção",
+      "markdown": "### O problema que este assunto resolve\n\nUma consulta sobre uma tabela enorme pode examinar milhões de linhas para devolver poucas. O ajuste busca reduzir trabalho: ler menos páginas, comparar menos linhas, evitar transferir colunas desnecessárias e não executar repetidamente consultas equivalentes. A estrutura de índice ajuda alguns padrões de acesso; ela não substitui a compreensão da consulta nem das características dos dados.\n\n> **Siglas e termos deste capítulo**\n> - **Índice**: estrutura auxiliar que localiza linhas por valores de uma ou mais colunas.\n> - **Seletividade**: capacidade de um predicado reduzir o conjunto de linhas candidatas.\n> - **Sargable**: predicado que permite ao mecanismo usar eficientemente um índice conforme sua forma e tipo.\n> - **Estatísticas**: estimativas sobre distribuição e cardinalidade dos dados usadas pelo otimizador.\n> - **I/O**: operações de entrada e saída entre memória e armazenamento.\n\n### Plano, predicado e índice\n\nUm índice B-tree costuma ajudar buscas por igualdade, intervalos e ordenações compatíveis com suas colunas. Em índices compostos, a ordem das colunas importa: um índice `(cliente_id, data)` tende a ser útil para buscas que restringem `cliente_id` e, em seguida, `data`; não se deve presumir que atenda da mesma forma a filtros apenas por `data`. A escolha depende dos filtros, junções, ordenações e distribuição observada.\n\nEvite aplicar uma transformação à coluna filtrada sem necessidade, como converter a coluna ou chamar uma função sobre ela em cada linha: isso pode impedir o aproveitamento de um índice comum. Prefira comparar a coluna diretamente com um limite de tipo compatível, reescrevendo a condição se a semântica for preservada. Também evite buscar todas as colunas quando só algumas são necessárias. `SELECT *` aumenta leitura, tráfego e processamento, e pode impedir uma consulta coberta por índice.\n\nÍndices não são gratuitos. Cada índice ocupa armazenamento e precisa ser mantido nas inserções, atualizações e exclusões que afetam as chaves. Muitos índices podem tornar escritas mais lentas e elevar o custo de manutenção. Índices pouco seletivos ou nunca usados também podem consumir recursos sem acelerar a carga relevante. Observe uso real antes de criar ou remover índices.\n\n### Junções, cardinalidade e repetição\n\nO otimizador estima quantas linhas cada etapa produzirá e seleciona uma ordem e um método de junção. Estatísticas ruins podem induzir escolha inadequada. Compare linhas estimadas e observadas, atualize estatísticas pelo mecanismo do SGBD quando fizer sentido e investigue assimetrias, como uma chave que concentra parcela excepcional dos registros. A ordem textual das tabelas em uma consulta não deve ser tomada como garantia da ordem física de execução.\n\nUm padrão N+1 ocorre quando o aplicativo busca uma lista e emite uma consulta adicional para cada elemento. Para dezenas de elementos, isso já multiplica viagens de rede; em escala, a amplificação de chamadas pode saturar conexões e banco. Uma junção ou uma busca em lote pode reduzir a quantidade de idas ao banco, desde que o resultado não crie uma resposta enorme e que a semântica se mantenha.\n\nPara paginação profunda, `OFFSET` alto pode obrigar o banco a localizar e descartar muitas linhas anteriores. Paginação por chave (keyset) usa a última chave ordenada como ponto de continuação; é eficiente em sequências estáveis, mas não permite saltar diretamente a qualquer página numérica sem trabalho adicional. Uma ordenação determinística, com critério de desempate único, evita lacunas ou repetições entre páginas em dados concorrentes.\n\n### Estatísticas e manutenção\n\nO otimizador depende de estatísticas para estimar seletividade e cardinalidade. Depois de carga em massa ou alteração relevante na distribuição, estatísticas antigas podem deixar de representar a tabela. No PostgreSQL, `ANALYZE` coleta estatísticas para o planejador; no MySQL, a documentação recomenda atualizar estatísticas da tabela quando se suspeita que dados de cardinalidade de chaves estejam desatualizados. A coleta não cria automaticamente o índice que falta e tampouco garante que todo plano mude para melhor.\n\nNo PostgreSQL, linhas removidas ou versões antigas de linhas atualizadas não são imediatamente eliminadas fisicamente da tabela. `VACUUM` permite recuperar espaço para reutilização e dá suporte à manutenção; o autovacuum automatiza tarefas rotineiras. `VACUUM FULL` reescreve a tabela, pode devolver espaço ao sistema operacional, é mais lento e exige bloqueio mais forte, portanto não é simplesmente a escolha padrão para manutenção periódica.\n\n### Como cai na prova\n\n- O índice deve corresponder aos predicados e à ordem de acesso; mais índices não significam automaticamente mais desempenho.\n- Estatística é insumo do otimizador; `ANALYZE` não é comando que cria índices.\n- N+1 amplia viagens entre aplicação e banco; carregamento em lote pode reduzir chamadas.\n- `OFFSET` grande pode desperdiçar leitura; keyset evita descartar páginas anteriores, mas tem outra forma de navegação."
+    },
+    {
+      "title": "3. Particionamento e distribuição de dados",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma tabela cresce muito, dividir seus dados em partes menores pode limitar o trabalho de determinadas consultas e facilitar operações de ciclo de vida. Particionamento, replicação e fragmentação horizontal são técnicas diferentes: cada uma distribui ou copia dados com consequências próprias. Nenhuma delas acelera automaticamente qualquer consulta nem elimina a necessidade de medir.\n\n> **Siglas e termos deste capítulo**\n> - **Partição**: parte física de uma tabela lógica, definida por uma chave e regra de distribuição.\n> - **Pruning**: descarte de partições que não podem conter linhas do filtro consultado.\n> - **Shard**: fragmento de dados distribuído entre nós, normalmente com responsabilidade de roteamento.\n> - **Escala vertical**: aumentar recursos de um servidor, como CPU, memória ou capacidade de I/O.\n> - **Escala horizontal**: distribuir carga ou dados por mais instâncias.\n\n### Particionamento com uma chave coerente\n\nO PostgreSQL define particionamento como dividir logicamente uma tabela grande em partes físicas menores. Formas declarativas incluem intervalo (range), lista (list) e hash. Por intervalo, por exemplo, registros podem ser separados por faixas de data. Se uma consulta filtra a chave de partição e o planejador consegue determinar quais faixas podem conter linhas, o pruning evita abrir partições irrelevantes. Sem filtros úteis na chave ou sem pruning, uma consulta pode continuar visitando muitas partes e até pagar custo adicional de planejamento.\n\nA chave deve refletir filtros e manutenção reais. Particionar eventos por mês pode facilitar a retirada de períodos antigos quando consultas e retenção também se organizam por data. Uma tabela de clientes particionada por mês de criação não ajuda necessariamente buscas frequentes por identificador. Partições muito numerosas elevam o custo de metadados e planejamento; partições desbalanceadas concentram carga e reduzem o ganho esperado.\n\nPartições também ajudam operações em lote. Em vez de excluir linha a linha um período inteiro, pode ser possível remover ou desanexar uma partição que representa exatamente aquele período. Isso reduz trabalho de exclusão e, no PostgreSQL, pode evitar a sobrecarga de `VACUUM` associada a um `DELETE` massivo. Essa vantagem depende do desenho e das restrições do esquema.\n\n### Vertical, réplica e shard\n\nEscala vertical amplia recursos da instância que executa o banco. É operacionalmente simples, mas tem limites de capacidade e pode aumentar custo de forma não linear. Escala horizontal adiciona instâncias. Réplicas de leitura copiam alterações do nó escritor para servir consultas, aliviando leituras, mas não multiplicam capacidade de escrita do primário. A replicação pode ser assíncrona; por isso uma leitura na réplica pode estar atrasada em relação a uma gravação recente.\n\nSharding divide os registros entre fragmentos, normalmente por uma chave de distribuição. A aplicação ou uma camada intermediária precisa encaminhar cada operação ao fragmento correto. Uma chave ruim cria hotspots: por exemplo, distribuir todo o tráfego recente para o mesmo fragmento. Consultas que atravessam vários shards exigem coordenação e podem ser mais caras. Rebalancear distribuição, impor restrições globais e manter transações entre shards também aumenta complexidade.\n\nUma fila pode amortecer rajadas de escritas quando a aplicação aceita processamento assíncrono. Ela não aumenta por si só a capacidade final do banco: se a taxa de entrada excede de modo persistente a taxa de processamento, a fila cresce e a latência aumenta. Dimensione consumidores, limite concorrência e trate idempotência e ordenação de acordo com o requisito funcional.\n\n### Como cai na prova\n\n- Particionamento divide uma relação lógica em partes físicas; shard distribui fragmentos, e réplica mantém cópias para leitura ou disponibilidade.\n- Pruning depende de filtros que permitam excluir partições; apenas criar partições não basta.\n- Réplica de leitura alivia leituras, não é uma segunda instância escritora automaticamente equivalente.\n- Sharding distribui carga, mas introduz roteamento e consultas distribuídas; uma fila absorve picos, não cria capacidade infinita."
+    },
+    {
+      "title": "4. Cache, conexões e validação em produção",
+      "markdown": "### O problema que este assunto resolve\n\nEm um sistema de larga escala, o próprio caminho até o banco também consome tempo e recursos. Uma aplicação pode abrir conexões em excesso, repetir leituras idênticas ou concentrar requisições concorrentes no mesmo recurso. Cache, pool de conexões e réplicas reduzem partes diferentes desse custo, mas criam decisões de consistência, expiração, concorrência e capacidade.\n\n> **Siglas e termos deste capítulo**\n> - **Pool de conexões**: conjunto limitado de conexões reutilizáveis entre aplicação e banco.\n> - **Cache hit/miss**: consulta atendida no cache / ausência do item que exige buscar na origem.\n> - **TTL**: tempo de vida após o qual um item em cache expira.\n> - **Consistência eventual**: réplicas ou caches podem convergir depois de algum atraso.\n> - **Teste de carga**: execução controlada de tráfego representativo para medir capacidade e comportamento.\n\n### Cache com regra de atualização explícita\n\nCache é apropriado quando há dados lidos repetidamente e que podem ser servidos com a frescura definida pelo produto. Um padrão comum tenta a leitura no cache e consulta a origem em caso de ausência; depois guarda o resultado. O ganho vem de reduzir latência e pressão sobre o banco. Meça taxa de acerto e custo de manutenção: um cache com muitas faltas ou cujo conteúdo muda constantemente pode acrescentar complexidade sem benefício.\n\nDecida como invalidar ou atualizar o valor: TTL, invalidação após gravação, atualização explícita ou outra estratégia. Cada opção tem intervalo de possível desatualização e risco de corrida. Não trate cache como armazenamento durável: ele pode ser reiniciado, expirar ou ficar indisponível e os dados precisam ser recuperáveis da fonte. Para operações que exigem leitura imediatamente consistente com a gravação recém-confirmada, encaminhe a leitura à fonte apropriada ou adote mecanismo que cumpra essa garantia.\n\n### Pool e limites de concorrência\n\nAbrir uma conexão de banco envolve custo e recursos no servidor. Um pool reutiliza conexões, reduzindo esse custo, mas o tamanho deve refletir o número de processos da aplicação e a capacidade do banco. Pools enormes podem elevar a concorrência além da capacidade de CPU, memória e I/O, aumentando contenção em vez de throughput. Pools pequenos demais, conexões vazadas ou transações longas podem produzir espera pela aquisição. Monitore conexões ativas, ociosas, fila de espera e duração das transações.\n\nUse timeouts e retentativas com política limitada e backoff exponencial para evitar que uma falha temporária provoque tempestade de novas conexões. Retentativa indiscriminada de uma operação de escrita não idempotente pode duplicar efeitos. Limites de concorrência e filas controlam rajadas; não confunda saturação no pool com lentidão intrínseca de uma consulta.\n\n### Teste de carga e operação contínua\n\nO teste deve reproduzir a mistura de leituras e escritas, tamanho e distribuição dos dados, concorrência, duração e padrões de pico relevantes. Teste a capacidade sustentada e o comportamento ao ultrapassá-la; acompanhe latência de cauda, throughput, falhas, fila de conexões, CPU, memória, I/O, acertos de cache e atraso de réplica. Um teste só com dados pequenos ou cache sempre aquecido pode aprovar uma configuração que falhará em produção.\n\nAumente a carga gradualmente e registre cada mudança de configuração ou consulta. Verifique que o aumento de throughput não viola a latência ou consistência exigida. Faça o teste também depois de alterações relevantes e monitore os mesmos indicadores em operação. A documentação AWS Well-Architected recomenda avaliar estratégias como cache, réplicas, particionamento ou compressão e medir os efeitos das mudanças por métricas e testes de carga.\n\n### Como cai na prova\n\n- Cache melhora leituras repetidas, mas exige estratégia de invalidação e definição de frescura.\n- Réplica e cache podem entregar dados atrasados; não os use sem considerar a garantia de consistência.\n- Pool limita e reutiliza conexões; aumentar seu tamanho sem limite pode agravar saturação.\n- Resultado de otimização precisa ser validado com carga representativa, métricas de cauda e observação após a implantação."
+    }
+  ],
+  "summary": "Otimizar banco de dados em larga escala é um ciclo de medição, diagnóstico, mudança controlada e validação. Estabeleça metas de latência, percentis, throughput, erros e saturação; use planos como EXPLAIN para localizar leituras, junções, ordenações e estimativas problemáticas. Escolha índices de acordo com filtros e ordenações, lembrando que eles consomem espaço e tornam escritas mais caras; mantenha estatísticas representativas e, no PostgreSQL, considere o papel de VACUUM e autovacuum. Particionamento pode permitir pruning e facilitar operações de ciclo de vida quando chave e consultas coincidem. Escala vertical amplia recursos; réplicas de leitura aliviam consultas e podem ter atraso; sharding distribui registros, mas exige roteamento e controle de hotspots. Cache diminui leituras repetidas com custo de frescura e invalidação; pools reutilizam conexões, mas concorrência excessiva também satura o servidor. Testes de carga devem reproduzir dados, mistura de operações, concorrência e picos, e comparar métricas antes e depois.",
+  "flashcards": [
+    {
+      "front": "Por que estabelecer uma linha de base antes de otimizar?",
+      "back": "Para registrar desempenho e condições iniciais comparáveis; assim é possível atribuir mudanças observadas à intervenção e detectar regressões."
+    },
+    {
+      "front": "O que informa o percentil P99 de latência?",
+      "back": "O tempo abaixo do qual terminam 99% das observações; é útil para revelar a cauda lenta que uma média pode esconder."
+    },
+    {
+      "front": "O que revela EXPLAIN em um SGBD?",
+      "back": "O plano de execução escolhido, incluindo caminhos de acesso e operações como junções e ordenações."
+    },
+    {
+      "front": "Qual diferença prática existe entre EXPLAIN e EXPLAIN ANALYZE no PostgreSQL?",
+      "back": "EXPLAIN mostra o plano estimado; EXPLAIN ANALYZE executa a instrução e também informa observações reais, incluindo tempos e linhas."
+    },
+    {
+      "front": "Por que um índice pode piorar o desempenho global?",
+      "back": "Ocupa espaço e precisa ser atualizado em inserções, alterações e exclusões, aumentando custo de escrita e manutenção."
+    },
+    {
+      "front": "Por que a ordem das colunas importa num índice composto?",
+      "back": "O índice tende a ser mais útil quando filtros usam suas colunas iniciais; não se presume benefício equivalente para busca só pela coluna posterior."
+    },
+    {
+      "front": "O que significa seletividade de um predicado?",
+      "back": "Quanto ele reduz o conjunto de linhas candidatas; filtros seletivos podem favorecer acesso por índice, conforme custo e plano."
+    },
+    {
+      "front": "Que problema o padrão N+1 causa?",
+      "back": "Uma consulta inicial é seguida de uma consulta adicional por resultado, multiplicando viagens de rede e carga no banco."
+    },
+    {
+      "front": "Como paginação keyset evita parte do custo de OFFSET alto?",
+      "back": "Continua a partir da última chave ordenada vista, sem localizar e descartar todas as linhas das páginas anteriores."
+    },
+    {
+      "front": "Para que o otimizador usa estatísticas?",
+      "back": "Para estimar distribuição e quantidade de linhas e comparar custos de planos alternativos."
+    },
+    {
+      "front": "O que faz ANALYZE no PostgreSQL?",
+      "back": "Coleta estatísticas de distribuição das tabelas para ajudar o planejador a estimar cardinalidade."
+    },
+    {
+      "front": "Qual a função rotineira de VACUUM no PostgreSQL?",
+      "back": "Recuperar espaço ocupado por tuplas mortas para reutilização e apoiar manutenção da tabela; autovacuum automatiza trabalho rotineiro."
+    },
+    {
+      "front": "O que caracteriza VACUUM FULL?",
+      "back": "Reescreve a tabela e pode devolver espaço ao sistema operacional, mas é mais lento e toma bloqueio mais forte."
+    },
+    {
+      "front": "O que é partition pruning?",
+      "back": "O planejador descarta partições que não podem conter linhas compatíveis com o filtro da consulta."
+    },
+    {
+      "front": "Quando particionar por intervalo de data pode ajudar?",
+      "back": "Quando consultas e retenção filtram por data, permitindo evitar partições alheias e tratar períodos inteiros como unidades."
+    },
+    {
+      "front": "Qual a diferença entre partição e shard?",
+      "back": "Partição é uma parte física de uma tabela lógica; shard é um fragmento distribuído entre nós e normalmente requer roteamento."
+    },
+    {
+      "front": "O que uma réplica de leitura alivia?",
+      "back": "Consultas de leitura, deslocando parte delas do escritor; não aumenta automaticamente a capacidade de escrita do primário."
+    },
+    {
+      "front": "Que risco de consistência existe ao ler numa réplica?",
+      "back": "Se a replicação for assíncrona, a réplica pode ainda não conter uma gravação recente do escritor."
+    },
+    {
+      "front": "Qual responsabilidade adicional vem com sharding?",
+      "back": "Distribuir e rotear operações pela chave, tratar consultas entre fragmentos, rebalanceamento e concentração desigual de tráfego."
+    },
+    {
+      "front": "Por que um cache precisa de política de invalidação?",
+      "back": "Para controlar por quanto tempo dados antigos podem ser servidos e quando atualizar ou remover valores após mudanças."
+    },
+    {
+      "front": "O que mede a taxa de acerto do cache?",
+      "back": "A proporção de leituras satisfeitas no cache em vez de buscar o valor na fonte."
+    },
+    {
+      "front": "Qual é a finalidade de um pool de conexões?",
+      "back": "Reutilizar conexões abertas e limitar concorrência de acesso ao banco, reduzindo o custo de abrir conexão por operação."
+    },
+    {
+      "front": "Por que elevar demais o tamanho do pool pode ser ruim?",
+      "back": "Aumenta a concorrência sobre recursos limitados e pode provocar contenção, saturação e pior latência."
+    },
+    {
+      "front": "O que deve reproduzir um teste de carga realista?",
+      "back": "Volume e distribuição dos dados, mistura de operações, concorrência, duração e padrões de pico relevantes."
+    },
+    {
+      "front": "Por que backoff exponencial pode ajudar nas retentativas?",
+      "back": "Espalha as novas tentativas ao longo do tempo em vez de concentrar uma tempestade de chamadas durante a falha."
+    }
+  ],
+  "tips": [
+    "Comece pelo indicador e pela operação que viola a meta; evite otimizar uma consulta só por parecer complexa.",
+    "Compare linhas estimadas e reais no plano: divergência pode apontar estatísticas desatualizadas ou distribuição atípica.",
+    "Avalie o custo total de um índice: leituras beneficiadas, armazenamento e escritas que precisam mantê-lo.",
+    "Particionamento só ajuda quando a chave e os filtros permitem excluir partes sem relevância.",
+    "Separe as funções: cache reutiliza resultados, réplica distribui leituras, pool reutiliza conexões e shard distribui subconjuntos de dados.",
+    "Valide a mudança com dados e concorrência representativos e acompanhe latência de cauda, erros e saturação após publicar."
+  ],
+  "traps": [
+    "Afirmar que um índice sempre acelera consultas ignora o custo de escrita, armazenamento e manutenção e a seletividade do filtro.",
+    "Tratar a média como única medida pode ocultar a cauda lenta, que percentis como P95 e P99 revelam.",
+    "Supor que EXPLAIN executa necessariamente a consulta confunde o plano estimado com EXPLAIN ANALYZE no PostgreSQL.",
+    "Dizer que particionar qualquer tabela automaticamente a torna mais rápida ignora a chave, o pruning e o custo de muitas partições.",
+    "Confundir réplica com escritor adicional ignora que réplicas de leitura servem leituras e podem estar atrasadas.",
+    "Aumentar ilimitadamente o pool pode piorar saturação: o banco continua tendo limites de CPU, memória e I/O."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva um ciclo de otimização baseado em evidências.",
+      "answer": "Definir meta, medir linha de base sob carga representativa, localizar a operação e o gargalo com métricas e plano, testar uma mudança controlada, comparar nas mesmas condições e monitorar depois da implantação."
+    },
+    {
+      "question": "Por que latência de cauda e média contam histórias diferentes?",
+      "answer": "A média agrega tempos rápidos e lentos, enquanto percentis altos mostram a experiência dos pedidos mais demorados. Uma cauda ruim pode prejudicar muitos usuários mesmo com média aceitável."
+    },
+    {
+      "question": "Que informações do plano ajudam a avaliar uma consulta lenta?",
+      "answer": "Caminhos de acesso, ordem e tipo de junção, ordenações e estimativas de linhas; com EXPLAIN ANALYZE podem-se comparar estimativas com linhas e tempos observados."
+    },
+    {
+      "question": "Explique a troca envolvida na criação de um índice.",
+      "answer": "Pode reduzir linhas ou páginas examinadas em consultas compatíveis, mas ocupa espaço e deve ser mantido durante alterações, elevando custo de escrita."
+    },
+    {
+      "question": "Quando o particionamento por data pode ser útil e quando não ajuda?",
+      "answer": "É útil se filtros e operações de retenção usam a data e o mecanismo descarta partições irrelevantes; não ajuda quando as consultas não filtram a chave e ainda pode adicionar custo de planejamento."
+    },
+    {
+      "question": "Diferencie escala vertical, réplica de leitura e sharding.",
+      "answer": "Vertical aumenta recursos de um servidor; réplica copia dados para atender mais leituras; sharding distribui subconjuntos dos dados por nós e exige roteamento."
+    },
+    {
+      "question": "Que requisitos devem orientar a política de cache?",
+      "answer": "Frequência de leitura, taxa de mudança, frescura tolerada, invalidação, recuperação após perda do cache e consistência necessária depois de uma escrita."
+    },
+    {
+      "question": "O que observar para distinguir espera por conexão de consulta intrinsecamente lenta?",
+      "answer": "Tempo de espera para obter conexão, conexões ativas e ociosas, tamanho da fila, transações longas e métricas do plano e execução da própria consulta."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Otimizar sem medir",
+      "summary": "Ajustes devem responder a uma meta, partir de linha de base e ser comparados com carga equivalente por latência, throughput, erros e saturação."
+    },
+    {
+      "key": "e2",
+      "title": "Plano e índice tratados como solução automática",
+      "summary": "Plano é evidência a interpretar; índice depende de filtros, seletividade e ordem de colunas, e impõe custos de espaço e escrita."
+    },
+    {
+      "key": "e3",
+      "title": "Partições e shards confundidos",
+      "summary": "Particionamento divide tabela lógica e depende de pruning; sharding distribui fragmentos e exige roteamento, balanceamento e consultas distribuídas."
+    },
+    {
+      "key": "e4",
+      "title": "Cache e réplica ignoram frescura",
+      "summary": "Ambos podem reduzir carga de leitura, mas podem servir dados desatualizados; cache requer invalidação, réplica requer considerar atraso."
+    },
+    {
+      "key": "e5",
+      "title": "Concorrência confundida com capacidade",
+      "summary": "Pool, fila e retentativa regulam acesso e rajadas, mas limites de conexão e recursos permanecem; concorrência excessiva pode ampliar saturação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe afirma que o serviço está rápido porque a média das consultas está baixa, embora usuários relatem esperas longas em horários de pico. Qual análise inicial é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar percentis de latência e segmentar a carga por operação e período.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o banco por um nó maior antes de identificar a origem das esperas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar todos os tempos limite para que pedidos lentos não falhem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar índices em todas as colunas para reduzir o tempo médio geral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar o pico porque a média em períodos tranquilos está dentro da meta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Percentis altos revelam a cauda lenta que a média pode esconder, e a segmentação mostra quais operações ou períodos concentram o problema. Escalar ou indexar sem diagnóstico pode elevar custo sem atacar a causa; aumentar timeouts mascara a espera e ignorar o pico não atende a carga real.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Latência representa a quantidade de operações concluídas por unidade de tempo, enquanto throughput mede quanto uma operação individual demora.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A afirmação inverteu os conceitos: throughput descreve taxa de conclusão de trabalho; latência descreve duração de uma solicitação. Um sistema pode aumentar throughput por concorrência e ainda apresentar latência alta, portanto as duas medidas devem ser acompanhadas.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento permite avaliar se uma alteração de configuração realmente reduziu o tempo de resposta de uma operação frequente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar um teste de pico com um teste posterior feito sem concorrência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar várias configurações simultaneamente e atribuir o resultado à principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir antes e depois com dados, concorrência e mistura de operações comparáveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar somente o tempo de inicialização do processo como medida da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar como prova suficiente a opinião de quem revisou a mudança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma comparação controlada mantém carga relevante semelhante para que a diferença observada possa ser relacionada à mudança. Variar condições, misturar muitas alterações ou medir inicialização em vez da consulta impede atribuição confiável; percepção individual não substitui métrica.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, EXPLAIN ANALYZE apresenta tempos e linhas observadas sem executar a instrução, razão pela qual não pode produzir efeitos em comandos que alteram dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. EXPLAIN ANALYZE executa a instrução observada; uma instrução de escrita pode efetuar alterações. O plano e os tempos reais são úteis, mas a execução deve ocorrer em ambiente e condições seguros, especialmente fora de transação reversível.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório apresenta estimativa de 20 linhas para uma etapa, mas a execução observada processa centenas de milhares. Qual investigação é mais diretamente indicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar permanentemente o otimizador para preservar o plano atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Revisar estatísticas e distribuição dos dados que alimentam a estimativa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a quantidade de réplicas, pois a estimativa usa o nó leitor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir as linhas reais excedentes para igualá-las à estimativa planejada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir toda junção por uma ordenação para alinhar cardinalidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma grande diferença entre cardinalidade estimada e observada pode levar o otimizador a escolher um plano inadequado. Estatísticas desatualizadas ou distribuição enviesada são hipóteses a investigar; mudar réplicas, apagar dados ou trocar operações sem evidência não corrige a estimativa.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma varredura sequencial indicada no plano é necessariamente um erro de configuração, pois qualquer índice existente deveria ser escolhido pelo otimizador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se a consulta precisa ler grande fração da tabela, uma varredura sequencial pode custar menos que acessos dispersos por índice. A decisão depende da seletividade, tamanho e custo estimado; a existência de índice não obriga seu uso.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer saber se uma mudança reduziu a latência sem aumentar falhas ou saturar o armazenamento. Que conjunto de acompanhamento atende melhor ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas o tamanho do código SQL armazenado no repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a latência média em uma única execução manual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o número de linhas retornadas, sem medir o tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Percentis de latência, throughput, erros e saturação de recursos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de desenvolvedores que participaram da otimização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A avaliação precisa cobrir tempo de resposta e taxa de trabalho, além de falhas e saturação de recursos. Uma execução manual ou a média isolada não representa a cauda nem concorrência; tamanho do SQL, linhas retornadas e número de autores não mostram o comportamento de serviço.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O EXPLAIN não exibe estratégia de acesso, junção ou ordenação, portanto não oferece elementos para investigar uma consulta lenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O EXPLAIN mostra o plano escolhido, que pode incluir acessos, junções e ordenações. Inspecionar esses nós e estimativas ajuda a localizar trabalho excessivo, mas o plano precisa ser interpretado com dados reais e métricas.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe identificou que uma aplicação carrega uma lista de pedidos e executa uma busca adicional do cliente para cada pedido. Qual mudança reduz a amplificação de chamadas sem abandonar os dados relacionados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Buscar os clientes em lote ou integrar a leitura numa consulta adequada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Abrir uma conexão exclusiva por pedido para paralelizar cada busca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o intervalo de timeout de todas as consultas individuais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma réplica para cada pedido retornado pela lista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar somente o primeiro cliente e ignorar os demais resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão N+1 transforma uma leitura de lista em várias viagens adicionais ao banco. Carregamento em lote ou uma junção apropriada reduz chamadas mantendo a relação. Mais conexões e réplicas não removem o trabalho repetido; timeout e descarte de resultados não resolvem o desenho.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice composto nas colunas (cliente_id, data) tende a ser mais diretamente útil a uma busca que filtra cliente_id e data do que a uma busca que filtra somente data.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em estruturas B-tree comuns, a ordem das colunas importa e as colunas iniciais orientam o caminho de busca. Um índice iniciado por cliente_id não deve ser presumido igualmente útil para filtrar apenas data; o plano e o SGBD específico devem ser examinados.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta seleciona somente os identificadores, mas projeta todas as colunas da tabela e transfere o resultado inteiro à aplicação. Qual ajuste pode reduzir trabalho e tráfego?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar ordenação por todas as colunas para reduzir o conjunto lido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retornar somente as colunas necessárias à resposta da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter cada coluna em texto antes de enviá-la ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma conexão adicional para cada coluna projetada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar a tabela e conservar nela todas as colunas originais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Projetar apenas os campos usados reduz dados lidos, processados e transferidos, e pode permitir uma estratégia de índice coberto conforme o SGBD. Ordenar por tudo ou converter dados acrescenta trabalho; conexões extras e duplicação não eliminam a transferência desnecessária.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de criado, um índice não precisa ser atualizado quando as linhas correspondentes são inseridas ou alteradas, de modo que vários índices não afetam as escritas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Índices mantêm estruturas auxiliares que consomem armazenamento e precisam acompanhar mudanças nos registros. Por isso, a quantidade e a utilidade real dos índices devem ser avaliadas junto com o perfil de escrita.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma busca aplica uma função sobre cada valor de data e o plano deixa de usar o índice comum nessa coluna. Que reescrita vale investigar primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar a função por uma conversão de toda a tabela para texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Forçar um índice sem verificar se o predicado preserva a semântica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar a coluna diretamente com limites compatíveis, se equivalente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Adicionar uma ordenação pela mesma função em cada execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover todas as condições de data para percorrer menos linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma função aplicada linha a linha pode impedir o uso de um índice convencional. Um intervalo direto sobre a coluna e com tipos compatíveis pode ser sargable se preservar a semântica, mas deve ser confirmado pelo plano. Forçar índice ou retirar filtro sem medir pode alterar resultado ou custo.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, ANALYZE coleta estatísticas para ajudar o planejador; ele não cria automaticamente um índice para toda coluna que apareça numa consulta lenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As estatísticas informam distribuição e cardinalidade estimadas para a escolha do plano. Identificar e criar índice é outra decisão que depende dos predicados, da seletividade e do custo total de escrita e armazenamento.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela usa OFFSET muito alto para avançar por registros ordenados. Qual alternativa tende a evitar descartar todas as linhas das páginas anteriores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a mesma consulta sem limite e cortar linhas na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar aleatoriamente para que as páginas sejam distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o OFFSET em cada página para reduzir as leituras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Continuar após a última chave ordenada da página anterior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Criar uma cópia completa da tabela para cada número de página.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação por chave, ou keyset, usa a última chave já vista como ponto de continuação e não precisa localizar e descartar todos os registros anteriores. É importante usar ordenação determinística e aceitar que essa navegação não salta diretamente a uma página arbitrária por número.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma carga em massa, estatísticas antigas ainda podem representar mal a distribuição dos valores e levar o otimizador a estimar incorretamente a quantidade de linhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Mudanças expressivas no volume ou distribuição podem tornar estatísticas anteriores pouco representativas. A coleta ou atualização apropriada pode ajudar o planejador, embora não garanta por si só um plano melhor para toda consulta.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela PostgreSQL recebe muitas atualizações e exclusões. Qual descrição de manutenção é mais adequada para o espaço de tuplas obsoletas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VACUUM permite reutilização do espaço; autovacuum automatiza manutenção rotineira.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VACUUM FULL é sempre a rotina mais rápida e sem bloqueio para qualquer tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ANALYZE apaga fisicamente todas as versões antigas das linhas modificadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A criação de um índice substitui a necessidade de coleta de estatísticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma réplica remove as tuplas antigas do armazenamento do servidor escritor.",
+          "correct": false
+        }
+      ],
+      "explanation": "No PostgreSQL, VACUUM recupera espaço de tuplas mortas para reutilização; autovacuum cuida de tarefas rotineiras. VACUUM FULL reescreve a tabela, é mais lento e requer bloqueio forte. ANALYZE coleta estatísticas, e índice ou réplica não substitui essa manutenção.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "VACUUM FULL é apenas uma versão mais frequente do autovacuum, executada sem reescrever a tabela e sem bloqueio mais forte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. VACUUM FULL reescreve o conteúdo da tabela para devolver espaço não usado ao sistema operacional e exige bloqueio mais forte. A documentação não o recomenda como rotina geral; a manutenção normal busca reutilização de espaço dentro da própria tabela.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de partição por faixa mensal, uma consulta que filtra um mês específico pode se beneficiar de pruning quando o sistema reconhece que as outras faixas não contêm linhas correspondentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O pruning elimina partições cujos limites não podem satisfazer o predicado. O ganho depende da chave, do formato do filtro e da capacidade do planejador de determinar as partes relevantes; particionar por si só não garante redução de trabalho.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de eventos é consultada quase sempre por data e precisa remover períodos antigos inteiros. Qual escolha de particionamento se alinha melhor a esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Particionar por um campo textual aleatório, sem relação com os filtros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Particionar por faixas de data compatíveis com consultas e retenção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar uma partição para cada coluna projetada em relatórios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas um índice global e descartar qualquer limite de período.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar cada evento para todas as faixas para simplificar a leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Faixas temporais correspondem ao filtro e podem permitir pruning; também podem facilitar retirar períodos completos quando o desenho permite. Uma chave aleatória não reduz leituras por data, e copiar dados ou ignorar limites cria custo ou altera o comportamento pretendido.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, remover uma partição que corresponde exatamente a um período pode evitar o trabalho linha a linha de um DELETE massivo e a sobrecarga de VACUUM associada a ele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando o desenho de retenção coincide com as partições, remover ou desanexar uma parte pode ser bem mais eficiente que apagar em massa cada linha. O benefício depende da estrutura particionada e da operação ser compatível com os limites da partição.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe propõe criar centenas de partições minúsculas para acelerar qualquer consulta, inclusive as que não filtram a chave de partição. Qual avaliação é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É adequado, pois qualquer aumento no número de partições reduz leituras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É adequado somente se todas as partições tiverem o mesmo nome.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não é automático: sem pruning pode haver custo de acesso e planejamento maior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É adequado, pois particionamento substitui estatísticas e índices.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não é possível, porque um banco só pode ter uma partição por tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "O benefício depende de consultas capazes de descartar partes. Sem filtro útil na chave, muitas partições podem ser examinadas e o planejamento também pode ficar mais caro. Partições não substituem estatísticas e índices, e bancos suportam múltiplas partes conforme suas capacidades.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação aumenta verticalmente o servidor principal ao adicionar CPU e memória; essa mudança é uma forma de escala vertical.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Escala vertical amplia recursos da instância que executa o banco. Ela pode aliviar limites de CPU, memória ou I/O, mas está sujeita aos limites da plataforma e não elimina trabalho excessivo nas consultas.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A carga de leitura excede a capacidade do escritor, enquanto as gravações ainda cabem nele. Qual medida distribui parte das leituras sem fragmentar imediatamente os dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar uma réplica de leitura e encaminhar consultas compatíveis a ela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma réplica para cada linha e dividir as atualizações entre elas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar a replicação para que as leituras usem dados mais novos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionar cada consulta por ordem alfabética do nome do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar todas as escritas para a réplica e conservar leituras no escritor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Réplicas de leitura podem absorver consultas e aliviar o escritor, desde que a aplicação aceite suas características de consistência. Elas não são automaticamente escritoras independentes nem precisam existir por linha; desligar replicação não resolve a capacidade de leitura.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica assíncrona pode não refletir imediatamente uma escrita recém-confirmada no nó escritor, de modo que uma leitura nela pode observar estado anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na replicação assíncrona, as alterações chegam à réplica depois de confirmadas no escritor. Se a aplicação exige leitura imediata do próprio dado escrito, deve considerar atraso e encaminhar essa operação a uma fonte que satisfaça a garantia requerida.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de sharding envia todo o tráfego recente a um único fragmento. Qual diagnóstico explica melhor a persistência do gargalo após adicionar nós?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A replicação tornou todos os fragmentos leitores exclusivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O cache expirou, portanto a chave de distribuição deixou de existir.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A escala vertical impediu o banco de distribuir dados em disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave cria hotspot e concentra carga em um fragmento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de nós faz a fila executar gravações em ordem reversa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave que mapeia a maioria das operações recentes ao mesmo shard produz distribuição desequilibrada, ou hotspot. Acrescentar nós não ajuda esse fragmento sem redesenhar ou rebalancear a distribuição e o roteamento.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sharding reduz a necessidade de roteamento porque qualquer nó contém todos os dados e executa sozinho consultas sobre todos os fragmentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sharding distribui subconjuntos entre nós; uma camada da aplicação ou middleware precisa direcionar operações e coordenar consultas que atravessam fragmentos. Replicar o conjunto inteiro em cada nó seria outra estratégia, com custos e finalidade diferentes.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila na frente do banco pode absorver picos de escrita quando o processamento assíncrono é aceitável, mas não remove a necessidade de que a capacidade de processamento acompanhe a entrada no longo prazo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fila desacopla produtores e consumidores e suaviza rajadas, mas se a entrada persistente superar o processamento, o acúmulo e o tempo de espera crescem. É necessário dimensionar consumidores, concorrência e garantias de idempotência e ordenação.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo é lido repetidamente e pode ficar alguns minutos desatualizado. Qual estratégia tende a reduzir leituras no banco preservando uma regra explícita de frescura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar o resultado num cache com expiração ou invalidação definida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tratar a cópia de cache como armazenamento permanente e único.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar todas as gravações para impedir que o catálogo mude.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um índice diferente para cada solicitação repetida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o tamanho do pool sem definir como atualizar os valores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como a aplicação tolera uma janela de desatualização, um cache com TTL ou política de invalidação pode servir leituras frequentes e reduzir pressão no banco. O cache pode ser perdido e precisa de fonte recuperável; índice e pool não definem frescura nem substituem essa política.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É seguro tratar o conteúdo do cache como cópia durável dos dados, pois expiração e reinicialização não podem remover valores armazenados nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cache é uma cópia de acesso rápido que pode expirar, ser invalidada ou se perder em reinicialização. A aplicação deve recuperar o dado de uma fonte durável e não usar cache como substituto de armazenamento primário confiável.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma gravação acaba de ser confirmada e a tela precisa exibir imediatamente o valor novo. Que consideração de leitura é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher sempre o cache, porque ele atualiza antes da transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ler de uma fonte que satisfaça a consistência exigida para a escrita.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a quantidade de partições até o valor aparecer nelas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o timeout de leitura sem mudar o destino consultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar a leitura a uma réplica assíncrona sem verificar seu atraso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache ou réplica assíncrona podem ainda conter o estado anterior. Uma leitura que deve refletir imediatamente a gravação precisa ser encaminhada a uma fonte ou mecanismo que cumpra essa garantia, e a política de cache deve invalidar ou atualizar o valor conforme o desenho.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pool de conexões reutiliza conexões e limita quantas solicitações concorrem simultaneamente pelo banco; aumentar seu limite sem observar a capacidade pode agravar contenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O pool evita abrir e fechar uma conexão por operação e regula concorrência. Um limite muito alto pode colocar mais trabalho simultâneo sobre CPU, memória e I/O do banco; é preciso observar fila de aquisição e saturação.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe observa requisições esperando para obter conexão, embora o tempo de execução da consulta, depois de iniciada, seja curto. Que inspeção distingue melhor esse problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar conexões ativas, fila do pool e duração das transações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar índice a todas as colunas da resposta sem olhar o plano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a quantidade de tabelas para reduzir a fila de aquisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir somente o tempo da consulta após conseguir conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar os limites do pool para que qualquer sessão seja aceita.",
+          "correct": false
+        }
+      ],
+      "explanation": "A espera ocorre antes da execução da consulta, então métricas de aquisição, conexões em uso e transações longas ajudam a localizar esgotamento do pool. Um índice não reduz essa fila diretamente, e remover limites pode transferir a saturação ao próprio banco.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de retentativa limitada com backoff pode evitar concentrar todas as novas tentativas no mesmo instante durante uma falha temporária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O backoff espaça tentativas e reduz tempestades de tráfego; limites também evitam repetição infinita. Escritas não idempotentes requerem cuidado, pois uma tentativa repetida pode duplicar efeitos se a primeira foi confirmada sem resposta percebida.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de carga usa uma base minúscula e mantém todos os dados no cache, embora a produção opere com volumes maiores e predominância de leitura fria. Qual conclusão é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teste comprova capacidade para produção por ter muitas requisições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O teste mede a inicialização do banco, ainda que nunca tenha reiniciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O teste não representa dados e padrões relevantes da carga real.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O teste dispensa métricas de latência, pois o cache ficou aquecido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O teste garante a mesma distribuição de dados ao trocar a base.",
+          "correct": false
+        }
+      ],
+      "explanation": "O volume, distribuição e comportamento de cache influenciam plano, I/O e latência. Um cenário pequeno e sempre aquecido não representa carga fria em escala; a avaliação deve reproduzir a mistura, concorrência e dados relevantes e medir recursos e percentis.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração aumentou o throughput, mas também elevou a latência P99 acima do objetivo. A equipe deve considerar o ajuste bem-sucedido apenas pelo aumento de operações concluídas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Throughput é apenas uma dimensão. Se a latência de cauda viola o objetivo, a mudança não atende ao requisito de serviço; é preciso investigar o compromisso entre concorrência, filas e recursos e buscar um resultado que satisfaça as metas relevantes.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema sofre rajadas previsíveis, e consumidores assíncronos podem processar alterações depois da resposta inicial. Qual desenho pode amortecer as rajadas, mantendo atenção ao acúmulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar uma fila à frente dos consumidores e acompanhar seu crescimento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Duplicar a mesma gravação em cada réplica sem controlar confirmação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover toda métrica de fila para evitar alarmes em horário de pico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar mais consultas síncronas antes de inserir cada registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar índices redundantes para consumir as mensagens mais lentamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila absorve rajadas e permite que consumidores processem de forma desacoplada, mas seu crescimento revela que a taxa de entrada supera a capacidade de saída. A equipe precisa dimensionar processamento e observar atraso, idempotência e ordenação.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de uma otimização, continuar monitorando as métricas em produção é útil para identificar regressões causadas por mudanças no volume, distribuição dos dados ou mistura de operações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dados e carga evoluem, podendo mudar planos, pressão de cache e concorrência. Acompanhar os indicadores usados no teste permite descobrir regressões e verificar se a meta continua atendida após a publicação.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco MySQL apresenta lentidão numa consulta com várias tabelas. Qual informação do EXPLAIN ajuda a investigar o acesso escolhido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem de junção e o método usado para acessar cada tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conteúdo completo de todas as linhas que serão retornadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma garantia de que o plano exibido sempre será o mais rápido em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tempo total de todas as consultas futuras sob qualquer volume de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem de junção e os métodos de acesso escolhidos pelo otimizador.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação do MySQL descreve EXPLAIN como informação do otimizador sobre execução, inclusive como as tabelas são acessadas e em que ordem entram nas junções. O plano não exibe todos os resultados nem garante tempos futuros; estatísticas podem influenciar a escolha.",
+      "section": "1. Medir antes de ajustar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema mede muitos cache misses e acrescenta uma camada que exige serialização e chamadas de rede adicionais. Qual decisão é mais fundamentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter o cache, porque toda falta é compensada por um índice novo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar se o padrão de acesso e a taxa de acerto justificam a camada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar custo e latência do caminho completo com e sem cache.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Replicar todos os misses no escritor para tornar o cache durável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o TTL até que nenhum item precise voltar à fonte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache só traz benefício líquido quando leituras repetidas e economia na origem compensam custo de rede, serialização, manutenção e faltas. Medir o caminho completo e avaliar padrão e acertos evita manter uma camada que adiciona latência sem aliviar o banco.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas réplicas recebem leituras de relatórios independentes e o banco possui somente um nó escritor. Esse arranjo pode distribuir consultas de leitura sem transformar as réplicas em escritores concorrentes.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não, porque réplicas são cópias de backup que não aceitam consultas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não, porque toda leitura precisa ser executada no nó escritor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, se as consultas tolerarem o atraso e forem roteadas às réplicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, porque cada réplica passa automaticamente a confirmar gravações próprias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, roteando leituras tolerantes a atraso para as réplicas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Réplicas de leitura são úteis para offload de consultas, desde que elas possam tolerar eventual atraso de replicação. O arranjo não as transforma em escritores independentes, e interromper replicação faria o estado se afastar do escritor.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação mantém conexões ocupadas por longos períodos, embora as consultas sejam curtas. Qual medida pode diminuir espera de outras requisições sem elevar indiscriminadamente o limite do pool?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o tamanho do banco e manter a transação aberta mais tempo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar índices para acelerar operações que já terminam rapidamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar os timeouts para manter conexões ocupadas por mais tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir a duração da transação e liberar a conexão após o uso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o limite do pool e conservar transações abertas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conexões mantidas por transações longas deixam menos recursos disponíveis no pool mesmo quando a consulta é rápida. Reduzir escopo e duração da transação libera a conexão mais cedo; aumentar limites ou timeouts pode transferir e prolongar a saturação.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice composto atende filtros por duas colunas, mas inclui uma coluna posterior àquela que inicia o índice. A equipe deve verificar o plano e o padrão real de busca antes de concluir que a coluna posterior será usada isoladamente.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois a ordem das colunas determina os prefixos de busca úteis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não, pois todo índice composto ignora sempre a primeira coluna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, pois qualquer índice composto cobre todas as consultas da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não, pois índices compostos só podem conter colunas numéricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, mas confirme no plano como o prefixo do índice é usado.",
+          "correct": true
+        }
+      ],
+      "explanation": "A ordem das chaves de um índice composto afeta quais predicados podem aproveitá-lo diretamente. O índice que começa por outra coluna pode não ser adequado a uma busca isolada pela posterior; o plano e as características do SGBD confirmam o comportamento concreto.",
+      "section": "2. Consultas, índices e manutenção",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de carga que executa poucas solicitações por alguns segundos basta para demonstrar comportamento estável durante uma hora de pico sustentado.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; represente duração, volume e concorrência do pico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sim, porque duração e concorrência não afetam a capacidade observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; muitas requisições por poucos segundos provam estabilidade sustentada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não, pois testes de carga não podem incluir consultas de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, caso a média do teste curto seja inferior à meta de latência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste breve pode não revelar saturação sustentada, acúmulo de filas ou mudanças no cache. Para estimar comportamento no pico é preciso reproduzir duração, concorrência, dados e mistura de operações e acompanhar latência, erros e recursos, além da média.",
+      "section": "4. Cache, conexões e validação em produção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta cruza vários shards e exige combinar resultados de nós distintos. Comparada a uma leitura localizada num único fragmento, ela pode demandar coordenação adicional.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não, pois o particionamento transforma qualquer consulta em local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não, porque consultas entre shards são sempre executadas por um só nó.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não, porque cada shard contém obrigatoriamente o conjunto completo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, pois shards eliminam a necessidade de índices locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; consultas distribuídas precisam combinar resultados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma operação que alcança vários fragmentos pode exigir encaminhamento, execução distribuída e combinação dos resultados. O ganho de distribuição pode vir acompanhado de coordenação; a consulta localizada tende a evitar esse custo, e shards não implicam cópia integral dos dados.",
+      "section": "3. Particionamento e distribuição de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Using EXPLAIN",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Planos de execução, nós de varredura, EXPLAIN e EXPLAIN ANALYZE",
+      "url": "https://www.postgresql.org/docs/current/using-explain.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Examining Index Usage",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Uso real de índices, EXPLAIN e necessidade de estatísticas representativas",
+      "url": "https://www.postgresql.org/docs/current/indexes-examine.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Table Partitioning",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Particionamento declarativo, pruning, benefícios e operações de ciclo de vida",
+      "url": "https://www.postgresql.org/docs/current/ddl-partitioning.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — VACUUM",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Tuplas mortas, reutilização de espaço, autovacuum e diferenças de VACUUM FULL",
+      "url": "https://www.postgresql.org/docs/current/sql-vacuum.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.4 Reference Manual — Optimizing Queries with EXPLAIN",
+      "publisher": "Oracle",
+      "reference": "Plano de execução, acessos, ordem de junções e atualização de estatísticas",
+      "url": "https://dev.mysql.com/doc/refman/8.4/en/using-explain.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AWS Well-Architected Framework — Use various performance-related strategies",
+      "publisher": "Amazon Web Services",
+      "reference": "Cache, réplicas de leitura, sharding, compressão e validação de mudanças por métricas e teste de carga",
+      "url": "https://docs.aws.amazon.com/wellarchitected/2023-04-10/framework/perf_tradeoffs_performance_implement_strategy.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AWS Well-Architected Framework — Implement data access patterns that utilize caching",
+      "publisher": "Amazon Web Services",
+      "reference": "Padrões de cache, TTL, consistência, monitoramento e conexões",
+      "url": "https://docs.aws.amazon.com/wellarchitected/2024-06-27/framework/perf_data_access_patterns_caching.html",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

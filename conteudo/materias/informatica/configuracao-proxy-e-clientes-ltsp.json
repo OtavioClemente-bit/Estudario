@@ -1,0 +1,2364 @@
+{
+  "id": "informatica.configuracao-proxy-e-clientes-ltsp",
+  "subject": "Informática",
+  "title": "Configuração de proxy em navegadores e de clientes LTSP",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração de cliente de proxy em navegadores; etc. LTSP: Configuração de cliente.",
+    "Configuração de cliente proxy nos navegadores",
+    "Proxy manual no Firefox e no Edge",
+    "Configurações de conexão do Firefox",
+    "Configuração de proxy automático PAC",
+    "Lista de exceções e bypass do proxy",
+    "Proxy do sistema operacional no navegador",
+    "Cliente LTSP e inicialização pela rede",
+    "Configuração atual de cliente LTSP",
+    "Arquivo ltsp.conf para clientes LTSP",
+    "Seções globais e específicas do ltsp.conf",
+    "Geração do initrd adicional do LTSP",
+    "Configuração de cliente LTSP por hostname",
+    "Diferenças entre ltsp.conf e lts.conf"
+  ],
+  "scope": {
+    "covers": "Configuração de cliente de proxy em navegadores e configuração de cliente LTSP: proxy manual, configuração de sistema, detecção automática e URL PAC, tipos HTTP/HTTPS/SOCKS, exceções, autenticação e diagnóstico; propósito do LTSP, inicialização de clientes, arquivo /etc/ltsp/ltsp.conf, sintaxe e seções globais e por cliente, aplicação de alterações com ltsp initrd, imagem de cliente e distinção entre LTSP atual e LTSP 5.",
+    "excludes": "Administração completa de servidores proxy, criação de políticas corporativas de navegador, configuração de DHCP/iPXE/TFTP/NFS em profundidade, instalação completa do LTSP, administração de firewall e detalhes de versões específicas de navegador não documentados nas fontes consultadas."
+  },
+  "theoryTitle": "Como clientes de navegador usam proxies e como o LTSP configura seus terminais",
+  "chapters": [
+    {
+      "title": "1. O caminho da conexão: navegador, proxy e destino",
+      "markdown": "### O problema que este assunto resolve\n\nUm navegador precisa decidir para onde enviar cada solicitação. Em uma conexão direta, ele se conecta ao servidor do site. Em uma conexão com proxy, primeiro envia a solicitação a um servidor intermediário, que encaminha o tráfego conforme suas regras. A escolha pode vir de uma configuração manual, das opções do sistema operacional ou de uma configuração automática.\n\n> **Siglas e termos deste capítulo**\n> - **Proxy**: servidor intermediário usado pelo cliente para encaminhar conexões.\n> - **Cliente**: aqui, o navegador ou computador que inicia a solicitação.\n> - **PAC**: Proxy Auto-Configuration, arquivo de script que decide o proxy para cada URL.\n> - **Bypass**: exceção que permite acesso direto a determinados endereços.\n> - **URL**: endereço que identifica o recurso solicitado.\n\n### Quatro formas que o usuário encontra\n\n| Modo | O que o cliente consulta | Uso típico |\n| --- | --- | --- |\n| Sem proxy | Nenhum intermediário configurado | Rede que permite saída direta |\n| Detectar automaticamente | Mecanismos de descoberta disponíveis na rede | Ambiente administrado que anuncia configuração |\n| Usar proxy do sistema | Configuração de proxy definida no sistema operacional | Padronização para vários aplicativos |\n| Manual ou automático por PAC | Endereço e porta ou URL de um script PAC | Regras explícitas por protocolo ou endereço |\n\nNo Firefox, as configurações ficam em **Configurações > Geral > Configurações de rede > Configurar conexão** (os rótulos podem variar entre idiomas e versões). A janela permite escolher sem proxy, detectar automaticamente, usar as configurações do proxy do sistema, configurar manualmente ou informar uma URL de configuração automática. A mudança é salva ao fechar a janela.\n\nNo Edge, o comportamento de proxy se relaciona às configurações do sistema, às políticas e às opções próprias do navegador. Uma regra manual associa esquemas de URL a identificadores de proxy e pode incluir regras para contornar o proxy. Não se deve presumir que a configuração de um aplicativo afete todos os outros: cada navegador pode respeitar fontes e políticas distintas.\n\n### O que um proxy altera — e o que não altera\n\nO proxy muda o próximo salto da conexão. Ele não transforma o navegador em servidor nem garante, por si só, criptografia ponta a ponta. Em uma configuração HTTP comum, o cliente fala com o proxy; no acesso a um site HTTPS, o navegador normalmente estabelece um túnel pelo método CONNECT, e a criptografia do site continua entre navegador e site, salvo inspeção TLS configurada separadamente na organização.\n\nA seleção pode variar por esquema. Uma regra pode enviar URLs HTTP a um proxy e HTTPS a outro, ou encaminhar os demais esquemas por SOCKS. A documentação do Edge descreve listas para solicitações HTTP, HTTPS e demais URLs; isso é uma decisão por solicitação, não uma mudança no endereço do site.\n\n### Como cai na prova\n\n- Proxy é intermediário de tráfego; não é sinônimo de firewall, VPN, DNS ou antivírus.\n- “Usar proxy do sistema” manda o navegador aproveitar configuração do sistema, enquanto “configuração manual” define dados diretamente no cliente.\n- Se uma URL não abrir, verifique modo escolhido, endereço, porta, protocolo, exceções e disponibilidade do proxy antes de concluir que o site está fora do ar."
+    },
+    {
+      "title": "2. Configuração de proxy nos navegadores",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma rede institucional, a saída web pode precisar passar por um endereço intermediário. O cliente precisa conhecer o tipo de proxy, seu host, sua porta e, quando aplicável, as regras de seleção e de exceção. Informar apenas um nome de servidor sem conferir o protocolo ou a porta pode deixar algumas conexões sem rota válida.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP/HTTPS**: esquemas comuns de acesso a páginas; HTTPS protege a sessão com TLS.\n> - **SOCKS**: protocolo genérico de encaminhamento de conexões, oferecido em versões como SOCKS4 e SOCKS5.\n> - **Host**: nome DNS ou endereço IP do proxy.\n> - **Porta**: número de serviço no host que recebe a conexão.\n> - **Sistema**: configuração de proxy do sistema operacional, que pode ser compartilhada com aplicativos.\n\n### Firefox: selecione a fonte certa\n\nEm configurações de rede do Firefox, os modos têm efeitos diferentes:\n\n1. **Sem proxy**: o navegador tenta conectar diretamente.\n2. **Detectar automaticamente as configurações de proxy desta rede**: tenta descobrir as definições disponíveis na rede.\n3. **Usar as configurações de proxy do sistema**: delega ao sistema operacional.\n4. **Configuração manual**: permite informar proxies separados para HTTP, HTTPS e FTP, além de um proxy SOCKS e sua versão.\n5. **URL de configuração automática de proxy**: carrega um arquivo PAC.\n\nNo modo manual, o campo de exceções lista hosts ou IPs que devem ser acessados sem proxy. O marcador `<local>` é documentado pelo Firefox para não encaminhar nomes sem ponto, como nomes de host locais. Em alguns ambientes, o mesmo domínio aparece na forma curta e na forma completa; a exceção precisa corresponder à forma efetivamente solicitada.\n\n### PAC e regras por endereço\n\nUm PAC é um script que recebe, entre outros dados, a URL de destino e o nome do host e retorna uma decisão de proxy, como encaminhar por um servidor ou acessar diretamente. O cliente precisa alcançar a URL do PAC para obter a regra. Se o arquivo estiver indisponível, incorreto ou apontar para host inacessível, a resolução de proxy pode falhar. Recarregar a configuração atualizada é diferente de editar o endereço do PAC.\n\nNo Edge, as configurações manuais podem mapear tipos de URL para identificadores de proxy e manter uma lista de bypass. A opção de linha de comando `--proxy-server` define configurações personalizadas; `--proxy-bypass-list` recebe regras de exceção. Esses parâmetros são relevantes para diagnóstico e automação controlada, mas não substituem a política central quando uma organização impõe configurações gerenciadas.\n\n### SOCKS e autenticação\n\nSOCKS não é automaticamente equivalente a um proxy HTTP. O protocolo e a versão escolhidos importam. No Firefox, a interface permite selecionar SOCKS v4 ou v5; há ainda uma preferência de resolução DNS remota para SOCKS. No Edge, a documentação registra que SOCKS5 resolve nomes no lado do proxy e não oferece autenticação SOCKS5 nas configurações manuais documentadas. Não generalize essas características de um navegador para outro.\n\nO login do proxy também depende do mecanismo suportado pelo navegador e servidor. Evite gravar credenciais em URLs ou scripts: além de inseguro, o Edge declara não usar credenciais embutidas nos identificadores de proxy das configurações manuais. Um desafio de autenticação pode aparecer no fluxo normal do navegador.\n\n### Como cai na prova\n\n- PAC é um mecanismo de decisão automática; não é o endereço do proxy em si.\n- Uma lista de bypass cria acesso direto para destinos coincidentes; uma exceção incorreta pode tanto bloquear o acesso interno quanto contornar a política esperada.\n- A configuração de um proxy HTTPS para conectar ao proxy é diferente de encaminhar uma solicitação destinada a uma URL HTTPS."
+    },
+    {
+      "title": "3. Teste e diagnóstico das configurações do navegador",
+      "markdown": "### O problema que este assunto resolve\n\nO navegador pode exibir falha de conexão mesmo quando a internet funciona para outros programas. A causa pode estar na seleção de proxy, na resolução de nomes, em uma exceção, na autenticação ou na disponibilidade do servidor intermediário. Um diagnóstico útil testa essas hipóteses separadamente.\n\n> **Siglas e termos deste capítulo**\n> - **Conexão direta**: cliente alcança o destino sem encaminhar a solicitação a proxy.\n> - **Resolução DNS**: tradução de nomes como `intranet.exemplo` em endereços IP.\n> - **Erro de proxy**: falha ao estabelecer comunicação com o proxy selecionado.\n> - **Inspeção TLS**: intermediação que examina sessões HTTPS por meio de certificados confiados pelo cliente.\n> - **Política gerenciada**: definição administrativa aplicada ao navegador ou ao sistema.\n\n### Sequência de verificação\n\n1. Confirme se a rede exige proxy ou se permite conexão direta. Não selecione “sem proxy” apenas para contornar uma falha em rede administrada.\n2. Confira a fonte de configuração: manual, sistema, detecção automática ou PAC. Veja também se uma política do navegador controla a opção.\n3. Para configuração manual, confira esquema do proxy, nome/IP, porta e mapeamento para HTTP, HTTPS e outros protocolos.\n4. Confira a lista de bypass. Um host interno que precise atravessar o proxy não deve estar excluído; um endereço local que deva ser direto precisa de uma exceção compatível.\n5. Se for PAC, valide que a URL é alcançável e que o script retorna a decisão esperada para o endereço testado.\n6. Verifique se o proxy responde e se solicita autenticação. Uma falha de autenticação difere de uma falha de resolução DNS.\n7. Compare um endereço externo e um interno, e compare com outro navegador somente quando as políticas e a fonte de configuração forem conhecidas.\n\n### HTTPS e confiança\n\nCom proxy HTTP, o navegador pode usar CONNECT para abrir um túnel até um destino HTTPS. Uma mensagem de certificado inesperada pode decorrer de inspeção TLS institucional, de certificado ausente no repositório confiável ou de interceptação indevida. Instalar um certificado só é apropriado quando a organização confirma que ele é o certificado oficial de inspeção; aceitar avisos indiscriminadamente enfraquece a verificação de identidade do site.\n\n### Como cai na prova\n\n- “O navegador não navega” não basta para culpar o proxy: teste host, porta, modo, PAC, bypass, autenticação e política.\n- Uma regra de bypass não conserta proxy indisponível para todos os outros endereços.\n- Alterar DNS e alterar proxy resolvem problemas diferentes; no SOCKS, a localização da resolução DNS pode variar conforme navegador e configuração."
+    },
+    {
+      "title": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "markdown": "### O problema que este assunto resolve\n\nO Linux Terminal Server Project (LTSP) permite inicializar computadores clientes pela rede e administrar aspectos de seu ambiente a partir de uma infraestrutura central. O cliente continua sendo o computador que inicia a sessão; servidor, imagem, arquivos de inicialização e rede colaboram para que ele carregue o ambiente. Configurações comuns evitam repetir o mesmo ajuste máquina por máquina, enquanto seções específicas permitem tratar clientes diferentes.\n\n> **Siglas e termos deste capítulo**\n> - **LTSP**: Linux Terminal Server Project.\n> - **Cliente**: estação que inicializa e usa o ambiente LTSP.\n> - **Initrd**: imagem inicial de sistema usada durante o boot Linux.\n> - **iPXE**: ambiente de inicialização pela rede usado pelo LTSP atual para apresentar imagens.\n> - **MAC**: endereço de hardware da interface de rede, útil para identificar uma estação.\n\n### O arquivo atual e sua sintaxe\n\nNa documentação do LTSP atual, o arquivo de configuração é `/etc/ltsp/ltsp.conf`, com formato semelhante a INI. O conteúdo é transformado internamente em script de shell. Por isso, os cabeçalhos de seção têm significado próprio e não se devem colocar espaços em torno do sinal de igual. Comentários podem começar com `#`. O comando `ltsp initrd` também faz uma verificação sintática simples e interrompe a geração se encontrar erro.\n\nAs seções mais importantes são:\n\n| Seção ou seletor | Aplicação |\n| --- | --- |\n| `[server]` | Somente o servidor LTSP |\n| `[common]` | Servidor e clientes |\n| `[clients]` | Todos os clientes; local usual para muitos parâmetros |\n| `[MAC]`, `[IP]` ou `[hostname]` | Cliente específico ou grupo por padrão glob |\n| `[nome]` com `INCLUDE=` | Bloco reutilizável incluído por outra seção |\n\nExemplo conceitual: `[clients]` define uma opção geral; `[pc01]` ajusta só a estação chamada `pc01`. Um seletor também pode usar um padrão de IP como `[192.168.67.*]`. Uma opção colocada na seção errada pode ser ignorada pelo componente que deveria consumi-la.\n\n### Distribuir uma mudança aos clientes\n\nA edição de `/etc/ltsp/ltsp.conf` não altera magicamente o initrd que os clientes recebem no boot. Após modificar o arquivo, execute `ltsp initrd` no servidor. Esse comando cria ou atualiza `/srv/tftp/ltsp/ltsp.img`, um initrd adicional que inclui arquivos de configuração LTSP. Em seguida, reinicie os clientes para que recebam a configuração nova.\n\nÉ importante distinguir esse processo da reconstrução da imagem de sistema do cliente. A documentação informa que mudanças no `ltsp.conf` pedem a geração do initrd adicional; uma instalação de software na imagem é outra mudança e pode exigir atualizar e exportar a imagem.\n\n### Como cai na prova\n\n- A configuração atual é `ltsp.conf`; `lts.conf` pertence ao LTSP 5 e não deve ser tratado como o arquivo padrão atual.\n- Configuração geral cabe em `[clients]`; `[server]` não é uma seção de configuração de todos os terminais.\n- Depois de alterar `ltsp.conf`, rode `ltsp initrd` e reinicie os clientes para que usem o initrd atualizado."
+    },
+    {
+      "title": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "markdown": "### O problema que este assunto resolve\n\nUma frota de terminais costuma ter necessidades diferentes: algumas opções valem para toda a sala, outras para uma máquina, um grupo de endereços ou uma etapa específica da inicialização. O LTSP permite organizar essas decisões por seção, aplicar alterações ao artefato de boot e verificar a estação que recebeu o ajuste.\n\n> **Siglas e termos deste capítulo**\n> - **DHCP**: serviço que entrega parâmetros de rede, incluindo endereço e, conforme a arquitetura, dados de boot.\n> - **TFTP**: protocolo simples usado para obter arquivos de boot na rede.\n> - **NFS**: protocolo de compartilhamento de arquivos que pode exportar a imagem de cliente.\n> - **Glob**: padrão textual com curingas, como `*`, para corresponder a vários nomes ou endereços.\n> - **Chrootless**: método em que a raiz do servidor funciona como modelo do sistema de cliente.\n\n### Do boot à sessão\n\nEm linhas gerais, um cliente obtém parâmetros de rede, carrega componentes de inicialização pela rede e recebe a imagem e o initrd LTSP. O arquivo adicional `ltsp.img` contém código de cliente e dados de `/etc/ltsp`, inclusive `ltsp.conf`; por isso as configurações são entregues no boot. O servidor também pode exportar imagens ou diretórios por NFS, e a infraestrutura pode usar SSH/SSHFS para autenticação e diretórios pessoais. Não confunda essas funções: DHCP entrega configuração de rede; TFTP fornece arquivos de boot; NFS exporta arquivos; `ltsp initrd` empacota o conteúdo LTSP adicional.\n\n### Ajustes gerais e seletivos\n\nA documentação lista parâmetros concretos para clientes. `HOSTNAME` define o nome da estação, podendo usar pseudovariáveis documentadas como `%{IP}` ou `%{MAC}`. `DNS_SERVER` especifica servidores DNS para clientes. `CUPS_SERVER` determina o servidor CUPS para impressão; valores documentados incluem o próprio servidor LTSP, `localhost` ou `ignore`. `IMAGE_TO_RAM=1`, sob `[clients]`, copia a imagem raiz para a memória durante o boot, exigindo memória suficiente. Seções por MAC, IP ou hostname limitam a aplicação da configuração.\n\nO recurso `INCLUDE` permite agrupar parâmetros em outra seção e reutilizá-los. Os parâmetros `POST_` associados a applets executam comandos depois da função principal do applet; os `PRE_` executam comandos antes. São mecanismos avançados: um comando inadequado pode afetar a inicialização do cliente.\n\n### LTSP atual e LTSP 5\n\nA documentação atual descreve `/etc/ltsp/ltsp.conf` e o initrd adicional `ltsp.img`; ela afirma que o novo arquivo substituiu o `lts.conf` do LTSP 5. Materiais antigos podem indicar `lts.conf` em diretórios de TFTP e outros detalhes da arquitetura anterior. Em prova, identifique a geração descrita antes de aplicar instruções legadas ao LTSP atual.\n\n### Como cai na prova\n\n- A configuração central é organizada por seções: global, servidor, comum e identificadores de cliente.\n- Para que uma estação receba uma alteração de `ltsp.conf`, deve-se gerar novamente `ltsp.img` com `ltsp initrd` e reiniciá-la.\n- Não atribua a DHCP, TFTP, NFS ou initrd as tarefas dos demais serviços; cada peça tem função definida."
+    }
+  ],
+  "summary": "Navegadores podem conectar diretamente ou encaminhar solicitações por proxy, usando definições manuais, do sistema, detecção automática ou PAC. A configuração precisa indicar protocolo, host, porta, exceções e autenticação compatíveis. No LTSP atual, clientes recebem configurações pelo initrd adicional: o arquivo `/etc/ltsp/ltsp.conf` organiza parâmetros em seções globais ou por cliente; após editá-lo, execute `ltsp initrd` e reinicie os terminais.",
+  "flashcards": [
+    {
+      "front": "O que é um proxy no caminho de navegação?",
+      "back": "É um servidor intermediário ao qual o navegador encaminha uma solicitação para que ela seja tratada ou repassada ao destino."
+    },
+    {
+      "front": "O que significa configurar o navegador para usar o proxy do sistema?",
+      "back": "O navegador aproveita a configuração de proxy fornecida pelo sistema operacional, em vez de manter necessariamente uma configuração manual própria."
+    },
+    {
+      "front": "O que faz o modo sem proxy?",
+      "back": "Faz o navegador tentar acessar os destinos diretamente, sem usar um intermediário configurado."
+    },
+    {
+      "front": "O que é um arquivo PAC?",
+      "back": "É um script de configuração automática que decide a rota de proxy para uma URL, podendo indicar proxy ou acesso direto."
+    },
+    {
+      "front": "Para que serve a lista de bypass?",
+      "back": "Para definir destinos que não devem passar pelo proxy, mesmo quando existe uma regra geral de encaminhamento."
+    },
+    {
+      "front": "O que o Firefox faz com a exceção `<local>`?",
+      "back": "Evita o proxy para nomes de host sem ponto, conforme a documentação de configurações de conexão do Firefox."
+    },
+    {
+      "front": "O que deve ser informado em uma configuração manual?",
+      "back": "Conforme a interface e o ambiente, esquema/tipo, host, porta e mapeamentos para HTTP, HTTPS ou SOCKS, além das exceções necessárias."
+    },
+    {
+      "front": "Proxy HTTPS e proxy para URL HTTPS são a mesma coisa?",
+      "back": "Não. Um descreve TLS entre cliente e servidor proxy; o outro indica para onde encaminhar solicitações cujo destino usa HTTPS."
+    },
+    {
+      "front": "O que pode fazer uma regra PAC falhar?",
+      "back": "URL inacessível, script inválido, falha para obter o arquivo ou uma regra que retorna proxy inadequado para o destino."
+    },
+    {
+      "front": "Por que comparar acesso interno e externo ao diagnosticar proxy?",
+      "back": "Porque falhas distintas de bypass, resolução, autenticação ou encaminhamento podem afetar apenas uma categoria de destino."
+    },
+    {
+      "front": "Qual arquivo configura clientes no LTSP atual?",
+      "back": "`/etc/ltsp/ltsp.conf`, arquivo com sintaxe semelhante a INI que controla parâmetros de servidor e clientes."
+    },
+    {
+      "front": "Qual comando deve seguir uma edição de `ltsp.conf`?",
+      "back": "`ltsp initrd`, para incorporar os arquivos e as configurações LTSP ao initrd adicional entregue aos clientes."
+    },
+    {
+      "front": "Qual é a função de `[clients]` no `ltsp.conf`?",
+      "back": "Definir parâmetros para todos os clientes; a documentação indica essa seção como local de muitos parâmetros de cliente."
+    },
+    {
+      "front": "O que configura `[server]`?",
+      "back": "Parâmetros avaliados somente pelo servidor LTSP, não por todos os clientes."
+    },
+    {
+      "front": "Como limitar uma configuração a uma estação?",
+      "back": "Usar uma seção identificada por MAC, endereço IP ou hostname, ou um padrão glob compatível."
+    },
+    {
+      "front": "O que contém o `ltsp.img` adicional?",
+      "back": "Código de cliente LTSP e conteúdo de `/etc/ltsp`, incluindo as definições de `ltsp.conf`, além de outros arquivos previstos pelo LTSP."
+    },
+    {
+      "front": "Que ação final faz o cliente carregar a nova configuração LTSP?",
+      "back": "Reiniciar o cliente depois que o servidor gerou o initrd adicional atualizado."
+    },
+    {
+      "front": "O que diferencia LTSP atual de LTSP 5 no arquivo de cliente?",
+      "back": "A documentação atual usa `/etc/ltsp/ltsp.conf`; `lts.conf` é a configuração legada do LTSP 5."
+    },
+    {
+      "front": "O que indica `IMAGE_TO_RAM=1` em `[clients]`?",
+      "back": "Que a imagem raiz será copiada para RAM durante o boot do cliente, exigindo memória suficiente."
+    },
+    {
+      "front": "Qual tarefa cabe ao TFTP no boot LTSP?",
+      "back": "Fornecer arquivos de boot pela rede; não é o serviço que cria o initrd nem que atribui parâmetros DHCP."
+    },
+    {
+      "front": "Para que serve `INCLUDE` no arquivo LTSP?",
+      "back": "Incluir os parâmetros de uma seção nomeada em outra seção, permitindo agrupar e reutilizar configuração."
+    },
+    {
+      "front": "O que fazem os parâmetros `POST_` de applet?",
+      "back": "Executam o comando associado depois da função principal do applet de cliente correspondente."
+    },
+    {
+      "front": "Qual distinção entre DHCP e NFS é relevante ao LTSP?",
+      "back": "DHCP entrega configuração de rede; NFS pode exportar a imagem ou diretórios usados pelo cliente."
+    },
+    {
+      "front": "Por que uma porta errada causa erro de proxy?",
+      "back": "O navegador tenta alcançar um serviço no ponto incorreto do host, ainda que o endereço IP esteja certo."
+    },
+    {
+      "front": "O que uma falha de certificado em HTTPS pode indicar em rede com proxy?",
+      "back": "Pode indicar inspeção TLS institucional, falta do certificado confiável esperado ou interceptação indevida; deve ser verificada antes de aceitar a exceção."
+    }
+  ],
+  "tips": [
+    "Em questão de navegador, primeiro identifique a fonte da configuração: manual, sistema, detecção automática ou PAC.",
+    "Ao ler uma regra manual, separe tipo de proxy, host, porta, esquemas atendidos e lista de bypass.",
+    "PAC contém uma decisão por endereço; ele pode mandar uma URL passar por proxy e outra sair diretamente.",
+    "Para o LTSP atual, memorize o fluxo `editar /etc/ltsp/ltsp.conf` → `ltsp initrd` → reiniciar os clientes.",
+    "Use `[clients]` para parâmetros gerais de cliente e seções com MAC, IP ou hostname para exceções direcionadas.",
+    "Quando uma questão mencionar `lts.conf`, confira se ela trata do LTSP 5, pois o atual documenta `ltsp.conf`."
+  ],
+  "traps": [
+    "Confundir ‘usar proxy do sistema’ com ‘detectar automaticamente’: um consulta a configuração do sistema; o outro tenta descobrir a configuração da rede.",
+    "Tratar PAC como host e porta do proxy; PAC é um script que escolhe como cada solicitação será encaminhada.",
+    "Achar que bypass obriga o tráfego a passar pelo proxy; a regra excluída segue diretamente.",
+    "Editar `ltsp.conf` e esperar que clientes já inicializados recebam a mudança sem regenerar o initrd e reiniciar.",
+    "Colocar ajuste de todos os clientes sob `[server]`; essa seção é avaliada apenas pelo servidor.",
+    "Aplicar documentação antiga de `lts.conf` ao LTSP atual sem considerar a diferença de geração."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais são quatro fontes ou modos de configuração de proxy que podem aparecer na interface do navegador?",
+      "answer": "Sem proxy, detecção automática, proxy do sistema e configuração manual ou por URL PAC."
+    },
+    {
+      "question": "Quais itens conferir em uma configuração manual de proxy?",
+      "answer": "Tipo/esquema, host, porta, esquemas abrangidos, exceções de bypass e autenticação quando houver."
+    },
+    {
+      "question": "Como o bypass muda a decisão do proxy?",
+      "answer": "Para destinos que correspondem à regra de bypass, o cliente acessa diretamente em vez de usar o proxy configurado."
+    },
+    {
+      "question": "Como se atualiza a configuração de clientes no LTSP atual?",
+      "answer": "Editar `/etc/ltsp/ltsp.conf`, executar `ltsp initrd` no servidor e reiniciar os clientes."
+    },
+    {
+      "question": "Que seções do `ltsp.conf` indicam servidor, configuração comum e todos os clientes?",
+      "answer": "`[server]` só para servidor, `[common]` para servidor e clientes, e `[clients]` para todos os clientes."
+    },
+    {
+      "question": "Como aplicar opções a computadores LTSP específicos?",
+      "answer": "Criar seções usando endereço MAC, IP ou hostname; padrões glob podem selecionar grupos de endereços."
+    },
+    {
+      "question": "Qual diferença funcional entre TFTP, NFS e DHCP no boot?",
+      "answer": "TFTP fornece arquivos de boot; NFS pode exportar imagem e arquivos; DHCP fornece parâmetros de rede."
+    },
+    {
+      "question": "Que arquivo identifica a configuração de cliente em LTSP 5 e qual o atual?",
+      "answer": "`lts.conf` é legado do LTSP 5; `/etc/ltsp/ltsp.conf` é o arquivo da documentação LTSP atual."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Modos de configuração de proxy confundidos",
+      "summary": "Configuração manual especifica parâmetros no navegador; uso do sistema consulta definições do sistema; detecção tenta descobrir a configuração; PAC avalia script para decidir por URL."
+    },
+    {
+      "key": "e2",
+      "title": "Proxy, esquema e exceção tratados como iguais",
+      "summary": "Host e porta identificam o ponto de conexão; esquema/protocolo indica o tipo; mapeamento define quais URLs usam cada proxy; bypass manda endereços coincidentes diretamente."
+    },
+    {
+      "key": "e3",
+      "title": "Configuração antiga do LTSP aplicada ao atual",
+      "summary": "O atual documenta `/etc/ltsp/ltsp.conf` e `ltsp.img`; `lts.conf` aparece em materiais do LTSP 5."
+    },
+    {
+      "key": "e4",
+      "title": "Mudança de ltsp.conf não distribuída",
+      "summary": "Editar o arquivo no servidor não atualiza sozinho o initrd enviado. Gere o adicional com `ltsp initrd` e reinicie os clientes."
+    },
+    {
+      "key": "e5",
+      "title": "Escopo e serviços do boot trocados",
+      "summary": "`[server]` é só servidor; `[clients]` cobre clientes; MAC/IP/hostname selecionam estações. DHCP, TFTP, NFS e initrd têm funções próprias."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma funcionária precisa que o Firefox aproveite o endereço de proxy configurado pelo sistema operacional. Qual modo atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Carregar um arquivo PAC sem alterar a fonte de proxy do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar a detecção automática de proxy oferecida pela rede local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Informar manualmente um proxy separado para cada protocolo usado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar a conexão sem proxy e manter o sistema como intermediário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Selecionar o uso das configurações de proxy do sistema operacional.",
+          "correct": true
+        }
+      ],
+      "explanation": "O modo de proxy do sistema faz o Firefox aproveitar as definições do sistema operacional. Detecção automática, configuração manual e PAC são fontes distintas de decisão; conexão sem proxy tenta acesso direto.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar ‘Sem proxy’ nas configurações do navegador, qual comportamento se espera para as solicitações web?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O navegador procura um script PAC antes de cada acesso externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador tenta conectar diretamente aos destinos solicitados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O sistema encaminha automaticamente toda conexão pelo DNS local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O navegador usa sempre o proxy HTTPS informado pelo sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O navegador envia somente os endereços internos por um proxy SOCKS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem proxy significa não usar um intermediário configurado para encaminhar a solicitação. O navegador tenta alcançar diretamente os destinos; isso não equivale a PAC, DNS ou proxy do sistema.",
+      "section": "1. O caminho da conexão: navegador, proxy e destino",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede que entrega as regras em um script PAC, que informação o cliente deve configurar para usar essas decisões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome do domínio que contém todas as exceções de navegação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A porta de DNS que o proxy usa para consultar endereços web.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A URL onde o arquivo de configuração automática está disponível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O endereço de cada site que o script deverá encaminhar diretamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A credencial do administrador que publicou o script na rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente recebe o PAC pela URL configurada. O script, então, escolhe proxy ou conexão direta conforme o destino. Não é necessário cadastrar manualmente todos os sites no navegador.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve uma lista de bypass em uma configuração manual de proxy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar servidores proxy alternativos para substituir o proxy principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir endereços que devem ser consultados por resolução DNS remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar os domínios que exigem uma credencial adicional de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir destinos correspondentes do encaminhamento pelo proxy.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escolher a versão do protocolo SOCKS usada pelos endereços internos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bypass é uma lista de exceções: destinos correspondentes são acessados sem passar pelo proxy, mesmo havendo uma regra geral. Não escolhe credencial, DNS nem proxy alternativo.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um navegador está configurado para usar proxy HTTP em acessos externos, mas deve abrir diretamente nomes locais sem ponto. Qual ajuste corresponde à documentação de conexão do Firefox?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acrescentar `<local>` como nome do host no proxy do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Acrescentar `<local>` ao campo da URL de configuração PAC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acrescentar `<local>` ao campo da porta de proxy HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Acrescentar `<local>` ao endereço do servidor SOCKS remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acrescentar `<local>` à lista de exceções de proxy.",
+          "correct": true
+        }
+      ],
+      "explanation": "No Firefox, `<local>` na lista No Proxy For isenta hosts sem ponto do proxy. É uma exceção de destino, não um endereço de servidor ou um parâmetro de PAC.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma equipe usa um proxy para URLs HTTP e outro tipo de proxy para as demais solicitações. Qual conceito de configuração manual do Edge permite esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma única regra de bypass, que identifica o protocolo pelo DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um mapeamento de esquemas de URL para listas de identificadores de proxy.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma exceção de certificado que define o proxy para cada página.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma opção de rede que converte os endereços HTTP em HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma preferência de cache que alterna os proxies conforme a sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração manual do Edge pode associar esquemas de URL a identificadores de proxy e manter uma lista de bypass. A escolha é feita por solicitação, sem transformar HTTP em HTTPS.",
+      "section": "1. O caminho da conexão: navegador, proxy e destino",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página HTTPS é acessada por meio de um proxy HTTP que estabelece um túnel para o destino. Qual afirmação descreve corretamente esse uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O navegador troca HTTPS por HTTP e deixa de validar o certificado do destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O proxy necessariamente descriptografa todo o conteúdo da sessão TLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O navegador resolve o domínio sem consultar DNS nem o próprio proxy.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O túnel dispensa qualquer configuração de host e porta do proxy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O navegador pode usar CONNECT e preservar TLS entre cliente e destino.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com CONNECT, o proxy HTTP pode criar um túnel até o destino HTTPS; a criptografia TLS continua entre navegador e site, salvo uma configuração separada de inspeção TLS. Usar proxy não elimina host e porta.",
+      "section": "1. O caminho da conexão: navegador, proxy e destino",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "No Edge, qual recurso de linha de comando pode especificar uma lista de destinos que devem contornar o proxy manual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`--proxy-server`, preenchido com os padrões de endereços locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`--host-resolver-rules`, preenchido com portas de exceção do navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`--proxy-bypass-list`, preenchido com as regras de bypass.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`--proxy-pac-url`, preenchido com os nomes que usam acesso direto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`--no-proxy-server`, preenchido com o host do proxy alternativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `--proxy-bypass-list` recebe padrões de bypass, separados por ponto e vírgula ou vírgula na configuração descrita. `--proxy-server` é usado para informar proxies.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "O proxy configurado no Firefox está inacessível, mas uma estação não administrada precisa de uma rota alternativa aprovada. Qual solução pode compor uma lista manual de proxy no Edge?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar `direct://` como fallback após o proxy na lista configurada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar o nome do proxy à lista de bypass para todos os sites.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar `localhost` como esquema HTTPS para qualquer destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar um endereço PAC como senha para liberar a conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar a porta do proxy ao campo No Proxy For do Firefox.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Edge apresenta listas de proxies com `direct://` como fallback; isso permite conexão direta se o proxy anterior falhar. O comportamento só deve ser usado quando compatível com a política da rede.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma estação acessa sites externos, mas falha ao abrir a intranet depois que um nome foi incluído nas exceções de proxy. Qual hipótese deve ser verificada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o endereço da intranet corresponde à regra de bypass aplicada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Se a versão do navegador converte automaticamente HTTP em SOCKS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o arquivo PAC contém a senha criptografada da intranet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se a conexão de intranet está usando o servidor NFS do LTSP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a porta de DNS está informada como porta do proxy web.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma regra de bypass faz o destino correspondente sair diretamente. Se a intranet exige o proxy ou a exceção corresponde ao nome usado, revisar o padrão pode explicar por que só esse acesso falha.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "No Edge, credenciais incluídas diretamente no identificador manual do proxy são usadas como mecanismo de autenticação pelo navegador?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação do Edge informa que credenciais embutidas nos identificadores manuais não são usadas pelo navegador; a autenticação segue o fluxo normal de obtenção de credenciais.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Na configuração do Firefox, escolher detecção automática é equivalente a mandar o navegador usar exatamente as definições de proxy do sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Detecção automática tenta descobrir as definições disponibilizadas na rede; usar proxy do sistema consulta a configuração do sistema operacional. São opções diferentes.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Um PAC pode indicar acesso direto para uma URL e encaminhamento por proxy para outra URL, conforme as regras de seu script.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O script de configuração automática avalia os dados da solicitação e pode retornar uma rota de proxy ou acesso direto; por isso destinos diferentes podem receber decisões diferentes.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma regra de bypass encaminha o destino correspondente ao proxy, mas impede que outros endereços usem o mesmo proxy.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Bypass é a exceção que evita o proxy para destinos que correspondem à regra. Ela não redireciona esses destinos ao proxy nem bloqueia a regra para os demais endereços.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "No Edge, uma regra manual pode mapear URLs HTTPS a um proxy e URLs HTTP a outro identificador de proxy.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As configurações manuais do Edge associam listas de identificadores de proxy a solicitações HTTP, HTTPS e outras. É possível definir mapeamentos diferentes para esquemas distintos.",
+      "section": "1. O caminho da conexão: navegador, proxy e destino",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "O marcador `<local>` no campo de exceções do Firefox é usado para escolher um endereço de proxy SOCKS para máquinas da rede local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`<local>` é uma regra de exceção para não encaminhar nomes de host sem ponto pelo proxy. Não representa o endereço de um servidor SOCKS.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Em um túnel CONNECT até um site HTTPS, o uso de um proxy HTTP significa que a sessão TLS do navegador com o site foi necessariamente removida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CONNECT permite criar um túnel através do proxy. A criptografia TLS pode permanecer entre navegador e destino; inspeção TLS é uma configuração adicional e não decorre automaticamente do uso de proxy.",
+      "section": "1. O caminho da conexão: navegador, proxy e destino",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Se a URL do PAC não puder ser alcançada, o navegador pode deixar de obter as decisões automáticas de proxy previstas para os destinos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente precisa obter o script PAC indicado para calcular as decisões por URL. Se o recurso está inacessível ou inválido, a configuração automática pode falhar.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "O Firefox e o Edge necessariamente consultam as mesmas configurações de proxy em qualquer sistema operacional e em qualquer política corporativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "As fontes de configuração variam: opção do sistema, configuração manual, PAC e políticas podem interagir de formas diferentes por navegador e ambiente. Não se deve presumir equivalência universal.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma estação recém-configurada navega diretamente, embora a rede exija proxy manual com host e porta definidos pelo administrador.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir um PAC vazio para herdar a porta automaticamente do DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar exceção de bypass para o host e a porta do proxy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o modo do navegador para conexão sem proxy permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar configuração manual e preencher protocolo, host e porta corretos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar a validação TLS para que o navegador descubra o proxy.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o ambiente exige proxy manual, é preciso selecionar esse modo e inserir os dados fornecidos pelo administrador, incluindo tipo, host e porta. Desativar TLS ou excluir o proxy não configura a rota.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Qual verificação distingue melhor uma falha de host/porta do proxy de um erro de certificado TLS no destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir se a exceção `<local>` aparece antes do nome público do site.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir se o PAC foi publicado por um usuário com conta administrativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir primeiro se o navegador encontra o servidor e a porta do proxy.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conferir se o DNS do sistema está usando o mesmo nome do site.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir se o navegador está configurado para armazenar mais páginas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Antes de avaliar um certificado apresentado após o túnel, confirme que o navegador consegue alcançar o proxy no host e porta configurados. Falha de conexão ao intermediário e validação TLS são etapas diferentes.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "No Edge, as regras manuais de bypass podem ser passadas pela opção de linha de comando `--proxy-bypass-list`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Edge descreve `--proxy-bypass-list` para especificar padrões de bypass ao iniciar o navegador com configurações manuais de proxy.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Para confirmar se uma página HTTPS é protegida por TLS, basta observar que o navegador usa algum proxy, pois todo proxy encerra e valida a sessão TLS no lugar do destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Proxy não implica automaticamente inspeção TLS. Um túnel CONNECT pode preservar TLS entre navegador e destino; se houver inspeção, ela é uma configuração separada que deve ser identificada e confiada corretamente.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "No Edge, as configurações documentadas para SOCKS5 fazem a resolução de nomes no lado do proxy.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do Edge afirma que, quando SOCKS5 é selecionado, a resolução de nomes ocorre no lado do proxy. Não se deve transportar essa afirmação para outras implementações sem conferir seu comportamento.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Na configuração manual descrita para Edge, colocar usuário e senha dentro do identificador do proxy garante que essas credenciais serão utilizadas no login.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O Edge não implementa o uso de credenciais em texto claro embutidas nos identificadores das configurações manuais. A autenticação utiliza o fluxo normal de credenciais.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma falha de navegação em um único endereço interno, com sites externos funcionando pelo mesmo proxy, pode apontar para uma exceção de bypass inadequada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Se um endereço interno coincide com uma regra de bypass, o navegador tenta acessá-lo diretamente. Comparar a regra e a forma do nome usado é um passo pertinente no diagnóstico.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "O PAC substitui a necessidade de o cliente localizar e carregar o próprio script de configuração automática.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O navegador precisa obter o PAC pela URL configurada antes de aplicar as decisões do script. PAC automatiza a escolha por destino, mas não dispensa a obtenção do próprio arquivo.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "O campo de bypass do navegador deve conter a porta do servidor proxy, pois é essa lista que associa serviços a portas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A lista de bypass identifica destinos que não usarão o proxy. A porta pertence à definição do servidor proxy, não à exceção de destinos.",
+      "section": "2. Configuração de proxy nos navegadores",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma regra de proxy que funciona em um navegador deve ser copiada sem adaptação para todos os demais, porque a representação manual de proxies é padronizada entre plataformas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação do Edge observa que não há representação e conjunto de recursos universalmente padronizados para configurações manuais. Sintaxe, padrões e fontes podem variar por navegador e plataforma.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Após um técnico salvar um proxy no Windows, o Firefox está necessariamente obrigado a usá-lo, ainda que esteja em modo de configuração manual própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O Firefox pode usar as configurações do sistema quando esse modo está selecionado, mas também oferece modos manual, PAC, sem proxy e detecção automática. Uma configuração manual própria não é automaticamente substituída pelo Windows.",
+      "section": "3. Teste e diagnóstico das configurações do navegador",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Em um servidor LTSP atual, qual arquivo deve ser editado para ajustar parâmetros gerais de cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`/etc/ltsp/lts.conf`, arquivo legado do LTSP 5.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`/srv/tftp/ltsp/ltsp.img`, que deve ser editado como texto puro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`/etc/dhcp/ltsp.conf`, que reúne as opções de todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`/etc/ltsp/ltsp.conf`, que organiza parâmetros em seções.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`/var/lib/tftpboot/ltsp.conf`, que substitui o initrd adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na documentação atual, o arquivo de cliente está em `/etc/ltsp/ltsp.conf`, com formato semelhante a INI e várias seções. `lts.conf` pertence à geração LTSP 5.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Depois de modificar `/etc/ltsp/ltsp.conf`, qual ação incorpora os arquivos de configuração ao initrd adicional enviado no boot?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `ltsp initrd` no servidor LTSP após editar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar `ltsp nfs` em cada terminal da rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar `ltsp ipxe` dentro da sessão do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `ltsp image` no cliente já inicializado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar `ltsp dnsmasq` no navegador de cada estação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comando `ltsp initrd` gera o initrd adicional `ltsp.img`, que inclui o conteúdo de `/etc/ltsp`, inclusive as definições de `ltsp.conf`. Depois é necessário reiniciar os clientes para carregá-lo.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Em qual seção devem ficar normalmente os parâmetros que se aplicam a todos os clientes LTSP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`[server]`, avaliada somente pelo servidor LTSP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`[clients]`, que define parâmetros gerais de clientes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`[common]`, reservada aos clientes e ignorada no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`[tftp]`, que substitui a seção de clientes do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`[initrd]`, que contém qualquer variável do sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "A seção especial `[clients]` permite definir parâmetros para todos os clientes e é o local indicado para muitos parâmetros. `[server]` é avaliada apenas no servidor; `[common]` vale para servidor e clientes.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Um parâmetro precisa valer somente para a estação identificada pelo hostname `pc01`. Como selecionar esse cliente no `ltsp.conf`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir o valor sob `[server]` e incluir o hostname como comentário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir o valor sob `[clients]` e nomeá-lo com variável DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir uma seção `[pc01]` para a configuração direcionada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Definir o valor no arquivo `ltsp.img` sem identificar a seção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir uma seção `[common]` e reiniciar apenas o servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Seções com MAC, endereço IP ou hostname podem aplicar opções a clientes específicos. Uma seção `[pc01]` é apropriada para selecionar o hostname citado.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Na sintaxe do arquivo atual `/etc/ltsp/ltsp.conf`, qual forma de atribuição segue a orientação da documentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`HOSTNAME = pc01`, com espaços para separar o nome e o valor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`HOSTNAME: pc01`, usando dois-pontos como operador de variável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`HOSTNAME -> pc01`, usando seta para selecionar o cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`HOSTNAME == pc01`, usando comparação no lugar da atribuição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`HOSTNAME=pc01`, sem espaços ao redor do sinal de igual.",
+          "correct": true
+        }
+      ],
+      "explanation": "O `ltsp.conf` é transformado internamente em script de shell. Por isso, a documentação determina que não se usem espaços em torno do sinal de igual na atribuição.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma equipe quer selecionar clientes cujos endereços comecem pelo padrão `192.168.67.`. Qual mecanismo documentado permite isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma seção por nome de navegador, que filtra clientes pela URL acessada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um valor em `[common]`, interpretado como máscara de DHCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma seção glob como `[192.168.67.*]` para selecionar endereços.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma seção `[server]` para clientes com endereço de rede coincidente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um parâmetro `DNS_SERVER` com curingas no valor do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Seções com endereço IP podem usar globs. A documentação mostra `[192.168.67.*]` como exemplo de padrão que abrange clientes com endereços correspondentes.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A configuração de uma estação contém um erro de sintaxe. Qual comportamento de `ltsp initrd` a documentação descreve?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando converte automaticamente o arquivo para o formato LTSP 5.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O comando executa uma checagem rápida e aborta se detectar erro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O comando ignora a configuração e remove as seções inválidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O comando reinicia todos os clientes antes de validar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando envia o arquivo ao navegador para teste de conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O `ltsp initrd` faz uma checagem sintática com `sh -n` e aborta se encontrar erro. Corrigir o arquivo antes de distribuir a nova configuração evita gerar um initrd com sintaxe defeituosa.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma alteração de configuração LTSP já foi empacotada em `ltsp.img`, mas os terminais continuam ligados e não carregaram o initrd novo. Que providência falta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `ltsp nfs` em cada navegador para sincronizar parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o arquivo por `lts.conf` e aguardar atualização contínua.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o endereço MAC dos clientes para forçar a leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar os clientes para que recebam o initrd atualizado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Recriar o servidor DHCP sem reiniciar as estações LTSP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os clientes recebem `ltsp.img` durante a inicialização. Depois de atualizar o initrd no servidor, é preciso reiniciar as estações para que inicializem com o conteúdo novo.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A configuração usa `INCLUDE=video` e há uma seção `[video]` com parâmetros reutilizáveis. Qual é a função dessa diretiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar os parâmetros da seção referenciada dentro da seção que a inclui.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gerar automaticamente uma imagem de sistema chamada `video`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Redirecionar os clientes para um servidor de vídeo pelo protocolo NFS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar a inicialização PXE somente quando houver placa de vídeo detectada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir que as demais seções do arquivo sejam interpretadas pelo cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "`INCLUDE` permite referenciar uma seção nomeada a partir de outra, agrupando parâmetros que podem ser reutilizados por diferentes clientes ou seções.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Um administrador quer definir o servidor DNS que os clientes LTSP devem usar. Qual parâmetro documentado é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`HOSTNAME`, que grava os resolvedores no arquivo de boot.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`CUPS_SERVER`, que configura a resolução de nomes externos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`IMAGE_TO_RAM`, que seleciona o endereço DNS da imagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`SERVER`, que sempre define a lista completa de DNS dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`DNS_SERVER`, que especifica os servidores DNS dos clientes.",
+          "correct": true
+        }
+      ],
+      "explanation": "`DNS_SERVER` é o parâmetro documentado para especificar os servidores DNS usados pelos clientes. `SERVER` refere-se ao servidor LTSP e não substitui a lista de DNS.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma organização precisa que a imagem raiz seja copiada para a memória durante o boot de todos os clientes LTSP. Qual configuração documentada corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir `IMAGE_TO_RAM=0` sob `[server]` para gravar a imagem na memória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir `IMAGE_TO_RAM=1` sob `[clients]` e prever RAM suficiente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Definir `NFS=1` sob `[common]` para desativar a imagem exportada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir `TFTP=1` sob `[pc01]` para copiar todos os arquivos ao disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir `AUTOLOGIN=1` sob `[clients]` para carregar a imagem em RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação explica que `IMAGE_TO_RAM=1` sob `[clients]` copia a imagem raiz para RAM no boot. O cliente precisa ter memória suficiente para comportar a imagem.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Um terminal usa o servidor LTSP para concentrar a impressão compartilhada. Qual parâmetro pode indicar o servidor CUPS aos clientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`CUPS_SERVER`, que define o servidor CUPS no cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`DNS_SERVER`, que direciona as impressoras para o DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`HOSTS_x`, que substitui o serviço de impressão na inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`IMAGE_TO_RAM`, que copia as filas de impressão para a RAM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`POST_APPLET_x`, que configura CUPS sem endereço de servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "`CUPS_SERVER` define o servidor CUPS no arquivo de configuração de impressão do cliente. A documentação também admite valores como `localhost` para impressora ligada ao cliente ou `ignore` para não tratar o servidor CUPS.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Qual sequência de serviços e artefatos corresponde ao papel do initrd adicional em clientes LTSP atuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cliente executa DNS_SERVER, que transforma o arquivo em imagem NFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador consulta DHCP, que gera `ltsp.conf` a cada página aberta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor executa `ltsp initrd` para incluir `/etc/ltsp` em `ltsp.img`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O serviço TFTP edita o `ltsp.conf` após receber a sessão do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O NFS lê seções de hostname e reinicia automaticamente os clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "`ltsp initrd` cria um initrd secundário em `ltsp.img` que inclui o código de cliente e tudo em `/etc/ltsp`, inclusive `ltsp.conf`. TFTP pode servir arquivos de boot, mas não edita a configuração.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Em `/etc/ltsp/ltsp.conf`, qual descrição da seção `[common]` corresponde à documentação atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É avaliada exclusivamente pelo cliente identificado no cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É avaliada tanto pelo servidor quanto pelos clientes LTSP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É reservada apenas às regras de impressão do servidor CUPS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É avaliada apenas quando o cliente usa `lts.conf` legado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É ignorada pelo LTSP e mantida somente como comentário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A seção especial `[common]` é avaliada tanto pelo servidor quanto pelos clientes. `[server]` é só servidor e `[clients]` define parâmetros para os clientes.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A documentação do LTSP atual descreve que o arquivo `ltsp.conf` é convertido internamente em script de shell, e por isso a sintaxe da atribuição deve respeitar essa característica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração é transformada internamente em script de shell, com cabeçalhos de seção convertidos em funções. A documentação destaca que não se deve inserir espaços ao redor do sinal de igual.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A seção `[server]` do `ltsp.conf` é avaliada por todos os clientes, enquanto `[clients]` é reservada ao servidor LTSP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "As funções foram invertidas: `[server]` é avaliada somente pelo servidor e `[clients]` define parâmetros para todos os clientes.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Seções de MAC, endereço IP ou hostname podem limitar parâmetros do `ltsp.conf` a clientes selecionados, e padrões glob podem abranger um grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação permite seções identificadas por MAC, IP ou hostname e mostra padrões glob, como uma faixa de endereços com `*`, para selecionar mais de um cliente.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Depois de executar `ltsp initrd`, os clientes ligados recebem automaticamente o initrd atualizado sem precisar iniciar um novo boot.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O initrd adicional é recebido pelos clientes durante o boot. Depois de atualizá-lo no servidor, as estações precisam reiniciar para carregar o conteúdo novo.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "O comando `ltsp initrd` cria o initrd adicional do LTSP, incluindo arquivos de `/etc/ltsp` que podem ser recebidos pelos clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`ltsp initrd` gera `ltsp.img` como initrd secundário e inclui arquivos sob `/etc/ltsp`, entre eles o `ltsp.conf` usado pelos clientes.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Os parâmetros da seção `[common]` são avaliados apenas no servidor, pois os clientes recebem configurações exclusivamente de `[clients]`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`[common]` é avaliada pelo servidor e pelos clientes. `[clients]` é a seção para parâmetros de todos os clientes, mas não exclui a seção comum.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A documentação atual do LTSP usa `lts.conf` como arquivo de cliente e reserva `/etc/ltsp/ltsp.conf` a opções exclusivas do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação atual usa `/etc/ltsp/ltsp.conf` para configurar servidor e clientes. Ela indica que esse arquivo substituiu `lts.conf`, usado no LTSP 5.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "O recurso `INCLUDE` pode fazer uma seção do `ltsp.conf` referenciar outra seção nomeada e reutilizar seus parâmetros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O arquivo permite seções nomeadas e a diretiva `INCLUDE=` para referenciá-las a partir de outra seção, agrupando configurações reutilizáveis.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Em uma implantação em chrootless, a imagem de cliente é mantida a partir da raiz do servidor; alterações em `ltsp.conf`, por sua vez, pedem gerar o initrd adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação descreve chrootless como o uso da raiz do servidor como modelo dos clientes. Ela diferencia esse método de manutenção da imagem da atualização de `/etc/ltsp/ltsp.conf` com `ltsp initrd`.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Para alterar uma instalação de software da imagem LTSP, basta executar `ltsp initrd`, pois esse comando sempre reconstrói a imagem completa do sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`ltsp initrd` empacota código e arquivos de configuração adicionais de LTSP, não reconstrói por si só a imagem completa do sistema operacional. Atualização de software na imagem é outro procedimento.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "TFTP é o componente do LTSP que avalia as seções por hostname no `ltsp.conf` e escreve os parâmetros nos arquivos do cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "TFTP serve arquivos de boot na rede. A configuração por seções é interpretada pela infraestrutura LTSP e distribuída no initrd adicional; TFTP não avalia nem edita as seções.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "O valor `IMAGE_TO_RAM=1` sob `[clients]` faz a imagem raiz ser copiada para a RAM do cliente durante a inicialização, exigindo memória suficiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação descreve esse parâmetro para copiar a imagem raiz à memória durante o boot. Os clientes precisam ter RAM suficiente para acomodar a imagem.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma seção `[initrd-bottom/library*]` pode condicionar parâmetros ao applet e a clientes cujo hostname começa com `library`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação mostra seções avançadas `[applet/host]`; o exemplo `[initrd-bottom/library*]` é avaliado pelo applet `initrd-bottom` para hosts que começam com `library`.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Como o `ltsp.conf` se transforma em script de shell, espaços em torno do sinal de igual são recomendados para separar visualmente a variável do valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação diz expressamente para não usar espaços ao redor de `=`. O arquivo é transformado em script de shell e essa forma de escrita é parte da sintaxe esperada.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "As seções identificadas por MAC, IP ou hostname podem ser usadas em conjunto com parâmetros definidos na seção geral `[clients]`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O arquivo aceita parâmetros para todos os clientes e seções específicas por MAC, IP ou hostname. Essa organização permite estabelecer valores gerais e tratar estações selecionadas.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Os parâmetros `PRE_` e `POST_` associados a applets LTSP executam ambos os comandos depois da função principal do applet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação distingue a ordem: `PRE_` executa antes da função principal do applet; `POST_` executa depois. A troca desses prefixos muda o momento da ação.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A opção `CUPS_SERVER=ignore` é uma forma documentada de ignorar o tratamento de servidor CUPS no cliente LTSP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação de `ltsp.conf` registra `CUPS_SERVER=ignore` como valor que faz o tratamento de servidor CUPS ser ignorado para o cliente.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atual `ltsp.conf` e o antigo `lts.conf` são nomes intercambiáveis para o mesmo arquivo e o mesmo procedimento de distribuição em todas as versões do LTSP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação atual diz que `ltsp.conf` substituiu o `lts.conf` do LTSP 5 e descreve a inclusão no initrd adicional. As instruções antigas não devem ser assumidas como idênticas.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um erro em `ltsp.conf` pode impedir a execução de `ltsp initrd`, pois a geração faz verificação sintática rápida e aborta se detectar erro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O comando executa uma verificação sintática com `sh -n` sobre o arquivo e aborta quando encontra erro. Corrigir a sintaxe antecede a distribuição do novo initrd.",
+      "section": "4. LTSP: cliente de rede e arquivo ltsp.conf",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No arquivo ltsp.conf, HOSTNAME pode usar a pseudovariável %{MAC} para compor o nome do cliente com seu endereço MAC sem os dois-pontos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação permite que HOSTNAME use %{MAC}, que representa o endereço MAC do cliente sem os dois-pontos; %{IP} também é uma pseudovariável disponível.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro DNS_SERVER do ltsp.conf especifica os servidores DNS que os clientes devem usar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS_SERVER é o parâmetro descrito para indicar os servidores DNS dos clientes; ele não seleciona imagem, servidor CUPS ou o próprio hostname.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma impressora conectada localmente a um cliente LTSP, a configuração CUPS_SERVER=localhost é um dos valores documentados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação permite CUPS_SERVER=localhost quando a impressora está conectada ao cliente. Ela também descreve o valor ignore para não tratar servidor CUPS.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando ltsp initrd cria por padrão um initrd adicional em /srv/tftp/ltsp/ltsp.img para os clientes receberem durante o boot.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação do LTSP registra esse caminho para o initrd adicional ltsp.img, que os clientes recebem junto ao initrd usual durante a inicialização.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No LTSP, PRE_ associado a um applet executa o comando antes da função principal desse applet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os parâmetros PRE_ executam comandos antes da função principal do applet indicado; os parâmetros POST_ executam depois dela.",
+      "section": "5. Escopo, inicialização e ajustes por cliente LTSP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Firefox Help — Connection settings in Firefox",
+      "publisher": "Mozilla Support",
+      "reference": "Modos de proxy, configuração manual, SOCKS, URL PAC e lista No Proxy For",
+      "url": "https://support.mozilla.org/en-US/kb/connection-settings-firefox",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proxy Support in Microsoft Edge",
+      "publisher": "Microsoft Learn",
+      "reference": "Configuração manual, mapeamento de esquemas, bypass, SOCKS5 e autenticação de proxy",
+      "url": "https://learn.microsoft.com/en-us/deployedge/configure-microsoft-edge-proxy-support",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ltsp.conf",
+      "publisher": "Linux Terminal Server Project",
+      "reference": "Arquivo, sintaxe, seções, escopo por cliente e parâmetros LTSP",
+      "url": "https://ltsp.org/man/ltsp.conf/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Installation — Linux Terminal Server Project",
+      "publisher": "Linux Terminal Server Project",
+      "reference": "Imagem de cliente, rede LTSP e geração do initrd adicional após alteração de ltsp.conf",
+      "url": "https://ltsp.org/docs/installation/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ltsp-initrd",
+      "publisher": "Linux Terminal Server Project",
+      "reference": "Conteúdo de ltsp.img e atualização/reinicialização de clientes após mudanças",
+      "url": "https://ltsp.org/man/ltsp-initrd/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}
