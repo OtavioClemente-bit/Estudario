@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do Gemini
 // @namespace    estudario
-// @version      1.9
+// @version      1.10
 // @updateURL    http://127.0.0.1:8788/estudario-gemini.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-gemini.user.js
 // @description  Envia os pedidos da fila do Estudário ao Gemini (modo Argon) e salva no PC o JSON de cada resposta (arquivos .chatgpt-80N).
@@ -139,7 +139,7 @@ PEDIDO:
         let ok = false;
         try { JSON.parse(r.texto); ok = true; } catch { /* inválido */ }
         if (!ok) { set("falhas", get("falhas", 0) + 1); atualizar("JSON inválido; pulei"); return; }
-        const res = await local("POST", "/arquivo", { nome: atual.nome, conteudo: r.texto });
+        const res = await local("POST", "/arquivo", { nome: atual.nome, conteudo: r.texto, conta: "gemini" });
         if (res.ok && !res.ja) set("salvos", get("salvos", 0) + 1);
         atualizar(res.ok ? `salvo ${atual.nome}` : `servidor recusou: ${res.erro}`);
         return;
@@ -153,7 +153,7 @@ PEDIDO:
 
       let fila = get("fila", []);
       if (!fila.length) {
-        fila = (await local("GET", `/proximos?n=${POR_CICLO}&tipo=QUESTOES`)).filter((p) => /^QUESTÕES:/.test(p));
+        fila = (await local("GET", `/proximos?n=${POR_CICLO}&tipo=QUESTOES&conta=gemini`)).filter((p) => /^QUESTÕES:/.test(p));
         set("fila", fila);
         atualizar(`ciclo novo: ${fila.length} pedidos`);
         if (!fila.length) { set("proximo", Date.now() + 15 * 60_000); return; }

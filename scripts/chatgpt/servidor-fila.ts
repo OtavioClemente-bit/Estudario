@@ -28,11 +28,12 @@ Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
     const OBS = "; OBS: distribua o gabarito por igual entre A, B, C, D e E (cerca de 1/5 cada) e a alternativa correta não pode ser sempre a mais longa";
     const linhas = new TextDecoder().decode(o.stdout).trim().split("\n").filter(Boolean)
       .map((l) => /^QUESTÕES:/.test(l) && !/formato=Certo\/Errado/i.test(l) ? l + OBS : l);
-    log(`entregues ${linhas.length} pedidos ao script`);
+    log(`entregues ${linhas.length} pedidos ao script${u.searchParams.get("conta") ? ` (conta ${u.searchParams.get("conta")!.slice(0, 10)})` : ""}`);
     return json(linhas);
   }
   if (req.method === "POST" && u.pathname === "/arquivo") {
-    const { nome, conteudo } = await req.json().catch(() => ({}));
+    const { nome, conteudo, conta } = await req.json().catch(() => ({}));
+    const quem = conta ? ` (conta ${String(conta).slice(0, 10)})` : "";
     // Só nomes simples (letras, números, ponto e hífen; nada de caminho).
     if (!/^[a-z0-9][a-z0-9.-]{3,150}$/.test(String(nome ?? "")) || String(nome).includes("..")) return json({ ok: false, erro: "nome inválido" }, 400);
     try { JSON.parse(conteudo); } catch { log(`${nome}: JSON inválido, não gravado`); return json({ ok: false, erro: "json inválido" }, 400); }
@@ -40,7 +41,7 @@ Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
     const destino = String(nome).startsWith("oficial-") ? `${ROOT}conteudo/entrada/oficiais/respostas/${nome}.json` : `${SAIDA}/${nome}.json`;
     try { Deno.statSync(destino); return json({ ok: true, ja: true }); } catch { /* novo */ }
     Deno.writeTextFileSync(destino, conteudo);
-    log(`gravado ${nome}.json`);
+    log(`gravado ${nome}.json${quem}`);
     return json({ ok: true });
   }
   return json({ ok: false }, 404);

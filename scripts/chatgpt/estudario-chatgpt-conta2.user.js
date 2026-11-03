@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Estudário – fila automática do ChatGPT (conta 2)
 // @namespace    estudario-conta2
-// @version      1.2
+// @version      1.3
 // @updateURL    http://127.0.0.1:8788/estudario-chatgpt-conta2.meta.js
 // @downloadURL  http://127.0.0.1:8788/estudario-chatgpt-conta2.user.js
 // @description  Envia os pedidos da fila do Estudário ao projeto "Gerador Estudário" e salva no PC os arquivos entregues.
@@ -66,7 +66,7 @@
       const naProjeto = location.pathname === PROJ;
       let fila = get("fila", []);
       if (!fila.length && Date.now() >= get("proximoCiclo", 0)) {
-        fila = await local("GET", `/proximos?n=${POR_CICLO}`);
+        fila = await local("GET", `/proximos?n=${POR_CICLO}&conta=2`);
         set("fila", fila); set("proximoCiclo", Date.now() + INTERVALO);
         atualizar(`ciclo novo: ${fila.length} pedidos`);
       }
@@ -120,7 +120,7 @@
         if (!r.download_url) continue;
         const conteudo = await (await fetch(r.download_url)).text();
         const nome = path.split("/").pop().replace(/\.json$/, "");
-        const res = await local("POST", "/arquivo", { nome, conteudo });
+        const res = await local("POST", "/arquivo", { nome, conteudo, conta: "2" });
         if (res.ok) {
           feitos.add(c.id); set("coletados", [...feitos].slice(-3000));
           if (!res.ja) set("salvos", get("salvos", 0) + 1);
