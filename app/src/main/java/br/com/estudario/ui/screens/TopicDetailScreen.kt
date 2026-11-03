@@ -84,6 +84,12 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
     val isPendingReviewTask = linkedPlanTask?.entity?.let {
         it.type == PlanTaskType.REVIEW && it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
     } == true
+    // Tópico já estudado (em outro dia, no site...) com teoria ainda pendente no plano: sem isto o
+    // botão ficava "Concluído" desligado e o passo do dia nunca fechava.
+    val hasPendingTheoryTask = planState.tasks.any {
+        it.entity.topicId == topicId && it.entity.planId == planState.activePlan?.id && it.entity.type == PlanTaskType.THEORY &&
+            it.entity.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
+    }
     val topic = topics.firstOrNull { it.id == topicId }
     if (topic == null) { EmptyState("Tópico não encontrado", "Ele pode ter sido excluído.", "Voltar", onBack); return }
     val subject = subjects.firstOrNull { it.id == topic.subjectId }
@@ -603,6 +609,8 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modo foco") }
                     if (studied && isPendingReviewTask && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir revisão")
+                    } else if (studied && hasPendingTheoryTask && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir estudo")
                     } else if (studied) OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluído")
                     } else OutlinedButton(onClick = { finishStudy = true }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
